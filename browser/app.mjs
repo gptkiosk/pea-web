@@ -1,3 +1,4 @@
+import {installMemory} from './memory-ui.mjs';
 import {installReleaseUI} from './release-ui.mjs';
 import {gate, projectCalendar, recentFiles} from './policy.mjs';
 import {installConnections} from './live-ui.mjs';
@@ -5,9 +6,10 @@ import {Dictation} from './voice.mjs';
 import {installBoard} from './board-ui.mjs';
 const $ = id => document.getElementById(id);
 let profile='personal', activeTab='chat', lastConversationSurface='chat', selected=null, imageURL=null;
-let live,board,voice;let voiceTarget=null;const introductions={};
+let live,board,voice,memory;let voiceTarget=null;
 const chats={},schedules={};
-const history=surface=>chats[`${profile}:${surface}`]??(chats[`${profile}:${surface}`]=[]);
+const history=(surface,who=profile)=>chats[`${who}:${surface}`]??(chats[`${who}:${surface}`]=[]);
+const message=(role,text,extra={})=>({id:crypto.randomUUID(),at:Date.now(),role,text,...extra});
 const now = Date.now(), daysAgo = n => new Date(now - n*86400000).toISOString();
 const files=[
  {id:'sample_notes_0001',profile:'personal',name:'A few good rabbit holes.md',mimeType:'text/markdown',createdTime:daysAgo(1),properties:{peaCreated:'1'},content:'# A few good rabbit holes\n\nWhat changes when an assistant remembers the right things?\n\n• A memory should have a source.\n• A good question can be more useful than a quick answer.\n• Personality has room to wander. Permissions do not.\n\nThis is synthetic preview content.',kind:'document'},
@@ -34,16 +36,14 @@ function preferences(){$('preferences').showModal();}
 for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>tab(b.dataset.tab);
 for(const b of document.querySelectorAll('[data-go]'))b.onclick=()=>tab(b.dataset.go);
 for(const b of document.querySelectorAll('[data-prompt]'))b.onclick=()=>{$('thought').value=b.dataset.prompt;$('thought').focus();};
-$('profile').onchange=()=>{introductions[profile]={interests:$('interests').value,persona:$('persona').value};voice?.stop();globalThis.speechSynthesis?.cancel();profile=$('profile').value;notice('');for(const id of ['thought','collab-thought','rename-file','draft-title','draft-text','file-query','recent-query'])$(id).value='';selected=null;$('file-preview').replaceChildren();$('file-name').textContent='Choose something to explore.';$('file-kind').textContent='DOCUMENT';$('file-origin').textContent='No file selected';$('local-open').disabled=profile==='blended';$('discuss').disabled=true;$('interests').value=introductions[profile]?.interests??'';$('persona').value=introductions[profile]?.persona??'';$('note-count').textContent=String(Number(!!$('interests').value)+Number(!!$('persona').value));renderLists();renderChat();renderCollaboration();live.profileChanged();board.profileChanged();};
+$('profile').onchange=()=>{voice?.stop();globalThis.speechSynthesis?.cancel();profile=$('profile').value;notice('');for(const id of ['thought','collab-thought','rename-file','draft-title','draft-text','file-query','recent-query'])$(id).value='';selected=null;$('file-preview').replaceChildren();$('file-name').textContent='Choose something to explore.';$('file-kind').textContent='DOCUMENT';$('file-origin').textContent='No file selected';$('local-open').disabled=profile==='blended';$('discuss').disabled=true;renderLists();renderChat();renderCollaboration();live.profileChanged();board.profileChanged();memory.profileChanged();};
 $('theme').onclick=()=>document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';
 for(const id of ['settings-open','context-open','folder-setup'])$(id).onclick=preferences;
 $('preferences-done').onclick=()=>$('preferences').close();
-$('interview-open').onclick=$('home-persona').onclick=()=>$('interview').showModal();
 $('home-attach').onclick=()=>tab('greenhouse');$('home-connections').onclick=()=>$('connections-open').click();
-$('interview-save').onclick=()=>{$('note-count').textContent=String(Number(!!$('interests').value.trim())+Number(!!$('persona').value.trim()));$('interview-note').textContent='Kept in this preview tab only. Nothing sent to a provider.';};
-function addReply(surface,text){const reply={role:'assistant',text:'',incomplete:true};history(surface).push({role:'user',text},reply);if(history(surface).length>200)history(surface).splice(0,history(surface).length-200);return reply;}
+function addReply(surface,text){const reply=message('assistant','',{incomplete:true});history(surface).push(message('user',text),reply);return reply;}
 function renderCollaboration(){const nodes=history('greenhouse').map(m=>{const d=document.createElement('div');d.className=`utterance ${m.role}`;const label=document.createElement('small');label.textContent=m.role==='user'?'YOU':'PEA · GREENHOUSE';const t=document.createElement('span');t.textContent=m.text;d.append(label,t);return d;});$('collab-messages').replaceChildren(...nodes);}
-async function submit(surface){voice?.stop();const field=surface==='chat'?$('thought'):$('collab-thought'),text=field.value.trim();if(!text)return;try{if(board.command(text)){field.value='';return;}}catch(error){notice(error.message);return;}const used=await live.run(()=>live.chat(surface,text));if(used===false){history(surface).push({role:'user',text},{role:'assistant',preview:true,text:'This is the local preview. Connect your own OpenRouter key to collaborate with a live model. No message was sent to a provider.'});}field.value='';renderChat();renderCollaboration();}
+async function submit(surface){voice?.stop();const field=surface==='chat'?$('thought'):$('collab-thought'),text=field.value.trim();if(!text)return;try{if(board.command(text)){field.value='';return;}}catch(error){notice(error.message);return;}if(history(surface).length>=199){notice('Start a fresh conversation from Conversations & memory. This thread has reached 200 messages.');return;}const used=await live.run(()=>live.chat(surface,text));if(used===false){history(surface).push(message('user',text),message('assistant','This is the local preview. Connect your own OpenRouter key to collaborate with a live model. No message was sent to a provider.',{preview:true}));memory.record(surface);}field.value='';renderChat();renderCollaboration();}
 $('chat-stop').onclick=()=>{voice?.stop();globalThis.speechSynthesis?.cancel();$('request-stop').click();};
 $('composer').onsubmit=e=>{e.preventDefault();void submit('chat');};$('collab-send').onclick=()=>void submit('greenhouse');
 $('attach-open').onclick=()=>tab('greenhouse');$('discuss').onclick=()=>{if(!selected)return;try{live.attach(selected);$('collab-thought').value=`Discuss “${selected.name}”`;tab('greenhouse');}catch(error){notice(error.message);}};
@@ -52,16 +52,22 @@ $('view-mode').onchange=renderPreview;$('local-open').onclick=()=>$('local-file'
 $('local-file').onchange=async()=>{const f=$('local-file').files?.[0];$('local-file').value='';if(!f)return;if(f.size>4*1024*1024){notice('Choose a local file under 4 MB.');return;}const image=['image/png','image/jpeg','image/webp'].includes(f.type);const text=/\.(txt|md|csv|json|js|py|swift|mmd)$/i.test(f.name);if(!image&&!text){notice('Use a text/code file or PNG, JPEG or WebP image.');return;}if(imageURL)URL.revokeObjectURL(imageURL);const item={id:crypto.randomUUID(),profile,name:f.name,mimeType:image?f.type:'text/plain',kind:image?'image':/\.mmd$/i.test(f.name)?'diagram':/\.(js|py|swift|json)$/i.test(f.name)?'code':'document',properties:{},createdTime:new Date().toISOString(),local:true,content:image?'':await f.text()};if(image){imageURL=URL.createObjectURL(f);item.url=imageURL;}files.push(item);renderLists();selectFile(item);};
 window.addEventListener('pagehide',()=>{if(imageURL)URL.revokeObjectURL(imageURL);});
 live=installConnections({profile:()=>profile,surface:()=>activeTab==='greenhouse'?'greenhouse':'chat',history,notice,files:()=>visible(),selected:()=>selected,
+ context:text=>memory.context(text),busyChanged:()=>memory?.render(),
  setSchedule(events,mail,calendarOn,mailOn){schedules[profile]={events,mail,calendarOn,mailOn};renderLists();},
  setFiles(items){for(let i=files.length-1;i>=0;i--)if(files[i].profile===profile&&!files[i].local)files.splice(i,1);files.push(...items);selected=null;$('file-preview').replaceChildren();$('file-name').textContent='Choose something to explore.';renderLists();},
- clearHistory(){history('chat').length=0;history('greenhouse').length=0;renderChat();renderCollaboration();},
- beginReply(surface,text){const reply=addReply(surface,text);renderChat();renderCollaboration();return reply;},
+
+ beginReply(surface,text){const reply=addReply(surface,text);renderChat();renderCollaboration();memory.record(surface);return reply;},
  appendReply(surface,reply,delta){reply.text+=delta;if(!reply.frame)reply.frame=requestAnimationFrame(()=>{reply.frame=null;if(surface==='chat')renderChat();else renderCollaboration();});},
- finishReply(surface,reply,complete){reply.incomplete=!complete;if(surface==='chat')renderChat();else renderCollaboration();}
+ finishReply(surface,reply,complete){reply.incomplete=!complete;memory.record(surface);if(surface==='chat')renderChat();else renderCollaboration();}
 });
 board=installBoard({dictate:()=>requestDictation('board-command'),lastRequest:()=>history(lastConversationSurface).filter(m=>m.role==='user').at(-1)?.text,profile:()=>profile,busy:()=>live.isBusy(),notice,today:()=>tab('today'),model:(surface,role)=>live.model(surface,role),
- confirmStart:(surface,role)=>live.review('Start a fresh task thread',`This replaces the visible ${surface} thread in this browser tab with the assigned story. Earlier browser messages are not persisted. Chat's configured model stays unchanged. Greenhouse uses the selected ${role} profile. Continue?`),
- async execute(surface,role,text,onDispatch){const who=profile;if(surface==='greenhouse')live.setRole(role);history(surface).length=0;renderChat();renderCollaboration();tab(surface);let dispatched=false;const result=await live.run(()=>live.chat(surface,text,()=>{dispatched=true;onDispatch();}));if(who!==profile)return {started:dispatched,complete:false,text:'Profile changed.'};const last=history(surface).at(-1);return result&&typeof result==='object'?result:{started:dispatched,complete:false,text:last?.role==='assistant'?last.text:''};}
+ confirmStart:(surface,role)=>live.review('Start a fresh task thread',`This replaces the visible ${surface} thread in this browser tab with the assigned story. Earlier eligible browser messages remain in your local library; encrypted saving is optional. Chat's configured model stays unchanged. Greenhouse uses the selected ${role} profile. Continue?`),
+ async execute(surface,role,text,onDispatch){const who=profile;if(surface==='greenhouse')live.setRole(role);await memory.clearSurface(surface);tab(surface);let dispatched=false;const result=await live.run(()=>live.chat(surface,text,()=>{dispatched=true;onDispatch();}));if(who!==profile)return {started:dispatched,complete:false,text:'Profile changed.'};const last=history(surface).at(-1);return result&&typeof result==='object'?result:{started:dispatched,complete:false,text:last?.role==='assistant'?last.text:''};}
+});
+memory=installMemory({profile:()=>profile,history,busy:()=>live.isBusy(),notice,review:live.review,tab,
+ contextChanged:()=>live.contextChanged(),
+ replace(surface,messages){const current=history(surface);current.splice(0,current.length,...messages);renderChat();renderCollaboration();},
+ clearAll(){voice?.stop();globalThis.speechSynthesis?.cancel();for(const key of Object.keys(chats))delete chats[key];for(const id of ['thought','collab-thought'])$(id).value='';renderChat();renderCollaboration();}
 });
 function requestDictation(target){if(live.isBusy()){notice('Finish or stop the model request first.');return;}if(voice.active){voice.stop();return;}voiceTarget=target;$('voice-consent').showModal();}
 voice=new Dictation({Recognition:globalThis.SpeechRecognition??globalThis.webkitSpeechRecognition,onText(target,text){$(target).value=text;notice('Transcript ready. Review, then Send or Apply when you choose.');},onState(on){for(const id of ['chat-mic','collab-mic','board-mic'])$(id).textContent=on?'Stop listening':id==='board-mic'?'Dictate command':'Dictate';},onError:notice});
