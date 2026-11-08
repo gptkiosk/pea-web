@@ -1,0 +1,11 @@
+# Security and data boundaries
+
+This development project is for a customer-owned trusted instance, not a public multi-tenant inference service. Use a valid HTTPS endpoint over a private VPN for phones, keep upstream model ports on loopback, and protect the gateway bearer token. Static pages contain no account credentials; authenticated local model APIs are separate. A shared server token is not a per-person identity system.
+
+Provider/OAuth/GitHub/server tokens and active chat/persona content are tab-local RAM. An unlocked or compromised page can read them. The optional local story board is encrypted, but unlocked data is visible to that page; clearing browser storage or losing the passphrase can lose the board. Private chat/history sync is not implemented. Each integration and model disclosure requires its own consent. Broader Google Drive scope is constrained by app policy, not by a folder-scoped Google token. Retrieved instructions cannot grant actions.
+
+Do not put secrets, real transcripts, interview answers, raw provider responses, account identifiers or operator host details in public issues/PRs. Report a vulnerability using this repository's **Security → Report a vulnerability** private reporting feature. Provide a synthetic reproduction with the affected version and no real credentials. Do not test against another person's service or post a working exploit containing their data.
+
+Updates are deliberate: inspect source/release notes, verify independently trusted release signatures, keep data outside program directories, and preserve rollback. No production signing trust is established by this source split. The footer feedback form includes only deliberately entered text and public build identity after review; heuristic credential rejection is not complete redaction.
+
+There is no supported stable release/security-response SLA yet. Maintainers triage development reports; CI checks and scanning are guards rather than proof of complete safety. Model/provider/browser/OS licenses and data-use policies remain separate from this code license.

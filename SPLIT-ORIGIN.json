@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "method": "Explicit web-only copy into fresh history; no private checkout files moved or removed",
+  "license": "Apache-2.0",
+  "originalExportFiles": [
+    {
+      "path": "browser/CHANGELOG.md",
+      "sha256": "91bd4404aecfdc86483e175e2b673309579014a457f67a8ab8fe05b11e0e5bd8"
+    },
+    {
+      "path": "browser/README.md",
+      "sha256": "3f24d31e9b334917a5b34836f2062d55b7e590d1fcee5c522fc510d45972f659"
+    },
+    {
+      "path": "browser/WEB-FILES.json",
+      "sha256": "95045124ba0d817a9a95e5b529c448b8a6914f809d2c574ae6fbb8c5034509cf"
+    },
+    {
+      "path": "browser/app.mjs",
+      "sha256": "1c231bee67361d69799923d34587599cc7653fab3e0c398848f7496e088c99fc"
+    },
+    {
+      "path": "browser/assets/pea-icon.svg",
+      "sha256": "4a802b399ce13ddf0ffbddf6e79815bf2db07b74cc05535e0a0d23405732ce32"
+    },
+    {
+      "path": "browser/assets/pea-mascot.svg",
+      "sha256": "8b85b5296182aeaed64f163d9ca1ccc719408046fbb50f2d3b5d30cdc1c6fa0d"
+    },
+    {
+      "path": "browser/board-ui.mjs",
+      "sha256": "00972cd1bd16813176e870635c58c912e1394f2e60154ddb9cb38bc31af38c51"
+    },
+    {
+      "path": "browser/connections.mjs",
+      "sha256": "d0de7e768512f7c9ae3276fc51ff56edf560685ee7bf2b61f679fc6e43e9ee34"
+    },
+    {
+      "path": "browser/docs/OPEN-SOURCE.md",
+      "sha256": "a0c9f5d726c028cda1b5822edcba0d0f47909a9b4ee149680b1a039c22228b5e"
+    },
+    {
+      "path": "browser/docs/PARITY.md",
+      "sha256": "d3bcebc8bff9345e059d54e81f15db44087a30cabf4baab286be1d14b26cd588"
+    },
+    {
+      "path": "browser/docs/RELEASES.md",
+      "sha256": "084bf3a9f3030f9cb82a24036d6dd76893c64307c292710d4b7ad6d6fa8f509a"
+    },
+    {
+      "path": "browser/docs/SELF-HOSTING.md",
+      "sha256": "499e170bbbd53cdfff5764c3c271aef1b3cd6374781ddbddcffd3db310a9ea94"
+    },
+    {
+      "path": "browser/index.html",
+      "sha256": "48673cc98d75ad87910c21ede4fa24bd97b69d8c6240640aff6a796d487cd49d"
+    },
+    {
+      "path": "browser/live-ui.mjs",
+      "sha256": "83017195c7d9b6462d0271c53a440809b89dcbab0f8eff75f3f53ab29ab5c999"
+    },
+    {
+      "path": "browser/local-model.mjs",
+      "sha256": "e9f6363ebc65cb1458cc64c4a9371c676433453a2f6e46a1fd39ef5b610f8b54"
+    },
+    {
+      "path": "browser/policy.mjs",
+      "sha256": "ea5cef9f05c69cab22035f96791a948dae63634b52ef143756e4754454776b03"
+    },
+    {
+      "path": "browser/release-ui.mjs",
+      "sha256": "4ea2af57daa7ddab7683b560af48e01a6cd96e8393562afcc053ff25c5a24bf2"
+    },
+    {
+      "path": "browser/release.json",
+      "sha256": "51e69fd3cd0f809c2bc8202e513c39c1307985049515f747cad70d01e32569f0"
+    },
+    {
+      "path": "browser/releases.mjs",
+      "sha256": "5218f04d5ec9507d42ba4527d4f1acdadc515c3fcee20ca1fc4c395d9e111bae"
+    },
+    {
+      "path": "browser/server/build_identity.py",
+      "sha256": "589664a6842c8800d3ccbc830845a3cd6313d7840912a97f15c49e4e00a7c257"
+    },
+    {
+      "path": "browser/server/check_source.py",
+      "sha256": "2ffd45acf00802d65cdc4f6ed0994e73cdcd8e421763396ffa1912991d36cb12"
+    },
+    {
+      "path": "browser/server/gateway.py",
+      "sha256": "bf4d54bfe094548b64ffa4d625357dab6ca18027ebffda2a34e739fe2c7cee8b"
+    },
+    {
+      "path": "browser/server/releases.py",
+      "sha256": "af6b9930dc7b64a26ec6603c3244e904a060538099786785a25db043372cb465"
+    },
+    {
+      "path": "browser/server/test_gateway.py",
+      "sha256": "d3c3cadf60fb40b31a09a09ffb05a5cef9fe841f96e7ed8f7ef309af68cb0dcb"
+    },
+    {
+      "path": "browser/server/test_releases.py",
+      "sha256": "4832fe282919bde681627c6f3851902dd158897c8cf0699ad4b9326e4b083f62"
+    },
+    {
+      "path": "browser/shared-config.mjs",
+      "sha256": "5351bef3f7dec3d0830dbe76573e7807ba553d96d6f7a0e295671373e588ad68"
+    },
+    {
+      "path": "browser/styles.css",
+      "sha256": "0a3bcb59f1dafe1b227a81e9b504aa65dd52a5eb0617ab5b10d3af2324ae7b27"
+    },
+    {
+      "path": "browser/taskboard.mjs",
+      "sha256": "3ce57a823d81d1d6e20a69e89724acbda95f7b771634104ad4766a8c5e32909d"
+    },
+    {
+      "path": "browser/tests/connections.test.mjs",
+      "sha256": "f44a8e407feb60606f64883544c2d3cefe591a1fe92793789ab18ba932066528"
+    },
+    {
+      "path": "browser/tests/fixtures/PolicyFixtures.json",
+      "sha256": "8925f9b292b6cfda12e648a98e15ca9ce644a1b3565c99882a9187241501dcab"
+    },
+    {
+      "path": "browser/tests/fixtures/README.md",
+      "sha256": "1f3713b9f44b5cd74a97d8a283db13fbe361b7cd1d1630f2a2952f8c8aca4466"
+    },
+    {
+      "path": "browser/tests/local-model.test.mjs",
+      "sha256": "08019e37672fd58a03340896797ca3d8f194b3cc1a72ffb5fa122d6bbf13d559"
+    },
+    {
+      "path": "browser/tests/policy.test.mjs",
+      "sha256": "723e3660f67cef253e89dc9ae5eccac4a1fa385b6463420653f4052d730f86c9"
+    },
+    {
+      "path": "browser/tests/releases.test.mjs",
+      "sha256": "5219f333de0e27cd7b9187e233573a5c6080e2e6b8672e90d428ccddd2c0fe3b"
+    },
+    {
+      "path": "browser/tests/taskboard.test.mjs",
+      "sha256": "71fa64bf775f739e7769f24e05d7387ca8874f3507064edeb1d11f7953bdc722"
+    },
+    {
+      "path": "browser/voice.mjs",
+      "sha256": "584bf9f3ad60f2d4bb9e50e3d93784673712cd7e97e39638514e373e16d9b78f"
+    }
+  ],
+  "note": "Hashes record the original web seed before public documentation/licensing/upstream changes, not a current-tree or runtime manifest."
+}

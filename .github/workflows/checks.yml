@@ -1,0 +1,23 @@
+name: PEA Web checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+concurrency:
+  group: pea-web-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Public source boundary and links
+        run: |
+          python3 tools/check_repository.py
+          python3 browser/server/check_source.py
+      - name: Browser conformance
+        run: node --test browser/tests/*.test.mjs
+      - name: Synthetic gateway and release checks
+        run: python3 -m unittest discover -s browser/server -p 'test_*.py' -v

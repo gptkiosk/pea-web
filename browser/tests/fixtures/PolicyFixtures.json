@@ -1,0 +1,540 @@
+{
+  "version": 1,
+  "now": 1000,
+  "gateCases": [
+    {
+      "name": "own-profile",
+      "origin": "personal",
+      "mode": "personal",
+      "dataClass": "memory",
+      "rules": [],
+      "expected": "allow"
+    },
+    {
+      "name": "other-profile-denied",
+      "origin": "work",
+      "mode": "personal",
+      "dataClass": "memory",
+      "rules": [],
+      "expected": "deny"
+    },
+    {
+      "name": "untagged-denied",
+      "origin": null,
+      "mode": "personal",
+      "dataClass": "memory",
+      "rules": [],
+      "expected": "deny"
+    },
+    {
+      "name": "blended-is-not-everything",
+      "origin": "personal",
+      "mode": "blended",
+      "dataClass": "memory",
+      "rules": [],
+      "expected": "deny"
+    },
+    {
+      "name": "busy-only-projection",
+      "origin": "work",
+      "mode": "personal",
+      "dataClass": "calendar",
+      "rules": [
+        {
+          "fromProfile": "work",
+          "toProfile": "personal",
+          "dataClass": "calendar",
+          "projection": 0,
+          "expires": 1100
+        }
+      ],
+      "expected": "project:0"
+    },
+    {
+      "name": "expiry-denied",
+      "origin": "work",
+      "mode": "personal",
+      "dataClass": "calendar",
+      "rules": [
+        {
+          "fromProfile": "work",
+          "toProfile": "personal",
+          "dataClass": "calendar",
+          "projection": 0,
+          "expires": 999
+        }
+      ],
+      "expected": "deny"
+    },
+    {
+      "name": "rule-does-not-cover-mail",
+      "origin": "work",
+      "mode": "personal",
+      "dataClass": "mail",
+      "rules": [
+        {
+          "fromProfile": "work",
+          "toProfile": "personal",
+          "dataClass": "calendar",
+          "projection": 0,
+          "expires": 1100
+        }
+      ],
+      "expected": "deny"
+    },
+    {
+      "name": "full-explicit-memory",
+      "origin": "work",
+      "mode": "personal",
+      "dataClass": "memory",
+      "rules": [
+        {
+          "fromProfile": "work",
+          "toProfile": "personal",
+          "dataClass": "memory",
+          "projection": 2,
+          "expires": 1100
+        }
+      ],
+      "expected": "allow"
+    },
+    {
+      "name": "blended-explicit",
+      "origin": "work",
+      "mode": "blended",
+      "dataClass": "calendar",
+      "rules": [
+        {
+          "fromProfile": "work",
+          "toProfile": "personal",
+          "dataClass": "calendar",
+          "projection": 0,
+          "expires": 1100
+        }
+      ],
+      "expected": "project:0"
+    },
+    {
+      "name": "wrong-direction",
+      "origin": "personal",
+      "mode": "work",
+      "dataClass": "calendar",
+      "rules": [
+        {
+          "fromProfile": "work",
+          "toProfile": "personal",
+          "dataClass": "calendar",
+          "projection": 0,
+          "expires": 1100
+        }
+      ],
+      "expected": "deny"
+    }
+  ],
+  "workspaceCases": [
+    {
+      "name": "nested-in-workspace",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "pea_folder_0001"
+        ],
+        "version": "1",
+        "trashed": false
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        },
+        {
+          "id": "pea_folder_0001",
+          "name": "Research",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [
+            "pea_root_000001"
+          ],
+          "version": "1",
+          "trashed": false
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": true
+    },
+    {
+      "name": "file-moved-out",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "elsewhere_00001"
+        ],
+        "version": "1",
+        "trashed": false
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        },
+        {
+          "id": "pea_folder_0001",
+          "name": "Research",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [
+            "pea_root_000001"
+          ],
+          "version": "1",
+          "trashed": false
+        },
+        {
+          "id": "elsewhere_00001",
+          "name": "Other",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": false
+    },
+    {
+      "name": "shortcut-never-followed",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.shortcut",
+        "parents": [
+          "pea_folder_0001"
+        ],
+        "version": "1",
+        "trashed": false
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        },
+        {
+          "id": "pea_folder_0001",
+          "name": "Research",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [
+            "pea_root_000001"
+          ],
+          "version": "1",
+          "trashed": false
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": false
+    },
+    {
+      "name": "trashed-denied",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "pea_folder_0001"
+        ],
+        "version": "1",
+        "trashed": true
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        },
+        {
+          "id": "pea_folder_0001",
+          "name": "Research",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [
+            "pea_root_000001"
+          ],
+          "version": "1",
+          "trashed": false
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": false
+    },
+    {
+      "name": "missing-parent-denied",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "pea_folder_0001"
+        ],
+        "version": "1",
+        "trashed": false
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": false
+    },
+    {
+      "name": "cycle-denied",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "pea_folder_0001"
+        ],
+        "version": "1",
+        "trashed": false
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        },
+        {
+          "id": "pea_folder_0001",
+          "name": "Research",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [
+            "pea_folder_0001"
+          ],
+          "version": "1",
+          "trashed": false
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": false
+    },
+    {
+      "name": "wrong-profile-root",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "pea_folder_0001"
+        ],
+        "version": "1",
+        "trashed": false
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "work"
+          }
+        },
+        {
+          "id": "pea_folder_0001",
+          "name": "Research",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [
+            "pea_root_000001"
+          ],
+          "version": "1",
+          "trashed": false
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": false
+    },
+    {
+      "name": "trashed-root-denied",
+      "item": {
+        "id": "pea_file_000001",
+        "name": "Discussion notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "pea_folder_0001"
+        ],
+        "version": "1",
+        "trashed": false
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": true,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        },
+        {
+          "id": "pea_folder_0001",
+          "name": "Research",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [
+            "pea_root_000001"
+          ],
+          "version": "1",
+          "trashed": false
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": false
+    },
+    {
+      "name": "root-itself-valid-for-list",
+      "item": {
+        "id": "pea_root_000001",
+        "name": "PEA \u00b7 Personal",
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [],
+        "version": "1",
+        "trashed": false,
+        "properties": {
+          "peaWorkspace": "1",
+          "peaProfile": "personal"
+        }
+      },
+      "ancestry": [
+        {
+          "id": "pea_root_000001",
+          "name": "PEA \u00b7 Personal",
+          "mimeType": "application/vnd.google-apps.folder",
+          "parents": [],
+          "version": "1",
+          "trashed": false,
+          "properties": {
+            "peaWorkspace": "1",
+            "peaProfile": "personal"
+          }
+        }
+      ],
+      "workspace": {
+        "folder": {
+          "id": "pea_root_000001",
+          "title": "PEA \u00b7 Personal"
+        },
+        "profile": "personal",
+        "account": "owner@example.invalid"
+      },
+      "expected": true
+    }
+  ]
+}
