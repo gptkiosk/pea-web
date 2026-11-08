@@ -65,4 +65,4 @@ Release checks are also explicit: the browser contacts only the configured publi
 
 ## Independent policy contract
 
-The public web repo owns the synthetic policy contract fixture. iOS vendors a versioned snapshot and retains its own tests. See [fixture provenance](../tests/fixtures/README.md). Neither repository requires a sibling checkout or cross-repo byte equality. The private checkout and its existing dependency paths were left intact. A contract change requires an explicit versioned compatibility review and separate iOS adoption; similarity does not authorize data sharing.
+The public web repo owns the synthetic policy contract fixture. iOS vendors a versioned snapshot and retains its own tests. See [fixture provenance](../tests/fixtures/README.md). Neither repository requires a sibling checkout or cross-repo byte equality. Each product determines its own source layout; this release process never modifies a native checkout. A contract change requires an explicit versioned compatibility review and separate iOS adoption; similarity does not authorize data sharing.

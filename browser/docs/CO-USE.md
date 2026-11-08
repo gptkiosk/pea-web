@@ -1,6 +1,6 @@
 # Using PEA Web and native iOS together
 
-Both products can be useful on their own. PEA Web is an open-source work in progress for a desktop or mobile browser, including Android over your own HTTPS/VPN. The native iPhone app is a separately distributed product, developed and tested independently. No native source is needed to install, build, test or update this repository, and no private checkout was moved or removed for this split.
+Both products can be useful on their own. PEA Web is an open-source work in progress for a desktop or mobile browser, including Android over your own HTTPS/VPN. The native iPhone app is a separately distributed product, developed and tested independently. No native source or duplicated web tree is needed to install, build, test or update either product. Their source trees and verification are independent.
 
 ## What can be shared now
 
