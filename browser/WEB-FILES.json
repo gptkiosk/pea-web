@@ -22,6 +22,7 @@
   "memory-ui.mjs",
   "memory.mjs",
   "policy.mjs",
+  "presence.mjs",
   "release-ui.mjs",
   "release.json",
   "releases.mjs",
@@ -40,6 +41,7 @@
   "tests/local-model.test.mjs",
   "tests/memory.test.mjs",
   "tests/policy.test.mjs",
+  "tests/presence.test.mjs",
   "tests/releases.test.mjs",
   "tests/taskboard.test.mjs",
   "voice.mjs"

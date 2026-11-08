@@ -15,6 +15,7 @@ Start with [self-hosting and phone/VPN setup](docs/SELF-HOSTING.md), then [imple
 - Optional GitHub token limited to the customer’s repository: exact source review, unique new directory/branch and draft PR only. No overwrite, merge or code execution. Fixed-price single-image requests fail closed on ambiguous pricing.
 - Searchable profile-bound Chat/Greenhouse library, structured interview, source-linked owner-reviewed facts, recent-first bounded recall and optional encrypted local saving. No automatic memory promotion or cross-profile sharing.
 - Versioned model configuration snapshots, explicit review/import/export, and shared Drive documents across web/native clients. Credentials and privacy grants are excluded. This is not automatic sync.
+- Optional local-time character/device-speech delivery, per-profile and tab-only. Coarse style hint is reviewed with the model; no extra model call or background audio.
 - Dictation into Chat, Greenhouse and board fields after a speech-service disclosure; transcript review before Send/Apply. Device/browser Read reply and Stop. Profile/tab/visibility changes end capture without auto-restart.
 
 ## Boundaries

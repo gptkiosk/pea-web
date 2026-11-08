@@ -6,7 +6,7 @@ const profiles = ['personal','work'], surfaces = ['chat','greenhouse'];
 
 export function installMemory(hooks) {
   let library=emptyLibrary(),vault=null,pending=0,failed=false,initializing=true,hasSaved=false;
-  const active=new Map();let source=null;
+  const active=new Map(),presence=new Map();let source=null;
   const profile=hooks.profile;
   const fields=Object.keys(introductionLimits);
   const eligible=()=>profiles.includes(profile());
@@ -18,7 +18,7 @@ export function installMemory(hooks) {
   function fillInterview() {
     const value=eligible()?library.introductions[profile()]:emptyIntroduction();
     for(const key of fields) { $('bio-'+key).value=value[key];$('bio-'+key).disabled=!eligible(); }
-    $('interview-save').disabled=!eligible();
+    $('interview-save').disabled=!eligible();$('bio-presence').disabled=!eligible();$('bio-presence').checked=presence.get(profile())??false;
     $('note-count').textContent=String(Object.values(value).filter(Boolean).length);
   }
   function render() {
@@ -122,6 +122,7 @@ export function installMemory(hooks) {
   const share=new Map();
   $('memory-share').addEventListener('change',()=>share.set(profile(),$('memory-share').checked));
   $('interview-open').onclick=$('home-persona').onclick=$('library-interview').onclick=()=>{fillInterview();$('interview').showModal();};
+  $('bio-presence').onchange=()=>{if(!eligible())return;presence.set(profile(),$('bio-presence').checked);invalidate();hooks.notice('Local-time delivery changed for this tab/profile. Review its style with the next model request.');};
   $('interview-save').onclick=()=>{
     try {ensure();const value=readInterview();if(!validIntroduction(value))throw new ServiceError('Keep interview answers within the field limits and remove credentials.');
       library={...library,introductions:{...library.introductions,[profile()]:value}};fillInterview();invalidate();void persist();
@@ -143,7 +144,7 @@ export function installMemory(hooks) {
   $('library-new-chat').onclick=()=>fresh('chat').catch(say);
   $('library-new-greenhouse').onclick=()=>fresh('greenhouse').catch(say);
   $('library-storage').onclick=async()=>{
-    try {idle();if(vault?.key){await vault.chain.catch(()=>{});vault.lock();library=emptyLibrary();active.clear();share.clear();$('memory-share').checked=false;
+    try {idle();if(vault?.key){await vault.chain.catch(()=>{});vault.lock();library=emptyLibrary();active.clear();share.clear();presence.clear();$('memory-share').checked=false;
         hooks.clearAll();source=null;for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';fillInterview();invalidate();render();hooks.notice('Library locked. Unlocked transcripts, interview answers and memories were cleared from the page.');
       }else{$('library-unlock').showModal();}}
     catch(error){say(error);}
@@ -157,7 +158,7 @@ export function installMemory(hooks) {
       idle();unlocking=true;$('library-unlock-submit').disabled=true;
       // Keep only schema-bound transcripts/interview; never inspect connection or DOM credential fields.
       const next=await vault.unlock(password,library);if(!$('library-unlock').open) {vault.lock();return;}
-      library=next;hasSaved=true;failed=false;active.clear();share.clear();$('memory-share').checked=false;
+      library=next;hasSaved=true;failed=false;active.clear();share.clear();presence.clear();$('memory-share').checked=false;
       hooks.clearAll();fillInterview();invalidate();unlocking=false;$('library-unlock').close();render();
       hooks.notice('Library unlocked. Search and continue a conversation; nothing has been sent to a model.');
     } catch(error){say(error);}finally{unlocking=false;$('library-unlock-submit').disabled=false;render();}
@@ -168,11 +169,11 @@ export function installMemory(hooks) {
     $('memory-share').checked=share.get(profile())??false;$('interview-note').textContent='';fillInterview();render();
   }
   // No automatic hide timeout: hiding is common on mobile. Explicit Lock or page disposal clears context.
-  window.addEventListener('pagehide',()=>{vault?.lock();library=emptyLibrary();active.clear();share.clear();source=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
+  window.addEventListener('pagehide',()=>{vault?.lock();library=emptyLibrary();active.clear();share.clear();presence.clear();source=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
   void (async()=>{try{vault=await ConversationVault.open();hasSaved=!!await vault.storage.get();}catch{hooks.notice('Local library storage is unavailable. Conversations remain in this tab.');}finally{initializing=false;render();}})();
   fillInterview();render();
-  return {record,profileChanged,render,async clearSurface(surface){await clearSurface(surface);},
-    context(query){const value=eligible()?library.introductions[profile()]:emptyIntroduction();return {introduction:introductionContext(value),persona:value.persona,
+  return {record,profileChanged,render,presence:()=>presence.get(profile())??false,async clearSurface(surface){await clearSurface(surface);},
+    context(query){const value=eligible()?library.introductions[profile()]:emptyIntroduction();return {introduction:introductionContext(value),persona:value.persona,presence:presence.get(profile())??false,
       memories:memoryContext(library,profile(),query,share.get(profile())??false)};},
   };
 }

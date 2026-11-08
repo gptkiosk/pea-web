@@ -1,3 +1,4 @@
+import {presenceAt} from './presence.mjs';
 import {installMemory} from './memory-ui.mjs';
 import {installReleaseUI} from './release-ui.mjs';
 import {gate, projectCalendar, recentFiles} from './policy.mjs';
@@ -72,7 +73,7 @@ memory=installMemory({profile:()=>profile,history,busy:()=>live.isBusy(),notice,
 function requestDictation(target){if(live.isBusy()){notice('Finish or stop the model request first.');return;}if(voice.active){voice.stop();return;}voiceTarget=target;$('voice-consent').showModal();}
 voice=new Dictation({Recognition:globalThis.SpeechRecognition??globalThis.webkitSpeechRecognition,onText(target,text){$(target).value=text;notice('Transcript ready. Review, then Send or Apply when you choose.');},onState(on){for(const id of ['chat-mic','collab-mic','board-mic'])$(id).textContent=on?'Stop listening':id==='board-mic'?'Dictate command':'Dictate';},onError:notice});
 $('chat-mic').onclick=()=>requestDictation('thought');$('collab-mic').onclick=()=>requestDictation('collab-thought');$('voice-start').onclick=()=>{$('voice-consent').close();voice.start(voiceTarget);};
-for(const [id,surface] of [['chat-read','chat'],['collab-read','greenhouse']])$(id).onclick=()=>{voice.stop();const reply=history(surface).filter(m=>m.role==='assistant'&&!m.incomplete).at(-1);if(!reply){notice('There is no completed reply to read yet.');return;}if(!globalThis.speechSynthesis||!globalThis.SpeechSynthesisUtterance){notice('Device speech is unavailable in this browser.');return;}globalThis.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(reply.text.slice(0,12000));utterance.rate=1.05;globalThis.speechSynthesis.speak(utterance);notice('Reading with your browser/device voice. Stop ends playback.');};
+for(const [id,surface] of [['chat-read','chat'],['collab-read','greenhouse']])$(id).onclick=()=>{voice.stop();const reply=history(surface).filter(m=>m.role==='assistant'&&!m.incomplete).at(-1);if(!reply){notice('There is no completed reply to read yet.');return;}if(!globalThis.speechSynthesis||!globalThis.SpeechSynthesisUtterance){notice('Device speech is unavailable in this browser.');return;}globalThis.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(reply.text.slice(0,12000));const delivery=presenceAt(memory.presence());utterance.rate=delivery.rate;utterance.pitch=delivery.pitch;globalThis.speechSynthesis.speak(utterance);notice('Reading with your browser/device voice. Stop ends playback.');};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){voice.stop();globalThis.speechSynthesis?.cancel();}});window.addEventListener('pagehide',()=>voice.stop());
 renderLists();tab(location.hash.slice(1)||activeTab);
 
