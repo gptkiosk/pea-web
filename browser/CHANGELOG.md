@@ -27,6 +27,23 @@ Development build. Security review follow-up (2026-11-11); no change to what the
 
 - Footer identifies PEA as a Bamcio Ventures LLC product; private-host integrations can offer a Classic voice link.
 
+## [0.1.0-dev.2] - 2026-11-08
+
+### Added
+
+- Searchable Chat/Greenhouse library, structured profile interview and optional encrypted browser-local conversation/memory saving.
+- Owner-reviewed facts sourced to exact owner-message quotes, separate model-sharing toggle and bounded recent/relevant recall with expiry.
+- Explicit restore/fresh/forget/lock controls, per-profile boundaries and conflict detection for competing browser tabs.
+
+### Changed
+
+- Reconnecting OpenRouter preserves conversations. Restored context clears prior model approval; exact selected facts and bounded message history are shown before sharing.
+- Preview assistant replies are excluded from live model context; source messages are never silently trimmed to satisfy archive limits.
+
+### Limits
+
+- Development source; no installed runtime update, native sync, backup/export or real-account acceptance is implied. See the memory guide before enabling local saving.
+
 ## [0.1.0-dev.1] - 2026-11-07
 
 ### Added

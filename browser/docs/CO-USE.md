@@ -15,7 +15,7 @@ The shared Drive folder is a content library, not automatic configuration or pri
 
 ## What is not shared automatically
 
-Conversations, sourced personal memory, persona/interview answers, story boards, provider/OAuth/GitHub/server credentials and service/model consent are not automatically synchronized. Web chat/persona is currently RAM-only; native keeps its own persistence. Automatic customer-owned encrypted sync needs its own revision/conflict/consent design. Do not copy one app's runtime database into the other or infer completion from seeing the same folder.
+Conversations, sourced personal memory, persona/interview answers, story boards, provider/OAuth/GitHub/server credentials and service/model consent are not automatically synchronized. Both products have independent local encrypted persistence; the Web library is optional and browser/origin-bound. See [Web memory and recovery](MEMORY.md). Automatic customer-owned encrypted sync needs its own revision/conflict/consent design. Do not copy one app's runtime database into the other or infer completion from seeing the same folder.
 
 Native audio is the primary walk/locked-screen target. Browser dictation stops when hidden and may use an online OS/browser service. AirPods/background behavior needs actual device acceptance; a VPN or faster model does not establish it.
 
