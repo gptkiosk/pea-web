@@ -12,7 +12,7 @@ Evidence date: 2026-11-08. Share behaviour and connection contracts; keep platfo
 | Docs and Forms | Reviewed Docs and simple unpublished forms | Richer Docs/Sheets/Slides/Forms, briefs and receipt ledger | Port the remaining richer tools to Web |
 | Story board | Voice/typed commands, reviewed dispatch, optional encrypted board | Encrypted local archive | Device persistence/voice acceptance, sync |
 | GitHub / image specialist | Reviewed draft PR and fixed-price image generation | Same reviewed workflows | Real write/image acceptance |
-| Persona and interview | Structured optional profile interview; explicit save, separate intro sharing, optional encrypted library | Persistent introduction, interview and sourced memory | Voice-led interview/presence and richer native character context |
+| Persona and interview | Structured optional profile interview, encrypted library; optional reviewed local-time style/device speech | Persistent introduction, interview and sourced memory | Voice-led interview, persistent presence preference and richer native fictional history/life |
 | Model configuration | Versioned, reviewed export/import, shared Drive document | Same portable contract; unsupported choices rejected | Automatic encrypted sync/conflict handling |
 | Voice | Explicit reviewed dictation and device read-reply; stops when hidden | Native discussion, dictation, voice choices and Walk mode | Browser cloud/local speech engines and native background acceptance |
 | Chat history and personal memory | Optional encrypted local library; search/continue, reviewed owner-message facts, bounded recent/relevant recall | Encrypted persistent archive, sourced recall | Browser/device acceptance, encrypted backup/export and opt-in cross-device synchronization |

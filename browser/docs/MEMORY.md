@@ -14,6 +14,14 @@ Local saving and model sharing are independent. Restoring a conversation clears 
 
 The app-guided form covers your preferred name, assistant name, home city/region, interests, relationships, goals and character style. Every answer is optional, length-limited and profile-bound. Save explicitly. Answers are tab-only unless encrypted saving is enabled. **Share my introduction** in Connections controls whether biographical answers, including the assistant nickname, can reach that profile's model. Persona style has its own visible place in the provider review. Fictional backstories cannot grant tools or external-action permission.
 
+## Optional local-time delivery
+
+In **Interview & persona**, enable the local-time switch to vary delivery through quiet hours (midnight–08:00), morning, daytime and evening according to this device's clock. A coarse character hint is shown in the same provider review; no precise time, time zone or location is included. Changing period triggers a new style review on the next request. This is fictional conversational performance, never a claim that the assistant has human feelings or an autonomous off-screen life.
+
+Device **Read reply** keeps your chosen browser voice. During quiet hours, it asks for seven percent slower speech and a slightly lower pitch; other periods retain ordinary delivery. Browsers/voices may interpret those values differently. No second model request, automatic playback, timer, new microphone permission or background audio is added.
+
+The switch is per-profile and tab-only, off by default and reset on reload/unlock/Lock. It is not part of the encrypted archive or portable model configuration. Saved persona wording is still independent of this optional delivery cue. Physical phone/headset expression needs owner acceptance.
+
 ## Sourced, owner-reviewed memory
 
 Select **Remember from my message**, choose a message in the active Chat or Greenhouse thread, quote its exact words, and write the useful fact. Only a completed owner message can be a source. Review the fact and quote before saving. Assistant replies, retrieved text and model instructions cannot automatically create facts or grant permissions.
