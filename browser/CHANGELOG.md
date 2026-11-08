@@ -34,6 +34,10 @@ Development build. Security review follow-up (2026-11-11); no change to what the
 - Optional local-time character delivery in Interview & persona: quiet hours, morning, daytime and evening, with softer device-speech speed/pitch during quiet hours.
 - Profile-local explicit toggle, off after reload/unlock; coarse period only in model review, with no location, precise clock time, background timer or extra inference call.
 
+### Fixed
+
+- Sticky dialog headings cover scrolled text in the top padding.
+
 ### Limits
 
 - A fictional delivery cue, not human feelings or an autonomous life. Browser voices interpret speed/pitch differently; physical-device audio still needs acceptance. The encrypted archive schema is unchanged; this optional toggle is tab-only.
