@@ -2,7 +2,7 @@
 
 `gptkiosk/pea-web` is the public Apache 2.0 source for the work-in-progress web product. PEA Web has its own history, checks, package version/changelog and release process. Bamcio Ventures LLC is the publisher. The separately distributed native iOS product stays private and independently tested; its source, private history, owner runtime and installed server integration are not in this repository.
 
-This was an additive, explicit allowlisted copy into fresh history. Nothing was moved/deleted from the private checkout: existing native fixture/test paths, source, private documentation cross-references and any legacy web files it currently needs remain intact. New work here does not require changes there. `SPLIT-ORIGIN.json` at the repository root is an initial export-hash receipt, not a live content manifest or runtime grant.
+The initial export was an explicit allowlisted copy into fresh history. Each product now maintains its own source and tests. The native product does not need a duplicate web tree, and web changes never read or modify a native checkout. Initial export history does not prescribe ongoing native repository layout. `SPLIT-ORIGIN.json` at the repository root is an initial export-hash receipt, not a live content manifest or runtime grant.
 
 The public web repo owns the synthetic policy contract fixture. Native retains a versioned vendored snapshot and its own tests. Changes require explicit compatibility review and separate adoption; no build fetches or reads a sibling repository. See [fixture policy](../tests/fixtures/README.md).
 
