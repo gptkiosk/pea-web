@@ -33,6 +33,9 @@ CSP = ("default-src 'self'; script-src 'self' https://accounts.google.com/gsi/cl
        "frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
+BUILD_INFO_TTL = 60
+
+
 def upstream_url(value):
     u = urlsplit(value)
     if u.scheme != 'http' or u.username or u.password or u.query or u.fragment or u.path not in ('', '/', '/v1', '/v1/'):
@@ -89,6 +92,7 @@ class Gateway(ThreadingHTTPServer):
         self.model_lock = threading.BoundedSemaphore(2)
         self.models = set()
         self.models_at = 0
+        self.identity, self.identity_at, self.identity_lock = None, 0, threading.Lock()
         self.origins = {f'http://127.0.0.1:{self.server_port}', f'http://localhost:{self.server_port}', f'http://[::1]:{self.server_port}'}
         if public_origin:
             u = urlsplit(public_origin)
@@ -112,6 +116,13 @@ class Gateway(ThreadingHTTPServer):
             super().process_request_thread(request, client_address)
         finally:
             self.client_slots.release()
+
+    def build_info(self):
+        # Unauthenticated endpoint: computing identity runs git or re-hashes program files, so do it at most once a minute.
+        with self.identity_lock:
+            if self.identity is None or time.monotonic() - self.identity_at > BUILD_INFO_TTL:
+                self.identity, self.identity_at = build_identity(ROOT), time.monotonic()
+            return self.identity
 
     def upstream_call(self, method, path, body=None):
         connection = http.client.HTTPConnection(*self.upstream, timeout=45)
@@ -164,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/api/build-info':
             try:
-                return self.reply(200, build_identity(ROOT))
+                return self.reply(200, self.server.build_info())
             except (OSError, ValueError):
                 return self.reply(503, {'error': 'Build identity unavailable.'})
         if self.path == '/v1/models':
@@ -209,7 +220,7 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
             body = validate_chat(json.loads(self.rfile.read(length)))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, RecursionError):
             return self.reply(400, {'error': 'Invalid or oversized text chat request.'})
         if body['model'] not in self.server.models or time.monotonic() - self.server.models_at > 3600:
             return self.reply(409, {'error': 'Refresh and choose a model listed by this server.'})

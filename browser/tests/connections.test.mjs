@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {Services,containsCredential,safeName} from '../connections.mjs';
+import {Services,containsCredential,safeName,validCode,validRepo} from '../connections.mjs';
 const json=r=>new Response(JSON.stringify(r),{status:200,headers:{'Content-Type':'application/json'}});
 test('credentials are header-only, omitted on redirects, and constrained to fixed service paths',async()=>{
  let calls=0;const s=new Services(async(url,options)=>{calls++;assert.equal(new URL(url).host,'openrouter.ai');assert.equal(options.redirect,'error');assert.equal(options.credentials,'omit');assert.equal(options.referrerPolicy,'no-referrer');assert.equal(options.headers.Authorization,'Bearer synthetic-only');return json({data:{}});});
@@ -58,4 +58,20 @@ test('mail preview requests only metadata for at most three safe IDs and exclude
 });
 test('enabled source text is bounded, untrusted context and credential-protected',()=>{
  const s=new Services();const base={model:{id:'sample/free',prompt:0,completion:0,request:0},profile:'personal',allowData:false,text:'Discuss',sources:'SOURCE '+ 'x'.repeat(8000)};const body=s.body(base);assert.match(body.messages[0].content,/untrusted quoted data/);assert(!body.messages[0].content.includes('x'.repeat(4001)));assert.throws(()=>s.body({...base,sources:'github_pat_'+ 'a'.repeat(40)}));
+});
+test('service routes refuse dot segments in every spelling before any request is made',async()=>{
+ let calls=0;const s=new Services(async()=>{calls++;return json({});});
+ for(const path of ['/repos/a/b/contents/%2e%2e/%2e%2e/%2e%2e/c/d/contents/x','/repos/a/b/contents/%2E%2E/x','/repos/a/b/contents/.%2e/x','/repos/a/b/contents/%2e/x','/repos/a/b/contents/./x','/repos/a/b/contents/x/..','/repos/a/b/contents/x/%2e%2e?ref=main','/repos/a/b/contents\\..\\..\\c','/drive/v3/files/%2e%2e/%2e%2e/oauth2/v3/userinfo',42,null])
+  await assert.rejects(()=>s.call('github',path,{token:'CANARY'}),/Destination rejected/);
+ assert.equal(calls,0);
+ await s.call('github','/repos/a/b/contents/pea-greenhouse/id/.github-notes.md',{token:'synthetic-only'});
+ await s.call('github','/repos/a/b/contents/dir/file%20name.txt',{token:'synthetic-only'});assert.equal(calls,2);
+});
+test('GitHub delivery accepts only plain repository names and safe source files',()=>{
+ for(const repo of ['owner/repo','a/b.c_d-e'])assert.equal(validRepo(repo),true);
+ for(const repo of ['owner','owner/repo/extra','owner/..','../repo','owner/re po','-owner/repo','owner/repo%2f..',null,undefined,7])assert.equal(validRepo(repo),false);
+ const ok={path:'src/main file.js',text:'export const a=1;'};assert.equal(validCode(ok),true);
+ for(const path of ['../x.js','src/../x.js','./x.js','src/%2e%2e/x.js','.env','src/.hidden','/abs.js','src//x.js','a\\b.js','id.pem','signing.KEY','cert.p12','app.mobileprovision','x'.repeat(201)])assert.equal(validCode({...ok,path}),false,path);
+ assert.equal(validCode({...ok,text:''}),false);assert.equal(validCode({...ok,text:'x'.repeat(100001)}),false);
+ assert.equal(validCode({...ok,text:'token ghp_'+'a'.repeat(24)}),false);assert.equal(validCode(null),false);assert.equal(validCode({path:5,text:'x'}),false);
 });

@@ -87,6 +87,31 @@ class GatewayChecks(unittest.TestCase):
         for asset in ('release.json', 'releases.mjs', 'release-ui.mjs', 'CHANGELOG.md'):
             self.assertEqual(self.call('/browser/' + asset)[0], 200)
 
+    def test_build_identity_is_computed_at_most_once_a_minute(self):
+        calls, real = [], g.build_identity
+        def counted(root):
+            calls.append(root)
+            return real(root)
+        g.build_identity, self.server.identity = counted, None
+        try:
+            first = self.call('/api/build-info', token='')
+            for _ in range(5):
+                self.assertEqual(self.call('/api/build-info', token='')[1], first[1])
+            self.assertEqual(len(calls), 1)
+            self.server.identity_at -= g.BUILD_INFO_TTL + 1
+            self.assertEqual(self.call('/api/build-info', token='')[0], 200)
+            self.assertEqual(len(calls), 2)
+        finally:
+            g.build_identity = real
+    def test_deeply_nested_json_is_a_plain_rejection(self):
+        raw = b'[' * 100_000
+        request = urllib.request.Request(self.base + '/v1/chat/completions', data=raw, headers={'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json'})
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(request, timeout=5)
+        with caught.exception as e:
+            self.assertEqual(e.code, 400)
+        self.assertEqual(self.call('/v1/models')[0], 200)
+
     def test_static_security_headers(self):
         status, data, headers = self.call('/browser/')
         self.assertEqual(status, 200)
