@@ -4,6 +4,21 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 
 ## [Unreleased]
 
+## [0.1.0-dev.2] - 2026-11-11
+
+Development build. Security review follow-up (2026-11-11); no change to what the app asks Google for.
+
+### Fixed
+
+- Service routes refuse `.` and `..` path segments in every spelling (`..`, `%2e%2e`, backslashes) before any request is made, so a path can no longer be normalised onto another repository's route if a caller forgot to validate it first.
+- The public build-identity endpoint computes its answer at most once a minute instead of running Git or re-hashing program files on every unauthenticated request.
+- A deeply nested JSON body is answered as an ordinary invalid request on Python versions where it raised a recursion error.
+
+### Changed
+
+- The GitHub delivery checks for repository names and source files moved into the tested connections module, with tests.
+- Security notes now state that Google's sign-in script runs in the page while you connect Google, that any other static host must send the gateway's security headers, and that full Drive and optional Gmail read are an intended, disclosed choice for this self-hosted web app.
+
 ### Added
 
 - Independent public web-only repository, Apache 2.0 licensing, own CI and co-use/dependency documentation. The private native checkout remains intact.
