@@ -11,7 +11,7 @@ Start with [self-hosting and phone/VPN setup](docs/SELF-HOSTING.md), then [imple
 - Optional customer-owned loopback model gateway, authenticated from web/native clients over customer HTTPS/VPN. Same-origin browser route, fixed upstream, no shell/tools/cloud fallback. Local inference requires adequate hardware and compatible model licensing.
 - Today Calendar/Inbox peeks first, every section collapsible. Optional live read-only Google previews; model sharing controls are separate in service settings. Failed/stale source refreshes are excluded from model context.
 - Google Web OAuth with explicit broader Drive permission, per-profile root selection/creation, fresh ancestry/version checks, manually moved-in files, reviewed Docs/simple Forms creation, rename and recoverable batch Trash. PEA-created **opened** text supplies a bounded same-profile snapshot by default; imported text needs Discuss. File access never grants model/provider permission.
-- Story capture, queue, voice/typed commands, transparent fit proposals, reviewed model dispatch and recoverable removal/restore. Optional passphrase-encrypted local board persistence; no unattended workers.
+- Story capture, queue, voice/typed commands, transparent fit proposals, reviewed model dispatch and recoverable removal/restore. A model may propose one story title in chat; you review it before adding it to Today. Optional passphrase-encrypted local board persistence; no unattended workers.
 - Optional GitHub token limited to the customer’s repository: exact source review, unique new directory/branch and draft PR only. No overwrite, merge or code execution. Fixed-price single-image requests fail closed on ambiguous pricing.
 - Searchable profile-bound Chat/Greenhouse library, structured interview, source-linked owner-reviewed facts, recent-first bounded recall and optional encrypted local saving. No automatic memory promotion or cross-profile sharing.
 - Versioned model configuration snapshots, explicit review/import/export, and shared Drive documents across web/native clients. Credentials and privacy grants are excluded. This is not automatic sync.
@@ -35,7 +35,7 @@ node --test browser/tests/*.test.mjs
 python3 -m unittest discover -s browser/server -p 'test_*.py' -v
 ```
 
-Tests use synthetic data and loopback fake providers. They cover shared policy fixtures, pinned/bounded transports, provider refusals, source projections, story commands/encryption/recovery, stale dictation callbacks, portable configuration and gateway authentication/origin/request boundaries. They do not prove real Google grants/writes, provider availability/billing, GitHub writes, native installation, physical phones, microphone/AirPods or public hosting readiness.
+Tests use synthetic data and loopback fake providers. They cover strict, non-executing story proposals and hidden action-block projections, shared policy fixtures, pinned/bounded transports, provider refusals, source projections, story commands/encryption/recovery, stale dictation callbacks, portable configuration and gateway authentication/origin/request boundaries. They do not prove real Google grants/writes, provider availability/billing, GitHub writes, native installation, physical phones, microphone/AirPods or public hosting readiness.
 
 ## Web-only checks and distribution
 
