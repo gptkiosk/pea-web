@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory} from '../actions.mjs';
+import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory,emailProposals,emailDraftLink,emailGuidance,warnsOfUnconfirmedEmail} from '../actions.mjs';
 const block=s=>'```pea-task\n'+s+'\n```';
 test('only one complete, strict add proposal can be offered for review',()=>{
  const text='I can prepare that.\n'+block('{"op":"task_add","title":"Plan the garden"}');
@@ -27,4 +27,20 @@ test('task proposals do not contain execution authority, dates or reminders',()=
 test('claims that a story was added are flagged for a truthful receipt',()=>{
  for(const text of ["I've added your task to the board.","Saved your story in the inbox.","I created a task."])assert(warnsOfUnconfirmedStory(text));
  assert(!warnsOfUnconfirmedStory('I can propose a story for your review.'));
+});
+
+const emailBlock=v=>'```pea-email\n'+JSON.stringify(v)+'\n```';
+test('email drafts require one safe, explicit recipient and exact bounded fields',()=>{
+ const d={op:'email_draft',to:'reader@example.com',subject:'A & B?',body:'Hello!\nA second line.'};
+ assert.deepEqual(emailProposals(emailBlock(d)),[{to:d.to,subject:d.subject,body:d.body}]);
+ for(const patch of [{to:'Name'},{to:'x@example.com?bcc=bad@example.com'},{to:'x@example.com%0Abcc@example.com'},{to:'x@example.com\nBcc:y@example.com'},{subject:'Hi\nBcc: bad@example.com'},{body:'x'.repeat(4001)},{bcc:'hidden@example.com'},{op:'send'}])assert.deepEqual(emailProposals(emailBlock({...d,...patch})),[]);
+ assert.deepEqual(emailProposals(emailBlock(d)+emailBlock(d)),[]);
+ assert.deepEqual(emailProposals(emailBlock(d).slice(0,-3)),[]);
+ assert.deepEqual(emailProposals(emailBlock(d)+block('{"op":"task_add","title":"Task"}')),[]);
+ assert.deepEqual(storyProposals(emailBlock(d)+block('{"op":"task_add","title":"Task"}')),[]);
+});
+test('draft links encode headers and body; model output never sends email',()=>{
+ const d={to:'reader@example.com',subject:'A & B?',body:'One\nTwo & three'};
+ const url=emailDraftLink(d);assert.equal(url,'mailto:reader%40example.com?subject=A%20%26%20B%3F&body=One%0ATwo%20%26%20three');
+ assert.match(emailGuidance,/sends manually/);assert(warnsOfUnconfirmedEmail('I sent the email.'));assert(!warnsOfUnconfirmedEmail('Please review the email draft.'));
 });
