@@ -4,6 +4,12 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 
 ## [Unreleased]
 
+### Added
+
+- Compact workspace menu for new chats, history and memory, interview, connections and privacy; keyboard navigation for the Chat / Today / Greenhouse tabs.
+- Reconciled the encrypted local conversation library and optional time-of-day delivery with the later web security fixes.
+
+
 ## [0.1.0-dev.2] - 2026-11-11
 
 Development build. Security review follow-up (2026-11-11); no change to what the app asks Google for.

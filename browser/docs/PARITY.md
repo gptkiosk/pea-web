@@ -1,10 +1,10 @@
 # PEA Web and native parity
 
-Evidence date: 2026-11-08. Share behaviour and connection contracts; keep platform-appropriate layout and audio. This matrix distinguishes implemented source from real-account/device acceptance.
+Evidence date: 2026-11-12. Share behaviour and connection contracts; keep platform-appropriate layout and audio. This matrix distinguishes implemented source from real-account/device acceptance.
 
 | Capability | Web source | Native iOS source | Remaining acceptance/work |
 | --- | --- | --- | --- |
-| Chat / Today / Greenhouse, cream and dark green | Responsive, original pea art | Compact native controls | Real mobile-browser testing |
+| Chat / Today / Greenhouse, cream and dark green | Responsive, original pea art, compact workspace action menu and keyboard-accessible tabs | Compact native controls | Real mobile-browser testing |
 | OpenRouter text and specialist models | Independent Chat/collaboration/coding/image roles; reviewed routes | Chat and independent Greenhouse roles | Real model/provider availability |
 | Customer local model | Authenticated same-origin gateway; Chat and Greenhouse text | Own-server Chat connector | Physical phone/VPN stream; native local Greenhouse |
 | Calendar/Gmail glance | Optional read-only Google scopes, bounded previews; sharing in Settings | Existing Calendar/Gmail adapters | Live Web OAuth/client verification |
