@@ -82,3 +82,12 @@ Branch `codex/reviewed-email-draft` adds owner-reviewed, profile-bound email pro
 Checks: `node --test browser/tests/*.test.mjs` (73 passed), `python3 browser/server/check_source.py` (48 files), `python3 -m unittest discover -s browser/server -p 'test_*.py' -q` (19 passed), and `python3 tools/check_repository.py` on staged changes. Browser smoke used only a synthetic loopback model, verified exact draft review, cancel and approve revealing a mail link, and did not open the mail app or use real accounts. Browser/device mail-client and provider acceptance remain outstanding. No installed runtime or native source changed.
 
 Resume: inspect public main and the review branch, run the four README checks, and continue with reviewed calendar or richer document actions. Public research needs resolved-address validation and connection pinning; never copy native source or private guidance into this repository.
+
+
+## Reviewed document and form proposals — 2026-11-12
+
+Branch `codex/reviewed-document-drafts`, based on public main after PR 6, adds model-proposed editable documents and simple forms to Chat and Greenhouse. One validated `pea-doc` block opens the existing editable draft only by owner click; the existing PEA-folder connection, exact create review and membership checks still govern file creation. No automatic write, publication, sharing, alternate destination or background task. Proposed action bodies are tab-only and not restored as actions. Forms are limited to one long-answer question per line. Development identity `0.1.0-dev.7`.
+
+An isolated browser with a synthetic local model verified the action stays hidden until completed, the proposed title and contents open in editable fields, and disconnected Google cannot create a file. No real Google account or model, microphone, native code or runtime was used. Checks: `node --test browser/tests/*.test.mjs` (75 passed), `python3 browser/server/check_source.py` (48 files), `python3 -m unittest discover -s browser/server -p 'test_*.py' -q` (19 passed), `python3 tools/check_repository.py` (61 indexed files). Live Google creation, forms, provider behavior and physical device acceptance remain open.
+
+Resume: inspect this branch and public main, run the four README checks, then continue reviewed calendar or richer document features. Public research needs resolved-address validation and connection pinning. No native source or private guidance belongs in the public repository.
