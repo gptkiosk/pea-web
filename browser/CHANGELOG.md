@@ -4,6 +4,12 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 
 ## [Unreleased]
 
+### Added
+
+- Compact workspace menu for new chats, history and memory, interview, connections and privacy; keyboard navigation for the Chat / Today / Greenhouse tabs.
+- Reconciled the encrypted local conversation library and optional time-of-day delivery with the later web security fixes.
+
+
 ## [0.1.0-dev.2] - 2026-11-11
 
 Development build. Security review follow-up (2026-11-11); no change to what the app asks Google for.
@@ -26,6 +32,38 @@ Development build. Security review follow-up (2026-11-11); no change to what the
 ### Changed
 
 - Footer identifies PEA as a Bamcio Ventures LLC product; private-host integrations can offer a Classic voice link.
+
+## [0.1.0-dev.3] - 2026-11-08
+
+### Added
+
+- Optional local-time character delivery in Interview & persona: quiet hours, morning, daytime and evening, with softer device-speech speed/pitch during quiet hours.
+- Profile-local explicit toggle, off after reload/unlock; coarse period only in model review, with no location, precise clock time, background timer or extra inference call.
+
+### Fixed
+
+- Sticky dialog headings cover scrolled text in the top padding.
+
+### Limits
+
+- A fictional delivery cue, not human feelings or an autonomous life. Browser voices interpret speed/pitch differently; physical-device audio still needs acceptance. The encrypted archive schema is unchanged; this optional toggle is tab-only.
+
+## [0.1.0-dev.2] - 2026-11-08
+
+### Added
+
+- Searchable Chat/Greenhouse library, structured profile interview and optional encrypted browser-local conversation/memory saving.
+- Owner-reviewed facts sourced to exact owner-message quotes, separate model-sharing toggle and bounded recent/relevant recall with expiry.
+- Explicit restore/fresh/forget/lock controls, per-profile boundaries and conflict detection for competing browser tabs.
+
+### Changed
+
+- Reconnecting OpenRouter preserves conversations. Restored context clears prior model approval; exact selected facts and bounded message history are shown before sharing.
+- Preview assistant replies are excluded from live model context; source messages are never silently trimmed to satisfy archive limits.
+
+### Limits
+
+- Development source; no installed runtime update, native sync, backup/export or real-account acceptance is implied. See the memory guide before enabling local saving.
 
 ## [0.1.0-dev.1] - 2026-11-07
 
