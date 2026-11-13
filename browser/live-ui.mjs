@@ -1,4 +1,4 @@
-import {storyGuidance,emailGuidance,documentGuidance} from './actions.mjs';
+import {storyGuidance,emailGuidance,documentGuidance,calendarGuidance} from './actions.mjs';
 import {presenceAt} from './presence.mjs';
 import {Services,ServiceError,safeName,containsCredential,driveScope,knownPrice,validCode,validRepo} from './connections.mjs';
 import {parseConfiguration} from './shared-config.mjs';
@@ -34,7 +34,7 @@ export function installConnections(hooks){
   const attachment=currentAttachment?.profile===who?currentAttachment.content.slice(0,currentAttachment.peaAuto?2000:4000):'';
   const sources=s.scheduleAt&&Date.now()-s.scheduleAt<900000?JSON.stringify({calendar:s.shareCalendar?s.calendar.filter(e=>e.profile===who).slice(0,4):[],mail:s.shareMail?s.mail.filter(e=>e.profile===who).slice(0,3):[]}):'';
   const history=hooks.history(surface),body=service.body({model:{...model,id:model.wireID??model.id},profile:who,allowData:s.allowData,persona,delivery:delivery.style,introduction:intro,attachment,sources,memories,history,text});
-  body.messages[0].content+='\n'+storyGuidance+'\n'+emailGuidance+'\n'+documentGuidance;
+  body.messages[0].content+='\n'+storyGuidance+'\n'+emailGuidance+'\n'+documentGuidance+'\n'+calendarGuidance;
   if(surface==='greenhouse')body.messages[0].content+='\nThis is Greenhouse collaboration. Critique, iterate and build with the same approved persona/context. For source files emit fenced blocks with file:relative/path as the fence label. Suggest [PEA_MODEL:coding], [PEA_MODEL:image] or [PEA_MODEL:collaboration] when useful; you cannot grant permissions or claim to have saved, run or published anything.';
   const fingerprint=JSON.stringify([who,surface,model,s.allowData,persona,delivery.period,intro,memories,currentAttachment?.peaAuto?'PEA-created-source:'+who:attachment,s.shareCalendar,s.shareMail]);
   if(!s.approvals.has(fingerprint)){
