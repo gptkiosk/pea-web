@@ -5,12 +5,12 @@ const $ = id => document.getElementById(id);
 const profiles = ['personal','work'], surfaces = ['chat','greenhouse'];
 
 export function installMemory(hooks) {
-  let library=emptyLibrary(),vault=null,pending=0,failed=false,initializing=true,hasSaved=false;
+  let library=emptyLibrary(),vault=null,pending=0,failed=false,initializing=true,hasSaved=false,porting=false,backupURL=null;
   const active=new Map(),presence=new Map();let source=null;
   const profile=hooks.profile;
   const fields=Object.keys(introductionLimits);
   const eligible=()=>profiles.includes(profile());
-  function idle() { if(initializing || pending || hooks.busy()) throw new ServiceError('Finish the current request or local save first.'); }
+  function idle() { if(initializing || pending || porting || hooks.busy()) throw new ServiceError('Finish the current request or local save first.'); }
   function ensure() { idle(); if(!eligible()) throw new ServiceError('Choose Work or Personal. Saved context is never shared into Blended.'); }
   function say(error) { hooks.notice(error instanceof ServiceError ? error.message : 'Local library operation failed. The saved record was preserved.'); }
   function invalidate() { hooks.contextChanged(); }
@@ -25,7 +25,7 @@ export function installMemory(hooks) {
     const saved=!!vault?.key;
     $('memory-status').textContent=initializing?'Checking local storage…':failed?'Save failed · local changes unsaved':pending?'Encrypting changes…':saved?'Encrypted saving · unlocked':hasSaved?'Saved library locked · current chats tab-only':'Tab-only · encrypted saving optional';
     $('library-storage').textContent=saved?'Lock & clear unlocked context':'Unlock / enable encrypted saving…';
-    $('library-storage').disabled=initializing||!!pending||hooks.busy();
+    $('library-storage').disabled=initializing||!!pending||porting||hooks.busy();$('library-backup').disabled=initializing||!!pending||porting||failed||hooks.busy()||!hasSaved;$('library-import-open').disabled=initializing||!!pending||porting||hooks.busy();
     $('library-scope').textContent=eligible()?`${profile()} · this browser only`:'Choose Work or Personal';
     $('memory-share').disabled=!eligible();
     const list=$('library-threads');list.replaceChildren();
@@ -55,6 +55,7 @@ export function installMemory(hooks) {
     b.onclick=()=>Promise.resolve().then(action).catch(say);return b;
   }
   async function persist() {
+    if(backupURL)URL.revokeObjectURL(backupURL);backupURL=null;$('library-backup-download').hidden=true;
     render();if(!vault?.key || failed)return;
     pending++;render();
     try { await vault.save(library);hasSaved=true; }
@@ -149,6 +150,31 @@ export function installMemory(hooks) {
       }else{$('library-unlock').showModal();}}
     catch(error){say(error);}
   };
+  function emptyCurrent() {
+    return !library.threads.length && !library.memories.length && profiles.every(p=>Object.values(library.introductions[p]).every(v=>!v)) &&
+      profiles.every(p=>surfaces.every(s=>!hooks.history(s,p).length)) && fields.every(k=>!$('bio-'+k).value.trim()) &&
+      !$('thought').value.trim() && !$('collab-thought').value.trim();
+  }
+  $('library-backup').onclick=async()=>{
+    try {idle();if(failed||!hasSaved)throw new ServiceError('Finish saving an encrypted library before backing it up.');
+      if(!await hooks.review('Prepare encrypted backup','This file contains your encrypted Personal and Work conversations, reviewed memories and interview answers. Keep the file and passphrase safe. Keys, grants, files and the task board are excluded. Continue?'))return;
+      idle();porting=true;render();const serialized=await vault.exportEncrypted();
+      if(backupURL)URL.revokeObjectURL(backupURL);backupURL=URL.createObjectURL(new Blob([serialized],{type:'application/json'}));
+      const link=$('library-backup-download');link.href=backupURL;link.hidden=false;hooks.notice('Encrypted backup ready. Choose Download and keep it with your passphrase.');
+    }catch(error){say(error);}finally{porting=false;render();}
+  };
+  $('library-import-open').onclick=()=>{try{idle();if(hasSaved||vault?.key||!emptyCurrent())throw new ServiceError('Restore requires an empty browser library and no tab-only conversations or interview answers. Nothing was changed.');$('library-import').showModal();}catch(error){say(error);}};
+  $('library-import').addEventListener('close',()=>{$('library-import-passphrase').value='';$('library-import-file').value='';});
+  $('library-import-submit').onclick=async()=>{
+    const file=$('library-import-file').files?.[0],input=$('library-import-passphrase'),password=input.value;input.value='';
+    try {idle();if(hasSaved||vault?.key||!emptyCurrent())throw new ServiceError('Restore requires an empty browser library. Nothing was changed.');
+      if(!file||file.size>2700000)throw new ServiceError('Choose a PEA encrypted backup under 2.7 MB.');
+      if(!await hooks.review('Restore encrypted library','Verify and restore both profiles into this empty browser? Existing saved libraries are never overwritten. Nothing is sent to a model or service. You will unlock separately.'))return;
+      idle();if(!emptyCurrent()||!$('library-import').open)throw new ServiceError('The library changed. Nothing was imported.');porting=true;render();$('library-import-submit').disabled=true;
+      const serialized=await file.text();await vault.importEncrypted(serialized,password,()=>!vault.key&&emptyCurrent()&&$('library-import').open);
+      hasSaved=true;$('library-import').close();hooks.notice('Encrypted library restored to this browser. Unlock it to review; nothing was sent to a model.');
+    }catch(error){say(error);}finally{porting=false;$('library-import-submit').disabled=false;render();}
+  };
   let unlocking=false;
   $('library-unlock').addEventListener('close',()=>{if(unlocking)vault?.lock();$('library-passphrase').value='';});
   $('library-unlock-submit').onclick=async()=>{
@@ -164,12 +190,12 @@ export function installMemory(hooks) {
     } catch(error){say(error);}finally{unlocking=false;$('library-unlock-submit').disabled=false;render();}
   };
   function profileChanged() {
-    source=null;for(const id of ['library','remember','interview','library-unlock'])$(id).close();
+    source=null;for(const id of ['library','remember','interview','library-unlock','library-import'])$(id).close();
     $('library-search').value='';$('memory-fact').value='';$('memory-quote').value='';$('memory-source-text').textContent='';
     $('memory-share').checked=share.get(profile())??false;$('interview-note').textContent='';fillInterview();render();
   }
   // No automatic hide timeout: hiding is common on mobile. Explicit Lock or page disposal clears context.
-  window.addEventListener('pagehide',()=>{vault?.lock();library=emptyLibrary();active.clear();share.clear();presence.clear();source=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
+  window.addEventListener('pagehide',()=>{if(backupURL)URL.revokeObjectURL(backupURL);backupURL=null;vault?.lock();library=emptyLibrary();active.clear();share.clear();presence.clear();source=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
   void (async()=>{try{vault=await ConversationVault.open();hasSaved=!!await vault.storage.get();}catch{hooks.notice('Local library storage is unavailable. Conversations remain in this tab.');}finally{initializing=false;render();}})();
   fillInterview();render();
   return {record,profileChanged,render,presence:()=>presence.get(profile())??false,async clearSurface(surface){await clearSurface(surface);},

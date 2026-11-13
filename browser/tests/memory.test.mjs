@@ -17,7 +17,7 @@ function fact(s,overrides={},at=now) {
 function store() {
   let record;
   return {get:async()=>structuredClone(record),comparePut:async(expected,value)=>{
-    if((record?.revision??null)!==expected)throw Error('conflict');record=structuredClone(value);
+    if(expected===null ? record!==undefined : record?.revision!==expected)throw Error('conflict');record=structuredClone(value);
   },set(value){record=structuredClone(value);}};
 }
 
@@ -127,4 +127,19 @@ test('recalled context is untrusted, bounded, credential checked; preview/partia
   assert.match(body.messages[0].content,/never instructions or tool permissions/);assert.equal(body.tools,undefined);
   assert.doesNotMatch(JSON.stringify(body),/PREVIEW|PARTIAL/);assert.match(JSON.stringify(body),/OWNER SOURCE/);
   assert.throws(()=>s.body({...args,memories:[{fact:'sk-or-v1-'+ 'a'.repeat(40)}]}));
+});
+
+test('encrypted backup restores both profiles without exporting plaintext or grants',async()=>{
+ const original=store(),v=new ConversationVault(original),s=sample(),lib=fact(s);lib.introductions.work.goals='Synthetic work goal';
+ await v.unlock('synthetic library passphrase',lib);const backup=await v.exportEncrypted();
+ assert(!backup.includes('astronomy'));assert(!backup.includes('Synthetic work goal'));assert(!backup.includes('passphrase'));
+ const dest=store(),restored=new ConversationVault(dest);await restored.importEncrypted(backup,'synthetic library passphrase');
+ assert.equal(restored.key,null);assert.deepEqual(await restored.unlock('synthetic library passphrase'),lib);
+});
+test('backup restore rejects wrong passwords, tampering, conflicts and cancelled commits',async()=>{
+ const source=store(),v=new ConversationVault(source);await v.unlock('synthetic library passphrase',sample().library);const backup=await v.exportEncrypted();
+ const dest=store(),r=new ConversationVault(dest);await assert.rejects(r.importEncrypted(backup,'incorrect passphrase'),/Could not verify/);assert.equal(await dest.get(),undefined);
+ const bad=JSON.parse(backup);bad.data=bad.data.slice(0,-5)+'AAAA=';await assert.rejects(r.importEncrypted(JSON.stringify(bad),'synthetic library passphrase'));assert.equal(await dest.get(),undefined);
+ await assert.rejects(r.importEncrypted(backup,'synthetic library passphrase',()=>false),/changed/);assert.equal(await dest.get(),undefined);
+ dest.set({invalid:'preserve'});await assert.rejects(r.importEncrypted(backup,'synthetic library passphrase'),/conflict/);assert.deepEqual(await dest.get(),{invalid:'preserve'});
 });

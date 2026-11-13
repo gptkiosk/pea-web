@@ -117,7 +117,7 @@ export class ConversationVault {
       comparePut:(expected,value)=>new Promise((resolve,reject)=>{
         const tx=db.transaction('encrypted','readwrite'), store=tx.objectStore('encrypted'), r=store.get('library');
         let conflict=false;
-        r.onsuccess=()=>{if((r.result?.revision??null)!==expected){conflict=true;tx.abort();}else store.put(value,'library');};
+        r.onsuccess=()=>{if(expected===null ? r.result!==undefined : r.result?.revision!==expected){conflict=true;tx.abort();}else store.put(value,'library');};
         tx.oncomplete=()=>resolve();tx.onabort=tx.onerror=()=>reject(new ServiceError(conflict?'Another tab changed this library. Lock and unlock to reload it before saving.':'Saving the local library failed. The previous encrypted record remains.'));
       })
     });
@@ -166,6 +166,34 @@ export class ConversationVault {
     });
     // A failed write stops this session. No queued stale write can hide it; explicitly unlock again.
     this.chain=task;return task;
+  }
+  async exportEncrypted() {
+    await this.chain;
+    const record=await this.storage.get();
+    if(!record || (this.key && record.revision!==this.revision))throw new ServiceError('No current saved library to export. Resolve any save conflict first.');
+    const encoded=bytes=>{let out='';for(let i=0;i<bytes.length;i+=8192)out+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(out);};
+    if(!fields(record,['version','revision','salt','iv','data']) || record.version!==1 || !id(record.revision) ||
+       !(record.salt instanceof Uint8Array) || record.salt.length!==16 || !(record.iv instanceof Uint8Array) || record.iv.length!==12 ||
+       !(record.data instanceof ArrayBuffer) || record.data.byteLength<16 || record.data.byteLength>2000000)throw new ServiceError('Stored library format is not recognized.');
+    return JSON.stringify({format:'pea-encrypted-library',version:1,salt:encoded(record.salt),iv:encoded(record.iv),data:encoded(new Uint8Array(record.data))});
+  }
+  async importEncrypted(serialized,passphrase,canCommit=()=>true) {
+    const epoch=this.epoch;
+    if(this.key)throw new ServiceError('Lock the library before importing.');
+    if(typeof serialized!=='string' || serialized.length>2700000)throw new ServiceError('Backup is too large or invalid.');
+    let value,salt,iv,data;
+    try {
+      value=JSON.parse(serialized);
+      if(!fields(value,['format','version','salt','iv','data']) || value.format!=='pea-encrypted-library' || value.version!==1)throw Error('format');
+      const decode=(s,max)=>{if(typeof s!=='string'||s.length>max||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(s))throw Error('encoding');const raw=atob(s);return Uint8Array.from(raw,c=>c.charCodeAt(0));};
+      salt=decode(value.salt,24);iv=decode(value.iv,16);data=decode(value.data,2666668);
+      if(salt.length!==16 || iv.length!==12 || data.length<16 || data.length>2000000)throw Error('size');
+      const key=await this.derive(passphrase,salt);
+      check(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await crypto.subtle.decrypt({name:'AES-GCM',iv,additionalData:aad},key,data))));
+    } catch {throw new ServiceError('Could not verify this backup. Check the file and passphrase; nothing was imported.');}
+    if(epoch!==this.epoch || this.key || !canCommit())throw new ServiceError('The library changed while verifying. Nothing was imported.');
+    // Compare-and-insert prevents another tab from being overwritten, even after verification.
+    await this.storage.comparePut(null,{version:1,revision:crypto.randomUUID(),salt,iv,data:data.buffer});
   }
   lock() {this.epoch++;this.key=null;this.salt=null;this.revision=null;}
 }
