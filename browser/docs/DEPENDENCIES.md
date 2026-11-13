@@ -1,6 +1,6 @@
 # Dependencies and packaging status
 
-PEA Web is **work in progress**. This is a source repository with manual setup, not a finished dependency bundle or hosted service. The release manager packages the program files and supports signed verification/rollback; it does not install model software, system runtimes, VPNs or third-party accounts. No production release signer or signed installer is supplied yet.
+PEA Web is **work in progress**. The primary delivery and support target is an installable local package. This is currently a source repository with manual setup, not a finished dependency bundle or hosted service. Operator-managed Docker deployment on GCP or AWS is a documented, best-effort path, separate from the supported local package. No ready-to-run image, Dockerfile or cloud deployment has been supplied or validated. The release manager packages the program files and supports signed verification/rollback; it does not install model software, system runtimes, VPNs or third-party accounts. No production release signer or signed installer is supplied yet.
 
 | Use | Current dependency | Bundled here? |
 | --- | --- | --- |

@@ -2,7 +2,7 @@
 
 After installation or changes, use the [operator acceptance checklist](OPERATOR-ACCEPTANCE.md) for local, private-cloud and device checks.
 
-PEA Web can use OpenRouter directly or a customer-owned local model server. The app purchase never includes model usage. Local inference avoids provider API fees but needs suitable hardware, electricity and compatible model licensing. This gateway is for a trusted owner/household over a private network, not a public multi-tenant hosting service.
+PEA Web can use OpenRouter directly or a customer-owned local model server. The app purchase never includes model usage. Local inference avoids provider API fees but needs suitable hardware, electricity and compatible model licensing. The local package is the primary delivery and support target. An operator may choose to host their own container on GCP or AWS using the guidance below; cloud hosting is documentation only, not a bundled or managed PEA service. The current gateway has one shared token and does not supply multi-tenant accounts or isolation.
 
 ## Local preview
 
@@ -41,6 +41,16 @@ Android, iPhone, tablets and desktop browsers open the same private HTTPS addres
 Native iOS PEA: choose **My own server**, use the same HTTPS origin (without `/browser/`), enter the connection token and select a listed model. Its existing OpenAI-compatible local connector uses the gateway’s `/v1` contract. This compatibility has synthetic HTTP/request tests; a physical iPhone/VPN/AirPods test is still required. Native Greenhouse currently uses OpenRouter; browser Greenhouse can use local text models.
 
 A shared server token is a bearer credential for one trusted instance, not a per-person identity or permission system. Friends/strangers should run their own instance. Rotate the file and restart the gateway to revoke old clients. A public hosted service would need per-user accounts, isolation, rate limits and operational controls before release.
+
+## Operator-managed Docker and cloud hosting
+
+This is guidance for operators exploring Docker on a VM or container platform; it is not a supplied image, tested deployment recipe, managed service or promise of platform support. **The repository currently has no Dockerfile, published container image or cloud deployment template.** The local package remains the primary product. Operators are responsible for their own hosting, TLS, access control, upgrades, backups, cloud costs and testing. Use the [acceptance checklist](OPERATOR-ACCEPTANCE.md) and record the actual image/source revision and platform used.
+
+The gateway binds `127.0.0.1` inside its own network namespace and only connects to a loopback model upstream. A normal Docker bridge gives each container its own loopback; simply publishing the gateway port or putting a model in another ordinary bridge container does not make either loopback reachable. A workable design needs a deliberately reviewed proxy/network namespace arrangement that can reach the gateway, and a model upstream in the gateway's loopback namespace if local inference is wanted. Do not weaken the gateway's loopback and origin checks just to make deployment work. See [Docker bridge networking](https://docs.docker.com/engine/network/drivers/bridge/) and [port publishing](https://docs.docker.com/engine/network/port-publishing/).
+
+For GCP, a privately operated VM running containers is a potential route once the operator supplies and validates an image and network design. Cloud Run's ingress container must listen on `0.0.0.0` and its assigned `PORT`, so the current loopback-only gateway cannot be the ingress container unchanged; a reviewed ingress proxy or a separate architecture would be needed. See [Google's container runtime contract](https://docs.cloud.google.com/run/docs/container-contract). For AWS, an operator-managed VM is another potential route. ECS containers in the same `awsvpc` task share localhost, but an ingress/proxy, the gateway and any model must be arranged and tested deliberately; see [AWS task networking](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-networking-awsvpc.html). Neither example is a tested deployment or a product commitment to provide cloud infrastructure.
+
+For an Internet-reachable deployment, the operator must design and verify authentication at the edge, isolation, TLS, abuse/rate controls and secret handling appropriate to the intended users. The shared gateway token alone does not provide per-user identity or isolation. Keep model endpoints private and decide who can use the instance before exposing anything. A private VPN is a simpler option for a single owner, but is not a requirement imposed on every operator-designed deployment. PEA does not presently provide a ready-made public multi-user security architecture.
 
 ## Configuration and documents across devices
 
