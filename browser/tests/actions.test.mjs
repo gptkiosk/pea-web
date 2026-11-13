@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory,emailProposals,emailDraftLink,emailGuidance,warnsOfUnconfirmedEmail} from '../actions.mjs';
+import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory,emailProposals,emailDraftLink,emailGuidance,warnsOfUnconfirmedEmail,documentProposals,documentGuidance,warnsOfUnconfirmedDocument} from '../actions.mjs';
 const block=s=>'```pea-task\n'+s+'\n```';
 test('only one complete, strict add proposal can be offered for review',()=>{
  const text='I can prepare that.\n'+block('{"op":"task_add","title":"Plan the garden"}');
@@ -43,4 +43,18 @@ test('draft links encode headers and body; model output never sends email',()=>{
  const d={to:'reader@example.com',subject:'A & B?',body:'One\nTwo & three'};
  const url=emailDraftLink(d);assert.equal(url,'mailto:reader%40example.com?subject=A%20%26%20B%3F&body=One%0ATwo%20%26%20three');
  assert.match(emailGuidance,/sends manually/);assert(warnsOfUnconfirmedEmail('I sent the email.'));assert(!warnsOfUnconfirmedEmail('Please review the email draft.'));
+});
+
+const documentBlock=v=>'```pea-doc\n'+JSON.stringify(v)+'\n```';
+test('document and form proposals remain editable data with strict bounded fields',()=>{
+ const d={op:'document_draft',kind:'document',title:'Garden notes',content:'First idea\nSecond idea'};
+ assert.deepEqual(documentProposals(documentBlock(d)),[{kind:d.kind,title:d.title,content:d.content}]);
+ assert.equal(documentProposals(documentBlock({...d,kind:'form'}))[0].kind,'form');
+ for(const patch of [{kind:'spreadsheet'},{op:'create'},{title:'../escape'},{title:' '},{title:'x'.repeat(121)},{content:''},{content:'x'.repeat(20001)},{content:'a\u0000b'},{parent:'other-folder'},{content:'sk-or-v1-'+ 'a'.repeat(40)}])assert.deepEqual(documentProposals(documentBlock({...d,...patch})),[]);
+ assert.deepEqual(documentProposals(documentBlock(d)+emailBlock({op:'email_draft',to:'a@example.com',subject:'A',body:'B'})),[]);
+ assert.deepEqual(documentProposals(documentBlock(d).slice(0,-3)),[]);
+ assert.equal(visibleReply('Here is a draft.\n'+documentBlock(d)).trim(),'Here is a draft.');
+});
+test('document guidance and honesty notice do not claim creation',()=>{
+ assert.match(documentGuidance,/separately reviews creation/);assert(warnsOfUnconfirmedDocument('I created the document.'));assert(!warnsOfUnconfirmedDocument('Review this proposed document.'));
 });

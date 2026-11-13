@@ -1,4 +1,4 @@
-import {storyGuidance,emailGuidance} from './actions.mjs';
+import {storyGuidance,emailGuidance,documentGuidance} from './actions.mjs';
 import {presenceAt} from './presence.mjs';
 import {Services,ServiceError,safeName,containsCredential,driveScope,knownPrice,validCode,validRepo} from './connections.mjs';
 import {parseConfiguration} from './shared-config.mjs';
@@ -34,7 +34,7 @@ export function installConnections(hooks){
   const attachment=currentAttachment?.profile===who?currentAttachment.content.slice(0,currentAttachment.peaAuto?2000:4000):'';
   const sources=s.scheduleAt&&Date.now()-s.scheduleAt<900000?JSON.stringify({calendar:s.shareCalendar?s.calendar.filter(e=>e.profile===who).slice(0,4):[],mail:s.shareMail?s.mail.filter(e=>e.profile===who).slice(0,3):[]}):'';
   const history=hooks.history(surface),body=service.body({model:{...model,id:model.wireID??model.id},profile:who,allowData:s.allowData,persona,delivery:delivery.style,introduction:intro,attachment,sources,memories,history,text});
-  body.messages[0].content+='\n'+storyGuidance+'\n'+emailGuidance;
+  body.messages[0].content+='\n'+storyGuidance+'\n'+emailGuidance+'\n'+documentGuidance;
   if(surface==='greenhouse')body.messages[0].content+='\nThis is Greenhouse collaboration. Critique, iterate and build with the same approved persona/context. For source files emit fenced blocks with file:relative/path as the fence label. Suggest [PEA_MODEL:coding], [PEA_MODEL:image] or [PEA_MODEL:collaboration] when useful; you cannot grant permissions or claim to have saved, run or published anything.';
   const fingerprint=JSON.stringify([who,surface,model,s.allowData,persona,delivery.period,intro,memories,currentAttachment?.peaAuto?'PEA-created-source:'+who:attachment,s.shareCalendar,s.shareMail]);
   if(!s.approvals.has(fingerprint)){
@@ -89,7 +89,7 @@ export function installConnections(hooks){
  $('rename-confirm').onclick=()=>run(async()=>{const f=hooks.selected(),s=state(),g=googleSession(),name=$('rename-file').value;if(!f?.live)throw new ServiceError('Select a live PEA file.');if(!safeName(name))throw new ServiceError('Choose a valid name.');if(!await review('Rename inside PEA',`${g.account}\n${f.name} → ${name}\nIn ${s.workspace.folder.title}`))return;await service.change({kind:'rename',file:f,name},s.workspace,g.token);await refresh();});
  $('github-connect').onclick=()=>run(async()=>{const token=$('github-token').value.trim(),repo=$('github-repo').value.trim(),who=p();$('github-token').value='';busy(true);const g=await githubInspect(repo,token);if(who===p())state().github=g;note('Verified '+g.repo+' · '+(g.private?'private':'PUBLIC')+'. Token kept in this tab only.');});$('github-forget').onclick=()=>{state().github=null;$('github-token').value='';note('Forgot the GitHub token locally.');};$('github-deliver').onclick=()=>run(githubDeliver);
  window.addEventListener('pagehide',()=>{nonce++;controller?.abort();$('review').close();for(const s of sessions.values())s.approvals.clear();if(previewURL)URL.revokeObjectURL(previewURL);if(generatedURL)URL.revokeObjectURL(generatedURL);});
- render();return {chat,open,attach,maybeAutoAttach,render,run,review,contextChanged(){for(const s of sessions.values())s.approvals.clear();},isBusy:()=>operationActive,
+ render();return {chat,open,attach,maybeAutoAttach,render,run,review,prepareDocument(proposal){if($('draft').open)throw new ServiceError('Close the current document draft first.');draft(proposal.kind==='form',proposal.content);$('draft-title').value=proposal.title;},contextChanged(){for(const s of sessions.values())s.approvals.clear();},isBusy:()=>operationActive,
  model(surface,role){const s=state();if(!s.key&&!s.localKey)return null;const id=surface==='chat'?s.chat:s[role];return [...s.localModels,...s.models].find(m=>m.id===id)??(role==='image'?imageCatalog.find(m=>m.id===id):null);},
  setRole(role){state().role=role;currentAttachment=null;render();},
  profileChanged(){stop();if(previewURL)URL.revokeObjectURL(previewURL);if(generatedURL)URL.revokeObjectURL(generatedURL);previewURL=generatedURL=null;currentAttachment=null;selectedCleanup.clear();$('generated-output').replaceChildren();$('connection-note').textContent='';$('role-suggestion').hidden=true;$('router-key').value='';$('github-token').value='';$('local-token').value='';$('shared-config').value='';render();},selectCheckbox(file){const check=document.createElement('input');check.type='checkbox';check.className='file-select';check.setAttribute('aria-label','Select '+file.name+' for cleanup');check.onclick=e=>e.stopPropagation();check.onchange=()=>{if(check.checked)selectedCleanup.add(file.id);else selectedCleanup.delete(file.id);};return check;}};
