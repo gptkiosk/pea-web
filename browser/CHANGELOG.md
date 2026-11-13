@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.13] - 2026-11-13
+
+### Fixed
+
+- Encrypted story boards detect competing browser-tab saves instead of silently overwriting a newer board. Unsaved changes remain visible until the owner chooses whether to reload.
+- Locking or canceling while the board is being unlocked or saved cancels pending work where possible.
+
+### Limits
+
+- Conflicts require manual recovery; there is no cross-device sync or automatic merge.
+
 ## [0.1.0-dev.12] - 2026-11-13
 
 ### Added

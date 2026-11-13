@@ -12,7 +12,7 @@ Evidence date: 2026-11-12. Share behaviour and connection contracts; keep platfo
 | Calendar/Gmail glance | Optional read-only Google scopes, bounded previews; sharing in Settings | Existing Calendar/Gmail adapters | Live Web OAuth/client verification |
 | PEA Drive workspace | Root confinement, moved-in files, nested list, text/image/code/simple diagrams | Same root contract, PDF and richer import | Live cross-device folder/version tests |
 | Docs and Forms | Editable model-proposed drafts and separately reviewed Docs and simple unpublished forms | Richer Docs/Sheets/Slides/Forms, briefs and receipt ledger | Port the remaining richer tools to Web |
-| Story board | Voice/typed commands, reviewed model story proposal and dispatch, optional encrypted board | Encrypted local archive | Device persistence/voice acceptance, sync |
+| Story board | Voice/typed commands, reviewed model story proposal and dispatch, optional encrypted board with competing-tab conflict detection | Encrypted local archive | Device persistence/voice acceptance, sync |
 | GitHub / image specialist | Reviewed draft PR and fixed-price image generation | Same reviewed workflows | Real write/image acceptance |
 | Persona and interview | Structured optional profile interview, encrypted library; optional reviewed local-time style/device speech | Persistent introduction, interview and sourced memory | Voice-led interview, persistent presence preference and richer native fictional history/life |
 | Model configuration | Versioned, reviewed export/import, shared Drive document | Same portable contract; unsupported choices rejected | Automatic encrypted sync/conflict handling |
@@ -50,3 +50,8 @@ Chat or Greenhouse can propose one event with explicit UTC start and end instant
 ## Encrypted library portability
 
 The owner may prepare a passphrase-encrypted backup of the saved conversation library. The file includes both profiles and excludes provider credentials, permissions, files and the separate task board. Restore verifies the passphrase, authenticated ciphertext and library schema before a compare-and-insert to an empty browser; existing saved data and tab-only conversations are not overwritten. Unlock remains separate. This is a manual snapshot, not native archive compatibility, merging or automatic synchronization. Browser downloads and real-device restore need acceptance testing.
+
+
+## Encrypted board conflict handling
+
+The encrypted task board uses a transactional revision check so a stale tab cannot silently replace a newer saved board. On a conflict, that tab keeps its unsaved board visible and blocks further changes; the owner can copy anything needed before explicitly reviewing and reloading the saved board. Legacy encrypted board records are checked by their encrypted contents on their first subsequent save and upgraded with a revision. Lock or canceled unlock prevents pending work where possible. There is no automatic merge, cross-device synchronization or guarantee against a process stopping during a committed transaction.
