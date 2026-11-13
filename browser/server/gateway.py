@@ -25,7 +25,7 @@ MAX_REQUEST = 128_000
 MODEL_ID = re.compile(r'[A-Za-z0-9._:/@+\-]{1,100}\Z')
 ASSETS = {'index.html', 'styles.css', 'app.mjs', 'policy.mjs', 'connections.mjs',
           'live-ui.mjs', 'taskboard.mjs', 'board-ui.mjs', 'local-model.mjs',
-          'voice.mjs', 'shared-config.mjs', 'release.json', 'build-info.json', 'CHANGELOG.md', 'releases.mjs', 'release-ui.mjs', 'assets/pea-icon.svg', 'assets/pea-mascot.svg'}
+          'voice.mjs', 'shared-config.mjs', 'actions.mjs', 'presence.mjs', 'memory.mjs', 'memory-ui.mjs', 'release.json', 'build-info.json', 'CHANGELOG.md', 'releases.mjs', 'release-ui.mjs', 'assets/pea-icon.svg', 'assets/pea-mascot.svg'}
 CSP = ("default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; "
        "style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' blob:; "
        "connect-src 'self' https://openrouter.ai https://api.github.com https://accounts.google.com "

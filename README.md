@@ -32,7 +32,7 @@ python3 browser/server/gateway.py --token-file "$HOME/.config/pea/connection-tok
 
 Open `http://127.0.0.1:18770/browser/`. Enter your private connection token under **Local model**, load the model list and choose a Local model. The create-token command refuses to overwrite a token. Local inference needs suitable hardware and compatible model licensing; this repository does not install model software or weights. There is no automatic cloud fallback.
 
-For iPhone/Android/VPN access, use your own valid HTTPS reverse proxy and exact gateway public origin. [Self-hosting guide](browser/docs/SELF-HOSTING.md) · [Using web and iOS together](browser/docs/CO-USE.md) · [Dependencies and packaging plan](browser/docs/DEPENDENCIES.md).
+For iPhone/Android/VPN access, use your own valid HTTPS reverse proxy and exact gateway public origin. [Self-hosting guide](browser/docs/SELF-HOSTING.md) · [Operator acceptance checklist](browser/docs/OPERATOR-ACCEPTANCE.md) · [Using web and iOS together](browser/docs/CO-USE.md) · [Dependencies and packaging plan](browser/docs/DEPENDENCIES.md).
 
 ## Current capabilities and limits
 

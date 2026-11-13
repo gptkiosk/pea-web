@@ -1,5 +1,7 @@
 # Your machine, your models
 
+After installation or changes, use the [operator acceptance checklist](OPERATOR-ACCEPTANCE.md) for local, private-cloud and device checks.
+
 PEA Web can use OpenRouter directly or a customer-owned local model server. The app purchase never includes model usage. Local inference avoids provider API fees but needs suitable hardware, electricity and compatible model licensing. This gateway is for a trusted owner/household over a private network, not a public multi-tenant hosting service.
 
 ## Local preview

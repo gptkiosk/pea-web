@@ -2,7 +2,7 @@
 
 A responsive customer-owned web companion with Chat, Today and Greenhouse centered across the top on desktop and mobile. Original pea-pod branding, cream/pea-green and dark-green themes. Works with your OpenRouter BYOK or your own local model through the PEA gateway. No bundled inference, developer relay or dependency on the developer’s Mac. The separately distributed native iOS app is a one-time-purchase client; model API usage is separate.
 
-Start with [self-hosting and phone/VPN setup](docs/SELF-HOSTING.md), then [implemented parity and remaining work](docs/PARITY.md) and [versions, packaged updates, rollback and feedback](docs/RELEASES.md). This is the public Apache 2.0 web source, maintained independently of the private iOS product. It is work in progress; dependency packaging is a later milestone. See [using both products](docs/CO-USE.md) and [dependencies](docs/DEPENDENCIES.md).
+Start with [self-hosting and phone/VPN setup](docs/SELF-HOSTING.md), [operator acceptance checklist](docs/OPERATOR-ACCEPTANCE.md), then [implemented parity and remaining work](docs/PARITY.md) and [versions, packaged updates, rollback and feedback](docs/RELEASES.md). This is the public Apache 2.0 web source, maintained independently of the private iOS product. It is work in progress; dependency packaging is a later milestone. See [using both products](docs/CO-USE.md) and [dependencies](docs/DEPENDENCIES.md).
 
 ## Implemented here
 

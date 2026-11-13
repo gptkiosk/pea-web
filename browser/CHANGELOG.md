@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.10] - 2026-11-13
+
+### Fixed
+
+- The local gateway serves the complete browser module dependency graph, including the conversation library and reviewed action modules.
+
+### Added
+
+- An operator acceptance checklist for private installations, cloud-hosted private instances, device testing, external integrations, backup and rollback.
+
 ## [0.1.0-dev.9] - 2026-11-13
 
 ### Added

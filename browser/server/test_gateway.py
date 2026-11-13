@@ -1,5 +1,7 @@
 import importlib.util
 import json
+import re
+from html.parser import HTMLParser
 from pathlib import Path
 import tempfile
 import sys
@@ -111,6 +113,35 @@ class GatewayChecks(unittest.TestCase):
         with caught.exception as e:
             self.assertEqual(e.code, 400)
         self.assertEqual(self.call('/v1/models')[0], 200)
+
+    def test_actual_web_entrypoint_and_transitive_modules_are_served(self):
+        class References(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.paths = []
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == 'script' and attrs.get('type') == 'module': self.paths.append(attrs.get('src', ''))
+                if tag == 'link' and attrs.get('rel') in ('stylesheet', 'icon'): self.paths.append(attrs.get('href', ''))
+                if tag == 'img': self.paths.append(attrs.get('src', ''))
+        status, html, _ = self.call('/browser/', token='')
+        self.assertEqual(status, 200)
+        parser = References(); parser.feed(html.decode('utf-8'))
+        pending, seen = parser.paths, set()
+        while pending:
+            asset = pending.pop()
+            self.assertRegex(asset, r'^(?:assets/)?[A-Za-z0-9_.-]+$')
+            if asset in seen: continue
+            seen.add(asset)
+            status, body, headers = self.call('/browser/' + asset, token='')
+            self.assertEqual(status, 200, f'Browser dependency not served: {asset}')
+            if asset.endswith('.mjs'):
+                self.assertTrue(headers.get_content_type() in ('text/javascript', 'application/javascript'))
+                pending.extend(re.findall(r"\bfrom\s+['\"]\./([^'\"]+)['\"]", body.decode('utf-8')))
+        self.assertIn('app.mjs', seen)
+        self.assertIn('actions.mjs', seen)
+        self.assertIn('memory-ui.mjs', seen)
+        self.assertEqual(self.call('/browser/server/gateway.py', token='')[0], 404)
+        self.assertEqual(self.call('/browser/docs/MEMORY.md', token='')[0], 404)
 
     def test_static_security_headers(self):
         status, data, headers = self.call('/browser/')
