@@ -61,8 +61,15 @@ Rollback re-verifies the previous signed program and swaps the two pointers. It 
 
 The footer offers a themed suggestion/bug form. **Prepare draft** shows the exact user-entered title, description and public build identity before sharing. No conversation, account details, documents, keys, logs or host identifiers are attached automatically. Credential-pattern rejection is an additional guard, not complete redaction; review your own text. Download the Markdown brief for a contributor's fork/PR, or open a prefilled GitHub issue and choose whether to submit it. A suggestion does not automatically become code or an approved PR. A maintainer/contributor implements it on a branch, runs the web-only checks and submits a reviewed PR. The customer's configured GitHub work repository/token is never used for product feedback.
 
+The Updates panel also offers **Compare with main**: an explicit read-only GitHub check shows whether the running commit matches the public `main` branch. A different commit is not proof of ancestry, a release, or an update that can be installed safely. The check sends no chats or credentials; GitHub receives normal network metadata. No source checkout, package, service or customer data is changed.
+
 Release checks are also explicit: the browser contacts only the configured public GitHub latest-release endpoint, without product credentials or chats. GitHub still receives normal network metadata. Release text is displayed as plain text; the app never executes it, downloads code or changes the installed version. A published stable release must exist before this check can offer an update; source publication alone is not an installer release.
 
 ## Independent policy contract
 
 The public web repo owns the synthetic policy contract fixture. iOS vendors a versioned snapshot and retains its own tests. See [fixture provenance](../tests/fixtures/README.md). Neither repository requires a sibling checkout or cross-repo byte equality. Each product determines its own source layout; this release process never modifies a native checkout. A contract change requires an explicit versioned compatibility review and separate iOS adoption; similarity does not authorize data sharing.
+
+
+## MCD-aligned delivery direction
+
+The intended customer experience follows MCD's product pattern: version and changelog maintained in GitHub, reviewed releases, a clear update panel, program/data separation and a recoverable previous version. PEA Web and the native iOS app remain separate codebases and releases. Features and integrations can be ported and tested on their respective schedules; a Web update does not automatically synchronize iOS behavior or data. Published signed releases, automated package retrieval, an operator-controlled in-app update helper, health-gated restart/rollback and an independently trusted production signer are not implemented here yet. The current local helper and signed staging manager are building blocks, not a complete MCD-style updater. Following `main` as source is different from installing a verified, versioned release.

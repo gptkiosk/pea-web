@@ -14,6 +14,18 @@ python3 -m http.server 18769 --bind 127.0.0.1
 
 Open `http://127.0.0.1:18769/browser/`. This static preview supports opt-in cloud connections. Local-model connection needs the gateway below. Do not expose the development file server to the Internet.
 
+## Local foreground quickstart
+
+On macOS/Linux with Python 3.11+, from this source checkout or an independently verified installed release, run:
+
+```sh
+python3 browser/server/local.py setup
+python3 browser/server/local.py check
+python3 browser/server/local.py start
+```
+
+Open `http://127.0.0.1:18770/browser/`. Setup only creates `~/.config/pea/connection-token` with private permissions and refuses to overwrite an existing file. Check verifies the existing token locally without displaying it or contacting a model. Start runs in the foreground, bound to loopback; Ctrl-C stops it. To use a local model, start one separately and enter the token from your private file into your own PEA client. For cloud models, connect your own OpenRouter key through the interface. No model is downloaded, service registered, browser opened automatically or provider contacted by the helper. If you already have a token, skip setup and run check/start. `--help` describes optional config directory, port, upstream and HTTPS proxy origin.
+
 ## Local model gateway
 
 Requirements: Python 3.11+ on macOS/Linux, a supported browser, and an already running loopback OpenAI-compatible text model API. Ollama commonly uses port 11434; LM Studio commonly uses 1234. Configure and start the model server yourself. PEA does not install models, execute generated code or change machine services.

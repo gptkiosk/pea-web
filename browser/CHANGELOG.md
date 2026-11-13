@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.11] - 2026-11-13
+
+### Added
+
+- Local foreground setup, token check and gateway startup helper for macOS/Linux. Existing tokens are never overwritten; no services or models are installed.
+- Updates can explicitly compare the running commit with the configured public `main` branch, without pulling or installing changes.
+
+### Limits
+
+- Requires Python 3.11+ and separately configured model/provider access. This is not a finished signed installer or dependency bundle.
+
 ## [0.1.0-dev.10] - 2026-11-13
 
 ### Fixed

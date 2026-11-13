@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {newerVersion,versionParts,validRepository,publicBuild,suggestionDraft,issueURL} from '../releases.mjs';
+import {newerVersion,versionParts,validRepository,publicBuild,suggestionDraft,issueURL,compareMain} from '../releases.mjs';
 
 test('SemVer ordering respects numeric releases and prerelease precedence',()=>{
  for(const [a,b] of [['1.10.0','1.9.9'],['2.0.0','1.99.99'],['1.0.0','1.0.0-rc.9'],['1.0.0-rc.10','1.0.0-rc.2'],['1.0.0-beta','1.0.0-9']]) assert.equal(newerVersion(a,b),true);
@@ -20,4 +20,14 @@ test('Feedback includes only deliberately entered text and public build identity
  const url=new URL(issueURL('gptkiosk/pea-web',args.title,body));assert.equal(url.origin,'https://github.com');assert.equal(url.pathname,'/gptkiosk/pea-web/issues/new');assert.equal(url.searchParams.get('body'),body);assert.equal(url.searchParams.has('token'),false);
  for(const text of ['sk-or-v1-synthetic','-----BEGIN '+'OPENSSH PRIVATE KEY-----','github_pat_synthetic'])assert.throws(()=>suggestionDraft({...args,description:text}));
  assert.throws(()=>suggestionDraft({...args,description:'x'.repeat(4001)}));assert.throws(()=>issueURL('attacker/../route','t','b'));assert.throws(()=>issueURL('gptkiosk/pea-web','t','x'.repeat(7100)));
+});
+
+test('main branch comparison makes no unsupported ancestry or integrity claim',()=>{
+ const a='a'.repeat(40),b='b'.repeat(40);
+ assert.match(compareMain(a,a,false),/matches commit/);
+ assert.match(compareMain(a,a,true),/local modifications/);
+ assert.match(compareMain(a,a,null),/integrity is unknown/);
+ assert.match(compareMain(a,b,false),/differs.*does not establish ancestry/);
+ assert.match(compareMain(a,null,null),/no verified commit identity/);
+ assert.throws(()=>compareMain('not-a-commit',a,false));assert.throws(()=>compareMain(a,'short',false));
 });
