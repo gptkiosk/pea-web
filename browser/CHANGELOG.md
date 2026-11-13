@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.14] - 2026-11-13
+
+### Changed
+
+- A cleaner mobile-first workspace uses compact setup and memory cards and a transparent pea icon for both themes.
+- Guided connection setup helps choose OpenRouter, a customer-owned local model or Google; full settings remain available. The optional interview is organized into three skippable steps.
+
+### Limits
+
+- Connection choices still require the customer's own credentials, server or Google OAuth setup. No account is connected and no data is shared by choosing a wizard option.
+
 ## [0.1.0-dev.13] - 2026-11-13
 
 ### Fixed
