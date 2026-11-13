@@ -4,7 +4,7 @@ import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory,emailP
 const block=s=>'```pea-task\n'+s+'\n```';
 test('only one complete, strict add proposal can be offered for review',()=>{
  const text='I can prepare that.\n'+block('{"op":"task_add","title":"Plan the garden"}');
- assert.deepEqual(storyProposals(text),[{title:'Plan the garden'}]);assert.equal(visibleReply(text).trim(),'I can prepare that.');
+ assert.deepEqual(storyProposals(text),[{title:'Plan the garden',details:'',acceptance:''}]);assert.equal(visibleReply(text).trim(),'I can prepare that.');
  for(const bad of ['{}','[]','{"op":"task_done","title":"Garden"}','{"op":"task_add","title":" Garden"}',
    '{"op":"task_add","title":"Garden","remind":true}','{"op":"task_add","title":"Garden","due":"tomorrow"}',
    '{"op":"task_add","title":""}','{"op":"task_add","title":"'+ 'x'.repeat(121)+'"}',
@@ -75,4 +75,11 @@ test('calendar file escapes injected properties and folds long UTF-8 lines',()=>
  assert(file.includes('\\nATTENDEE:'));assert(file.includes('Garden\\, herbs\\;'));
  for(const line of file.split('\r\n'))assert(Buffer.byteLength(line,'utf8')<=75);
  assert.match(calendarGuidance,/manual import/);assert(warnsOfUnconfirmedCalendar('I scheduled the meeting.'));assert(!warnsOfUnconfirmedCalendar('Please review the proposed event.'));
+});
+
+test('story scope and acceptance are bounded and require a strict single proposal',()=>{
+ const d={op:'task_add',title:'Plan the garden',details:'Compare herbs\nand locations',acceptance:'Choose two options'};
+ assert.deepEqual(storyProposals(block(JSON.stringify(d))),[{title:d.title,details:d.details,acceptance:d.acceptance}]);
+ for(const patch of [{details:'x'.repeat(2401)},{acceptance:'x'.repeat(801)},{details:'bad\u0000text'},{details:'sk-or-v1-'+ 'a'.repeat(40)},{acceptance:42},{stage:'done'},{reminder:'tomorrow'}])assert.deepEqual(storyProposals(block(JSON.stringify({...d,...patch}))),[]);
+ assert.equal(visibleReply('Review the story.\n'+block(JSON.stringify(d))).trim(),'Review the story.');
 });

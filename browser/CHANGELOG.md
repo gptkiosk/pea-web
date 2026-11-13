@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.12] - 2026-11-13
+
+### Added
+
+- Reviewed story proposals can include the discussed scope and completion criteria, which appear on the Today board after approval.
+
+### Limits
+
+- Proposals never start work, schedule reminders or make external changes. Empty scope and completion criteria remain optional.
+
 ## [0.1.0-dev.11] - 2026-11-13
 
 ### Added
