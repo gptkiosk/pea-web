@@ -30,6 +30,13 @@ Branch `fix/reduced-motion-styles`, development identity `0.1.0-dev.18`. In `bro
 The stylesheet is also formatted with Prettier 3 in the same change, because it could not be parsed before the fix. Evidence: the fixed file minified with esbuild before and after formatting is identical apart from a space after the colon in custom-property declarations, which browsers trim; no script reads a custom property. New `browser/tests/styles.test.mjs` fails on the old file and checks that every block is closed, that a reduced-motion block holds only animation, transition, transform and opacity, and that motion is declared only inside such a block.
 
 Checked in a browser by reading the parsed rule tree, not by switching the operating-system setting: the in-app browser cannot emulate Reduce Motion. A real device with the setting on is still owner acceptance.
+## Readable JavaScript source — 2026-11-14
+
+Branch `format/readable-source`. Formatting only: every `browser/*.mjs` and `browser/tests/*.mjs` file was reformatted with Prettier 3 (`--single-quote --print-width 110`). No behavior, version or release identity changed. Evidence: each file minified with esbuild before and after is byte-identical, and `node --test browser/tests/*.test.mjs` passes 100 tests before and after. Long string literals (model guidance text) are unchanged and still exceed the line width.
+
+Not formatted: `browser/index.html` (whitespace can be significant) and the Python sources. `browser/styles.css` could not be parsed by the formatter: the `@media (prefers-reduced-motion: no-preference)` block opened at the end of its first line is never closed, so every later rule sits inside it. That is a real defect for owners who enable reduced motion and is fixed, then formatted, in its own change.
+
+Resume: the plan for release 0.1.0 is foundations (this change, the stylesheet fix, a browser-level test harness, review items L7 and L8), then the desktop workspace, then action parity. Rebase any open branch onto this commit before continuing, because every module's line numbers changed.
 
 ## Board backup browser round trip — 2026-11-13
 
