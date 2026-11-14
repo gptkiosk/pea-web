@@ -7,16 +7,18 @@ const time = value => Number.isSafeInteger(value) && value >= 0 && value <= 8640
 const fields = (value, names) => value && typeof value === 'object' && !Array.isArray(value) &&
   Object.keys(value).length === names.length && names.every(name => Object.hasOwn(value, name));
 const text = (value, max) => typeof value === 'string' && value.length <= max && !containsCredential(value);
-export const introductionLimits = {ownerName:80, assistantName:80, hometown:120, interests:1200, relationships:600, goals:600, persona:900};
-export const emptyIntroduction = () => Object.fromEntries(Object.keys(introductionLimits).map(k => [k, '']));
+const legacyIntroductionLimits = {ownerName:80, assistantName:80, hometown:120, interests:1200, relationships:600, goals:600, persona:900};
+export const introductionLimits = {...legacyIntroductionLimits, assistantHome:600, family:600, pets:600, work:600, workInterests:600, hobbies:600, duties:600, communication:600, boundaries:600};
+export const emptyIntroduction = () => Object.fromEntries(Object.keys(legacyIntroductionLimits).map(k => [k, '']));
 export const emptyLibrary = () => ({version:1, threads:[], memories:[], introductions:{personal:emptyIntroduction(), work:emptyIntroduction()}});
 export function validIntroduction(value) {
-  return fields(value, Object.keys(introductionLimits)) && Object.entries(introductionLimits).every(([key, max]) => text(value[key], max));
+  const limits=fields(value,Object.keys(legacyIntroductionLimits))?legacyIntroductionLimits:introductionLimits;
+  return fields(value,Object.keys(limits)) && Object.entries(limits).every(([key,max])=>text(value[key],max));
 }
 export function validLibrary(value) {
-  if (!fields(value, ['version','threads','memories','introductions']) || value.version !== 1 ||
+  if (!fields(value, ['version','threads','memories','introductions']) || ![1,2].includes(value.version) ||
       !Array.isArray(value.threads) || value.threads.length > 40 || !Array.isArray(value.memories) || value.memories.length > 150 ||
-      !fields(value.introductions, profiles) || !profiles.every(p => validIntroduction(value.introductions[p]))) return false;
+      !fields(value.introductions, profiles) || !profiles.every(p => validIntroduction(value.introductions[p]) && (value.version!==1 || fields(value.introductions[p],Object.keys(legacyIntroductionLimits))))) return false;
   const ids = new Set(), messageIDs = new Set();
   for (const t of value.threads) {
     if (!fields(t, ['id','profile','surface','title','updated','messages']) || !id(t.id) || ids.has(t.id) ||
@@ -70,6 +72,13 @@ export function remember(library, {profile, threadID, messageID, quote, fact, du
     expires:durable ? null : now + 90 * 86400000});
   return check(next);
 }
+export function reviseMemory(library,profile,memoryID,fact){
+  if(!profiles.includes(profile)||typeof fact!=='string')throw new ServiceError('Choose a valid memory and fact.');
+  const next=structuredClone(library),memory=next.memories.find(m=>m.id===memoryID&&m.profile===profile);
+  if(!memory)throw new ServiceError('Memory not found in this profile.');
+  memory.text=fact.trim();
+  return check(next);
+}
 export function forgetThread(library, profile, threadID) {
   const next = structuredClone(library);
   next.threads = next.threads.filter(t => !(t.id === threadID && t.profile === profile));
@@ -101,7 +110,10 @@ export function memoryContext(library, profile, query, enabled, now = Date.now()
 }
 export function introductionContext(value) {
   if (!validIntroduction(value)) throw new ServiceError('Check interview length and remove credentials.');
-  return Object.entries(value).filter(([k,v]) => k !== 'persona' && v.trim()).map(([k,v]) => `${k}: ${v}`).join('\n').slice(0,3200);
+  const priority=['boundaries','communication','ownerName','assistantName'];
+  const entries=Object.entries(value).filter(([k,v]) => k !== 'persona' && v.trim());
+  entries.sort(([a],[b])=>(priority.indexOf(a)<0?priority.length:priority.indexOf(a))-(priority.indexOf(b)<0?priority.length:priority.indexOf(b)));
+  return entries.map(([k,v]) => `${k}: ${v}`).join('\n').slice(0,3200);
 }
 
 // Separate from the story board. Authenticated, bounded encrypted records only; keys/grants never enter this schema.

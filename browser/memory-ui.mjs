@@ -1,13 +1,14 @@
 import {ServiceError} from './connections.mjs';
-import {ConversationVault, emptyLibrary, captureThread, remember, forgetThread, searchThreads, memoryContext,
+import {ConversationVault, emptyLibrary, captureThread, remember, reviseMemory, forgetThread, searchThreads, memoryContext,
   emptyIntroduction, introductionLimits, validIntroduction, introductionContext} from './memory.mjs';
+import {encryptProfile,decryptProfile,planProfileImport} from './profile-transfer.mjs';
 const $ = id => document.getElementById(id);
 const profiles = ['personal','work'], surfaces = ['chat','greenhouse'];
 
 export function installMemory(hooks) {
-  let library=emptyLibrary(),vault=null,pending=0,failed=false,initializing=true,hasSaved=false,porting=false,backupURL=null;
+  let library=emptyLibrary(),vault=null,pending=0,failed=false,initializing=true,hasSaved=false,porting=false,backupURL=null,profileURL=null;
   // Threads the library could not take (full or over limits). Saving resumes as soon as one fits again.
-  const active=new Map(),presence=new Map(),unsaved=new Set();let source=null;
+  const active=new Map(),presence=new Map(),unsaved=new Set();let source=null,editingMemory=null;
   const profile=hooks.profile;
   const fields=Object.keys(introductionLimits);
   const eligible=()=>profiles.includes(profile());
@@ -18,12 +19,13 @@ export function installMemory(hooks) {
   function readInterview() { return Object.fromEntries(fields.map(k=>[k,$('bio-'+k).value.trim()])); }
   function fillInterview() {
     const value=eligible()?library.introductions[profile()]:emptyIntroduction();
-    for(const key of fields) { $('bio-'+key).value=value[key];$('bio-'+key).disabled=!eligible(); }
+    for(const key of fields) { $('bio-'+key).value=value[key]??'';$('bio-'+key).disabled=!eligible(); }
     $('interview-save').disabled=!eligible();$('bio-presence').disabled=!eligible();$('bio-presence').checked=presence.get(profile())??false;
     $('note-count').textContent=String(Object.values(value).filter(Boolean).length);
   }
   function render() {
     const saved=!!vault?.key;
+    $('interview-storage-status').textContent=initializing?'Checking this browser’s storage…':failed?'Your last encrypted save failed. Resolve the library warning before relying on it.':saved?'Encrypted saving is enabled on this browser. Save your answers to keep them here.':hasSaved?'Your saved library is locked. Unlock it in Past chats & memory before changing saved answers.':'Answers last only in this tab unless you enable encrypted saving in Past chats & memory.';
     $('memory-status').textContent=initializing?'Checking local storage…':failed?'Save failed · local changes unsaved':unsaved.size?'Library full or over limits · current chat is tab-only':pending?'Encrypting changes…':saved?'Encrypted saving · unlocked':hasSaved?'Saved library locked · current chats tab-only':'Tab-only · encrypted saving optional';
     $('library-storage').textContent=saved?'Lock & clear unlocked context':'Unlock / enable encrypted saving…';
     $('library-storage').disabled=initializing||!!pending||porting||hooks.busy();$('library-backup').disabled=initializing||!!pending||porting||failed||hooks.busy()||!hasSaved;$('library-import-open').disabled=initializing||!!pending||porting||hooks.busy();
@@ -47,7 +49,7 @@ export function installMemory(hooks) {
       const source=document.createElement('details'),summary=document.createElement('summary'),quote=document.createElement('p'),date=document.createElement('small');
       summary.textContent='Source · your message';quote.textContent=m.source.quote;source.append(summary,quote);
       date.textContent=new Date(m.created).toLocaleDateString()+' · '+(m.expires===null?'Keep until forgotten':m.expires<=Date.now()?'Expired · excluded from recall':'Expires '+new Date(m.expires).toLocaleDateString());
-      card.append(fact,date,source,button('Forget memory…',()=>removeMemory(m)));facts.append(card);
+      card.append(fact,date,source,button('Edit memory…',()=>openMemoryEdit(m)),button('Forget memory…',()=>removeMemory(m)));facts.append(card);
     }
     if(!facts.childNodes.length) facts.textContent='No reviewed memories. Use “Remember from my message” after a conversation.';
   }
@@ -107,6 +109,19 @@ export function installMemory(hooks) {
     ensure();if(who!==profile() || memory.profile!==who)throw new ServiceError('Profile changed.');
     library={...library,memories:library.memories.filter(m=>m.id!==memory.id)};invalidate();await persist();
   }
+  function openMemoryEdit(memory){
+    ensure();if(memory.profile!==profile()||!library.memories.includes(memory))throw new ServiceError('Memory or profile changed. Open it again.');
+    editingMemory={memory,library,profile:profile()};$('memory-edit-quote').textContent=memory.source.quote;$('memory-edit-fact').value=memory.text;$('memory-edit-note').textContent='';$('memory-edit').showModal();
+  }
+  $('memory-edit').addEventListener('close',()=>{editingMemory=null;$('memory-edit-quote').textContent='';$('memory-edit-fact').value='';$('memory-edit-note').textContent='';});
+  $('memory-edit-save').onclick=async()=>{
+    try{ensure();const edit=editingMemory,fact=$('memory-edit-fact').value.trim();if(!edit||edit.profile!==profile()||edit.library!==library||!library.memories.includes(edit.memory))throw new ServiceError('Memory or profile changed. Open it again.');
+      const next=reviseMemory(library,edit.profile,edit.memory.id,fact);
+      if(!await hooks.review('Review corrected memory',`Original fact:\n${edit.memory.text}\n\nCorrected fact:\n${fact}\n\nYour original words:\n${edit.memory.source.quote}\n\nThe source, date and expiry remain unchanged. The next model request separately reviews any shared memories.`))return;
+      ensure();if(editingMemory!==edit||edit.profile!==profile()||edit.library!==library||!$('memory-edit').open||$('memory-edit-fact').value.trim()!==fact)throw new ServiceError('Memory or profile changed. Nothing was saved.');
+      library=next;invalidate();$('memory-edit').close();await persist();hooks.notice('Memory updated locally. Its original source and expiry are unchanged.');
+    }catch(error){$('memory-edit-note').textContent=error instanceof ServiceError?error.message:'Memory could not be updated.';}
+  };
   function chooseSource() {
     ensure();const surface=$('memory-surface').value;
     if(!record(surface))throw new ServiceError('Resolve the library warning before adding a memory.');
@@ -131,9 +146,11 @@ export function installMemory(hooks) {
   $('interview-next').onclick=()=>showInterviewStep(interviewStep+1,true);
   $('interview-open').onclick=$('home-persona').onclick=$('library-interview').onclick=()=>{fillInterview();showInterviewStep(0);$('interview').showModal();};
   $('bio-presence').onchange=()=>{if(!eligible())return;presence.set(profile(),$('bio-presence').checked);invalidate();hooks.notice('Local-time delivery changed for this tab/profile. Review its style with the next model request.');};
-  $('interview-save').onclick=()=>{
-    try {ensure();const value=readInterview();if(!validIntroduction(value))throw new ServiceError('Keep interview answers within the field limits and remove credentials.');
-      library={...library,introductions:{...library.introductions,[profile()]:value}};fillInterview();invalidate();void persist();
+  $('interview-save').onclick=async()=>{
+    try {ensure();const who=profile(),before=library,value=readInterview();if(!validIntroduction(value))throw new ServiceError('Keep interview answers within the field limits and remove credentials.');
+      if(vault?.key && library.version===1 && !await hooks.review('Update the saved interview format','Saving these additional fields upgrades this browser library to version 2. Older versions of PEA Web cannot open the upgraded library. Prepare an encrypted backup first if you may roll back. Existing answers and conversations are preserved. Continue?'))return;
+      ensure();if(who!==profile()||before!==library)throw new ServiceError('Profile or library changed. Review and save again.');
+      library={...library,version:2,introductions:{...library.introductions,[profile()]:value}};fillInterview();invalidate();void persist();
       $('interview-note').textContent=vault?.key?'Saved locally when encryption finishes. Sharing still needs your connection setting and provider review.':'Kept in this tab. Enable encrypted saving in Conversations & memory to retain it after reload.';
     } catch(error){say(error);}
   };
@@ -162,6 +179,30 @@ export function installMemory(hooks) {
       profiles.every(p=>surfaces.every(s=>!hooks.history(s,p).length)) && fields.every(k=>!$('bio-'+k).value.trim()) &&
       !$('thought').value.trim() && !$('collab-thought').value.trim();
   }
+  function clearProfileDownload(){if(profileURL)URL.revokeObjectURL(profileURL);profileURL=null;$('profile-export-download').hidden=true;}
+  $('profile-export-open').onclick=()=>{try{ensure();clearProfileDownload();$('profile-export-dialog').showModal();}catch(error){say(error);}};
+  $('profile-import-open').onclick=()=>{try{ensure();if(failed)throw new ServiceError('Resolve the local library warning first.');$('profile-import-dialog').showModal();}catch(error){say(error);}};
+  $('profile-export-dialog').addEventListener('close',()=>{$('profile-export-pass').value='';clearProfileDownload();});
+  $('profile-import-dialog').addEventListener('close',()=>{$('profile-import-pass').value='';$('profile-import-file').value='';$('profile-import-mode').value='missing';});
+  $('profile-export-submit').onclick=async()=>{const input=$('profile-export-pass'),pass=input.value;input.value='';
+    try{ensure();const who=profile(),before=library,answers=structuredClone(library.introductions[who]);porting=true;render();$('profile-export-submit').disabled=true;
+      const serialized=await encryptProfile(who,answers,pass);
+      if(who!==profile()||before!==library||!$('profile-export-dialog').open)throw new ServiceError('Profile changed. Nothing was exported.');
+      clearProfileDownload();profileURL=URL.createObjectURL(new Blob([serialized],{type:'application/json'}));const link=$('profile-export-download');link.href=profileURL;link.hidden=false;hooks.notice('Encrypted profile ready to download.');
+    }catch(error){say(error);}finally{porting=false;$('profile-export-submit').disabled=false;render();}};
+  $('profile-import-submit').onclick=async()=>{const input=$('profile-import-pass'),pass=input.value,file=$('profile-import-file').files?.[0];input.value='';
+    try{ensure();if(failed)throw new ServiceError('Resolve the local library warning first.');if(!file||file.size>40000)throw new ServiceError('Choose a PEA Web profile file under 40 KB.');
+      const who=profile(),before=library,mode=$('profile-import-mode').value;porting=true;render();$('profile-import-submit').disabled=true;
+      const value=await decryptProfile(await file.text(),pass);porting=false;
+      ensure();if(who!==profile()||before!==library||!$('profile-import-dialog').open||value.profile!==who)throw new ServiceError('Profile changed or file belongs to another profile. Nothing was imported.');
+      const plan=planProfileImport(library.introductions[who],value.introduction,mode);
+      if(!plan.changes.length)throw new ServiceError('No answers would change with this import choice.');
+      const details=plan.changes.map(({field,before,after})=>`${field}\nCurrent: ${before||'(empty)'}\nAfter: ${after||'(empty)'}`).join('\n\n');
+      if(!await hooks.review('Review interview changes',`Profile: ${who}\nMode: ${mode==='missing'?'Fill missing answers only':'Replace all answers, including blanks'}\n\n${details}\n\nOnly the listed fields change. Other profile, conversations, keys and permissions remain unchanged. Saving upgrades an encrypted library to schema 2; older Web versions cannot read it. Make a backup first if you may roll back. No model request is sent.`))return;
+      ensure();if(who!==profile()||before!==library||!$('profile-import-dialog').open||$('profile-import-mode').value!==mode)throw new ServiceError('Profile or import choice changed. Nothing was imported.');
+      library={...library,version:2,introductions:{...library.introductions,[who]:plan.next}};
+      fillInterview();invalidate();$('profile-import-dialog').close();await persist();hooks.notice(vault?.key?'Profile imported. Check the local save status.':'Profile imported in this tab; enable encrypted saving to retain it.');
+    }catch(error){say(error);}finally{porting=false;$('profile-import-submit').disabled=false;render();}};
   $('library-backup').onclick=async()=>{
     try {idle();if(failed||!hasSaved)throw new ServiceError('Finish saving an encrypted library before backing it up.');
       if(!await hooks.review('Prepare encrypted backup','This file contains your encrypted Personal and Work conversations, reviewed memories and interview answers. Keep the file and passphrase safe. Keys, grants, files and the task board are excluded. Continue?'))return;
@@ -197,12 +238,12 @@ export function installMemory(hooks) {
     } catch(error){say(error);}finally{unlocking=false;$('library-unlock-submit').disabled=false;render();}
   };
   function profileChanged() {
-    source=null;for(const id of ['library','remember','interview','library-unlock','library-import'])$(id).close();
+    source=null;for(const id of ['library','remember','memory-edit','interview','library-unlock','library-import','profile-export-dialog','profile-import-dialog'])$(id).close();
     $('library-search').value='';$('memory-fact').value='';$('memory-quote').value='';$('memory-source-text').textContent='';
     $('memory-share').checked=share.get(profile())??false;$('interview-note').textContent='';fillInterview();render();
   }
   // No automatic hide timeout: hiding is common on mobile. Explicit Lock or page disposal clears context.
-  window.addEventListener('pagehide',()=>{if(backupURL)URL.revokeObjectURL(backupURL);backupURL=null;vault?.lock();library=emptyLibrary();active.clear();unsaved.clear();share.clear();presence.clear();source=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
+  window.addEventListener('pagehide',()=>{if(backupURL)URL.revokeObjectURL(backupURL);backupURL=null;clearProfileDownload();vault?.lock();library=emptyLibrary();active.clear();unsaved.clear();share.clear();presence.clear();source=null;editingMemory=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','memory-edit-fact','library-search','profile-export-pass','profile-import-pass'])$(id).value='';$('memory-source-text').textContent='';$('memory-edit-quote').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
   void (async()=>{try{vault=await ConversationVault.open();hasSaved=!!await vault.storage.get();}catch{hooks.notice('Local library storage is unavailable. Conversations remain in this tab.');}finally{initializing=false;render();}})();
   fillInterview();render();
   return {record,profileChanged,render,presence:()=>presence.get(profile())??false,async clearSurface(surface){await clearSurface(surface);},

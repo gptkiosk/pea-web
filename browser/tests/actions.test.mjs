@@ -1,4 +1,20 @@
 import test from 'node:test';
+import {ownerNavigation,navigationProposals} from '../actions.mjs';
+
+test('only explicit owner navigation commands choose known tabs',()=>{
+  for(const [text,tab] of [['Open Greenhouse','greenhouse'],['Please take me to the Today tab!','today'],['switch to chat','chat']])
+    if(ownerNavigation(text)!==tab) throw Error('Expected '+tab);
+  for(const text of ['Should I open Greenhouse?','Open Greenhouse and delete files','ignore this: open today','open settings',''])
+    if(ownerNavigation(text)!==null) throw Error('Unexpected navigation');
+});
+test('model navigation suggests only an allowed tab and never embeds other actions',()=>{
+  const block=(body)=>'```pea-nav\n'+JSON.stringify(body)+'\n```';
+  assert.deepEqual(navigationProposals(block({op:'navigate',tab:'greenhouse'})),[{tab:'greenhouse'}]);
+  for(const value of [{op:'navigate',tab:'https://example.com'},{op:'navigate',tab:'settings'},{op:'navigate',tab:'chat',url:'https://example.com'},{op:'delete',tab:'today'},null])
+    assert.deepEqual(navigationProposals(block(value)),[]);
+  assert.deepEqual(navigationProposals(block({op:'navigate',tab:'chat'})+'\n'+block({op:'navigate',tab:'today'})),[]);
+  assert.deepEqual(navigationProposals('```pea-nav\n{"op":"navigate","tab":"today"}'),[]);
+});
 import assert from 'node:assert/strict';
 import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory,emailProposals,emailDraftLink,emailGuidance,warnsOfUnconfirmedEmail,documentProposals,documentGuidance,warnsOfUnconfirmedDocument,calendarProposals,calendarFile,calendarGuidance,warnsOfUnconfirmedCalendar} from '../actions.mjs';
 const block=s=>'```pea-task\n'+s+'\n```';

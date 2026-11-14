@@ -23,6 +23,7 @@
   "local-model.mjs",
   "memory-ui.mjs",
   "memory.mjs",
+  "profile-transfer.mjs",
   "policy.mjs",
   "presence.mjs",
   "release-ui.mjs",
