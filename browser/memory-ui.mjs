@@ -122,7 +122,11 @@ export function installMemory(hooks) {
   $('memory-share').onchange=()=>{invalidate();hooks.notice('Memory sharing changed for this profile. Exact recalled facts appear in the next model review.');};
   const share=new Map();
   $('memory-share').addEventListener('change',()=>share.set(profile(),$('memory-share').checked));
-  $('interview-open').onclick=$('home-persona').onclick=$('library-interview').onclick=()=>{fillInterview();$('interview').showModal();};
+  let interviewStep=0;
+  function showInterviewStep(step,focus=false){interviewStep=Math.max(0,Math.min(2,step));for(const part of document.querySelectorAll('[data-interview-step]'))part.hidden=Number(part.dataset.interviewStep)!==interviewStep;$('interview-progress').textContent=`Step ${interviewStep+1} of 3 · ${['About you','Your world','Your companion'][interviewStep]}`;$('interview-progress-bar').style.width=`${(interviewStep+1)*100/3}%`;$('interview-back').hidden=interviewStep===0;$('interview-next').hidden=interviewStep===2;$('interview-save').hidden=interviewStep!==2;if(focus)document.querySelector(`[data-interview-step="${interviewStep}"] h3`).focus();}
+  $('interview-back').onclick=()=>showInterviewStep(interviewStep-1,true);
+  $('interview-next').onclick=()=>showInterviewStep(interviewStep+1,true);
+  $('interview-open').onclick=$('home-persona').onclick=$('library-interview').onclick=()=>{fillInterview();showInterviewStep(0);$('interview').showModal();};
   $('bio-presence').onchange=()=>{if(!eligible())return;presence.set(profile(),$('bio-presence').checked);invalidate();hooks.notice('Local-time delivery changed for this tab/profile. Review its style with the next model request.');};
   $('interview-save').onclick=()=>{
     try {ensure();const value=readInterview();if(!validIntroduction(value))throw new ServiceError('Keep interview answers within the field limits and remove credentials.');

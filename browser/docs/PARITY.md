@@ -4,7 +4,7 @@ Evidence date: 2026-11-12. Share behaviour and connection contracts; keep platfo
 
 | Capability | Web source | Native iOS source | Remaining acceptance/work |
 | --- | --- | --- | --- |
-| Chat / Today / Greenhouse, cream and dark green | Responsive, original pea art, compact workspace action menu and keyboard-accessible tabs | Compact native controls | Real mobile-browser testing |
+| Chat / Today / Greenhouse, cream and dark green | Responsive, original pea art, compact workspace menu, setup cards, guided connection/interview flows and keyboard-accessible tabs | Compact native controls | Real mobile-browser testing |
 | OpenRouter text and specialist models | Independent Chat/collaboration/coding/image roles; reviewed routes | Chat and independent Greenhouse roles | Real model/provider availability |
 | Customer local model | Authenticated same-origin gateway; Chat and Greenhouse text | Own-server Chat connector | Physical phone/VPN stream; native local Greenhouse |
 | Reviewed email draft | Explicit address, exact review, optional mail-app link; never sends | Native mail-app draft and contact resolution | No web Contacts, attachments or CC/BCC; real-device mail-client acceptance |
@@ -14,7 +14,7 @@ Evidence date: 2026-11-12. Share behaviour and connection contracts; keep platfo
 | Docs and Forms | Editable model-proposed drafts and separately reviewed Docs and simple unpublished forms | Richer Docs/Sheets/Slides/Forms, briefs and receipt ledger | Port the remaining richer tools to Web |
 | Story board | Voice/typed commands, reviewed model story proposal and dispatch, optional encrypted board with competing-tab conflict detection | Encrypted local archive | Device persistence/voice acceptance, sync |
 | GitHub / image specialist | Reviewed draft PR and fixed-price image generation | Same reviewed workflows | Real write/image acceptance |
-| Persona and interview | Structured optional profile interview, encrypted library; optional reviewed local-time style/device speech | Persistent introduction, interview and sourced memory | Voice-led interview, persistent presence preference and richer native fictional history/life |
+| Persona and interview | Three-step optional profile interview, encrypted library; optional reviewed local-time style/device speech | Persistent introduction, interview and sourced memory | Voice-led interview, persistent presence preference and richer native fictional history/life |
 | Model configuration | Versioned, reviewed export/import, shared Drive document | Same portable contract; unsupported choices rejected | Automatic encrypted sync/conflict handling |
 | Voice | Explicit reviewed dictation and device read-reply; stops when hidden | Native discussion, dictation, voice choices and Walk mode | Browser cloud/local speech engines and native background acceptance |
 | Chat history and personal memory | Optional encrypted local library; search/continue, reviewed owner-message facts, bounded recent/relevant recall | Encrypted persistent archive, sourced recall | Browser/device backup and restore acceptance, native archive interoperability and opt-in cross-device synchronization |
