@@ -51,21 +51,26 @@ const replies = {
 
 let model, gateway, browser;
 
-before(async () => {
-  if (skip) return;
-  model = await startFakeModel((said) => {
-    const key = Object.keys(replies).find((word) => said.includes(word));
-    return key ? replies[key] : 'A plain synthetic reply.';
-  });
-  gateway = await startGateway(model.port);
-  browser = await launchBrowser();
-});
+before(
+  async () => {
+    if (skip) return;
+    model = await startFakeModel((said) => {
+      const key = Object.keys(replies).find((word) => said.includes(word));
+      return key ? replies[key] : 'A plain synthetic reply.';
+    });
+    gateway = await startGateway(model.port);
+    browser = await launchBrowser();
+  },
+  { timeout: 60000 },
+);
 
-after(async () => {
-  await browser?.close();
-  await gateway?.close();
-  await model?.close();
-});
+after(
+  async () => {
+    // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
+    await Promise.allSettled([browser?.close(), gateway?.close(), model?.close()]);
+  },
+  { timeout: 30000 },
+);
 
 // Opens the app, connects the synthetic local model, and returns a page ready to chat.
 async function connectedPage() {
@@ -126,7 +131,7 @@ async function openReview(page, buttonText) {
   }
 }
 
-test('declining the model sharing review sends nothing', { skip }, async () => {
+test('declining the model sharing review sends nothing', { skip, timeout: 45000 }, async () => {
   const page = await connectedPage();
   const sent = model.requests.length;
   await page.fill('#thought', 'A plain question.');
@@ -138,37 +143,41 @@ test('declining the model sharing review sends nothing', { skip }, async () => {
   await page.close();
 });
 
-test('an email draft link appears only after the owner approves the exact draft', { skip }, async () => {
-  const page = await connectedPage();
-  await ask(page, 'Please draft an email.');
-  const mailLinks = () => page.evaluate(`document.querySelectorAll('a[href^="mailto:"]').length`);
-  assert.doesNotMatch(await page.text('#messages'), /pea-email|email_draft/, 'the action block is hidden');
-  assert.equal(await mailLinks(), 0);
+test(
+  'an email draft link appears only after the owner approves the exact draft',
+  { skip, timeout: 45000 },
+  async () => {
+    const page = await connectedPage();
+    await ask(page, 'Please draft an email.');
+    const mailLinks = () => page.evaluate(`document.querySelectorAll('a[href^="mailto:"]').length`);
+    assert.doesNotMatch(await page.text('#messages'), /pea-email|email_draft/, 'the action block is hidden');
+    assert.equal(await mailLinks(), 0);
 
-  await openReview(page, 'Review email draft');
-  const shown = await page.text('#review-body');
-  assert.match(shown, /To: owner@example\.invalid/);
-  assert.match(shown, /Subject: Synthetic subject/);
-  assert.match(shown, /Synthetic body\./);
-  assert.match(shown, /does not send/);
-  await page.click('#review-cancel');
-  await page.waitFor(`!document.querySelector('#review').open`);
-  assert.equal(await mailLinks(), 0, 'cancel changes nothing');
+    await openReview(page, 'Review email draft');
+    const shown = await page.text('#review-body');
+    assert.match(shown, /To: owner@example\.invalid/);
+    assert.match(shown, /Subject: Synthetic subject/);
+    assert.match(shown, /Synthetic body\./);
+    assert.match(shown, /does not send/);
+    await page.click('#review-cancel');
+    await page.waitFor(`!document.querySelector('#review').open`);
+    assert.equal(await mailLinks(), 0, 'cancel changes nothing');
 
-  await openReview(page, 'Review email draft');
-  await page.click('#review-approve');
-  await page.waitFor(`document.querySelector('a[href^="mailto:"]')`, 'the mail link');
-  const link = await page.evaluate(`document.querySelector('a[href^="mailto:"]').href`);
-  assert(decodeURIComponent(link).startsWith('mailto:owner@example.invalid?'), link);
+    await openReview(page, 'Review email draft');
+    await page.click('#review-approve');
+    await page.waitFor(`document.querySelector('a[href^="mailto:"]')`, 'the mail link');
+    const link = await page.evaluate(`document.querySelector('a[href^="mailto:"]').href`);
+    assert(decodeURIComponent(link).startsWith('mailto:owner@example.invalid?'), link);
 
-  await page.goto(gateway.origin + '/');
-  assert.equal(await mailLinks(), 0, 'an approved draft is not restored after reload');
-  assert.equal(await page.hasText('Review email draft'), false);
-  assert.deepEqual(page.outsideRequests(), []);
-  await page.close();
-});
+    await page.goto(gateway.origin + '/');
+    assert.equal(await mailLinks(), 0, 'an approved draft is not restored after reload');
+    assert.equal(await page.hasText('Review email draft'), false);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);
 
-test('a story reaches Today only after approval, and only once', { skip }, async () => {
+test('a story reaches Today only after approval, and only once', { skip, timeout: 45000 }, async () => {
   const page = await connectedPage();
   await ask(page, 'Please capture a story.');
   const onBoard = () =>
@@ -201,38 +210,65 @@ test('a story reaches Today only after approval, and only once', { skip }, async
   await page.close();
 });
 
-test('a calendar file link appears only after approval and nothing is sent anywhere', { skip }, async () => {
-  const page = await connectedPage();
-  await ask(page, 'Please make a calendar event.');
-  const downloads = () => page.evaluate(`document.querySelectorAll('a[download]').length`);
-  const before = await downloads();
+test(
+  'a review opened straight after another closes is not cancelled by the first',
+  { skip, timeout: 45000 },
+  async () => {
+    const page = await connectedPage();
+    await ask(page, 'Please capture a story.');
+    await openReview(page, 'Review story: Synthetic story');
+    // Cancel and reopen in the same instant, before the first dialog has reported that it closed.
+    // A few microtask turns let the app finish handling the cancel without yielding to that report.
+    await page.evaluate(
+      `(async () => { document.querySelector('#review-cancel').click(); for (let turn = 0; turn < 20; turn++) await Promise.resolve(); [...document.querySelectorAll('#messages button')].find((b) => b.textContent.startsWith('Review story')).click(); })()`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(await reviewOpen(page), true, 'the second review is still open');
+    await page.click('#review-approve');
+    await page.waitFor(
+      `document.querySelector('#board-columns').textContent.includes('Synthetic story')`,
+      'the story on the board',
+    );
+    await page.close();
+  },
+);
 
-  await openReview(page, 'Review calendar event: Synthetic event');
-  const shown = await page.text('#review-body');
-  assert.match(shown, /UTC start: 2031-01-02T15:00:00Z/);
-  assert.match(shown, /does not create an event/);
-  await page.click('#review-cancel');
-  await page.waitFor(`!document.querySelector('#review').open`);
-  assert.equal(await downloads(), before, 'cancel changes nothing');
+test(
+  'a calendar file link appears only after approval and nothing is sent anywhere',
+  { skip, timeout: 45000 },
+  async () => {
+    const page = await connectedPage();
+    await ask(page, 'Please make a calendar event.');
+    const downloads = () => page.evaluate(`document.querySelectorAll('a[download]').length`);
+    const before = await downloads();
 
-  await openReview(page, 'Review calendar event: Synthetic event');
-  await page.click('#review-approve');
-  await page.waitFor(
-    `document.querySelector('#messages a[download="pea-event.ics"]')`,
-    'the event file link',
-  );
-  const file = decodeURIComponent(
-    await page.evaluate(`document.querySelector('#messages a[download="pea-event.ics"]').href`),
-  );
-  assert.match(file, /SUMMARY:Synthetic event/);
-  assert.match(file, /DTSTART:20310102T150000Z/);
-  assert.deepEqual(page.outsideRequests(), []);
-  await page.close();
-});
+    await openReview(page, 'Review calendar event: Synthetic event');
+    const shown = await page.text('#review-body');
+    assert.match(shown, /UTC start: 2031-01-02T15:00:00Z/);
+    assert.match(shown, /does not create an event/);
+    await page.click('#review-cancel');
+    await page.waitFor(`!document.querySelector('#review').open`);
+    assert.equal(await downloads(), before, 'cancel changes nothing');
+
+    await openReview(page, 'Review calendar event: Synthetic event');
+    await page.click('#review-approve');
+    await page.waitFor(
+      `document.querySelector('#messages a[download="pea-event.ics"]')`,
+      'the event file link',
+    );
+    const file = decodeURIComponent(
+      await page.evaluate(`document.querySelector('#messages a[download="pea-event.ics"]').href`),
+    );
+    assert.match(file, /SUMMARY:Synthetic event/);
+    assert.match(file, /DTSTART:20310102T150000Z/);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);
 
 test(
   'a proposed document only opens an editable draft and cannot be created without Google',
-  { skip },
+  { skip, timeout: 45000 },
   async () => {
     const page = await connectedPage();
     await ask(page, 'Please write a document.');
@@ -253,18 +289,22 @@ test(
   },
 );
 
-test('a reply that claims an action without a proposal gets a plain correction', { skip }, async () => {
-  const page = await connectedPage();
-  await ask(page, 'Please boast about it.');
-  await page.waitFor(
-    `document.querySelector('#messages').innerText.includes('PEA did not send an email')`,
-    'the correction',
-  );
-  assert.equal(await page.evaluate(`document.querySelectorAll('a[href^="mailto:"]').length`), 0);
-  await page.close();
-});
+test(
+  'a reply that claims an action without a proposal gets a plain correction',
+  { skip, timeout: 45000 },
+  async () => {
+    const page = await connectedPage();
+    await ask(page, 'Please boast about it.');
+    await page.waitFor(
+      `document.querySelector('#messages').innerText.includes('PEA did not send an email')`,
+      'the correction',
+    );
+    assert.equal(await page.evaluate(`document.querySelectorAll('a[href^="mailto:"]').length`), 0);
+    await page.close();
+  },
+);
 
-test('a reply with two actions offers neither', { skip }, async () => {
+test('a reply with two actions offers neither', { skip, timeout: 45000 }, async () => {
   const page = await connectedPage();
   await ask(page, 'Please send mixed actions.');
   assert.equal(await page.hasText('Review email draft'), false);

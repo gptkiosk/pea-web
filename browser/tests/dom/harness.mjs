@@ -30,6 +30,31 @@ export function browserSkipReason() {
   return 'no Chrome or Chromium found; set CHROME_BIN to run browser-level tests';
 }
 
+// Temporary folders are removed on a best-effort basis. A browser's helper processes can still be
+// writing as it exits, and a failed cleanup must not stop the remaining cleanup or fail the run.
+function remove(folder) {
+  try {
+    rmSync(folder, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch {
+    // The operating system clears its temporary folder.
+  }
+}
+
+// Ends a child process and never waits forever for it: a stuck browser is killed outright.
+function stop(child) {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve();
+    const force = setTimeout(() => child.kill('SIGKILL'), 2000);
+    const giveUp = setTimeout(resolve, 5000);
+    child.once('exit', () => {
+      clearTimeout(force);
+      clearTimeout(giveUp);
+      resolve();
+    });
+    child.kill();
+  });
+}
+
 function listen(server) {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -74,7 +99,15 @@ export async function startFakeModel(reply) {
     response.writeHead(404).end();
   });
   const port = await listen(server);
-  return { port, requests, close: () => new Promise((resolve) => server.close(resolve)) };
+  return {
+    port,
+    requests,
+    close: () =>
+      new Promise((resolve) => {
+        server.close(resolve);
+        server.closeAllConnections();
+      }),
+  };
 }
 
 // The real gateway, started the way an owner starts it, with a token made for this run only.
@@ -119,9 +152,8 @@ export async function startGateway(upstreamPort) {
     origin,
     token,
     close: async () => {
-      child.kill();
-      await new Promise((resolve) => (child.exitCode !== null ? resolve() : child.once('exit', resolve)));
-      rmSync(folder, { recursive: true, force: true });
+      await stop(child);
+      remove(folder);
     },
   };
 }
@@ -139,6 +171,10 @@ class Page {
   async goto(url) {
     await this.send('Page.navigate', { url });
     await this.waitFor('document.readyState === "complete"');
+    // Notices disappear after a few seconds, so keep every one for failure messages.
+    await this.evaluate(
+      `(() => { window.peaNotices = []; const n = document.querySelector('#notice'); if (n) new MutationObserver(() => n.textContent && window.peaNotices.push(n.textContent)).observe(n, { childList: true, characterData: true, subtree: true }); })()`,
+    );
   }
   async evaluate(expression) {
     const result = await this.send('Runtime.evaluate', {
@@ -154,7 +190,13 @@ class Page {
     const until = Date.now() + timeout;
     for (;;) {
       if (await this.evaluate(`Boolean(${expression})`)) return;
-      if (Date.now() > until) throw new Error('Timed out waiting for: ' + what);
+      if (Date.now() > until) {
+        // The app's own notice usually says why nothing happened.
+        const notices = await this.evaluate(`(window.peaNotices || []).join(' | ')`).catch(() => '');
+        throw new Error(
+          'Timed out waiting for: ' + what + (notices ? ' (app notices: ' + notices + ')' : ''),
+        );
+      }
       await new Promise((resolve) => setTimeout(resolve, 40));
     }
   }
@@ -203,6 +245,7 @@ export async function launchBrowser() {
     '--disable-background-networking',
     '--disable-component-update',
     '--disable-sync',
+    '--disable-dev-shm-usage',
     '--window-size=1400,900',
   ];
   // Hosted CI runners do not allow Chrome's sandbox. The only pages opened are this repository's own.
@@ -220,12 +263,26 @@ export async function launchBrowser() {
       }
     });
     child.once('exit', () => reject(new Error('Chrome exited: ' + log.slice(-400))));
+  }).catch(async (error) => {
+    await stop(child);
+    remove(profile);
+    throw error;
   });
   const socket = new WebSocket(endpoint);
   await new Promise((resolve, reject) => {
     socket.onopen = resolve;
     socket.onerror = () => reject(new Error('Could not reach Chrome.'));
+  }).catch(async (error) => {
+    await stop(child);
+    throw error;
   });
+  // If the browser goes away, every waiting command fails at once instead of waiting forever.
+  const lost = () => {
+    for (const { reject } of pending.values()) reject(new Error('The browser closed unexpectedly.'));
+    pending.clear();
+  };
+  socket.onclose = lost;
+  child.once('exit', lost);
   let next = 0;
   const pending = new Map();
   const pages = new Map();
@@ -243,8 +300,18 @@ export async function launchBrowser() {
   const browser = {
     send(method, params = {}, sessionId) {
       const id = ++next;
-      socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-      return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+      return new Promise((resolve, reject) => {
+        // No single browser command should take long; a stuck one fails the test with its name.
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error('The browser did not answer: ' + method));
+        }, 15000);
+        pending.set(id, {
+          resolve: (value) => (clearTimeout(timer), resolve(value)),
+          reject: (error) => (clearTimeout(timer), reject(error)),
+        });
+        socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+      });
     },
     // Each page gets its own storage, so one test cannot see another's saved data.
     async newPage() {
@@ -263,9 +330,8 @@ export async function launchBrowser() {
     },
     async close() {
       socket.close();
-      child.kill();
-      await new Promise((resolve) => (child.exitCode !== null ? resolve() : child.once('exit', resolve)));
-      rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      await stop(child);
+      remove(profile);
     },
   };
   return browser;
