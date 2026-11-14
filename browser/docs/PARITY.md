@@ -17,7 +17,7 @@ Evidence date: 2026-11-12. Share behaviour and connection contracts; keep platfo
 | Persona and interview | Structured optional profile interview, encrypted library; optional reviewed local-time style/device speech | Persistent introduction, interview and sourced memory | Voice-led interview, persistent presence preference and richer native fictional history/life |
 | Model configuration | Versioned, reviewed export/import, shared Drive document | Same portable contract; unsupported choices rejected | Automatic encrypted sync/conflict handling |
 | Voice | Explicit reviewed dictation and device read-reply; stops when hidden | Native discussion, dictation, voice choices and Walk mode | Browser cloud/local speech engines and native background acceptance |
-| Chat history and personal memory | Optional encrypted local library; search/continue, reviewed owner-message facts, bounded recent/relevant recall | Encrypted persistent archive, sourced recall | Browser/device acceptance, encrypted backup/export and opt-in cross-device synchronization |
+| Chat history and personal memory | Optional encrypted local library; search/continue, reviewed owner-message facts, bounded recent/relevant recall | Encrypted persistent archive, sourced recall | Browser/device backup and restore acceptance, native archive interoperability and opt-in cross-device synchronization |
 | Android/non-iOS | Responsive HTTPS browser over customer VPN | iOS only | Device/browser/audio acceptance |
 
 The browser is not yet feature-complete against native. A public release must label these gaps rather than present source checks as full parity. No developer-host relay, Open WebUI owner login, bundled provider key, membership-token workaround or customer runtime data is required. Background/locked-screen browser microphone reliability is not promised.
@@ -45,3 +45,8 @@ A model can propose a title and content for a document or simple form in Chat or
 ## Reviewed calendar event drafts
 
 Chat or Greenhouse can propose one event with explicit UTC start and end instants. The owner reviews the title, notes and both local-browser and UTC times. Approval reveals a download link for an iCalendar file; downloading and importing it are separate owner choices. PEA does not add an event, send invitations, or connect to a calendar for this workflow. Invalid dates, missing time zones, reversed or over-seven-day ranges, credentials, extra fields, incomplete and mixed actions are rejected. The proposal is not restored as an actionable item after reload. Browser downloads, third-party calendar import, recurrence, attendees and direct calendar writes need further work or acceptance testing.
+
+
+## Encrypted library portability
+
+The owner may prepare a passphrase-encrypted backup of the saved conversation library. The file includes both profiles and excludes provider credentials, permissions, files and the separate task board. Restore verifies the passphrase, authenticated ciphertext and library schema before a compare-and-insert to an empty browser; existing saved data and tab-only conversations are not overwritten. Unlock remains separate. This is a manual snapshot, not native archive compatibility, merging or automatic synchronization. Browser downloads and real-device restore need acceptance testing.
