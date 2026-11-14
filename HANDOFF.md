@@ -282,3 +282,10 @@ Branch `claude/review-fixes-2026-11-13`, from main after PRs 8–15 were merged 
 Not done: L7, L8, DOM-level review tests, a source formatting pass, and the remaining parity items in `browser/docs/PARITY.md`. The reply cap and re-key paths were exercised with synthetic tests and a local browser only; no real provider, account or saved personal library was used.
 
 Resume: rebase any branch based on the pre-squash stack commits onto main before continuing, since this branch edits `memory.mjs`, `taskboard.mjs`, `live-ui.mjs`, `app.mjs` and `gateway.py`.
+
+
+## Interview continuity branch rebased — 2026-11-13
+
+The previously uncommitted work described above is now committed on `codex/interview-continuity-design` and rebased onto main after the review fixes (`c3f4cb3`). Conflicts were in `memory-ui.mjs`, `taskboard.mjs` and the memory tests. The board backup added on this branch now carries the record version, so a board saved at 600,000 PBKDF2 rounds exports and restores correctly. The three new files are listed in `browser/WEB-FILES.json` so the public boundary scan passes.
+
+Open before this branch is proposed: `profile-transfer.mjs` derives its key with 310,000 rounds while the vaults now use 600,000; the development version and changelog have no entry for this work; the browser and device acceptance listed above is still outstanding. The branch is local only and has not been pushed.
