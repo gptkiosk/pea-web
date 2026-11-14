@@ -18,6 +18,8 @@ PEA Web is **work in progress**. The primary delivery and support target is an i
 
 Windows users can inspect the static source in a browser, but the POSIX package manager and supported local gateway setup target macOS/Linux. Native Windows packaging is not claimed. Hardware/electricity/provider usage and third-party terms remain the user's responsibility. Read [co-use](CO-USE.md) for the shared folder/model-server contracts and data that is not synced.
 
+The local foreground helper provides explicit token setup, a local check and gateway startup without downloading dependencies or registering a service. It is included in the source and program release file list; it is not a signed installer or automatic dependency bundle.
+
 ## Next packaging slice
 
 Design a reviewed per-platform bootstrap/package that checks runtime versions, uses verified upstream distributions, keeps keys/user data out of program directories, preserves updates/rollback, and explains optional model/VPN/Google setup. Choose launch/service integration deliberately. The installer must not require the private iOS source, copy an operator's personal environment, run generated code, enroll strangers into the developer's Mac or make model-accessible software installation possible.

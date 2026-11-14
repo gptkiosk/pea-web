@@ -20,6 +20,18 @@ python3 -m http.server 18769 --bind 127.0.0.1
 
 Open `http://127.0.0.1:18769/browser/`. It starts disconnected with clearly labelled sample data. In **Connect your accounts**, explicitly connect your OpenRouter key and select a model, or follow the local-model setup below. Keys stay in the tab's memory. Do not expose this development file server publicly. Use HTTPS for a phone browser; a private VPN alone does not secure an HTTP browser origin.
 
+## Local foreground quickstart
+
+On macOS or Linux with Python 3.11+, from the PEA Web source directory or verified installed release:
+
+```sh
+python3 browser/server/local.py setup
+python3 browser/server/local.py check
+python3 browser/server/local.py start
+```
+
+Open `http://127.0.0.1:18770/browser/`. Setup creates a private token in `~/.config/pea` and refuses to replace an existing one. Start runs in the foreground until Ctrl-C; it does not install a service, download a model or contact an AI provider. You can configure OpenRouter in the app, or connect your own separately running local model below. For a local-model connection, open your token file privately and enter its value in your own client; the helper does not display it. Run `python3 browser/server/local.py --help` for an alternate configuration directory, port or loopback upstream. This is a source/verified-release helper, not yet a finished signed installer.
+
 ## Use your own local model
 
 Run an OpenAI-compatible model server yourself on loopback first, then start PEA's bounded local gateway (macOS/Linux):
