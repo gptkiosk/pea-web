@@ -27,7 +27,7 @@ test('the optional delivery hint enters the same reviewed request without tools 
   const service=new Services(()=>{calls++;throw Error('Network is forbidden');});
   const args={model:{id:'synthetic/text',prompt:0,completion:0,request:0},profile:'personal',text:'Keep me company',persona:'Dry wit'};
   const quiet=service.body({...args,delivery:presenceAt(true,at(5)).style});assert.match(quiet.messages[0].content,/softer, unhurried/);
-  assert.equal(quiet.tools,undefined);assert.equal(quiet.max_tokens,384);assert.equal(calls,0);
+  assert.equal(quiet.tools,undefined);assert.equal(quiet.max_tokens,3500);assert.equal(calls,0);
   assert.doesNotMatch(service.body(args).messages[0].content,/Optional character delivery/);
   assert.throws(()=>service.body({...args,delivery:'sk-or-v1-'+ 'a'.repeat(40)}));
 });

@@ -177,3 +177,18 @@ Branch `codex/interface-formatting-sweep` is stacked on PR 14 and is served by t
 Browser checks used synthetic clipboard text to verify Google and GitHub paste and feedback, guided routes, memory spacing, Today/Greenhouse navigation, light/dark dropdown colors and no horizontal overflow at 320px. No real clipboard secrets, accounts, inference or paid speech was used. Checks: `node --test browser/tests/*.test.mjs` (84 passed), `python3 browser/server/check_source.py` (51 files), `python3 -m unittest discover -s browser/server -p 'test_*.py' -q` (24 passed), `python3 tools/check_repository.py` (64 indexed files). The operator checklist includes physical-device and permission-denied clipboard testing. Physical-device acceptance and functional Fish Audio/ElevenLabs voice integrations remain open. No iOS source or production service changed.
 
 Resume: review this branch and stacked PRs 8–14. Continue with customer-owned voice provider integrations, including explicit data/cost review, restricted credentials, provider-specific transport/CORS constraints and synthetic tests; do not imply key guides are functional connectors. Continue local packaging/update work and test on a physical phone.
+
+
+## Review fixes — 2026-11-13
+
+Branch `claude/review-fixes-2026-11-13`, from main after PRs 8–15 were merged (`439f913`). Development identity `0.1.0-dev.16`. From a code review of the merged stack:
+
+- Reply cap raised from 384 to 3,500 tokens (`replyLimit` in `connections.mjs`; gateway ceiling 4,096). The old cap cut email and document action blocks off, so they were hidden and never offered for review.
+- `captureThread` saves a placeholder for credential-like message text and clips over-long text; a full library reports a specific message. `memory-ui.mjs` no longer marks the vault failed for these cases and retries refused threads after a conversation is forgotten.
+- Both vaults derive keys with 600,000 PBKDF2 rounds. Record `version` selects the work factor (1 = 310,000, 2 = 600,000); version 1 records, including legacy boards without a revision, are re-keyed with a new salt inside the existing compare-and-write on unlock. Backups carry their version. An older build refuses a version 2 record without changing it.
+- The model-review approval identity includes the exact file excerpt, so every auto-attached PEA-created file is reviewed once. Calendar and mail snapshot contents are deliberately still covered by the per-setting approval.
+- `app.mjs` refuses to start in a frame. The gateway adds `X-Frame-Options`, `Cross-Origin-Resource-Policy` and `Cross-Origin-Opener-Policy`, and closes a connection that has not delivered a complete request within 20 seconds (earlier review item L3). Routine client disconnects no longer print tracebacks.
+
+Not done: L7, L8, DOM-level review tests, a source formatting pass, and the remaining parity items in `browser/docs/PARITY.md`. The reply cap and re-key paths were exercised with synthetic tests and a local browser only; no real provider, account or saved personal library was used.
+
+Resume: rebase any branch based on the pre-squash stack commits onto main before continuing, since this branch edits `memory.mjs`, `taskboard.mjs`, `live-ui.mjs`, `app.mjs` and `gateway.py`.

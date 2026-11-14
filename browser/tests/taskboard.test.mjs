@@ -43,9 +43,18 @@ test('concurrent board writers cannot overwrite newer changes and must reload af
 });
 test('legacy board upgrade checks the old encrypted record before writing',async()=>{
  let record;const storage={get:async()=>structuredClone(record),comparePut:async(e,v)=>{if(!sameBoardRevision(record,e))throw Error('conflict');record=structuredClone(v);}};
- const a=new BoardVault(storage);await a.unlock('synthetic legacy passphrase',[newStory([],'work','Legacy')]);delete record.revision;
- const b=new BoardVault(storage),c=new BoardVault(storage);const x=await b.unlock('synthetic legacy passphrase'),y=await c.unlock('synthetic legacy passphrase');
- x[0].details='first';await b.save(x);assert.equal(typeof record.revision,'string');y[0].details='second';await assert.rejects(c.save(y),/conflict/);
+ // A real legacy record: 310,000 rounds, version 1, no revision. Unlock re-keys it at 600,000 rounds.
+ const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+ const material=await crypto.subtle.importKey('raw',new TextEncoder().encode('synthetic legacy passphrase'),'PBKDF2',false,['deriveKey']);
+ const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt']);
+ record={version:1,salt,iv,data:await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode('PEA story board v1')},key,new TextEncoder().encode(JSON.stringify([newStory([],'work','Legacy')])))};
+ const legacy=structuredClone(record),b=new BoardVault(storage),c=new BoardVault(storage);
+ const results=await Promise.allSettled([b.unlock('synthetic legacy passphrase'),c.unlock('synthetic legacy passphrase')]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(results.filter(r=>r.status==='rejected'&&/conflict/.test(r.reason.message)).length,1);
+ assert.equal(record.version,2);assert.equal(typeof record.revision,'string');assert.notDeepEqual(record.salt,legacy.salt);
+ const winner=results[0].status==='fulfilled'?b:c,loser=winner===b?c:b;assert.equal(loser.key,null);
+ const tasks=results.find(r=>r.status==='fulfilled').value;tasks[0].details='first';await winner.save(tasks);
+ assert.equal((await new BoardVault(storage).unlock('synthetic legacy passphrase'))[0].details,'first');
 });
 test('locking cancels an in-progress unlock or queued save',async()=>{
  let record;const storage={get:async()=>structuredClone(record),comparePut:async(e,v)=>{if(!sameBoardRevision(record,e))throw Error('conflict');record=structuredClone(v);}};

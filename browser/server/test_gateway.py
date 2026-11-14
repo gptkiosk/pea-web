@@ -149,6 +149,23 @@ class GatewayChecks(unittest.TestCase):
         self.assertIn(b'PEA', data)
         self.assertIn("frame-ancestors 'none'", headers['Content-Security-Policy'])
         self.assertEqual(headers['Cache-Control'], 'no-store')
+        self.assertEqual(headers['X-Frame-Options'], 'DENY')
+        self.assertEqual(headers['Cross-Origin-Resource-Policy'], 'same-origin')
+        self.assertEqual(headers['Cross-Origin-Opener-Policy'], 'same-origin-allow-popups')
+    def test_trickling_client_is_cut_off_at_the_request_deadline(self):
+        import socket, time
+        previous, g.REQUEST_DEADLINE = g.REQUEST_DEADLINE, 1
+        try:
+            with socket.create_connection(('127.0.0.1', self.server.server_port), timeout=6) as client:
+                started = time.monotonic()
+                client.sendall(b'GET /browser/ HTTP/1.1\r\nHost: ')
+                while client.recv(4096):
+                    pass  # an error page may arrive before the close
+                self.assertLess(time.monotonic() - started, 4)
+            # A complete request is unaffected.
+            self.assertEqual(self.call('/browser/')[0], 200)
+        finally:
+            g.REQUEST_DEADLINE = previous
     def test_upstream_loopback_only_and_token_file_permissions(self):
         for url in ['https://api.example', 'http://10.0.0.2:11434', 'http://127.0.0.1:11434/v1?key=x', 'http://a:b@localhost']:
             with self.assertRaises(ValueError):
@@ -163,7 +180,8 @@ class GatewayChecks(unittest.TestCase):
                 g.read_token(p)
     def test_chat_bounds(self):
         base = {'model': 'tiny:test', 'stream': True, 'messages': [{'role': 'user', 'content': 'test'}]}
-        for body in [{**base, 'max_tokens': True}, {**base, 'messages': [{'role': 'tool', 'content': 'test'}]}, {**base, 'temperature': float('nan')}, {**base, 'messages': [{'role': 'user', 'content': 'x'*64001}]}]:
+        self.assertEqual(g.validate_chat({**base, 'max_tokens': 3500})['max_tokens'], 3500)
+        for body in [{**base, 'max_tokens': 4097}, {**base, 'max_tokens': True}, {**base, 'messages': [{'role': 'tool', 'content': 'test'}]}, {**base, 'temperature': float('nan')}, {**base, 'messages': [{'role': 'user', 'content': 'x'*64001}]}]:
             with self.assertRaises(ValueError):
                 g.validate_chat(body)
 
