@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.15] - 2026-11-13
+
+### Changed
+
+- Improved type sizes, dialog and action spacing, theme-aware dropdowns, and narrow-phone layouts across the workspace.
+- Guided setup includes GitHub, provider key-creation links, paste controls for supported connections, and Google origin copy.
+
+### Limits
+
+- Clipboard access depends on browser permission and secure context; direct field paste remains available. Fish Audio and ElevenLabs are not yet integrated in PEA Web; their setup screen links to provider guidance without accepting unused keys.
+
 ## [0.1.0-dev.14] - 2026-11-13
 
 ### Changed

@@ -6,7 +6,7 @@ Start with [self-hosting and phone/VPN setup](docs/SELF-HOSTING.md), [operator a
 
 ## Implemented here
 
-- Responsive original PEA artwork with transparent icon, guided connection and interview flows; Chat / Today / Greenhouse, Work/Personal boundaries, clearly labelled synthetic-first preview, locally rendered text/code/images/simple diagrams. No document/code execution.
+- Responsive original PEA artwork with transparent icon, guided connection and interview flows, readable touch controls, key-creation links and paste controls for supported connectors; Chat / Today / Greenhouse, Work/Personal boundaries, clearly labelled synthetic-first preview, locally rendered text/code/images/simple diagrams. No document/code execution.
 - Separate streaming Chat and collaboration/coding/image choices. OpenRouter privacy and price review, per-profile remembered choices, no hidden retry or paid fallback. Free endpoints may require retention/training consent; API access differs from memberships.
 - Optional customer-owned loopback model gateway, authenticated from web/native clients over customer HTTPS/VPN. Same-origin browser route, fixed upstream, no shell/tools/cloud fallback. Local inference requires adequate hardware and compatible model licensing.
 - Today Calendar/Inbox peeks first, every section collapsible. Optional live read-only Google previews; model sharing controls are separate in service settings. Failed/stale source refreshes are excluded from model context.

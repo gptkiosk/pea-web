@@ -16,7 +16,7 @@ Evidence date: 2026-11-12. Share behaviour and connection contracts; keep platfo
 | GitHub / image specialist | Reviewed draft PR and fixed-price image generation | Same reviewed workflows | Real write/image acceptance |
 | Persona and interview | Three-step optional profile interview, encrypted library; optional reviewed local-time style/device speech | Persistent introduction, interview and sourced memory | Voice-led interview, persistent presence preference and richer native fictional history/life |
 | Model configuration | Versioned, reviewed export/import, shared Drive document | Same portable contract; unsupported choices rejected | Automatic encrypted sync/conflict handling |
-| Voice | Explicit reviewed dictation and device read-reply; stops when hidden | Native discussion, dictation, voice choices and Walk mode | Browser cloud/local speech engines and native background acceptance |
+| Voice | Explicit reviewed dictation and device read-reply; stops when hidden; Fish Audio and ElevenLabs key guidance only | Native discussion, dictation, voice choices and Walk mode | Browser cloud/local speech engines and native background acceptance |
 | Chat history and personal memory | Optional encrypted local library; search/continue, reviewed owner-message facts, bounded recent/relevant recall | Encrypted persistent archive, sourced recall | Browser/device backup and restore acceptance, native archive interoperability and opt-in cross-device synchronization |
 | Android/non-iOS | Responsive HTTPS browser over customer VPN | iOS only | Device/browser/audio acceptance |
 
