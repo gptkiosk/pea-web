@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory,emailProposals,emailDraftLink,emailGuidance,warnsOfUnconfirmedEmail,documentProposals,documentGuidance,warnsOfUnconfirmedDocument} from '../actions.mjs';
+import {storyProposals,visibleReply,storyGuidance,warnsOfUnconfirmedStory,emailProposals,emailDraftLink,emailGuidance,warnsOfUnconfirmedEmail,documentProposals,documentGuidance,warnsOfUnconfirmedDocument,calendarProposals,calendarFile,calendarGuidance,warnsOfUnconfirmedCalendar} from '../actions.mjs';
 const block=s=>'```pea-task\n'+s+'\n```';
 test('only one complete, strict add proposal can be offered for review',()=>{
  const text='I can prepare that.\n'+block('{"op":"task_add","title":"Plan the garden"}');
@@ -57,4 +57,22 @@ test('document and form proposals remain editable data with strict bounded field
 });
 test('document guidance and honesty notice do not claim creation',()=>{
  assert.match(documentGuidance,/separately reviews creation/);assert(warnsOfUnconfirmedDocument('I created the document.'));assert(!warnsOfUnconfirmedDocument('Review this proposed document.'));
+});
+
+const calendarBlock=v=>'```pea-calendar\n'+JSON.stringify(v)+'\n```';
+test('calendar proposals require valid explicit UTC instants and a narrow action shape',()=>{
+ const d={op:'calendar_draft',title:'Garden planning',start:'2026-11-15T18:00:00Z',end:'2026-11-15T19:00:00Z',details:'Bring notes'};
+ assert.deepEqual(calendarProposals(calendarBlock(d)),[{title:d.title,start:d.start,end:d.end,details:d.details}]);
+ for(const patch of [{start:'2026-11-15T10:00:00'},{start:'2026-02-30T18:00:00Z'},{end:d.start},{end:'2026-12-01T19:00:00Z'},{title:'Meeting\nATTENDEE:evil'},{details:'sk-or-v1-'+ 'a'.repeat(40)},{attendee:'a@example.com'},{op:'create_event'}])assert.deepEqual(calendarProposals(calendarBlock({...d,...patch})),[]);
+ assert.deepEqual(calendarProposals(calendarBlock(d)+block('{"op":"task_add","title":"Task"}')),[]);
+ assert.deepEqual(calendarProposals(calendarBlock(d).slice(0,-3)),[]);
+ assert.equal(visibleReply('Review this.\n'+calendarBlock(d)).trim(),'Review this.');
+});
+test('calendar file escapes injected properties and folds long UTF-8 lines',()=>{
+ const d={title:'Garden, herbs; and '+ '🌱'.repeat(30),start:'2026-11-15T18:00:00Z',end:'2026-11-15T19:00:00Z',details:'Line one\nATTENDEE:example\nBackslash \\'};
+ const file=calendarFile(d,'synthetic-id','2026-11-13T12:00:00Z');
+ assert.match(file,/DTSTART:20261115T180000Z\r\n/);assert(!file.includes('\r\nATTENDEE:'));
+ assert(file.includes('\\nATTENDEE:'));assert(file.includes('Garden\\, herbs\\;'));
+ for(const line of file.split('\r\n'))assert(Buffer.byteLength(line,'utf8')<=75);
+ assert.match(calendarGuidance,/manual import/);assert(warnsOfUnconfirmedCalendar('I scheduled the meeting.'));assert(!warnsOfUnconfirmedCalendar('Please review the proposed event.'));
 });
