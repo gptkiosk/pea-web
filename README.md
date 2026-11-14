@@ -2,7 +2,7 @@
 
 **Personal Executive Assistant · A Bamcio Ventures LLC product**
 
-**Work in progress.** An open-source web companion with Chat, Today and Greenhouse, OpenRouter **bring your own key (BYOK)**, optional customer-owned local inference, and cream/pea-green or dark-green themes. This is a development source repository, not a finished installer or hosted AI service. Dependency packaging and smoother setup are a later milestone.
+**Work in progress.** An open-source web companion with Chat, Today and Greenhouse, OpenRouter **bring your own key (BYOK)**, optional customer-owned local inference, and cream/pea-green or dark-green themes. This is a development source repository, not a finished installer or hosted AI service. A locally installed package is the primary supported delivery target; dependency packaging and smoother setup are a later milestone. Docker hosting on GCP or AWS is an operator-managed documentation path, not a bundled managed service.
 
 ![PEA pea-pod mascot](browser/assets/pea-mascot.svg)
 
@@ -32,7 +32,7 @@ python3 browser/server/gateway.py --token-file "$HOME/.config/pea/connection-tok
 
 Open `http://127.0.0.1:18770/browser/`. Enter your private connection token under **Local model**, load the model list and choose a Local model. The create-token command refuses to overwrite a token. Local inference needs suitable hardware and compatible model licensing; this repository does not install model software or weights. There is no automatic cloud fallback.
 
-For iPhone/Android/VPN access, use your own valid HTTPS reverse proxy and exact gateway public origin. [Self-hosting guide](browser/docs/SELF-HOSTING.md) · [Using web and iOS together](browser/docs/CO-USE.md) · [Dependencies and packaging plan](browser/docs/DEPENDENCIES.md).
+For iPhone/Android/VPN access, use your own valid HTTPS reverse proxy and exact gateway public origin. [Self-hosting guide](browser/docs/SELF-HOSTING.md) · [Operator acceptance checklist](browser/docs/OPERATOR-ACCEPTANCE.md) · [Using web and iOS together](browser/docs/CO-USE.md) · [Dependencies and packaging plan](browser/docs/DEPENDENCIES.md).
 
 ## Current capabilities and limits
 
