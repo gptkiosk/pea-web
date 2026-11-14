@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.18] - 2026-11-14
+
+### Fixed
+
+- With Reduce Motion turned on in the browser or operating system, most of the interface lost its styling: layout, colors, dialogs and the mobile view. A motion-only style block was never closed, so everything after it applied only when motion was allowed. The setting now removes animation and nothing else.
+
 ## [0.1.0-dev.17] - 2026-11-13
 
 ### Added

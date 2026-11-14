@@ -23,6 +23,13 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Reduced-motion styling fix — 2026-11-14
+
+Branch `fix/reduced-motion-styles`, development identity `0.1.0-dev.18`. In `browser/styles.css` the `@media (prefers-reduced-motion: no-preference)` block opened at the end of the first line was never closed, so the 331 rules after it applied only when motion was allowed. An owner with Reduce Motion on saw a largely unstyled page. The block is now closed after its keyframes. For owners without that preference nothing changes. No later rule animates outside its own reduced-motion guard, so closing the block exposes no new motion.
+
+The stylesheet is also formatted with Prettier 3 in the same change, because it could not be parsed before the fix. Evidence: the fixed file minified with esbuild before and after formatting is identical apart from a space after the colon in custom-property declarations, which browsers trim; no script reads a custom property. New `browser/tests/styles.test.mjs` fails on the old file and checks that every block is closed, that a reduced-motion block holds only animation, transition, transform and opacity, and that motion is declared only inside such a block.
+
+Checked in a browser by reading the parsed rule tree, not by switching the operating-system setting: the in-app browser cannot emulate Reduce Motion. A real device with the setting on is still owner acceptance.
 ## Readable JavaScript source — 2026-11-14
 
 Branch `format/readable-source`. Formatting only: every `browser/*.mjs` and `browser/tests/*.mjs` file was reformatted with Prettier 3 (`--single-quote --print-width 110`). No behavior, version or release identity changed. Evidence: each file minified with esbuild before and after is byte-identical, and `node --test browser/tests/*.test.mjs` passes 100 tests before and after. Long string literals (model guidance text) are unchanged and still exceed the line width.

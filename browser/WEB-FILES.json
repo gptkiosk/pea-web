@@ -51,6 +51,7 @@
   "tests/presence.test.mjs",
   "tests/profile-transfer.test.mjs",
   "tests/releases.test.mjs",
+  "tests/styles.test.mjs",
   "tests/taskboard.test.mjs",
   "tests/voice.test.mjs",
   "voice.mjs"
