@@ -13,7 +13,9 @@ import os
 from pathlib import Path
 import re
 import secrets
+import socket
 import stat
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -34,6 +36,8 @@ CSP = ("default-src 'self'; script-src 'self' https://accounts.google.com/gsi/cl
 
 
 BUILD_INFO_TTL = 60
+# Seconds a client has to deliver a complete request. The per-read socket timeout alone lets a trickling client hold one of the eight slots.
+REQUEST_DEADLINE = 20
 
 
 def upstream_url(value):
@@ -74,7 +78,7 @@ def validate_chat(raw):
             raise ValueError('Only plain text system/user/assistant messages are supported.')
         total += len(row['content'])
     limit = raw.get('max_tokens', 384)
-    if total > 64_000 or type(limit) is not int or not 1 <= limit <= 2048:
+    if total > 64_000 or type(limit) is not int or not 1 <= limit <= 4096:
         raise ValueError('Message or output limit exceeded.')
     temperature = raw.get('temperature', 0.7)
     if type(temperature) not in (int, float) or not 0 <= temperature <= 2:
@@ -117,6 +121,11 @@ class Gateway(ThreadingHTTPServer):
         finally:
             self.client_slots.release()
 
+    def handle_error(self, request, client_address):
+        # A client that disconnects or is cut off at the deadline is routine; other failures keep their traceback.
+        if not isinstance(sys.exc_info()[1], OSError):
+            super().handle_error(request, client_address)
+
     def build_info(self):
         # Unauthenticated endpoint: computing identity runs git or re-hashes program files, so do it at most once a minute.
         with self.identity_lock:
@@ -142,6 +151,21 @@ class Handler(BaseHTTPRequestHandler):
         super().setup()
         self.connection.settimeout(15)
 
+    def handle_one_request(self):
+        self.read_timer = threading.Timer(REQUEST_DEADLINE, self.expire)
+        self.read_timer.daemon = True
+        self.read_timer.start()
+        try:
+            super().handle_one_request()
+        finally:
+            self.read_timer.cancel()
+
+    def expire(self):
+        try:
+            self.connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
     def log_message(self, *_args):
         pass  # No request URLs, authorization, upstream errors or conversation logs.
 
@@ -153,6 +177,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
+        # Google's sign-in popup must keep its opener; every other cross-origin window is detached.
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
         self.send_header('Content-Security-Policy', CSP)
         self.send_header('Permissions-Policy', 'camera=(), geolocation=(), microphone=(self)')
         self.end_headers()
@@ -171,6 +199,7 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        self.read_timer.cancel()
         if not self.boundary(auth=self.path.startswith('/v1/')):
             return
         if self.path == '/api/build-info':
@@ -220,6 +249,7 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
             body = validate_chat(json.loads(self.rfile.read(length)))
+            self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
             return self.reply(400, {'error': 'Invalid or oversized text chat request.'})
         if body['model'] not in self.server.models or time.monotonic() - self.server.models_at > 3600:

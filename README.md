@@ -18,7 +18,7 @@ cd pea-web
 python3 -m http.server 18769 --bind 127.0.0.1
 ```
 
-Open `http://127.0.0.1:18769/browser/`. It starts disconnected with clearly labelled sample data. In **Connect your accounts**, explicitly connect your OpenRouter key and select a model, or follow the local-model setup below. Keys stay in the tab's memory. Do not expose this development file server publicly. Use HTTPS for a phone browser; a private VPN alone does not secure an HTTP browser origin.
+Open `http://127.0.0.1:18769/browser/`. It starts disconnected with clearly labelled sample data. In **Connect your accounts**, explicitly connect your OpenRouter key and select a model, or follow the local-model setup below. Keys stay in the tab's memory. This plain file server is for looking at the interface with sample data: it sends none of the gateway's security headers and serves the whole checkout. Use the local quickstart below before entering real keys or connecting accounts. Do not expose this development file server publicly. Use HTTPS for a phone browser; a private VPN alone does not secure an HTTP browser origin.
 
 ## Local foreground quickstart
 

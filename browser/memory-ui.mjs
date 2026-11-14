@@ -6,7 +6,8 @@ const profiles = ['personal','work'], surfaces = ['chat','greenhouse'];
 
 export function installMemory(hooks) {
   let library=emptyLibrary(),vault=null,pending=0,failed=false,initializing=true,hasSaved=false,porting=false,backupURL=null;
-  const active=new Map(),presence=new Map();let source=null;
+  // Threads the library could not take (full or over limits). Saving resumes as soon as one fits again.
+  const active=new Map(),presence=new Map(),unsaved=new Set();let source=null;
   const profile=hooks.profile;
   const fields=Object.keys(introductionLimits);
   const eligible=()=>profiles.includes(profile());
@@ -23,7 +24,7 @@ export function installMemory(hooks) {
   }
   function render() {
     const saved=!!vault?.key;
-    $('memory-status').textContent=initializing?'Checking local storage…':failed?'Save failed · local changes unsaved':pending?'Encrypting changes…':saved?'Encrypted saving · unlocked':hasSaved?'Saved library locked · current chats tab-only':'Tab-only · encrypted saving optional';
+    $('memory-status').textContent=initializing?'Checking local storage…':failed?'Save failed · local changes unsaved':unsaved.size?'Library full or over limits · current chat is tab-only':pending?'Encrypting changes…':saved?'Encrypted saving · unlocked':hasSaved?'Saved library locked · current chats tab-only':'Tab-only · encrypted saving optional';
     $('library-storage').textContent=saved?'Lock & clear unlocked context':'Unlock / enable encrypted saving…';
     $('library-storage').disabled=initializing||!!pending||porting||hooks.busy();$('library-backup').disabled=initializing||!!pending||porting||failed||hooks.busy()||!hasSaved;$('library-import-open').disabled=initializing||!!pending||porting||hooks.busy();
     $('library-scope').textContent=eligible()?`${profile()} · this browser only`:'Choose Work or Personal';
@@ -67,8 +68,8 @@ export function installMemory(hooks) {
     const key=who+':'+surface;
     try {
       const next=captureThread(library,who,surface,hooks.history(surface,who),active.get(key));
-      library=next.library;active.set(key,next.threadID);void persist();return true;
-    } catch(error) { failed=!!vault?.key;say(error);render();return false; }
+      library=next.library;active.set(key,next.threadID);unsaved.delete(key);void persist();return true;
+    } catch(error) { unsaved.add(key);say(error);render();return false; }
   }
   async function clearSurface(surface) {
     ensure();if(!record(surface))throw new ServiceError('The current thread could not be archived. Keep it open and resolve the library warning first.');if(pending)await vault.chain.catch(()=>{});
@@ -96,6 +97,8 @@ export function installMemory(hooks) {
     ensure();if(who!==profile() || thread.profile!==who)throw new ServiceError('Profile changed.');
     library=forgetThread(library,who,thread.id);
     if(active.get(who+':'+thread.surface)===thread.id){active.delete(who+':'+thread.surface);hooks.replace(thread.surface,[]);}
+    // Space was freed: give any thread the library refused earlier another chance.
+    for(const key of [...unsaved]){const [owner,surface]=key.split(':');record(surface,owner);}
     invalidate();await persist();
   }
   async function removeMemory(memory) {
@@ -149,7 +152,7 @@ export function installMemory(hooks) {
   $('library-new-chat').onclick=()=>fresh('chat').catch(say);
   $('library-new-greenhouse').onclick=()=>fresh('greenhouse').catch(say);
   $('library-storage').onclick=async()=>{
-    try {idle();if(vault?.key){await vault.chain.catch(()=>{});vault.lock();library=emptyLibrary();active.clear();share.clear();presence.clear();$('memory-share').checked=false;
+    try {idle();if(vault?.key){await vault.chain.catch(()=>{});vault.lock();library=emptyLibrary();active.clear();unsaved.clear();share.clear();presence.clear();$('memory-share').checked=false;
         hooks.clearAll();source=null;for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';fillInterview();invalidate();render();hooks.notice('Library locked. Unlocked transcripts, interview answers and memories were cleared from the page.');
       }else{$('library-unlock').showModal();}}
     catch(error){say(error);}
@@ -188,7 +191,7 @@ export function installMemory(hooks) {
       idle();unlocking=true;$('library-unlock-submit').disabled=true;
       // Keep only schema-bound transcripts/interview; never inspect connection or DOM credential fields.
       const next=await vault.unlock(password,library);if(!$('library-unlock').open) {vault.lock();return;}
-      library=next;hasSaved=true;failed=false;active.clear();share.clear();presence.clear();$('memory-share').checked=false;
+      library=next;hasSaved=true;failed=false;active.clear();unsaved.clear();share.clear();presence.clear();$('memory-share').checked=false;
       hooks.clearAll();fillInterview();invalidate();unlocking=false;$('library-unlock').close();render();
       hooks.notice('Library unlocked. Search and continue a conversation; nothing has been sent to a model.');
     } catch(error){say(error);}finally{unlocking=false;$('library-unlock-submit').disabled=false;render();}
@@ -199,7 +202,7 @@ export function installMemory(hooks) {
     $('memory-share').checked=share.get(profile())??false;$('interview-note').textContent='';fillInterview();render();
   }
   // No automatic hide timeout: hiding is common on mobile. Explicit Lock or page disposal clears context.
-  window.addEventListener('pagehide',()=>{if(backupURL)URL.revokeObjectURL(backupURL);backupURL=null;vault?.lock();library=emptyLibrary();active.clear();share.clear();presence.clear();source=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
+  window.addEventListener('pagehide',()=>{if(backupURL)URL.revokeObjectURL(backupURL);backupURL=null;vault?.lock();library=emptyLibrary();active.clear();unsaved.clear();share.clear();presence.clear();source=null;hooks.clearAll();for(const id of ['memory-quote','memory-fact','library-search'])$(id).value='';$('memory-source-text').textContent='';$('memory-share').checked=false;fillInterview();invalidate();render();});
   void (async()=>{try{vault=await ConversationVault.open();hasSaved=!!await vault.storage.get();}catch{hooks.notice('Local library storage is unavailable. Conversations remain in this tab.');}finally{initializing=false;render();}})();
   fillInterview();render();
   return {record,profileChanged,render,presence:()=>presence.get(profile())??false,async clearSurface(surface){await clearSurface(surface);},

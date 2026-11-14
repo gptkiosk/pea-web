@@ -44,17 +44,22 @@ export function validLibrary(value) {
   return true;
 }
 function check(value) {
+  if (Array.isArray(value?.threads) && value.threads.length > 40)
+    throw new ServiceError('The library holds 40 conversations. Forget one in Conversations & memory to save this one; it stays in this tab meanwhile. Nothing was overwritten.');
   if (!validLibrary(value) || new TextEncoder().encode(JSON.stringify(value)).byteLength > 1900000)
     throw new ServiceError('Library limits reached or contents are not eligible. Keep up to 40 conversations, 200 messages each, and 150 sourced memories without credentials. Nothing was overwritten.');
   return value;
 }
+// The saved copy never holds key-like text and stays within the per-message cap; the visible chat is unchanged.
+export const omittedText = '[Not saved: this message resembled a credential.]';
+const savedText = value => typeof value !== 'string' ? '' : containsCredential(value) ? omittedText : value.slice(0,12000);
 export function captureThread(library, profile, surface, messages, threadID = crypto.randomUUID(), now = Date.now()) {
   if (!profiles.includes(profile) || !surfaces.includes(surface)) throw new ServiceError('Choose Personal or Work for saved conversations.');
   if (!messages.length) return {library, threadID};
   const old = library.threads.find(t => t.id === threadID);
   if (old && (old.profile !== profile || old.surface !== surface)) throw new ServiceError('Conversation boundary changed.');
-  const thread = {id:threadID, profile, surface, title:(messages.find(m => m.role === 'user')?.text || 'Conversation').slice(0,100), updated:now,
-    messages:messages.map(m => ({id:m.id, role:m.role, text:m.text, at:m.at, incomplete:!!m.incomplete, preview:!!m.preview}))};
+  const saved = messages.map(m => ({id:m.id, role:m.role, text:savedText(m.text), at:m.at, incomplete:!!m.incomplete, preview:!!m.preview}));
+  const thread = {id:threadID, profile, surface, title:(saved.find(m => m.role === 'user')?.text || 'Conversation').slice(0,100), updated:now, messages:saved};
   const next = structuredClone(library);
   next.threads = next.threads.filter(t => t.id !== threadID).concat(thread);
   return {library:check(next), threadID};
@@ -101,6 +106,8 @@ export function introductionContext(value) {
 
 // Separate from the story board. Authenticated, bounded encrypted records only; keys/grants never enter this schema.
 const aad = new TextEncoder().encode('PEA conversation library v1');
+// Record version selects the PBKDF2-SHA256 work factor. Version 1 records are re-keyed to version 2 on their next unlock.
+export const kdfIterations = {1:310000, 2:600000};
 export class ConversationVault {
   constructor(storage) { this.storage=storage; this.key=null; this.salt=null; this.revision=null; this.chain=Promise.resolve(); this.epoch=0; }
   static async open() {
@@ -122,33 +129,35 @@ export class ConversationVault {
       })
     });
   }
-  async derive(passphrase,salt) {
+  async derive(passphrase,salt,version=2) {
     if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 256)
       throw new ServiceError('Use a library passphrase of 12–256 characters.');
     const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(passphrase),'PBKDF2',false,['deriveKey']);
-    return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+    return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:kdfIterations[version],hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
   }
   async unlock(passphrase,current=emptyLibrary()) {
     const epoch=++this.epoch;
     await this.chain.catch(()=>{});
     this.chain=Promise.resolve();this.key=null;this.salt=null;this.revision=null;
     const saved=await this.storage.get();
-    let key,salt,library;
+    let key,salt,library,upgrade=false;
     if (saved) {
-      if (!fields(saved,['version','revision','salt','iv','data']) || saved.version!==1 || !id(saved.revision) ||
+      if (!fields(saved,['version','revision','salt','iv','data']) || !Object.hasOwn(kdfIterations,saved.version) || !id(saved.revision) ||
           !(saved.salt instanceof Uint8Array) || saved.salt.length!==16 || !(saved.iv instanceof Uint8Array) || saved.iv.length!==12 ||
           !(saved.data instanceof ArrayBuffer) || saved.data.byteLength>2000000)
         throw new ServiceError('Stored library format is not recognized. Nothing was overwritten.');
       try {
-        salt=saved.salt;key=await this.derive(passphrase,salt);
+        salt=saved.salt;key=await this.derive(passphrase,salt,saved.version);
         library=check(JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:saved.iv,additionalData:aad},key,saved.data))));
+        if (saved.version!==2) {salt=crypto.getRandomValues(new Uint8Array(16));key=await this.derive(passphrase,salt);upgrade=true;}
       } catch { throw new ServiceError('Could not unlock the library. Check the passphrase. Nothing was overwritten.'); }
     } else {
       library=check(structuredClone(current));salt=crypto.getRandomValues(new Uint8Array(16));key=await this.derive(passphrase,salt);
     }
     if (epoch!==this.epoch) throw new ServiceError('Library unlock was cancelled.');
     this.key=key;this.salt=salt;this.revision=saved?.revision??null;
-    if (!saved) await this.save(library);
+    // A first save or a work-factor upgrade that cannot be written leaves the vault locked and the old record intact.
+    if (!saved || upgrade) { try {await this.save(library);} catch(error) {this.lock();throw error;} }
     return library;
   }
   save(library) {
@@ -161,7 +170,7 @@ export class ConversationVault {
       const iv=crypto.getRandomValues(new Uint8Array(12)),data=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:aad},key,plain);
       if(epoch!==this.epoch) throw new ServiceError('Library was locked before saving.');
       const revision=crypto.randomUUID();
-      await this.storage.comparePut(this.revision,{version:1,revision,salt,iv,data});
+      await this.storage.comparePut(this.revision,{version:2,revision,salt,iv,data});
       this.revision=revision;
     });
     // A failed write stops this session. No queued stale write can hide it; explicitly unlock again.
@@ -172,10 +181,10 @@ export class ConversationVault {
     const record=await this.storage.get();
     if(!record || (this.key && record.revision!==this.revision))throw new ServiceError('No current saved library to export. Resolve any save conflict first.');
     const encoded=bytes=>{let out='';for(let i=0;i<bytes.length;i+=8192)out+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(out);};
-    if(!fields(record,['version','revision','salt','iv','data']) || record.version!==1 || !id(record.revision) ||
+    if(!fields(record,['version','revision','salt','iv','data']) || !Object.hasOwn(kdfIterations,record.version) || !id(record.revision) ||
        !(record.salt instanceof Uint8Array) || record.salt.length!==16 || !(record.iv instanceof Uint8Array) || record.iv.length!==12 ||
        !(record.data instanceof ArrayBuffer) || record.data.byteLength<16 || record.data.byteLength>2000000)throw new ServiceError('Stored library format is not recognized.');
-    return JSON.stringify({format:'pea-encrypted-library',version:1,salt:encoded(record.salt),iv:encoded(record.iv),data:encoded(new Uint8Array(record.data))});
+    return JSON.stringify({format:'pea-encrypted-library',version:record.version,salt:encoded(record.salt),iv:encoded(record.iv),data:encoded(new Uint8Array(record.data))});
   }
   async importEncrypted(serialized,passphrase,canCommit=()=>true) {
     const epoch=this.epoch;
@@ -184,16 +193,16 @@ export class ConversationVault {
     let value,salt,iv,data;
     try {
       value=JSON.parse(serialized);
-      if(!fields(value,['format','version','salt','iv','data']) || value.format!=='pea-encrypted-library' || value.version!==1)throw Error('format');
+      if(!fields(value,['format','version','salt','iv','data']) || value.format!=='pea-encrypted-library' || !Object.hasOwn(kdfIterations,value.version))throw Error('format');
       const decode=(s,max)=>{if(typeof s!=='string'||s.length>max||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(s))throw Error('encoding');const raw=atob(s);return Uint8Array.from(raw,c=>c.charCodeAt(0));};
       salt=decode(value.salt,24);iv=decode(value.iv,16);data=decode(value.data,2666668);
       if(salt.length!==16 || iv.length!==12 || data.length<16 || data.length>2000000)throw Error('size');
-      const key=await this.derive(passphrase,salt);
+      const key=await this.derive(passphrase,salt,value.version);
       check(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await crypto.subtle.decrypt({name:'AES-GCM',iv,additionalData:aad},key,data))));
     } catch {throw new ServiceError('Could not verify this backup. Check the file and passphrase; nothing was imported.');}
     if(epoch!==this.epoch || this.key || !canCommit())throw new ServiceError('The library changed while verifying. Nothing was imported.');
     // Compare-and-insert prevents another tab from being overwritten, even after verification.
-    await this.storage.comparePut(null,{version:1,revision:crypto.randomUUID(),salt,iv,data:data.buffer});
+    await this.storage.comparePut(null,{version:value.version,revision:crypto.randomUUID(),salt,iv,data:data.buffer});
   }
   lock() {this.epoch++;this.key=null;this.salt=null;this.revision=null;}
 }

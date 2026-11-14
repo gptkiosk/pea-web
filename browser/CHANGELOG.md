@@ -2,6 +2,23 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.16] - 2026-11-13
+
+### Fixed
+
+- Replies may now run to 3,500 tokens (the gateway accepts up to 4,096), so reviewed email and document proposals are no longer cut off before they can be offered. The provider review shows the cap.
+- A full conversation library, an over-long reply or a reply that resembles a credential no longer stops saving for the rest of the session. Such text is replaced or shortened in the saved copy only.
+
+### Changed
+
+- Encrypted library and board keys use 600,000 PBKDF2 rounds. Existing records are re-keyed on their next unlock; an older build then refuses the upgraded record without changing it.
+- Each PEA-created file opened under the Drive source setting is shown in its own model review before its excerpt is shared.
+- The page refuses to run inside a frame. The gateway adds framing and cross-origin isolation headers and closes connections that do not deliver a complete request within 20 seconds.
+
+### Limits
+
+- Higher reply caps raise the possible cost of one reply on paid models. Calendar and mail snapshot contents are still not re-reviewed on refresh.
+
 ## [0.1.0-dev.15] - 2026-11-13
 
 ### Changed

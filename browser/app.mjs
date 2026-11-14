@@ -6,6 +6,8 @@ import {gate, projectCalendar, recentFiles} from './policy.mjs';
 import {installConnections} from './live-ui.mjs';
 import {Dictation} from './voice.mjs';
 import {installBoard} from './board-ui.mjs';
+// A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
+if(globalThis.top!==globalThis.self){document.body.replaceChildren(document.createTextNode('PEA does not run inside another page. Open it directly in a browser tab.'));throw new Error('PEA refuses to run in a frame.');}
 const $ = id => document.getElementById(id);
 let profile='personal', activeTab='chat', lastConversationSurface='chat', selected=null, imageURL=null;
 let live,board,voice,memory;let voiceTarget=null;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ConversationVault,emptyLibrary,emptyIntroduction,validLibrary,validIntroduction,captureThread,remember,forgetThread,
-  searchThreads,recall,memoryContext,introductionContext} from '../memory.mjs';
+  searchThreads,recall,memoryContext,introductionContext,omittedText,kdfIterations} from '../memory.mjs';
 import {Services} from '../connections.mjs';
 const day=86400000,now=Date.parse('2026-11-08T12:00:00Z');
 const msg=(role,text,more={})=>({id:crypto.randomUUID(),role,text,at:now,incomplete:false,preview:false,...more});
@@ -92,7 +92,7 @@ test('encrypted vault round trip stores no visible transcripts or interview, and
 test('wrong passphrases, modified ciphertext, IV/AAD and unknown envelopes preserve stored data',async()=>{
   const storage=store(),v=new ConversationVault(storage);await v.unlock('synthetic library passphrase',sample().library);v.lock();
   const original=await storage.get();await assert.rejects(v.unlock('wrong long passphrase'),/Could not unlock/);assert.deepEqual(await storage.get(),original);
-  for(const mutate of [r=>new Uint8Array(r.data)[3]^=1,r=>r.iv[0]^=1,r=>r.salt[0]^=1,r=>r.version=2,r=>r.credentials='x']) {
+  for(const mutate of [r=>new Uint8Array(r.data)[3]^=1,r=>r.iv[0]^=1,r=>r.salt[0]^=1,r=>r.version=1,r=>r.version=3,r=>r.credentials='x']) {
     const changed=structuredClone(original);mutate(changed);storage.set(changed);await assert.rejects(v.unlock('synthetic library passphrase'));
     assert.deepEqual(await storage.get(),changed);assert.equal(v.key,null);
   }
@@ -142,4 +142,44 @@ test('backup restore rejects wrong passwords, tampering, conflicts and cancelled
  const bad=JSON.parse(backup);bad.data=bad.data.slice(0,-5)+'AAAA=';await assert.rejects(r.importEncrypted(JSON.stringify(bad),'synthetic library passphrase'));assert.equal(await dest.get(),undefined);
  await assert.rejects(r.importEncrypted(backup,'synthetic library passphrase',()=>false),/changed/);assert.equal(await dest.get(),undefined);
  dest.set({invalid:'preserve'});await assert.rejects(r.importEncrypted(backup,'synthetic library passphrase'),/conflict/);assert.deepEqual(await dest.get(),{invalid:'preserve'});
+});
+
+// Review fixes 2026-11-13
+async function oldRecord(aadText,passphrase,value,iterations=310000) {
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(passphrase),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt']);
+  const data=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode(aadText)},key,new TextEncoder().encode(JSON.stringify(value)));
+  return {version:1,revision:crypto.randomUUID(),salt,iv,data};
+}
+function plainStore(record) {
+  return {get:async()=>structuredClone(record),comparePut:async(expected,value)=>{if(expected===null?record!==undefined:record?.revision!==expected)throw Error('conflict');record=structuredClone(value);}};
+}
+test('a 310,000-round library is re-keyed at 600,000 rounds on unlock and stays readable',async()=>{
+  assert.equal(kdfIterations[2],600000);
+  const s=sample(),old=await oldRecord('PEA conversation library v1','synthetic library passphrase',s.library),storage=plainStore(old);
+  const v=new ConversationVault(storage);
+  await assert.rejects(v.unlock('wrong long passphrase'),/Could not unlock/);assert.deepEqual(await storage.get(),old);
+  assert.deepEqual(await v.unlock('synthetic library passphrase'),s.library);
+  const upgraded=await storage.get();assert.equal(upgraded.version,2);assert.notDeepEqual(upgraded.salt,old.salt);assert.notEqual(upgraded.revision,old.revision);
+  v.lock();assert.deepEqual(await new ConversationVault(storage).unlock('synthetic library passphrase'),s.library);
+});
+test('an upgrade that loses a race leaves the vault locked and the newer record intact',async()=>{
+  const s=sample(),old=await oldRecord('PEA conversation library v1','synthetic library passphrase',s.library),storage=plainStore(old);
+  const results=await Promise.allSettled([new ConversationVault(storage),new ConversationVault(storage)].map(v=>v.unlock('synthetic library passphrase').then(()=>v)));
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal((await storage.get()).version,2);
+});
+test('a full library or key-like reply never blocks later saving',()=>{
+  let library=emptyLibrary();
+  for(let i=0;i<40;i++)library=captureThread(library,'personal','chat',[msg('user','Conversation '+i)],undefined,now+i).library;
+  assert.throws(()=>captureThread(library,'personal','chat',[msg('user','One more')]),/holds 40 conversations/);
+  const existing=library.threads[0];
+  assert.equal(captureThread(library,'personal','chat',[...existing.messages,msg('assistant','Still fits.')],existing.id).library.threads.length,40);
+  const keyLike='sk-or-v1-'+'a'.repeat(30),long='x'.repeat(13000);
+  const saved=captureThread(emptyLibrary(),'personal','chat',[msg('user','What does a key look like?'),msg('assistant','Like '+keyLike),msg('assistant',long)]).library;
+  assert.equal(saved.threads[0].messages[1].text,omittedText);assert.equal(saved.threads[0].messages[2].text.length,12000);assert.ok(validLibrary(saved));
+  assert.ok(!JSON.stringify(saved).includes(keyLike));
+  // The title comes from the first owner message, so it must use the saved copy too.
+  const first=captureThread(emptyLibrary(),'personal','chat',[msg('user','My key is '+keyLike),msg('assistant','Noted.')]).library;
+  assert.equal(first.threads[0].title,omittedText);assert.ok(validLibrary(first));
 });
