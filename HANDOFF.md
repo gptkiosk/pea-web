@@ -23,6 +23,14 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Readable JavaScript source — 2026-11-14
+
+Branch `format/readable-source`. Formatting only: every `browser/*.mjs` and `browser/tests/*.mjs` file was reformatted with Prettier 3 (`--single-quote --print-width 110`). No behavior, version or release identity changed. Evidence: each file minified with esbuild before and after is byte-identical, and `node --test browser/tests/*.test.mjs` passes 100 tests before and after. Long string literals (model guidance text) are unchanged and still exceed the line width.
+
+Not formatted: `browser/index.html` (whitespace can be significant) and the Python sources. `browser/styles.css` could not be parsed by the formatter: the `@media (prefers-reduced-motion: no-preference)` block opened at the end of its first line is never closed, so every later rule sits inside it. That is a real defect for owners who enable reduced motion and is fixed, then formatted, in its own change.
+
+Resume: the plan for release 0.1.0 is foundations (this change, the stylesheet fix, a browser-level test harness, review items L7 and L8), then the desktop workspace, then action parity. Rebase any open branch onto this commit before continuing, because every module's line numbers changed.
+
 ## Board backup browser round trip — 2026-11-13
 
 The encrypted board backup slice, uncommitted at the time, was verified end to end using two isolated loopback preview origins and synthetic data. A synthetic story was encrypted, downloaded, restored into the empty second origin and unlocked successfully. A second restore attempt was refused while a board existed. Temporary test servers were stopped and the downloaded synthetic file was removed. The test origins may retain their synthetic encrypted IndexedDB records in the in-app browser. No real board, model, account or microphone was used. Physical-device testing and iPhone compatibility remain open. The prior 94 Web and 24 server test results apply; this check changed no application code. Run the staged boundary scan before any commit. Resume: continue parity and independently agree an interoperable cross-app profile contract.
