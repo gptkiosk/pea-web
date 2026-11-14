@@ -43,6 +43,8 @@
   "taskboard.mjs",
   "tests/actions.test.mjs",
   "tests/connections.test.mjs",
+  "tests/dom/harness.mjs",
+  "tests/dom/reviews.test.mjs",
   "tests/fixtures/PolicyFixtures.json",
   "tests/fixtures/README.md",
   "tests/local-model.test.mjs",

@@ -153,6 +153,36 @@ class GatewayChecks(unittest.TestCase):
         self.assertEqual(headers['X-Frame-Options'], 'DENY')
         self.assertEqual(headers['Cross-Origin-Resource-Policy'], 'same-origin')
         self.assertEqual(headers['Cross-Origin-Opener-Policy'], 'same-origin-allow-popups')
+    def test_idle_browser_connections_do_not_block_page_loads(self):
+        # Browsers keep spare connections open that send nothing. Twenty of them must not stop the next request.
+        import socket
+        idle = [socket.create_connection(('127.0.0.1', self.server.server_port), timeout=5) for _ in range(20)]
+        try:
+            for _ in range(12):
+                with urllib.request.urlopen(self.base + '/app.mjs', timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+        finally:
+            for connection in idle:
+                connection.close()
+
+    def test_connections_beyond_the_limit_are_closed_unanswered(self):
+        import socket
+        held = []
+        try:
+            for _ in range(g.CLIENT_SLOTS + 4):
+                held.append(socket.create_connection(('127.0.0.1', self.server.server_port), timeout=5))
+            extra = held[-1]
+            extra.settimeout(5)
+            extra.sendall(b'GET / HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n')
+            try:
+                answered = extra.recv(1)
+            except OSError:
+                answered = b''
+            self.assertEqual(answered, b'')
+        finally:
+            for connection in held:
+                connection.close()
+
     def test_trickling_client_is_cut_off_at_the_request_deadline(self):
         import socket, time
         previous, g.REQUEST_DEADLINE = g.REQUEST_DEADLINE, 1
