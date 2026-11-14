@@ -16,6 +16,7 @@
   "docs/OPERATOR-ACCEPTANCE.md",
   "docs/OPEN-SOURCE.md",
   "docs/PARITY.md",
+  "docs/PROFILE-CONTINUITY.md",
   "docs/RELEASES.md",
   "docs/SELF-HOSTING.md",
   "index.html",
@@ -23,6 +24,7 @@
   "local-model.mjs",
   "memory-ui.mjs",
   "memory.mjs",
+  "profile-transfer.mjs",
   "policy.mjs",
   "presence.mjs",
   "release-ui.mjs",
@@ -47,7 +49,9 @@
   "tests/memory.test.mjs",
   "tests/policy.test.mjs",
   "tests/presence.test.mjs",
+  "tests/profile-transfer.test.mjs",
   "tests/releases.test.mjs",
   "tests/taskboard.test.mjs",
+  "tests/voice.test.mjs",
   "voice.mjs"
 ]

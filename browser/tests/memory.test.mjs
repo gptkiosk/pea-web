@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ConversationVault,emptyLibrary,emptyIntroduction,validLibrary,validIntroduction,captureThread,remember,forgetThread,
+import {ConversationVault,emptyLibrary,emptyIntroduction,introductionLimits,validLibrary,validIntroduction,captureThread,remember,reviseMemory,forgetThread,
   searchThreads,recall,memoryContext,introductionContext,omittedText,kdfIterations} from '../memory.mjs';
 import {Services} from '../connections.mjs';
 const day=86400000,now=Date.parse('2026-11-08T12:00:00Z');
@@ -44,6 +44,14 @@ test('memory must cite the owner’s actual message, in the same profile, with a
   const preview=sample();preview.library.threads[0].messages[0].preview=true;assert.throws(()=>fact(preview));
   const partial=sample();partial.library.threads[0].messages[0].incomplete=true;assert.throws(()=>fact(partial));
 });
+test('correcting a memory preserves its source, time, expiry and profile without mutating the old library',()=>{
+  const s=sample(),library=fact(s),original=library.memories[0];
+  const next=reviseMemory(library,'personal',original.id,'  Enjoys stargazing  '),updated=next.memories[0];
+  assert.equal(updated.text,'Enjoys stargazing');assert.deepEqual(updated.source,original.source);assert.equal(updated.created,original.created);assert.equal(updated.expires,original.expires);assert.equal(original.text,'Enjoys astronomy');
+  assert.throws(()=>reviseMemory(library,'work',original.id,'Different profile'));
+  assert.throws(()=>reviseMemory(library,'personal',original.id,'   '));
+  assert.throws(()=>reviseMemory(library,'personal',original.id,'sk-or-v1-'+'a'.repeat(40)));
+});
 test('search is profile/surface bounded; forget removes sourced memories only in that profile',()=>{
   const s=sample(),other=sample('work','greenhouse','Confidential work planning');
   let library=fact(s);library.threads.push(other.library.threads[0]);
@@ -79,6 +87,19 @@ test('structured interview is optional, bounded and distinct from persona style'
   assert(validIntroduction(v));assert.match(introductionContext(v),/Test city/);assert.doesNotMatch(introductionContext(v),/botanist/);
   assert(!validIntroduction({...v,hometown:'a'.repeat(121)}));assert(!validIntroduction({...v,credentials:'not allowed'}));
   assert.throws(()=>introductionContext({...v,interests:'AIza'+ 'a'.repeat(35)}));
+});
+test('expanded interview upgrades only the selected profile and preserves the legacy home field',async()=>{
+  const storage=store(),vault=new ConversationVault(storage),library=emptyLibrary();
+  library.introductions.personal.hometown='Owner city';library.introductions.work.goals='Work goal';
+  await vault.unlock('synthetic library passphrase',library);
+  const expanded={...Object.fromEntries(Object.keys(introductionLimits).map(key=>[key,''])),...library.introductions.personal,assistantHome:'Fictional city',family:'Synthetic family'};
+  const upgraded={...library,version:2,introductions:{...library.introductions,personal:expanded}};
+  assert(validLibrary(library));assert(validLibrary(upgraded));assert(!validLibrary({...upgraded,version:1}));
+  assert(!validIntroduction({...expanded,credentials:'x'}));assert(!validIntroduction({...expanded,pets:'x'.repeat(601)}));
+  assert.match(introductionContext({...expanded,interests:'i'.repeat(1200),family:'f'.repeat(600),pets:'p'.repeat(600),work:'w'.repeat(600),boundaries:'Synthetic boundary'}),/^boundaries: Synthetic boundary/);
+  await vault.save(upgraded);vault.lock();const restored=await vault.unlock('synthetic library passphrase');
+  assert.equal(restored.introductions.personal.hometown,'Owner city');assert.equal(restored.introductions.personal.assistantHome,'Fictional city');
+  assert.equal(restored.introductions.personal.family,'Synthetic family');assert.equal(restored.introductions.work.goals,'Work goal');
 });
 test('encrypted vault round trip stores no visible transcripts or interview, and never restores grants',async()=>{
   const storage=store(),v=new ConversationVault(storage),s=sample('personal','chat','CANARY LOCAL CONVERSATION');

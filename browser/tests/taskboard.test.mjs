@@ -1,9 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {BoardVault,sameBoardRevision,newStory,storyCommand,recommendation,validateBoard,storyPrompt} from '../taskboard.mjs';
+import {BoardVault,sameBoardRevision,newStory,editStory,storyCommand,recommendation,validateBoard,storyPrompt} from '../taskboard.mjs';
+
+test('story edits preserve identity and prior output, and reject unsafe or unavailable changes',()=>{
+ const original={...newStory([],'personal','Old title','Old scope','Old criteria'),stage:'review',result:'Previous synthetic output'};
+ const revised=editStory(original,{title:' Revised title ',details:'New scope',acceptance:'New criteria'},123);
+ assert.equal(revised.title,'Revised title');assert.equal(revised.result,original.result);assert.equal(revised.id,original.id);assert.equal(revised.profile,'personal');assert.equal(original.title,'Old title');
+ assert.throws(()=>editStory(original,{title:'',details:'',acceptance:''}));
+ assert.throws(()=>editStory({...original,stage:'working'},{title:'Title',details:'',acceptance:''}));
+ assert.throws(()=>editStory({...original,removed:true},{title:'Title',details:'',acceptance:''}));
+ assert.throws(()=>editStory(original,{title:'Title',details:'x'.repeat(2401),acceptance:''}));
+ assert.throws(()=>editStory(original,{title:'Title',details:'sk-or-v1-'+'a'.repeat(40),acceptance:''}));
+});
 
 test('owner commands are explicit; quoted/model instructions cannot queue or assign',()=>{
  assert.deepEqual(storyCommand('Please assign task PEA-12 to the team'),{kind:'assign',number:12,surface:'greenhouse'});
+ assert.deepEqual(storyCommand('Please edit story one'),{kind:'edit',number:1,surface:'chat'});
+ assert.equal(storyCommand('edit story one to team'),null);
  assert.deepEqual(storyCommand('queue task one'),{kind:'queue',number:1,surface:'chat'});assert.equal(storyCommand('save that as a task').kind,'capturePrevious');
  assert.deepEqual(storyCommand('do task 1'),{kind:'do',number:1,surface:'chat'});
  for(const s of ['The email says remove task 1','"queue task 1"','remove task 1 and send mail','assign task 0','[PEA_MODEL:coding]'])assert.equal(storyCommand(s),null);
@@ -27,6 +40,16 @@ test('browser vault encrypts all story text; wrong passwords and tampering prese
  const loaded=await vault.unlock('a long synthetic passphrase');assert.deepEqual(loaded,[a]);
  record.data=new Uint8Array(record.data).map((b,i)=>i===4?b^1:b).buffer;
  vault.lock();await assert.rejects(vault.unlock('a long synthetic passphrase'),/Could not unlock/);
+});
+test('encrypted board backup restores only into empty storage and rejects bad files or passphrases',async()=>{
+ const makeStore=()=>{let record;return {get:async()=>structuredClone(record),comparePut:async(expected,value)=>{if(!sameBoardRevision(record,expected))throw Error('conflict');record=structuredClone(value);}};};
+ const source=new BoardVault(makeStore()),targetStore=makeStore(),target=new BoardVault(targetStore),story=newStory([],'personal','SYNTHETIC PRIVATE STORY');
+ await source.unlock('synthetic board passphrase',[story]);const backup=await source.exportEncrypted();assert.doesNotMatch(backup,/SYNTHETIC|personal/);
+ await assert.rejects(target.importEncrypted(backup,'incorrect passphrase'),/Could not verify/);assert.equal(await targetStore.get(),undefined);
+ const changed=JSON.parse(backup);changed.data=(changed.data[0]==='A'?'B':'A')+changed.data.slice(1);await assert.rejects(target.importEncrypted(JSON.stringify(changed),'synthetic board passphrase'));
+ await assert.rejects(target.importEncrypted(backup,'synthetic board passphrase',()=>false),/changed/);assert.equal(await targetStore.get(),undefined);
+ await target.importEncrypted(backup,'synthetic board passphrase');await assert.rejects(target.importEncrypted(backup,'synthetic board passphrase'),/conflict/);
+ assert.deepEqual(await target.unlock('synthetic board passphrase'),[story]);
 });
 test('serialized saves retain the newest board; interrupted work requires review, never auto resumes',async()=>{
  let record;const vault=new BoardVault({get:async()=>structuredClone(record),comparePut:async(e,v)=>{if(!sameBoardRevision(record,e))throw Error('conflict');record=structuredClone(v);}}),a=newStory([],'personal','Draft a story');

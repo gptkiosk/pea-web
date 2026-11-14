@@ -140,6 +140,7 @@ class GatewayChecks(unittest.TestCase):
         self.assertIn('app.mjs', seen)
         self.assertIn('actions.mjs', seen)
         self.assertIn('memory-ui.mjs', seen)
+        self.assertIn('profile-transfer.mjs', seen)
         self.assertEqual(self.call('/browser/server/gateway.py', token='')[0], 404)
         self.assertEqual(self.call('/browser/docs/MEMORY.md', token='')[0], 404)
 

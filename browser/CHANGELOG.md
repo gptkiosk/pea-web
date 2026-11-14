@@ -2,6 +2,26 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.17] - 2026-11-13
+
+### Added
+
+- The interview asks thirteen separate questions, each with optional Read question and Dictate answer controls, and states whether answers are being saved on this browser.
+- An interview profile can be moved between browsers as a passphrase-encrypted file. Import fills only empty answers by default, or replaces every field after a field-by-field review.
+- The Today board has an encrypted backup and restore, and captured stories can be edited by hand, by an "edit task" command or by reviewed dictation.
+- Chat and Greenhouse have a voice screen with an editable transcript and explicit Send. A device voice and speed can be chosen for read-aloud.
+- "Open Greenhouse" or "take me to Today" switches tabs without a model request, and a completed reply may offer one navigation button for the owner to click.
+
+### Changed
+
+- The saved library uses schema 2 for the expanded interview. A schema 1 library stays readable and is upgraded only after an owner review.
+- Profile files use 600,000 PBKDF2 rounds; files from an earlier development build still open.
+
+### Limits
+
+- Profile files, board backups and library backups are Web-only snapshots. iPhone cannot import them and nothing synchronizes automatically.
+- Browser speech recognition may use an online service. Physical-device and real-account acceptance are still outstanding.
+
 ## [0.1.0-dev.16] - 2026-11-13
 
 ### Fixed

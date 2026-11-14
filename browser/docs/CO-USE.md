@@ -17,6 +17,10 @@ The shared Drive folder is a content library, not automatic configuration or pri
 
 Conversations, sourced personal memory, persona/interview answers, story boards, provider/OAuth/GitHub/server credentials and service/model consent are not automatically synchronized. Both products have independent local encrypted persistence; the Web library is optional and browser/origin-bound. See [Web memory and recovery](MEMORY.md). Automatic customer-owned encrypted sync needs its own revision/conflict/consent design. Do not copy one app's runtime database into the other or infer completion from seeing the same folder.
 
+The proposed requirements for an interoperable interview and assistant profile are in [profile continuity](PROFILE-CONTINUITY.md). This is a design proposal, not an available transfer format.
+
+PEA Web separately supports an encrypted interview-only snapshot between Web browsers. This is a Web-only format and is not an iPhone transfer or automatic sync; see [memory and recovery](MEMORY.md).
+
 Native audio is the primary walk/locked-screen target. Browser dictation stops when hidden and may use an online OS/browser service. AirPods/background behavior needs actual device acceptance; a VPN or faster model does not establish it.
 
 ## Independent updates
