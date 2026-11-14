@@ -1,55 +1,440 @@
-import {containsCredential,ServiceError} from './connections.mjs';
-export const stages=['inbox','queued','working','review','done'];
-export function validStory(t){return t&&typeof t.id==='string'&&/^[a-z0-9-]{10,50}$/i.test(t.id)&&Number.isInteger(t.number)&&t.number>0&&t.number<=1000000&&['work','personal'].includes(t.profile)&&typeof t.title==='string'&&t.title.trim().length>0&&t.title.length<=120&&typeof t.details==='string'&&t.details.length<=2400&&typeof t.acceptance==='string'&&t.acceptance.length<=800&&typeof t.result==='string'&&t.result.length<=12000&&stages.includes(t.stage)&&typeof t.removed==='boolean'&&Number.isFinite(t.updated)&&!containsCredential(t.title+t.details+t.acceptance+t.result)&&(!t.model||typeof t.model==='string'&&t.model.length<=180&&!/\s/.test(t.model))&&['chat','greenhouse'].includes(t.surface)&&['collaboration','coding','image'].includes(t.role);}
-export function validateBoard(tasks){return Array.isArray(tasks)&&tasks.length<=200&&tasks.every(validStory)&&new Set(tasks.map(t=>t.id)).size===tasks.length&&new Set(tasks.map(t=>t.number)).size===tasks.length;}
-export function newStory(tasks,profile,title,details='',acceptance=''){const task={id:crypto.randomUUID(),number:Math.max(0,...tasks.map(t=>t.number))+1,profile,title:title.trim(),details,acceptance,result:'',stage:'inbox',removed:false,updated:Date.now(),surface:'greenhouse',role:'collaboration',model:null};if(!validateBoard([...tasks,task]))throw new ServiceError('Use a title up to 120 characters, scope up to 2,400, acceptance up to 800, without credentials. Board limit: 200 stories, including removed ones.');return task;}
-export function editStory(task,{title,details,acceptance},now=Date.now()){
- if(!task||task.removed||task.stage==='working'||typeof title!=='string'||typeof details!=='string'||typeof acceptance!=='string')throw new ServiceError('This story cannot be edited now.');
- const next={...task,title:title.trim(),details,acceptance,updated:now};
- if(!validStory(next))throw new ServiceError('Use a title up to 120 characters, scope up to 2,400 and acceptance up to 800, without credentials. Nothing was changed.');
- return next;
+import { containsCredential, ServiceError } from './connections.mjs';
+export const stages = ['inbox', 'queued', 'working', 'review', 'done'];
+export function validStory(t) {
+  return (
+    t &&
+    typeof t.id === 'string' &&
+    /^[a-z0-9-]{10,50}$/i.test(t.id) &&
+    Number.isInteger(t.number) &&
+    t.number > 0 &&
+    t.number <= 1000000 &&
+    ['work', 'personal'].includes(t.profile) &&
+    typeof t.title === 'string' &&
+    t.title.trim().length > 0 &&
+    t.title.length <= 120 &&
+    typeof t.details === 'string' &&
+    t.details.length <= 2400 &&
+    typeof t.acceptance === 'string' &&
+    t.acceptance.length <= 800 &&
+    typeof t.result === 'string' &&
+    t.result.length <= 12000 &&
+    stages.includes(t.stage) &&
+    typeof t.removed === 'boolean' &&
+    Number.isFinite(t.updated) &&
+    !containsCredential(t.title + t.details + t.acceptance + t.result) &&
+    (!t.model || (typeof t.model === 'string' && t.model.length <= 180 && !/\s/.test(t.model))) &&
+    ['chat', 'greenhouse'].includes(t.surface) &&
+    ['collaboration', 'coding', 'image'].includes(t.role)
+  );
 }
-export function storyCommand(text){const s=text.trim().replace(/^please\s+/i,'');if(['save that as a task','capture that as a story','save that as a story'].includes(s.toLowerCase()))return {kind:'capturePrevious'};if(['show task board','show my tasks','list my tasks','show the task board'].includes(s.toLowerCase()))return {kind:'list'};const add=s.match(/^(?:add|capture|create)(?: a)? (?:task|story)\s*[:\-]?\s+(.+)$/i);if(add)return {kind:'add',title:add[1]};const m=s.match(/^(show|edit|queue|remove|restore|complete|do|assign|start)\s+(?:task|story)\s+(?:PEA[- ]?)?(\d{1,7}|[a-z-]+)(?:\s+(to (?:the )?team|with (?:the )?assistant))?[.!]?$/i);if(!m)return null;const words=['one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];const number=Number(m[2])||words.indexOf(m[2].toLowerCase())+1;if(number<1)return null;const kind=m[1].toLowerCase(),suffix=(m[3]??'').toLowerCase();if(suffix&&!['assign','do','start'].includes(kind))return null;return {kind,number,surface:suffix.includes('team')?'greenhouse':suffix.includes('assistant')?'chat':kind==='assign'?'greenhouse':'chat'};}
-export function recommendation(task){const text=task.title+' '+task.details;if(/\b(code|coding|script|debug|repository|refactor|function|swift|python)\b/i.test(text))return {role:'coding',reason:'Code work suggests your coding profile. This is an estimate, not a quality or cost guarantee.'};if(/\b(image|illustration|poster|photograph|artwork)\b/i.test(text))return {role:'image',reason:'Visual output suggests your image profile. Its exact prompt and price still need review.'};return {role:'collaboration',reason:'Planning, research and writing suggest your collaboration profile. You can choose another.'};}
-export const storyPrompt=t=>`Work on this owner-reviewed story. Produce a draft or analysis for owner review; do not claim external actions have happened.\nPEA-${t.number}: ${t.title}\nScope: ${t.details}\nDone when: ${t.acceptance||'Owner reviews the output'}`;
+export function validateBoard(tasks) {
+  return (
+    Array.isArray(tasks) &&
+    tasks.length <= 200 &&
+    tasks.every(validStory) &&
+    new Set(tasks.map((t) => t.id)).size === tasks.length &&
+    new Set(tasks.map((t) => t.number)).size === tasks.length
+  );
+}
+export function newStory(tasks, profile, title, details = '', acceptance = '') {
+  const task = {
+    id: crypto.randomUUID(),
+    number: Math.max(0, ...tasks.map((t) => t.number)) + 1,
+    profile,
+    title: title.trim(),
+    details,
+    acceptance,
+    result: '',
+    stage: 'inbox',
+    removed: false,
+    updated: Date.now(),
+    surface: 'greenhouse',
+    role: 'collaboration',
+    model: null,
+  };
+  if (!validateBoard([...tasks, task]))
+    throw new ServiceError(
+      'Use a title up to 120 characters, scope up to 2,400, acceptance up to 800, without credentials. Board limit: 200 stories, including removed ones.',
+    );
+  return task;
+}
+export function editStory(task, { title, details, acceptance }, now = Date.now()) {
+  if (
+    !task ||
+    task.removed ||
+    task.stage === 'working' ||
+    typeof title !== 'string' ||
+    typeof details !== 'string' ||
+    typeof acceptance !== 'string'
+  )
+    throw new ServiceError('This story cannot be edited now.');
+  const next = { ...task, title: title.trim(), details, acceptance, updated: now };
+  if (!validStory(next))
+    throw new ServiceError(
+      'Use a title up to 120 characters, scope up to 2,400 and acceptance up to 800, without credentials. Nothing was changed.',
+    );
+  return next;
+}
+export function storyCommand(text) {
+  const s = text.trim().replace(/^please\s+/i, '');
+  if (['save that as a task', 'capture that as a story', 'save that as a story'].includes(s.toLowerCase()))
+    return { kind: 'capturePrevious' };
+  if (['show task board', 'show my tasks', 'list my tasks', 'show the task board'].includes(s.toLowerCase()))
+    return { kind: 'list' };
+  const add = s.match(/^(?:add|capture|create)(?: a)? (?:task|story)\s*[:\-]?\s+(.+)$/i);
+  if (add) return { kind: 'add', title: add[1] };
+  const m = s.match(
+    /^(show|edit|queue|remove|restore|complete|do|assign|start)\s+(?:task|story)\s+(?:PEA[- ]?)?(\d{1,7}|[a-z-]+)(?:\s+(to (?:the )?team|with (?:the )?assistant))?[.!]?$/i,
+  );
+  if (!m) return null;
+  const words = [
+    'one',
+    'two',
+    'three',
+    'four',
+    'five',
+    'six',
+    'seven',
+    'eight',
+    'nine',
+    'ten',
+    'eleven',
+    'twelve',
+    'thirteen',
+    'fourteen',
+    'fifteen',
+    'sixteen',
+    'seventeen',
+    'eighteen',
+    'nineteen',
+    'twenty',
+  ];
+  const number = Number(m[2]) || words.indexOf(m[2].toLowerCase()) + 1;
+  if (number < 1) return null;
+  const kind = m[1].toLowerCase(),
+    suffix = (m[3] ?? '').toLowerCase();
+  if (suffix && !['assign', 'do', 'start'].includes(kind)) return null;
+  return {
+    kind,
+    number,
+    surface: suffix.includes('team')
+      ? 'greenhouse'
+      : suffix.includes('assistant')
+        ? 'chat'
+        : kind === 'assign'
+          ? 'greenhouse'
+          : 'chat',
+  };
+}
+export function recommendation(task) {
+  const text = task.title + ' ' + task.details;
+  if (/\b(code|coding|script|debug|repository|refactor|function|swift|python)\b/i.test(text))
+    return {
+      role: 'coding',
+      reason: 'Code work suggests your coding profile. This is an estimate, not a quality or cost guarantee.',
+    };
+  if (/\b(image|illustration|poster|photograph|artwork)\b/i.test(text))
+    return {
+      role: 'image',
+      reason: 'Visual output suggests your image profile. Its exact prompt and price still need review.',
+    };
+  return {
+    role: 'collaboration',
+    reason: 'Planning, research and writing suggest your collaboration profile. You can choose another.',
+  };
+}
+export const storyPrompt = (t) =>
+  `Work on this owner-reviewed story. Produce a draft or analysis for owner review; do not claim external actions have happened.\nPEA-${t.number}: ${t.title}\nScope: ${t.details}\nDone when: ${t.acceptance || 'Owner reviews the output'}`;
 
 // Optional browser-local vault. Only encrypted story records are persisted, never API keys or transcripts.
 // Legacy records have no revision; compare their authenticated bytes before upgrading them.
-export function sameBoardRevision(current,expected){
- if(expected===null)return current===undefined;
- if(typeof expected==='string')return current?.revision===expected;
- if(!current || current.revision!==undefined || !expected?.legacy)return false;
- const same=(a,b)=>a?.length===b?.length && a.every((v,i)=>v===b[i]);
- return current.version===1 && current.salt instanceof Uint8Array && current.iv instanceof Uint8Array && current.data instanceof ArrayBuffer &&
-   same(current.salt,expected.salt) && same(current.iv,expected.iv) && same(new Uint8Array(current.data),expected.data);
+export function sameBoardRevision(current, expected) {
+  if (expected === null) return current === undefined;
+  if (typeof expected === 'string') return current?.revision === expected;
+  if (!current || current.revision !== undefined || !expected?.legacy) return false;
+  const same = (a, b) => a?.length === b?.length && a.every((v, i) => v === b[i]);
+  return (
+    current.version === 1 &&
+    current.salt instanceof Uint8Array &&
+    current.iv instanceof Uint8Array &&
+    current.data instanceof ArrayBuffer &&
+    same(current.salt, expected.salt) &&
+    same(current.iv, expected.iv) &&
+    same(new Uint8Array(current.data), expected.data)
+  );
 }
 // Record version selects the PBKDF2-SHA256 work factor; version 1 boards are re-keyed to version 2 on their next unlock.
-export const boardKdfIterations={1:310000,2:600000};
+export const boardKdfIterations = { 1: 310000, 2: 600000 };
 export class BoardVault {
- constructor(storage){this.storage=storage;this.key=null;this.salt=null;this.revision=null;this.epoch=0;this.chain=Promise.resolve();}
- static async open(){const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('pea-task-board-v1',1);r.onupgradeneeded=()=>r.result.createObjectStore('encrypted');r.onerror=()=>reject(new ServiceError('Local board storage is unavailable. Nothing was overwritten.'));r.onblocked=()=>reject(new ServiceError('Close other PEA tabs before opening the board.'));r.onsuccess=()=>{r.result.onversionchange=()=>r.result.close();resolve(r.result);};});return new BoardVault({get:()=>new Promise((resolve,reject)=>{const r=db.transaction('encrypted').objectStore('encrypted').get('board');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);}),comparePut:(expected,value)=>new Promise((resolve,reject)=>{const tx=db.transaction('encrypted','readwrite'),store=tx.objectStore('encrypted'),r=store.get('board');let conflict=false;r.onsuccess=()=>{if(!sameBoardRevision(r.result,expected)){conflict=true;tx.abort();}else store.put(value,'board');};tx.oncomplete=()=>resolve();tx.onabort=tx.onerror=()=>reject(new ServiceError(conflict?'Another tab changed this board. Lock and unlock to reload it before saving.':'Saving the board failed. The previous encrypted record remains.'));})});}
- async derive(passphrase,salt,version=2){if(typeof passphrase!=='string'||passphrase.length<12||passphrase.length>256)throw new ServiceError('Use a board passphrase of 12–256 characters. It is never sent to a server.');const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(passphrase),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:boardKdfIterations[version],hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
- async unlock(passphrase,current=[]){const epoch=++this.epoch;await this.chain.catch(()=>{});this.chain=Promise.resolve();this.key=null;this.salt=null;this.revision=null;const saved=await this.storage.get();let tasks,key,salt,revision=null,upgrade=false;
-  if(saved){if(!Object.hasOwn(boardKdfIterations,saved.version)||!(saved.salt instanceof Uint8Array)||saved.salt.length!==16||!(saved.iv instanceof Uint8Array)||saved.iv.length!==12||!(saved.data instanceof ArrayBuffer)||saved.data.byteLength>4000000||(saved.revision!==undefined&&(typeof saved.revision!=='string'||!/^[a-z0-9-]{10,50}$/i.test(saved.revision))))throw new ServiceError('Stored board is not recognized. Nothing was overwritten.');try{salt=saved.salt;key=await this.derive(passphrase,salt,saved.version);const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:saved.iv,additionalData:new TextEncoder().encode('PEA story board v1')},key,saved.data);tasks=JSON.parse(new TextDecoder().decode(plain));if(!validateBoard(tasks))throw new Error();revision=saved.revision??{legacy:true,salt:new Uint8Array(saved.salt),iv:new Uint8Array(saved.iv),data:new Uint8Array(saved.data)};if(saved.version!==2){salt=crypto.getRandomValues(new Uint8Array(16));key=await this.derive(passphrase,salt);upgrade=true;}}catch{throw new ServiceError('Could not unlock the local board. Check the passphrase. Nothing was overwritten.');}}
-  else{if(!validateBoard(current))throw new ServiceError('Board contents are invalid. Nothing was overwritten.');tasks=structuredClone(current);salt=crypto.getRandomValues(new Uint8Array(16));key=await this.derive(passphrase,salt);}
-  if(epoch!==this.epoch)throw new ServiceError('Board unlock was cancelled.');this.key=key;this.salt=salt;this.revision=revision;if(!saved||upgrade){try{await this.save(tasks);}catch(error){this.lock();throw error;}}return tasks.map(t=>t.stage==='working'?{...t,stage:'review',result:'Interrupted before this page opened. Review the conversation/output before starting again.'}:t);
- }
- save(tasks){if(!this.key||!validateBoard(tasks))return Promise.reject(new ServiceError('Unlock the board and check its contents before saving.'));const plain=new TextEncoder().encode(JSON.stringify(tasks)),key=this.key,salt=this.salt,epoch=this.epoch;if(plain.byteLength>3900000)return Promise.reject(new ServiceError('Board storage limit reached. Keep shorter results. Nothing was overwritten.'));const task=this.chain.then(async()=>{if(epoch!==this.epoch)throw new ServiceError('Board was locked before saving.');const iv=crypto.getRandomValues(new Uint8Array(12)),data=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode('PEA story board v1')},key,plain);if(epoch!==this.epoch)throw new ServiceError('Board was locked before saving.');const revision=crypto.randomUUID();await this.storage.comparePut(this.revision,{version:2,revision,salt,iv,data});this.revision=revision;});this.chain=task;return task;}
- async exportEncrypted(){
-  if(!this.key)throw new ServiceError('Unlock the saved board before exporting.');const epoch=this.epoch;await this.chain;const record=await this.storage.get();
-  if(epoch!==this.epoch||!this.key||!sameBoardRevision(record,this.revision)||!Object.hasOwn(boardKdfIterations,record.version)||!(record.salt instanceof Uint8Array)||record.salt.length!==16||!(record.iv instanceof Uint8Array)||record.iv.length!==12||!(record.data instanceof ArrayBuffer)||record.data.byteLength<16||record.data.byteLength>4000000)throw new ServiceError('The saved board changed. Unlock it again before exporting.');
-  const encode=bytes=>{let out='';for(let i=0;i<bytes.length;i+=8192)out+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(out);};
-  return JSON.stringify({format:'pea-encrypted-board',version:record.version,salt:encode(record.salt),iv:encode(record.iv),data:encode(new Uint8Array(record.data))});
- }
- async importEncrypted(serialized,passphrase,canCommit=()=>true){
-  const epoch=this.epoch;if(this.key)throw new ServiceError('Lock the board before importing.');if(typeof serialized!=='string'||serialized.length>5400000)throw new ServiceError('Board backup is too large or invalid.');let salt,iv,data,version;
-  try{const v=JSON.parse(serialized);if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).sort().join(',')!=='data,format,iv,salt,version'||v.format!=='pea-encrypted-board'||!Object.hasOwn(boardKdfIterations,v.version))throw Error('format');version=v.version;
-   const decode=(s,max)=>{if(typeof s!=='string'||s.length>max||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(s))throw Error('encoding');return Uint8Array.from(atob(s),c=>c.charCodeAt(0));};
-   salt=decode(v.salt,24);iv=decode(v.iv,16);data=decode(v.data,5333336);if(salt.length!==16||iv.length!==12||data.length<16||data.length>4000000)throw Error('size');
-   const key=await this.derive(passphrase,salt,version),plain=await crypto.subtle.decrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode('PEA story board v1')},key,data);if(!validateBoard(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(plain))))throw Error('schema');
-  }catch{throw new ServiceError('Could not verify the board backup. Check the file and passphrase; nothing was changed.');}
-  if(epoch!==this.epoch||this.key||!canCommit())throw new ServiceError('Board changed during verification. Nothing was imported.');
-  await this.storage.comparePut(null,{version,revision:crypto.randomUUID(),salt,iv,data:data.buffer});
- }
- lock(){this.epoch++;this.key=null;this.salt=null;this.revision=null;}
+  constructor(storage) {
+    this.storage = storage;
+    this.key = null;
+    this.salt = null;
+    this.revision = null;
+    this.epoch = 0;
+    this.chain = Promise.resolve();
+  }
+  static async open() {
+    const db = await new Promise((resolve, reject) => {
+      const r = indexedDB.open('pea-task-board-v1', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('encrypted');
+      r.onerror = () =>
+        reject(new ServiceError('Local board storage is unavailable. Nothing was overwritten.'));
+      r.onblocked = () => reject(new ServiceError('Close other PEA tabs before opening the board.'));
+      r.onsuccess = () => {
+        r.result.onversionchange = () => r.result.close();
+        resolve(r.result);
+      };
+    });
+    return new BoardVault({
+      get: () =>
+        new Promise((resolve, reject) => {
+          const r = db.transaction('encrypted').objectStore('encrypted').get('board');
+          r.onsuccess = () => resolve(r.result);
+          r.onerror = () => reject(r.error);
+        }),
+      comparePut: (expected, value) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction('encrypted', 'readwrite'),
+            store = tx.objectStore('encrypted'),
+            r = store.get('board');
+          let conflict = false;
+          r.onsuccess = () => {
+            if (!sameBoardRevision(r.result, expected)) {
+              conflict = true;
+              tx.abort();
+            } else store.put(value, 'board');
+          };
+          tx.oncomplete = () => resolve();
+          tx.onabort = tx.onerror = () =>
+            reject(
+              new ServiceError(
+                conflict
+                  ? 'Another tab changed this board. Lock and unlock to reload it before saving.'
+                  : 'Saving the board failed. The previous encrypted record remains.',
+              ),
+            );
+        }),
+    });
+  }
+  async derive(passphrase, salt, version = 2) {
+    if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 256)
+      throw new ServiceError('Use a board passphrase of 12–256 characters. It is never sent to a server.');
+    const material = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(passphrase),
+      'PBKDF2',
+      false,
+      ['deriveKey'],
+    );
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: boardKdfIterations[version], hash: 'SHA-256' },
+      material,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt'],
+    );
+  }
+  async unlock(passphrase, current = []) {
+    const epoch = ++this.epoch;
+    await this.chain.catch(() => {});
+    this.chain = Promise.resolve();
+    this.key = null;
+    this.salt = null;
+    this.revision = null;
+    const saved = await this.storage.get();
+    let tasks,
+      key,
+      salt,
+      revision = null,
+      upgrade = false;
+    if (saved) {
+      if (
+        !Object.hasOwn(boardKdfIterations, saved.version) ||
+        !(saved.salt instanceof Uint8Array) ||
+        saved.salt.length !== 16 ||
+        !(saved.iv instanceof Uint8Array) ||
+        saved.iv.length !== 12 ||
+        !(saved.data instanceof ArrayBuffer) ||
+        saved.data.byteLength > 4000000 ||
+        (saved.revision !== undefined &&
+          (typeof saved.revision !== 'string' || !/^[a-z0-9-]{10,50}$/i.test(saved.revision)))
+      )
+        throw new ServiceError('Stored board is not recognized. Nothing was overwritten.');
+      try {
+        salt = saved.salt;
+        key = await this.derive(passphrase, salt, saved.version);
+        const plain = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: saved.iv, additionalData: new TextEncoder().encode('PEA story board v1') },
+          key,
+          saved.data,
+        );
+        tasks = JSON.parse(new TextDecoder().decode(plain));
+        if (!validateBoard(tasks)) throw new Error();
+        revision = saved.revision ?? {
+          legacy: true,
+          salt: new Uint8Array(saved.salt),
+          iv: new Uint8Array(saved.iv),
+          data: new Uint8Array(saved.data),
+        };
+        if (saved.version !== 2) {
+          salt = crypto.getRandomValues(new Uint8Array(16));
+          key = await this.derive(passphrase, salt);
+          upgrade = true;
+        }
+      } catch {
+        throw new ServiceError(
+          'Could not unlock the local board. Check the passphrase. Nothing was overwritten.',
+        );
+      }
+    } else {
+      if (!validateBoard(current))
+        throw new ServiceError('Board contents are invalid. Nothing was overwritten.');
+      tasks = structuredClone(current);
+      salt = crypto.getRandomValues(new Uint8Array(16));
+      key = await this.derive(passphrase, salt);
+    }
+    if (epoch !== this.epoch) throw new ServiceError('Board unlock was cancelled.');
+    this.key = key;
+    this.salt = salt;
+    this.revision = revision;
+    if (!saved || upgrade) {
+      try {
+        await this.save(tasks);
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+    }
+    return tasks.map((t) =>
+      t.stage === 'working'
+        ? {
+            ...t,
+            stage: 'review',
+            result:
+              'Interrupted before this page opened. Review the conversation/output before starting again.',
+          }
+        : t,
+    );
+  }
+  save(tasks) {
+    if (!this.key || !validateBoard(tasks))
+      return Promise.reject(new ServiceError('Unlock the board and check its contents before saving.'));
+    const plain = new TextEncoder().encode(JSON.stringify(tasks)),
+      key = this.key,
+      salt = this.salt,
+      epoch = this.epoch;
+    if (plain.byteLength > 3900000)
+      return Promise.reject(
+        new ServiceError('Board storage limit reached. Keep shorter results. Nothing was overwritten.'),
+      );
+    const task = this.chain.then(async () => {
+      if (epoch !== this.epoch) throw new ServiceError('Board was locked before saving.');
+      const iv = crypto.getRandomValues(new Uint8Array(12)),
+        data = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode('PEA story board v1') },
+          key,
+          plain,
+        );
+      if (epoch !== this.epoch) throw new ServiceError('Board was locked before saving.');
+      const revision = crypto.randomUUID();
+      await this.storage.comparePut(this.revision, { version: 2, revision, salt, iv, data });
+      this.revision = revision;
+    });
+    this.chain = task;
+    return task;
+  }
+  async exportEncrypted() {
+    if (!this.key) throw new ServiceError('Unlock the saved board before exporting.');
+    const epoch = this.epoch;
+    await this.chain;
+    const record = await this.storage.get();
+    if (
+      epoch !== this.epoch ||
+      !this.key ||
+      !sameBoardRevision(record, this.revision) ||
+      !Object.hasOwn(boardKdfIterations, record.version) ||
+      !(record.salt instanceof Uint8Array) ||
+      record.salt.length !== 16 ||
+      !(record.iv instanceof Uint8Array) ||
+      record.iv.length !== 12 ||
+      !(record.data instanceof ArrayBuffer) ||
+      record.data.byteLength < 16 ||
+      record.data.byteLength > 4000000
+    )
+      throw new ServiceError('The saved board changed. Unlock it again before exporting.');
+    const encode = (bytes) => {
+      let out = '';
+      for (let i = 0; i < bytes.length; i += 8192) out += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      return btoa(out);
+    };
+    return JSON.stringify({
+      format: 'pea-encrypted-board',
+      version: record.version,
+      salt: encode(record.salt),
+      iv: encode(record.iv),
+      data: encode(new Uint8Array(record.data)),
+    });
+  }
+  async importEncrypted(serialized, passphrase, canCommit = () => true) {
+    const epoch = this.epoch;
+    if (this.key) throw new ServiceError('Lock the board before importing.');
+    if (typeof serialized !== 'string' || serialized.length > 5400000)
+      throw new ServiceError('Board backup is too large or invalid.');
+    let salt, iv, data, version;
+    try {
+      const v = JSON.parse(serialized);
+      if (
+        !v ||
+        typeof v !== 'object' ||
+        Array.isArray(v) ||
+        Object.keys(v).sort().join(',') !== 'data,format,iv,salt,version' ||
+        v.format !== 'pea-encrypted-board' ||
+        !Object.hasOwn(boardKdfIterations, v.version)
+      )
+        throw Error('format');
+      version = v.version;
+      const decode = (s, max) => {
+        if (
+          typeof s !== 'string' ||
+          s.length > max ||
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(s)
+        )
+          throw Error('encoding');
+        return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+      };
+      salt = decode(v.salt, 24);
+      iv = decode(v.iv, 16);
+      data = decode(v.data, 5333336);
+      if (salt.length !== 16 || iv.length !== 12 || data.length < 16 || data.length > 4000000)
+        throw Error('size');
+      const key = await this.derive(passphrase, salt, version),
+        plain = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode('PEA story board v1') },
+          key,
+          data,
+        );
+      if (!validateBoard(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plain))))
+        throw Error('schema');
+    } catch {
+      throw new ServiceError(
+        'Could not verify the board backup. Check the file and passphrase; nothing was changed.',
+      );
+    }
+    if (epoch !== this.epoch || this.key || !canCommit())
+      throw new ServiceError('Board changed during verification. Nothing was imported.');
+    await this.storage.comparePut(null, {
+      version,
+      revision: crypto.randomUUID(),
+      salt,
+      iv,
+      data: data.buffer,
+    });
+  }
+  lock() {
+    this.epoch++;
+    this.key = null;
+    this.salt = null;
+    this.revision = null;
+  }
 }
