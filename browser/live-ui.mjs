@@ -1,6 +1,7 @@
 import { storyGuidance, emailGuidance, calendarGuidance, navigationGuidance } from './actions.mjs';
 import { presenceAt } from './presence.mjs';
 import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
+import { openGuidance } from './handoff.mjs';
 import {
   Services,
   ServiceError,
@@ -332,7 +333,10 @@ export function installConnections(hooks) {
       '\n' +
       calendarGuidance +
       '\n' +
-      navigationGuidance;
+      navigationGuidance +
+      '\n' +
+      openGuidance +
+      '\nText for the owner to copy, such as an outline, a message to paste or code, goes in a plain fenced block; the app shows it with a Copy button and never reads it aloud.';
     // To-do guidance always explains how to propose a change; the items themselves are added only
     // under the owner's sharing setting for this profile.
     const todoText = hooks.todoGuidance?.(s.shareTodos) ?? '';

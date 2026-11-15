@@ -3175,3 +3175,45 @@ kbd {
   font-size: 13px;
   color: var(--sub);
 }
+
+/* Copy boxes: text a reply hands over to copy. Never read aloud. */
+.reply-prose {
+  display: block;
+  white-space: pre-wrap;
+}
+.copy-box {
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--field);
+  white-space: normal;
+}
+.copy-box-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.copy-box-bar small {
+  display: inline;
+  margin: 0;
+  letter-spacing: 0.4px;
+  color: var(--sub);
+  overflow-wrap: anywhere;
+}
+.copy-box-bar .text-button {
+  padding: 2px 0;
+}
+.copy-box pre {
+  margin: 0;
+  padding: 12px 14px;
+  font:
+    12px/1.7 ui-monospace,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 420px;
+  overflow: auto;
+}

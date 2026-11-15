@@ -33,6 +33,15 @@ import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
 import { claimsDocument, docProposals } from './documents.mjs';
+import {
+  claimsOpen,
+  describeOpen,
+  openLabel,
+  openLink,
+  openProposals,
+  replySegments,
+  spokenReply,
+} from './handoff.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -57,7 +66,57 @@ const chats = {},
   // What happened to each approved to-do proposal, shown in place of its button.
   todoDone = new Map(),
   // The outcome of each approved document proposal: a sentence, and a download link when it became a file.
-  docDone = new Map();
+  docDone = new Map(),
+  // Phone-link proposals the owner has approved; the link appears only for these.
+  openReady = new Set();
+const applePlatform = /mac|iphone|ipad/i.test(navigator.userAgentData?.platform || navigator.platform || '');
+// Draws a message: prose as text, and each fenced block as a box with a Copy button.
+function messageBody(m) {
+  const body = document.createElement('span');
+  if (m.role === 'user') {
+    body.textContent = m.text;
+    return body;
+  }
+  const segments = replySegments(m.text);
+  if (!segments.some((segment) => segment.kind === 'box')) {
+    body.textContent = m.text;
+    return body;
+  }
+  for (const segment of segments) {
+    if (segment.kind === 'prose') {
+      const prose = document.createElement('span');
+      prose.className = 'reply-prose';
+      prose.textContent = segment.text;
+      body.append(prose);
+      continue;
+    }
+    const box = document.createElement('div');
+    box.className = 'copy-box';
+    const bar = document.createElement('div');
+    bar.className = 'copy-box-bar';
+    const label = document.createElement('small');
+    label.textContent = segment.label || 'Text to copy';
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'text-button';
+    copy.textContent = 'Copy';
+    copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(segment.text);
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy'), 1800);
+      } catch {
+        notice('Copying is blocked in this browser. Select the text and copy it by hand.');
+      }
+    };
+    bar.append(label, copy);
+    const pre = document.createElement('pre');
+    pre.textContent = segment.text;
+    box.append(bar, pre);
+    body.append(box);
+  }
+  return body;
+}
 let reviewingStory = false;
 const history = (surface, who = profile) => chats[`${who}:${surface}`] ?? (chats[`${who}:${surface}`] = []);
 const message = (role, text, extra = {}) => ({
@@ -315,6 +374,57 @@ function proposalButton(m, surface) {
     };
     return b;
   }
+  const opening = proposals.get(m.id);
+  if (opening?.kind === 'open' && !m.incomplete && opening.profile === profile) {
+    if (openReady.has(m.id)) {
+      const link = document.createElement('a');
+      link.className = 'text-button';
+      link.textContent = openLabel(opening.action);
+      link.href = openLink(opening.action, { apple: applePlatform });
+      if (opening.action.kind === 'directions') {
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      }
+      return link;
+    }
+    const b = document.createElement('button');
+    b.className = 'text-button';
+    b.textContent =
+      opening.action.kind === 'call'
+        ? 'Review call'
+        : opening.action.kind === 'text'
+          ? 'Review text message'
+          : 'Review directions';
+    b.onclick = async () => {
+      if (reviewingStory || live.isBusy()) {
+        notice('Finish the current request first.');
+        return;
+      }
+      reviewingStory = true;
+      const who = profile;
+      try {
+        const approved = await live.review(
+          opening.action.kind === 'directions' ? 'Open directions?' : 'Open your phone?',
+          `Profile: ${who}\n\n${describeOpen(opening.action, { apple: applePlatform })}`,
+        );
+        if (!approved) return;
+        if (
+          who !== profile ||
+          !history(surface, who).some((x) => x.id === m.id) ||
+          proposals.get(m.id) !== opening
+        )
+          throw new Error('The conversation or profile changed. Review it again.');
+        openReady.add(m.id);
+        renderChat();
+        renderCollaboration();
+      } catch (error) {
+        notice(error.message || 'Could not review that.');
+      } finally {
+        reviewingStory = false;
+      }
+    };
+    return b;
+  }
   if (docDone.has(m.id)) {
     const done = docDone.get(m.id);
     const receipt = document.createElement('small');
@@ -534,8 +644,7 @@ function renderChat() {
     d.className = `utterance ${m.role}`;
     const l = document.createElement('small');
     l.textContent = m.role === 'user' ? 'YOU' : m.preview ? 'PEA PREVIEW' : 'PEA';
-    const t = document.createElement('span');
-    t.textContent = m.text;
+    const t = messageBody(m);
     d.append(l, t);
     const action = proposalButton(m, 'chat');
     if (action) d.append(action);
@@ -682,8 +791,7 @@ function renderCollaboration() {
     d.className = `utterance ${m.role}`;
     const label = document.createElement('small');
     label.textContent = m.role === 'user' ? 'YOU' : 'PEA · GREENHOUSE';
-    const t = document.createElement('span');
-    t.textContent = m.text;
+    const t = messageBody(m);
     d.append(label, t);
     const action = proposalButton(m, 'greenhouse');
     if (action) d.append(action);
@@ -851,7 +959,8 @@ live = installConnections({
       events = complete ? calendarProposals(raw) : [],
       navs = complete ? navigationProposals(raw) : [],
       changes = complete ? todoProposals(raw) : [],
-      written = complete ? docProposals(raw, live.currentDocument()) : [];
+      written = complete ? docProposals(raw, live.currentDocument()) : [],
+      opens = complete ? openProposals(raw) : [];
     reply.text = visibleReply(raw);
     if (complete && warnsOfUnconfirmedStory(reply.text))
       reply.text += '\n\nNo story was added by this reply. Review and approve a proposal before it is added.';
@@ -866,6 +975,9 @@ live = installConnections({
     if (complete && !changes.length && claimsTodoChange(reply.text))
       reply.text +=
         '\n\nPEA did not change your to-do list. Review and approve a proposal before anything changes.';
+    if (complete && !opens.length && claimsOpen(reply.text))
+      reply.text +=
+        '\n\nPEA did not call, text or open directions. Review and approve a proposal, then press the link yourself.';
     delete reply.raw;
     reply.incomplete = !complete;
     if (items.length === 1 && !emails.length) proposals.set(reply.id, { profile, ...items[0] });
@@ -895,6 +1007,15 @@ live = installConnections({
       !navs.length
     )
       proposals.set(reply.id, { profile, kind: 'doc', request: written[0] });
+    else if (
+      opens.length === 1 &&
+      !items.length &&
+      !emails.length &&
+      !docs.length &&
+      !events.length &&
+      !navs.length
+    )
+      proposals.set(reply.id, { profile, kind: 'open', action: opens[0] });
     memory.record(surface);
     if (surface === 'chat') renderChat();
     else renderCollaboration();
@@ -1055,6 +1176,7 @@ memory = installMemory({
     calendarReady.clear();
     todoDone.clear();
     docDone.clear();
+    openReady.clear();
     live.forgetDocument();
     voice?.stop();
     globalThis.speechSynthesis?.cancel();
@@ -1348,7 +1470,7 @@ function playReply(selection, short = false) {
     notice('The conversation changed. Choose the reply again.');
     return;
   }
-  const text = short ? selection.excerpt : selection.text;
+  const text = short ? selection.excerpt : (selection.spoken ?? selection.text);
   const utterance = configureSpeech(new SpeechSynthesisUtterance(text), presenceAt(memory.presence()));
   globalThis.speechSynthesis.speak(utterance);
   notice('Reading with your browser/device voice. Stop ends playback.');
@@ -1385,8 +1507,14 @@ for (const [id, surface] of [
       return;
     }
     globalThis.speechSynthesis.cancel();
-    const plan = speechReadPlan(reply.text),
-      selection = { profile, surface, id: reply.id, text: reply.text, excerpt: plan.excerpt };
+    // Copy boxes are never read aloud; only the prose around them is.
+    const spoken = spokenReply(reply.text);
+    if (!spoken) {
+      notice('This reply is only text to copy, so there is nothing to read aloud.');
+      return;
+    }
+    const plan = speechReadPlan(spoken),
+      selection = { profile, surface, id: reply.id, text: reply.text, spoken, excerpt: plan.excerpt };
     if (plan.long) {
       pendingSpeech = selection;
       $('speech-excerpt').textContent = plan.excerpt;
