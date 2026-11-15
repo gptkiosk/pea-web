@@ -57,6 +57,7 @@ struct PEAMacApp: App {
 struct Actions: View {
     @EnvironmentObject var launcher: Launcher
     @State private var startsAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var checking = false
 
     var body: some View {
         Text(statusLine(launcher))
@@ -80,6 +81,7 @@ struct Actions: View {
             Toggle("Show Reminders as Notifications", isOn: Binding(get: { launcher.remindersOn }, set: { setReminders($0) }))
         }
         if let page = launcher.releasesPage {
+            Button("Check for Updates…") { checkForUpdates() }.disabled(checking)
             Button("Releases") { NSWorkspace.shared.open(page) }
         }
         Divider()
@@ -123,6 +125,24 @@ struct Actions: View {
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         Task { await launcher.use(port: free) }
+    }
+
+    /// Asks GitHub once, because the owner chose to. The app never checks on its own.
+    private func checkForUpdates() {
+        checking = true
+        Task {
+            let standing = await launcher.checkForUpdates(from: GitHubReleases())
+            checking = false
+            let alert = NSAlert()
+            alert.messageText = standing.level == .update ? "A newer version of PEA is available"
+                : standing.level == .failed ? "PEA could not check for updates" : "PEA update check"
+            alert.informativeText = standing.text
+            if standing.level == .warning { alert.alertStyle = .warning }
+            if standing.page != nil { alert.addButton(withTitle: "Open Release Page") }
+            alert.addButton(withTitle: standing.page == nil ? "OK" : "Not Now")
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn, let page = standing.page { NSWorkspace.shared.open(page) }
+        }
     }
 
     private func setReminders(_ wanted: Bool) {

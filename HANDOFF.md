@@ -23,6 +23,21 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The Mac app's update check — 2026-11-15
+
+**Branch `mac/update-check`, development identity `0.1.0-dev.36`.** Owner's choices: checked only on a click; tells the owner and links to the release page, nothing more.
+
+- `mac/Sources/PEALauncherCore/Updates.swift`: `Updates.isNewer` and `Updates.check` follow `browser/releases.mjs` and the check in `release-ui.mjs`: latest release of the configured repository, not a draft or pre-release, tag shaped `v…` and a readable version, and a page address that must equal that repository's own release page for the tag. A stable build also looks its own version up, and a 404 is reported as possibly withdrawn. Every surprise is a plain failure with no link. `GitHubReleases` is the real source: only `https://api.github.com/repos/…`, no cookies, credentials, cache or redirects, 500 KB limit, user agent `PEA`.
+- `Launcher.checkForUpdates(from:)`, `Launcher.channel`. Menu item **Check for Updates…**, shown when the build names a repository; the result is an alert with Open Release Page when there is one.
+- Tests: `mac/Tests/PEALauncherCoreTests/UpdatesTests.swift`, 7 with a stand-in for GitHub (ordering as on the web, newer, same, older, withdrawn, 14 malformed answers, 5 error statuses, offline, invalid repositories ask nothing, the real source refuses every other address) and 1 that uses the network only when `PEA_LIVE_UPDATE_REPOSITORY` is set. That one was run once by hand against a public repository with releases and passed. `swift test` 28, 1 skipped.
+
+Known gaps:
+
+- This repository has published no release, so the check against it has only been seen to fail politely. The menu item and its alert have not been looked at.
+- No automatic check and no download, by the owner's choice. The version comparison exists twice, in `releases.mjs` and `Updates.swift`, with the same test cases but no shared fixture.
+
+Next action: the web features listed for 0.2 in PARITY.md. The owner's steps are unchanged: try the app, the reminders and this menu item by hand; rehearse `mac/SIGNING.md`.
+
 ## Reminders as Mac notifications — 2026-11-15
 
 **Branch `mac/reminder-notifications`, development identity `0.1.0-dev.35`.** First 0.2 piece after the Mac app. Owner's choices: the notification shows the to-do's title and is kept by macOS; reminders from every profile are handed over.

@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.36] - 2026-11-15
+
+### Added
+
+- PEA for Mac can check for a newer release. **Check for Updates…** in its menu asks GitHub for the latest published release of the configured repository, only when you choose it, and tells you what it found. If a newer version exists it offers to open the release page in your browser. Nothing is downloaded or installed by the app, and it never checks on its own.
+
 ## [0.1.0-dev.35] - 2026-11-15
 
 ### Added
