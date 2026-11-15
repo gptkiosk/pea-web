@@ -12,12 +12,15 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         public var token: String
         public var upstream: String
         public var root: URL
+        /// What shows reminders as notifications. Without one, the gateway says reminders are not available.
+        public var reminders: ReminderSink?
 
-        public init(port: UInt16, token: String, upstream: String, root: URL) {
+        public init(port: UInt16, token: String, upstream: String, root: URL, reminders: ReminderSink? = nil) {
             self.port = port
             self.token = token
             self.upstream = upstream
             self.root = root
+            self.reminders = reminders
         }
     }
 
@@ -28,6 +31,7 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
     let tokens: TokenCheck
     let hosts: Set<String>
     let origins: Set<String>
+    let reminders: ReminderSink?
     let queue = DispatchQueue(label: "pea.gateway")
 
     private var listener: NWListener?
@@ -51,6 +55,7 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         tokens = TokenCheck(token: options.token)
         upstream = try Upstream(options.upstream)
         port = options.port
+        reminders = options.reminders
         hosts = Set(["127.0.0.1", "localhost", "[::1]"].map { $0 + ":" + String(options.port) })
         origins = Set(hosts.map { "http://" + $0 })
         super.init()
@@ -309,7 +314,8 @@ final class Client {
             }
             route(head!)
         } else if buffer.count - bodyStart >= bodyLength {
-            chat(buffer.subdata(in: buffer.startIndex + bodyStart..<buffer.startIndex + bodyStart + bodyLength))
+            let body = buffer.subdata(in: buffer.startIndex + bodyStart..<buffer.startIndex + bodyStart + bodyLength)
+            if head?.target == contract.remindersPath { remind(body) } else { chat(body) }
         }
     }
 
@@ -345,17 +351,20 @@ final class Client {
                 reply(200, body: info)
             case "/v1/models":
                 listModels()
+            case contract.remindersPath:
+                reply(200, body: JSON.serialize(.object(JSONObject([("available", .bool(gateway.reminders?.available == true))]))))
             default:
                 file(head.target)
             }
         case "POST":
             guard allowed(head, needsToken: true) else { return }
-            guard head.target == "/v1/chat/completions" else { return reply(404, error: "Only model listing and text chat are exposed.") }
+            let forReminders = head.target == contract.remindersPath
+            guard forReminders || head.target == "/v1/chat/completions" else { return reply(404, error: "Only model listing, text chat and reminders are exposed.") }
             let type = head.headers["content-type"].map { String($0.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)[0]) }
             guard type == "application/json", head.headers["transfer-encoding"] == nil, let text = head.headers["content-length"],
                   (1...7).contains(text.count), text.allSatisfy({ ("0"..."9").contains($0) }), let length = Int(text),
                   length > 0, length <= contract.requestBytes else {
-                return reply(400, error: "Invalid or oversized text chat request.")
+                return reply(400, error: forReminders ? "Invalid reminder list." : "Invalid or oversized text chat request.")
             }
             bodyLength = length
             advance()
@@ -423,6 +432,25 @@ final class Client {
     // MARK: Chat
 
     private var streamLimit: DispatchWorkItem?
+
+    /// Takes the owner's whole list of reminders. Only those still ahead are handed on, and only when
+    /// something here can show them; the list is never kept or logged by the gateway itself.
+    private func remind(_ raw: Data) {
+        let list: [Reminder]
+        do { list = try contract.validateReminders(try JSON.parse(raw)) } catch {
+            return reply(400, error: "Invalid reminder list.")
+        }
+        var scheduled = 0
+        let sink = gateway.reminders
+        let available = sink?.available == true
+        if available, let sink {
+            let now = Date()
+            let ahead = list.filter { $0.due > now }
+            sink.replace(with: ahead)
+            scheduled = ahead.count
+        }
+        reply(200, body: JSON.serialize(.object(JSONObject([("available", .bool(available)), ("scheduled", .number(String(scheduled)))]))))
+    }
 
     private func chat(_ raw: Data) {
         let body: JSONObject

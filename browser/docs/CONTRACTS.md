@@ -47,7 +47,7 @@ A JSON array of up to 8 rows (the guidance asks for at most 5). A single row wit
 
 Stored item fields: `id`, `profile`, `title`, `due`, `remind`, `done`, `created`, `completed`.
 
-Differences: reminders on the web appear only while the page is open. The iPhone app can also keep a blocked calendar event with a to-do; the web does not.
+Differences: reminders on the web appear only while the page is open, unless the owner hands them to PEA for Mac (see `mac/README.md`). The iPhone app can also keep a blocked calendar event with a to-do; the web does not.
 
 ## `pea-doc`: documents from templates
 

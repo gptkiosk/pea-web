@@ -32,8 +32,14 @@ public struct Contract {
     public let streamSeconds: Double
     public let streamBytes: Int
     public let buildInfoSeconds: Double
+    public let remindersPath: String
+    public let reminderFields: Set<String>
+    public let reminderItems: Int
+    public let reminderTitleCharacters: Int
+    public let reminderDueMax: Int
     let modelID: NSRegularExpression
     let token: NSRegularExpression
+    let reminderID: NSRegularExpression
 
     public static let supportedVersion = 1
 
@@ -103,6 +109,20 @@ public struct Contract {
         buildInfoSeconds = Double(try whole("buildInfoSeconds"))
         modelID = try pattern("modelIdPattern")
         token = try pattern("tokenPattern")
+        guard case .object(let reminders)? = root["reminders"], let path = reminders["path"]?.string, path.hasPrefix("/v1/"),
+              case .array(let fields)? = reminders["fields"], let items = reminders["items"]?.integer, items > 0,
+              let title = reminders["titleCharacters"]?.integer, title > 0, let latest = reminders["dueMax"]?.integer, latest > 0,
+              let identity = reminders["idPattern"]?.string,
+              let expression = try? NSRegularExpression(pattern: "\\A(?:" + identity + ")\\z") else {
+            throw GatewayError("The rules file has no reminder rules.")
+        }
+        remindersPath = path
+        reminderFields = Set(fields.compactMap { $0.string })
+        guard reminderFields == ["id", "title", "due"], fields.count == 3 else { throw GatewayError("The rules file names reminder fields this gateway does not know.") }
+        reminderItems = items
+        reminderTitleCharacters = title
+        reminderDueMax = latest
+        reminderID = expression
     }
 
     static func matches(_ expression: NSRegularExpression, _ text: String) -> Bool {
@@ -142,6 +162,55 @@ public struct Contract {
         body["max_tokens"] = limit
         body["temperature"] = temperature
         return body
+    }
+}
+
+/// One reminder the owner asked for: a to-do's title and the moment it is due.
+public struct Reminder: Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let due: Date
+
+    public init(id: String, title: String, due: Date) {
+        self.id = id
+        self.title = title
+        self.due = due
+    }
+}
+
+/// Something that can show reminders as system notifications. The command-line gateway has none.
+/// Both members are called on the gateway's queue, so an implementation must be safe to use from any thread.
+public protocol ReminderSink: AnyObject {
+    /// Whether the owner has turned reminders on and the system allows them.
+    var available: Bool { get }
+    /// Replaces everything shown before with exactly this list.
+    func replace(with reminders: [Reminder])
+}
+
+extension Contract {
+    /// Checks a list of reminders: `{"reminders":[{"id","title","due"}]}`, `due` in milliseconds since 1970.
+    /// Anything unexpected refuses the whole list.
+    public func validateReminders(_ raw: JSONValue) throws -> [Reminder] {
+        guard case .object(let body) = raw, body.keys == ["reminders"], case .array(let rows)? = body["reminders"], rows.count <= reminderItems else {
+            throw GatewayError("A bounded list of reminders is required.")
+        }
+        var seen = Set<String>()
+        return try rows.map { row in
+            guard case .object(let fields) = row, Set(fields.keys) == reminderFields, fields.keys.count == reminderFields.count else {
+                throw GatewayError("A reminder has an id, a title and a due time.")
+            }
+            guard let id = fields["id"]?.string, Contract.matches(reminderID, id), seen.insert(id).inserted else {
+                throw GatewayError("Reminder ids must be simple and different.")
+            }
+            guard let title = fields["title"]?.string, (1...reminderTitleCharacters).contains(title.unicodeScalars.count),
+                  !title.unicodeScalars.contains(where: { $0.value < 0x20 || (0x7F...0x9F).contains($0.value) || $0.value == 0x2028 || $0.value == 0x2029 }) else {
+                throw GatewayError("A reminder title is one short line.")
+            }
+            guard let due = fields["due"]?.integer, (1...reminderDueMax).contains(due) else {
+                throw GatewayError("A reminder is due at a whole number of milliseconds.")
+            }
+            return Reminder(id: id, title: title, due: Date(timeIntervalSince1970: Double(due) / 1000))
+        }
     }
 }
 

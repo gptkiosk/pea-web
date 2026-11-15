@@ -262,6 +262,16 @@ export function claimsTodoChange(text) {
   );
 }
 
+// What PEA for Mac is handed so it can show reminders while this page is closed: the id, title and
+// time of every open reminder still ahead, in every profile, soonest first. The Mac keeps at most 64.
+export function remindersForMac(items, now, limit = 64) {
+  return items
+    .filter((t) => !t.done && t.remind && t.due !== null && t.due > now)
+    .sort((a, b) => a.due - b.due || a.created - b.created)
+    .slice(0, limit)
+    .map((t) => ({ id: t.id, title: t.title, due: t.due }));
+}
+
 // Open items whose reminder time has arrived and has not been shown in this page yet.
 export function dueReminders(items, profile, now, shown = new Set()) {
   return items.filter(

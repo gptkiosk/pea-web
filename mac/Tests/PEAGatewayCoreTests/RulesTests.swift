@@ -94,6 +94,41 @@ final class RulesTests: XCTestCase {
         XCTAssertThrowsError(try contract.validateChat(try parse(chat(messages: "[{\"role\":\"user\",\"content\":\"\(half)\"},{\"role\":\"user\",\"content\":\"\(half)x\"}]"))))
     }
 
+    // MARK: Reminders
+
+    func testAValidReminderListIsReadExactly() throws {
+        let list = try contract.validateReminders(parse(#"{"reminders":[{"id":"a-1","title":"Call Zoë 📞","due":1900000000000},{"due":1,"title":"x","id":"B2"}]}"#))
+        XCTAssertEqual(list, [Reminder(id: "a-1", title: "Call Zoë 📞", due: Date(timeIntervalSince1970: 1_900_000_000)),
+                              Reminder(id: "B2", title: "x", due: Date(timeIntervalSince1970: 0.001))])
+        XCTAssertEqual(try contract.validateReminders(parse(#"{"reminders":[]}"#)), [])
+        let full = (0..<contract.reminderItems).map { #"{"id":"n\#($0)","title":"t","due":5}"# }.joined(separator: ",")
+        XCTAssertEqual(try contract.validateReminders(parse("{\"reminders\":[\(full)]}")).count, contract.reminderItems)
+    }
+
+    func testEveryOtherReminderListIsRefused() throws {
+        let good = #"{"id":"a","title":"x","due":1900000000000}"#
+        let long = String(repeating: "x", count: contract.reminderTitleCharacters + 1)
+        let many = (0...contract.reminderItems).map { #"{"id":"n\#($0)","title":"t","due":5}"# }.joined(separator: ",")
+        for bad in [
+            "{}", "[]", "\"x\"", "null", #"{"reminders":{}}"#, "{\"reminders\":[\(good)],\"profile\":\"work\"}", "{\"items\":[\(good)]}",
+            "{\"reminders\":[\(many)]}", "{\"reminders\":[\(good),\(good)]}", #"{"reminders":["x"]}"#,
+            #"{"reminders":[{"id":"a","title":"x"}]}"#, #"{"reminders":[{"id":"a","title":"x","due":5,"profile":"work"}]}"#,
+            #"{"reminders":[{"id":"","title":"x","due":5}]}"#, #"{"reminders":[{"id":"a b","title":"x","due":5}]}"#,
+            #"{"reminders":[{"id":"../a","title":"x","due":5}]}"#, #"{"reminders":[{"id":7,"title":"x","due":5}]}"#,
+            "{\"reminders\":[{\"id\":\"\(String(repeating: "a", count: 65))\",\"title\":\"x\",\"due\":5}]}",
+            #"{"reminders":[{"id":"a","title":"","due":5}]}"#, "{\"reminders\":[{\"id\":\"a\",\"title\":\"\(long)\",\"due\":5}]}",
+            #"{"reminders":[{"id":"a","title":"two\nlines","due":5}]}"#, #"{"reminders":[{"id":"a","title":"nul\u0000","due":5}]}"#,
+            #"{"reminders":[{"id":"a","title":"sep\u2028","due":5}]}"#, #"{"reminders":[{"id":"a","title":"c1\u0085","due":5}]}"#,
+            #"{"reminders":[{"id":"a","title":["x"],"due":5}]}"#,
+            #"{"reminders":[{"id":"a","title":"x","due":0}]}"#, #"{"reminders":[{"id":"a","title":"x","due":-5}]}"#,
+            #"{"reminders":[{"id":"a","title":"x","due":1.5}]}"#, #"{"reminders":[{"id":"a","title":"x","due":5.0}]}"#,
+            #"{"reminders":[{"id":"a","title":"x","due":"5"}]}"#, #"{"reminders":[{"id":"a","title":"x","due":true}]}"#,
+            "{\"reminders\":[{\"id\":\"a\",\"title\":\"x\",\"due\":\(contract.reminderDueMax + 1)}]}",
+        ] {
+            XCTAssertThrowsError(try contract.validateReminders(parse(bad)), bad)
+        }
+    }
+
     func testModelNamesAndTokensFollowTheSharedPatterns() {
         for name in ["tiny:test", "second/model@v1", "a", String(repeating: "x", count: 100), "org/model-1.5+q4"] { XCTAssertTrue(contract.isModelID(name), name) }
         for name in ["", "bad model", String(repeating: "x", count: 101), "tiny\n", "tiny\u{0}", "модель", "a?b", "a#b", "a%20b"] { XCTAssertFalse(contract.isModelID(name), name) }

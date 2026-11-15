@@ -15,7 +15,10 @@ struct PEAMacApp: App {
         let root = ProcessInfo.processInfo.environment["PEA_WEB_ROOT"].map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? Bundle.main.resourceURL!.appendingPathComponent("browser", isDirectory: true)
         let service = (Bundle.main.bundleIdentifier ?? "pea.development") + ".gateway"
-        let launcher = Launcher(webRoot: root, tokens: KeychainTokenStore(service: service), defaults: .standard)
+        // Notifications belong to a packaged app; run from source, PEA simply has no reminders.
+        let packaged = Bundle.main.bundleIdentifier != nil && Bundle.main.bundleURL.pathExtension == "app"
+        let launcher = Launcher(webRoot: root, tokens: KeychainTokenStore(service: service), defaults: .standard,
+                                notifications: packaged ? SystemNotifications() : nil)
         _launcher = StateObject(wrappedValue: launcher)
         launcher.start()
     }
@@ -73,6 +76,9 @@ struct Actions: View {
         }
         Divider()
         Toggle("Start at Login", isOn: Binding(get: { startsAtLogin }, set: { setLogin($0) }))
+        if launcher.canRemind {
+            Toggle("Show Reminders as Notifications", isOn: Binding(get: { launcher.remindersOn }, set: { setReminders($0) }))
+        }
         if let page = launcher.releasesPage {
             Button("Releases") { NSWorkspace.shared.open(page) }
         }
@@ -117,6 +123,17 @@ struct Actions: View {
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         Task { await launcher.use(port: free) }
+    }
+
+    private func setReminders(_ wanted: Bool) {
+        Task {
+            let on = await launcher.setReminders(wanted)
+            if wanted && on {
+                tell("Reminders can now appear as notifications", "One more step, in PEA in your browser: connect the local model with the connection token, then on Today open To-dos and turn on “Also remind me through PEA for Mac”. PEA then hands this Mac the titles and times of your reminders. macOS keeps them, outside your browser’s encrypted storage, and can show them on the lock screen.")
+            } else if wanted {
+                tell("Reminders were not turned on", "macOS did not allow PEA to show notifications. You can allow it in System Settings › Notifications › PEA, then try again.")
+            }
+        }
     }
 
     private func setLogin(_ wanted: Bool) {

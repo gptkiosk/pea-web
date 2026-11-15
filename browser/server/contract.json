@@ -87,5 +87,18 @@
     "Cache-Control": "no-store",
     "X-Accel-Buffering": "no",
     "X-Content-Type-Options": "nosniff"
+  },
+  "reminders": {
+    "about": "POST replaces the whole list of reminders a gateway may show as system notifications; GET says whether it can show any. A gateway that cannot show notifications checks the list the same way and answers that it is not available.",
+    "path": "/v1/reminders",
+    "fields": [
+      "id",
+      "title",
+      "due"
+    ],
+    "items": 64,
+    "idPattern": "[A-Za-z0-9-]{1,64}",
+    "titleCharacters": 120,
+    "dueMax": 32503680000000
   }
 }

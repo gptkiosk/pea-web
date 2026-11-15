@@ -575,7 +575,7 @@ function proposalButton(m, surface) {
       try {
         const approved = await live.review(
           'Change your to-do list?',
-          `Profile: ${who}\n\n${todos.describe(change.requests)}\n\nNothing changes unless you approve. Reminders appear only while PEA is open in this browser. To-dos are kept with your story board, and its storage setting applies.`,
+          `Profile: ${who}\n\n${todos.describe(change.requests)}\n\nNothing changes unless you approve. Reminders appear only while PEA is open in this browser, unless you handed them to PEA for Mac. To-dos are kept with your story board, and its storage setting applies.`,
         );
         if (!approved) return;
         if (
@@ -918,6 +918,7 @@ window.addEventListener('pagehide', () => {
 });
 live = installConnections({
   todoGuidance: (shared) => todos?.guidance(shared) ?? '',
+  localChanged: () => todos?.connectionChanged(),
   profile: () => profile,
   surface: () => (activeTab === 'greenhouse' ? 'greenhouse' : 'chat'),
   history,
@@ -1169,6 +1170,7 @@ todos = installTodos({
   profile: () => profile,
   notice,
   review: live.review,
+  mac: { key: () => live.localKey(), send: (key, list) => live.macReminders(key, list) },
 });
 memory = installMemory({
   profile: () => profile,

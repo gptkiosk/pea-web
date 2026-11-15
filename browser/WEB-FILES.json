@@ -61,6 +61,7 @@
   "tests/dom/handoff.test.mjs",
   "tests/dom/harness.mjs",
   "tests/dom/honesty.test.mjs",
+  "tests/dom/mac-reminders.test.mjs",
   "tests/dom/releases.test.mjs",
   "tests/dom/reviews.test.mjs",
   "tests/dom/stability.test.mjs",

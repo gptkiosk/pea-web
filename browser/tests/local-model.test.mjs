@@ -120,3 +120,42 @@ test('portable config is profile-bound and contains choices rather than credenti
   ])
     assert.throws(() => parseConfiguration(JSON.stringify(invalid), 'personal'));
 });
+
+test('reminders go only to this gateway, with the token, as an exact list', async () => {
+  const calls = [];
+  let answer = '{"available":true,"scheduled":1}';
+  const key = 'k'.repeat(43);
+  const client = new LocalModel('https://pea.example', async (url, options) => {
+    calls.push({ url, options });
+    return new Response(answer, { status: 200 });
+  });
+  assert.deepEqual(await client.reminders(key), { available: true, scheduled: 0 + 1 });
+  assert.equal(calls[0].url, 'https://pea.example/v1/reminders');
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].options.body, undefined);
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + key);
+  assert.equal(calls[0].options.credentials, 'omit');
+  const list = [{ id: 'a-1', title: 'Synthetic reminder', due: 1_900_000_000_000 }];
+  await client.reminders(key, list);
+  assert.equal(calls[1].options.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[1].options.body), { reminders: list });
+  await client.reminders(key, []);
+  assert.deepEqual(
+    JSON.parse(calls[2].options.body),
+    { reminders: [] },
+    'an empty list is still sent, to withdraw',
+  );
+  for (const text of [
+    '{"available":false}',
+    '{"available":"yes","scheduled":"3"}',
+    'not json',
+    '[]',
+    'null',
+  ]) {
+    answer = text;
+    assert.deepEqual(await client.reminders(key), { available: false, scheduled: 0 }, text);
+  }
+  await assert.rejects(client.reminders('short'), /connection token/);
+  const refused = new LocalModel('https://pea.example', async () => new Response('{}', { status: 404 }));
+  await assert.rejects(refused.reminders(key), /gateway/);
+});

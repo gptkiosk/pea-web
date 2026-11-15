@@ -1,12 +1,14 @@
 // The to-do list on Today, its reminders, and the review of changes a model proposes.
 // Items live with the story board: in this tab only, or encrypted on this browser when the owner
-// has chosen that. Reminders appear only while this page is open.
+// has chosen that. Reminders appear only while this page is open, unless the owner hands them to
+// PEA for Mac, which can show them as notifications when the page is closed.
 import {
   addTodo,
   applyTodoRequests,
   clearFinished,
   describeRequests,
   dueReminders,
+  remindersForMac,
   removeTodo,
   setTodoDone,
   todoGuidance,
@@ -22,7 +24,9 @@ const when = (ms) =>
     minute: '2-digit',
   });
 
-export function installTodos({ store, profile, notice, review }) {
+const macChoice = 'pea-mac-reminders-v1';
+
+export function installTodos({ store, profile, notice, review, mac = null }) {
   // Reminders already shown in this page, so one is not repeated every time the list is checked.
   const reminded = new Set();
   const mine = () => store.items().filter((t) => t.profile === profile());
@@ -92,7 +96,126 @@ export function installTodos({ store, profile, notice, review }) {
       $(id).disabled = !usable || blended;
     $('todo-notify').hidden = !('Notification' in globalThis) || Notification.permission !== 'default';
     check();
+    void macSync();
   }
+
+  // --- Handing reminders to PEA for Mac -------------------------------------------------------
+  // Off until the owner turns it on here, and possible only when this page is connected to PEA for
+  // Mac with its token and the owner has turned reminders on in the Mac app as well. The whole list
+  // is sent again whenever it changes; nothing is sent while the saved board is locked.
+  const macWanted = () => {
+    try {
+      return globalThis.localStorage.getItem(macChoice) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const macState = {
+    available: false,
+    probed: 0,
+    key: '',
+    sent: null,
+    busy: false,
+    again: false,
+    failed: false,
+  };
+  function drawMac() {
+    const wanted = macWanted(),
+      key = mac?.key() || '';
+    $('todo-mac').hidden = !mac || !(wanted || (key && macState.available));
+    $('todo-mac-on').checked = wanted;
+    $('todo-mac-note').textContent = !wanted
+      ? 'Shows your reminders as Mac notifications, even when this page is closed.'
+      : !key
+        ? 'Connect the local model again so this Mac’s reminders stay up to date. Until then it keeps the last list it was given.'
+        : !macState.available
+          ? 'PEA for Mac is not taking reminders now. Turn on Show Reminders as Notifications in its menu.'
+          : macState.sent === null
+            ? store.usable()
+              ? 'Handing your reminders to this Mac…'
+              : 'Unlock the saved board to update this Mac’s reminders.'
+            : 'This Mac has the titles and times of your open reminders in every profile, and shows them even when this page is closed.';
+  }
+  async function macSync(force = false) {
+    if (!mac) return;
+    const key = mac.key() || '';
+    if (key !== macState.key)
+      Object.assign(macState, { key, available: false, probed: 0, sent: null, failed: false });
+    if (!key) return drawMac();
+    if (macState.busy) {
+      macState.again = true;
+      return;
+    }
+    macState.busy = true;
+    try {
+      // Asked again now and then, because the owner can turn reminders on or off in the Mac app at any time.
+      if (force || Date.now() - macState.probed > 15000) {
+        macState.probed = Date.now();
+        const was = macState.available;
+        macState.available = (await mac.send(key)).available;
+        if (!macState.available || !was) macState.sent = null;
+      }
+      if (macState.available && macWanted() && store.usable()) {
+        const list = remindersForMac(store.items(), Date.now()),
+          text = JSON.stringify(list);
+        if (text !== macState.sent) {
+          macState.available = (await mac.send(key, list)).available;
+          macState.sent = macState.available ? text : null;
+        }
+      }
+      macState.failed = false;
+    } catch {
+      macState.available = false;
+      macState.sent = null;
+      if (macWanted() && !macState.failed)
+        notice('PEA for Mac did not take your reminders. They still appear here.');
+      macState.failed = true;
+    } finally {
+      macState.busy = false;
+      drawMac();
+      if (macState.again) {
+        macState.again = false;
+        void macSync();
+      }
+    }
+  }
+  $('todo-mac-on').onchange = async () => {
+    const box = $('todo-mac-on'),
+      key = mac?.key() || '';
+    if (box.checked) {
+      box.checked = false;
+      const ok = await review(
+        'Hand reminders to PEA for Mac',
+        'PEA for Mac will be given the title and time of every open reminder, in your Personal and Work profiles alike, and again whenever they change.\n\nIt asks macOS to show each one as a notification at its time, even when this page or the PEA app is closed. macOS keeps those titles in plain form, outside this browser’s encrypted storage, and may show them on the lock screen.\n\nNothing else is handed over: no to-do without a reminder, no finished to-do, no chat.\n\nTurning this off again withdraws them from the Mac.',
+      );
+      if (!ok) return drawMac();
+      try {
+        globalThis.localStorage.setItem(macChoice, '1');
+      } catch {
+        return notice('This browser would not save that choice.');
+      }
+      macState.sent = null;
+      return macSync(true);
+    }
+    try {
+      globalThis.localStorage.removeItem(macChoice);
+    } catch {
+      // The choice lives in this page until it is closed.
+    }
+    macState.sent = null;
+    drawMac();
+    if (!key)
+      return notice(
+        'Turned off here. Connect the local model to withdraw the reminders this Mac already has.',
+      );
+    try {
+      await mac.send(key, []);
+      notice('This Mac’s reminders were withdrawn.');
+    } catch {
+      notice('Turned off here, but this Mac could not be reached to withdraw its reminders.');
+    }
+  };
+  const macHasIt = () => macWanted() && macState.available && macState.sent !== null;
 
   $('todo-add').onsubmit = (event) => {
     event.preventDefault();
@@ -136,7 +259,8 @@ export function installTodos({ store, profile, notice, review }) {
       li.textContent = `${item.title} · due ${when(item.due)}`;
       $('todo-reminders').append(li);
       $('todo-reminders-box').hidden = false;
-      if ('Notification' in globalThis && Notification.permission === 'granted') {
+      // The Mac shows its own notification for this reminder, so the browser's would be a second one.
+      if (!macHasIt() && 'Notification' in globalThis && Notification.permission === 'granted') {
         try {
           new Notification('PEA reminder', { body: item.title, tag: 'pea-todo-' + item.id });
         } catch {
@@ -149,7 +273,10 @@ export function installTodos({ store, profile, notice, review }) {
     $('todo-reminders').replaceChildren();
     $('todo-reminders-box').hidden = true;
   };
-  const timer = setInterval(check, 20000);
+  const timer = setInterval(() => {
+    check();
+    void macSync();
+  }, 20000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) check();
   });
@@ -174,6 +301,7 @@ export function installTodos({ store, profile, notice, review }) {
       });
       return outcome.say;
     },
+    connectionChanged: () => macSync(true),
     profileChanged() {
       $('todo-add').reset();
       $('todo-reminders-dismiss').click();
