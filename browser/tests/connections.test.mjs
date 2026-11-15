@@ -290,3 +290,144 @@ test('GitHub delivery accepts only plain repository names and safe source files'
   assert.equal(validCode(null), false);
   assert.equal(validCode({ path: 5, text: 'x' }), false);
 });
+
+const docMIME = 'application/vnd.google-apps.document';
+function fakeDrive({ version = '5', peaCreated = '1', uploadAnswer } = {}) {
+  const root = 'pea_root_000001',
+    file = 'pea_doc_0000001';
+  const calls = [];
+  const folder = {
+    id: root,
+    name: 'PEA',
+    mimeType: 'application/vnd.google-apps.folder',
+    properties: { peaWorkspace: '1', peaProfile: 'personal' },
+    parents: [],
+    version: '1',
+  };
+  const doc = () => ({
+    id: file,
+    name: 'Sam Rivera Resume',
+    mimeType: docMIME,
+    parents: [root],
+    version,
+    properties: { peaCreated },
+  });
+  const services = new Services(async (url, options) => {
+    const u = new URL(url);
+    calls.push({ u, options });
+    if (u.pathname.startsWith('/upload/')) {
+      if (uploadAnswer instanceof Error) throw uploadAnswer;
+      return json(uploadAnswer ?? doc());
+    }
+    return json(u.pathname.endsWith(root) ? folder : doc());
+  });
+  return {
+    services,
+    calls,
+    root,
+    file,
+    w: { folder: { id: root, title: 'PEA' }, profile: 'personal', account: 'owner@example.invalid' },
+    uploads: () => calls.filter((c) => c.u.pathname.startsWith('/upload/')),
+  };
+}
+
+test('a rich document is created in the PEA folder by one upload that carries no model text in the address', async () => {
+  const drive = fakeDrive();
+  const html = '<html><body><h1>Sam Rivera Resume</h1><p>SYNTHETIC BODY</p></body></html>';
+  const made = await drive.services.createRichDocument('Sam Rivera Resume', html, drive.w, 'synthetic-only');
+  assert.equal(made.id, drive.file);
+  const [upload] = drive.uploads();
+  assert.equal(drive.uploads().length, 1);
+  assert.equal(upload.u.origin + upload.u.pathname, 'https://www.googleapis.com/upload/drive/v3/files');
+  assert.equal(upload.u.searchParams.get('uploadType'), 'multipart');
+  assert.doesNotMatch(upload.u.href, /SYNTHETIC|Rivera/);
+  assert.equal(upload.options.method, 'POST');
+  assert.match(upload.options.headers['Content-Type'], /^multipart\/related; boundary=pea-/);
+  assert.equal(upload.options.headers.Authorization, 'Bearer synthetic-only');
+  const meta = JSON.parse(upload.options.body.split('\r\n\r\n')[1].split('\r\n--')[0]);
+  assert.deepEqual(meta, {
+    name: 'Sam Rivera Resume',
+    mimeType: docMIME,
+    parents: [drive.root],
+    properties: { peaCreated: '1' },
+  });
+  assert(upload.options.body.includes('Content-Type: text/html; charset=UTF-8\r\n\r\n' + html));
+  assert.equal(drive.calls[0].options.method, 'GET', 'the folder is checked before anything is written');
+});
+
+test('creation refuses bad names and oversized text, and never retries an uncertain write', async () => {
+  const drive = fakeDrive();
+  await assert.rejects(
+    drive.services.createRichDocument('bad/name', '<p>x</p>', drive.w, 't'),
+    /name and length/,
+  );
+  await assert.rejects(
+    drive.services.createRichDocument('Fine', 'x'.repeat(400001), drive.w, 't'),
+    /name and length/,
+  );
+  assert.equal(drive.uploads().length, 0);
+
+  const lost = fakeDrive({ uploadAnswer: new Error('network lost') });
+  await assert.rejects(
+    lost.services.createRichDocument('Fine', '<p>x</p>', lost.w, 't'),
+    /may or may not have been created/,
+  );
+  assert.equal(lost.uploads().length, 1, 'one attempt only');
+
+  const odd = fakeDrive({
+    uploadAnswer: { id: 'pea_doc_0000001', mimeType: docMIME, parents: ['somewhere_else_1'] },
+  });
+  await assert.rejects(
+    odd.services.createRichDocument('Fine', '<p>x</p>', odd.w, 't'),
+    /answered unexpectedly/,
+  );
+});
+
+test('a document is replaced only if PEA made it and nobody changed it since', async () => {
+  const drive = fakeDrive({ version: '5' });
+  const file = { id: drive.file, mimeType: docMIME, version: '5', properties: { peaCreated: '1' } };
+  await drive.services.replaceDocument(file, '<p>NEW TEXT</p>', drive.w, 'synthetic-only');
+  const [upload] = drive.uploads();
+  assert.equal(upload.options.method, 'PATCH');
+  assert.equal(upload.u.pathname, '/upload/drive/v3/files/' + drive.file);
+  assert.equal(upload.u.searchParams.get('uploadType'), 'media');
+  assert.equal(upload.options.headers['Content-Type'], 'text/html; charset=UTF-8');
+  assert.equal(upload.options.body, '<p>NEW TEXT</p>');
+
+  const edited = fakeDrive({ version: '6' });
+  await assert.rejects(
+    edited.services.replaceDocument(file, '<p>x</p>', edited.w, 't'),
+    /changed after PEA wrote it\. Nothing was replaced/,
+  );
+  assert.equal(edited.uploads().length, 0, 'a hand-edited document is never overwritten');
+
+  const notOurs = fakeDrive({ peaCreated: '0' });
+  await assert.rejects(
+    notOurs.services.replaceDocument({ ...file, properties: {} }, '<p>x</p>', notOurs.w, 't'),
+    /Only a document PEA created/,
+  );
+  await assert.rejects(
+    notOurs.services.replaceDocument(file, '<p>x</p>', notOurs.w, 't'),
+    /changed after PEA wrote it/,
+  );
+  await assert.rejects(
+    drive.services.replaceDocument({ ...file, mimeType: 'text/plain' }, '<p>x</p>', drive.w, 't'),
+    /Only a document PEA created/,
+  );
+  assert.equal(notOurs.uploads().length, 0);
+});
+
+test('the upload route is fixed and accepts nothing but a Drive file identifier', async () => {
+  const s = new Services(async () => json({}));
+  for (const path of [
+    '/upload/drive/v3/files/../../oauth2/v3/userinfo',
+    '/upload/drive/v3/other',
+    '/upload/drive/v2/files',
+    '/upload/drive/v3/files/short',
+    '/upload/storage/v1/b/x/o',
+  ])
+    await assert.rejects(
+      () => s.call('drive', path, { method: 'POST', upload: { type: 'text/html', data: 'x' } }),
+      /Destination rejected/,
+    );
+});

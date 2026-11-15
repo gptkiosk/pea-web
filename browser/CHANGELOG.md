@@ -2,6 +2,19 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.24] - 2026-11-15
+
+### Added
+
+- Ask for a document and PEA can write one from twenty common kinds: resume, cover letter, letter, rental agreement, meeting notes, shopping list, checklist, invoice, meeting agenda, trip itinerary, meal plan, thank-you note, resignation letter, complaint letter, project brief, status update, sitter sheet, event invitation, bio and visit prep sheet, or a plain document.
+- You read the whole text before anything is written. With a PEA folder connected, approval creates a formatted Google Doc there in one step. Without one, approval gives you the document as a file to download and nothing goes to Google.
+- You can ask for changes to a document written in the same conversation. PEA replaces a Google Doc only if nobody has edited it since; otherwise it leaves it alone and says so.
+- A rental agreement always ends with a note that it is not legal advice.
+
+### Changed
+
+- To-do confirmations are worded a little differently, for example "Added to your list" and "Left as it was".
+
 ## [0.1.0-dev.23] - 2026-11-15
 
 ### Added

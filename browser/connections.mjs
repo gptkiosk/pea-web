@@ -2,6 +2,7 @@ import { inWorkspace } from './policy.mjs';
 const ID = /^[A-Za-z0-9_-]{10,100}$/;
 const fields = 'id,name,mimeType,parents,version,createdTime,trashed,properties';
 const folderMIME = 'application/vnd.google-apps.folder';
+const documentMIME = 'application/vnd.google-apps.document';
 export const driveScope = 'https://www.googleapis.com/auth/drive';
 export function safeName(s) {
   return (
@@ -62,7 +63,12 @@ export class Services {
   constructor(transport = globalThis.fetch.bind(globalThis)) {
     this.transport = transport;
   }
-  async call(service, path, { token, method = 'GET', body, signal, max = 1000000, raw = false } = {}) {
+  // `upload` sends a prepared body as it is, for Drive's upload endpoint: { type, data }.
+  async call(
+    service,
+    path,
+    { token, method = 'GET', body, upload, signal, max = 1000000, raw = false } = {},
+  ) {
     const hosts = {
       router: 'https://openrouter.ai',
       drive: 'https://www.googleapis.com',
@@ -77,7 +83,8 @@ export class Services {
       gmail: /^\/gmail\/v1\/users\/me\/messages(?:\/[A-Fa-f0-9]{1,64})?$/,
       router:
         /^\/api\/v1\/(models|key|chat\/completions|images(?:\/models(?:\/[A-Za-z0-9_.:/-]{1,180}\/endpoints)?)?)$/,
-      drive: /^\/(drive\/v3\/files(?:\/[A-Za-z0-9_-]{10,100}(?:\/export)?)?|oauth2\/v3\/userinfo)$/,
+      drive:
+        /^\/(drive\/v3\/files(?:\/[A-Za-z0-9_-]{10,100}(?:\/export)?)?|upload\/drive\/v3\/files(?:\/[A-Za-z0-9_-]{10,100})?|oauth2\/v3\/userinfo)$/,
       docs: /^\/v1\/documents\/[A-Za-z0-9_-]{10,100}:batchUpdate$/,
       forms: /^\/v1\/forms(?:\/[A-Za-z0-9_-]{10,100}(?::batchUpdate)?)?$/,
       github:
@@ -103,9 +110,9 @@ export class Services {
           ? { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
           : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(upload ? { 'Content-Type': upload.type } : body ? { 'Content-Type': 'application/json' } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: upload ? upload.data : body ? JSON.stringify(body) : undefined,
       credentials: 'omit',
       redirect: 'error',
       cache: 'no-store',
@@ -482,6 +489,74 @@ export class Services {
         'A partial file may exist. Refresh the folder before trying again. No automatic retry.',
       );
     }
+  }
+  // Creates a Google Doc in the PEA folder from prepared HTML, in one request. If the answer is
+  // lost or unexpected the owner is told it may or may not exist; it is never tried again.
+  async createRichDocument(title, html, w, token) {
+    if (!safeName(title) || typeof html !== 'string' || new TextEncoder().encode(html).length > 400000)
+      throw new ServiceError('Check the document’s name and length.');
+    await this.member(w.folder.id, w, token);
+    const boundary = 'pea-' + crypto.randomUUID();
+    const metadata = JSON.stringify({
+      name: title,
+      mimeType: documentMIME,
+      parents: [w.folder.id],
+      properties: { peaCreated: '1' },
+    });
+    const data =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}` +
+      `\r\n--${boundary}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n${html}\r\n--${boundary}--`;
+    let file;
+    try {
+      file = await this.call(
+        'drive',
+        '/upload/drive/v3/files?' + new URLSearchParams({ uploadType: 'multipart', fields }),
+        { token, method: 'POST', upload: { type: `multipart/related; boundary=${boundary}`, data } },
+      );
+    } catch {
+      throw new ServiceError(
+        'The document may or may not have been created. Refresh the folder before trying again. No automatic retry.',
+      );
+    }
+    if (
+      !file ||
+      !ID.test(file.id ?? '') ||
+      file.mimeType !== documentMIME ||
+      file.parents?.length !== 1 ||
+      file.parents[0] !== w.folder.id
+    )
+      throw new ServiceError(
+        'Google answered unexpectedly. Refresh the folder to see whether the document exists.',
+      );
+    return file;
+  }
+  // Replaces the whole text of a document PEA created, only if nobody has changed it since.
+  async replaceDocument(file, html, w, token) {
+    if (
+      !file ||
+      file.mimeType !== documentMIME ||
+      file.properties?.peaCreated !== '1' ||
+      typeof html !== 'string' ||
+      new TextEncoder().encode(html).length > 400000
+    )
+      throw new ServiceError('Only a document PEA created can be replaced.');
+    const current = await this.member(file.id, w, token);
+    if (current.version !== file.version || current.properties?.peaCreated !== '1')
+      throw new ServiceError(
+        'This document was changed after PEA wrote it. Nothing was replaced; open it and decide what to keep.',
+      );
+    try {
+      await this.call(
+        'drive',
+        `/upload/drive/v3/files/${file.id}?` + new URLSearchParams({ uploadType: 'media', fields }),
+        { token, method: 'PATCH', upload: { type: 'text/html; charset=UTF-8', data: html } },
+      );
+    } catch {
+      throw new ServiceError(
+        'The document may or may not have been replaced. Open it to check. No automatic retry.',
+      );
+    }
+    return this.member(file.id, w, token);
   }
   async change(change, w, token) {
     const f = await this.member(change.file.id, w, token);
