@@ -23,6 +23,21 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The profile file as a shared contract — 2026-11-15
+
+**Branch `contracts/profile-file`, development identity `0.1.0-dev.37`.** The owner asked where to find an iPhone export to import; there is none, because the import reads only the web's own file. This slice writes that file's format down so the iPhone app can adopt it. No app behavior changed.
+
+- `browser/docs/CONTRACTS.md`, section "The profile file": the four outer fields, PBKDF2-HMAC-SHA-256 (600,000 rounds for v2, 310,000 for v1), AES-256-GCM with the format name as additional data, the inner `profile` and `introduction`, the seven original and nine later answers with limits in UTF-16 units, and what must be refused.
+- `browser/tests/fixtures/ProfileFixtures.json`, version 1: 6 files that must open and 18 that must be refused, sealed with a synthetic passphrase stored in the file and fixed salts. `browser/tests/profile-contract.test.mjs` (3 tests) checks every vector and that the stated limits equal `introductionLimits` and `profileFormats`.
+- `browser/profile-transfer.mjs` is unchanged; it already behaved this way.
+
+Known gaps:
+
+- The iPhone app was not read. Whether its interview has the same sixteen answers under these names is unknown and is for its own change to establish.
+- No export exists on the iPhone, so the owner still cannot move a profile from it. The vectors were made with Node's crypto and checked with the browser's; no third implementation has read them.
+
+Next action, on the private iPhone side and not from this repository: take a reviewed copy of the fixture file, add an export (and import) that passes it, and report any field that does not fit as a contract change here first.
+
 ## The Mac app's update check — 2026-11-15
 
 **Branch `mac/update-check`, development identity `0.1.0-dev.36`.** Owner's choices: checked only on a click; tells the owner and links to the release page, nothing more.

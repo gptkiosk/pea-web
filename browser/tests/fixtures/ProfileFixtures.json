@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "about": "Synthetic vectors for the encrypted profile file that carries interview answers between PEA apps. Every file here was sealed with the passphrase below and fixed, non-random salts, for tests only. No real answers or secrets.",
+  "passphrase": "synthetic fixture passphrase",
+  "format": {
+    "current": "pea-profile-export-v2",
+    "iterations": {
+      "pea-profile-export-v1": 310000,
+      "pea-profile-export-v2": 600000
+    },
+    "keyDerivation": "PBKDF2-HMAC-SHA256",
+    "cipher": "AES-256-GCM",
+    "saltBytes": 16,
+    "ivBytes": 12,
+    "tagBytes": 16,
+    "passphraseUnits": {
+      "min": 12,
+      "max": 256
+    },
+    "fileCharacters": 40000,
+    "contentBytes": 28984,
+    "profiles": [
+      "personal",
+      "work"
+    ],
+    "originalAnswers": {
+      "ownerName": 80,
+      "assistantName": 80,
+      "hometown": 120,
+      "interests": 1200,
+      "relationships": 600,
+      "goals": 600,
+      "persona": 900
+    },
+    "laterAnswers": {
+      "assistantHome": 600,
+      "family": 600,
+      "pets": 600,
+      "work": 600,
+      "workInterests": 600,
+      "hobbies": 600,
+      "duties": 600,
+      "communication": 600,
+      "boundaries": 600
+    }
+  },
+  "accepted": [
+    {
+      "name": "all sixteen answers, personal",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"AQEBAQEBAQEBAQEBAQEBAQ==\",\"iv\":\"gYGBgYGBgYGBgYGB\",\"data\":\"Mr/kRSMMaetIWzaPHPaJeFii+5QMwU6bA/DSZzyF2Yn2q33MoDYJ9eCi/CAdMSdRJYIutZYTz8tPC4oAw8pv1vWCe2JiO5f4UMOrHfW5WaEIuIf12Mq8Avivf+8gTYmJO73AiqwAC/bQqeDrIQz1MN7THCujaYA446Z3Pxsavjbf4yuXY/0KStg2OsoVvKZkDysO/KZAssjaAVYD3ENFr4DBevtX/gIzq42cijEeb0KunEpxPvnDuH0jJVYbkOGPJW7IjLgERVCyUTI5uZqQzvmAsv2JFC+fiqSI7SNNgy6TImgvwn5nYd9j8wwbe7u1T9QsY55RcR9jBZYDovoaU3Vs3FTrPwSy6T+jObT14zpYVOwLyQJPId5W8sUr/4LNAdXOKO55hKdh5H1l+SsxUf3LtTf4XLnv14G/XRHBKutDOiaXpcQB3a4M++TpIboyJSYPq8jaAiY7QAS9IYdDhfk+0WThYTcX8vXnUHJIgx5e9RYMxMYbuCUBsWQ911oZdgaT5HidB8iX/bc6567u1gEF2984dWJtEQW7xghLup5R/XDs93NB/M3VQ4WZP0ZuSxOTrx//Id8K9YDPTZ5Ay/+jqOh4llLtNUybl84bX3FjyzvJWjqFj8IFQJbtXC6sOjB+hYae4XGxzjgSHMzMUBfOCjQr9W7JxjZb7ItV20Wjm5moz4P+htl7x80j5BUEvZviUcMPDx7LaNt/wO+vkNXijNUfYyPJCTeEbRHmxw==\"}",
+      "expect": {
+        "profile": "personal",
+        "introduction": {
+          "ownerName": "Synthetic Sam",
+          "assistantName": "Pod",
+          "hometown": "Fixtureville",
+          "interests": "Growing synthetic peas",
+          "relationships": "",
+          "goals": "Finish the test garden",
+          "persona": "Warm and brief",
+          "assistantHome": "A synthetic greenhouse",
+          "family": "Two synthetic siblings",
+          "pets": "A fixture cat named Tab",
+          "work": "Tests software",
+          "workInterests": "Contracts",
+          "hobbies": "Zoë’s café quiz, 🌱 gardening",
+          "duties": "Waters the fixtures",
+          "communication": "Plain words.\nShort lines.",
+          "boundaries": "No surprises"
+        }
+      }
+    },
+    {
+      "name": "the seven original answers only, work",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"AgICAgICAgICAgICAgICAg==\",\"iv\":\"goKCgoKCgoKCgoKC\",\"data\":\"Sy4vmx2/omw/cw36WMUeGM9EhJz7ipKcnbGhprmB3v/WpT0F7Q4Wy3xVDHWd3sbtKIfMXnGX8rtn7HNXPaTCMXC/DdTX7ed0wek+FWC1eGIpQVNMdFs/mimu1H8INcXInl5N/uLYG1xbVflt07/+X3r0kdUBrjngUVvRKTQTFFrDXwMy274j+N+lS3F2S+bKu72utTMzJBTKAHY26jdIbWegmg/xRT8cOa4IKuSO0d+r7i3Y7OwPUTn3pM8pExJQTztGy+elejryxWESvVVZu7BHsXE94wte+G9xVB+xvHM4qrDTEzx2Ovu/QHP2Y34lJXJd\"}",
+      "expect": {
+        "profile": "work",
+        "introduction": {
+          "ownerName": "Synthetic Sam",
+          "assistantName": "Pod",
+          "hometown": "Fixtureville",
+          "interests": "Growing synthetic peas",
+          "relationships": "",
+          "goals": "Finish the test garden",
+          "persona": "Warm and brief"
+        }
+      }
+    },
+    {
+      "name": "every answer empty",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"AwMDAwMDAwMDAwMDAwMDAw==\",\"iv\":\"g4ODg4ODg4ODg4OD\",\"data\":\"fXGlzgFvaKXjh8UkjhqISGEut3um5SKCv2HH/slqs0yTgqatN1Le63rr2xjgB6c1n3RR0wyl/Twxaq2wXRmSV8FToWjPxiIeezE85W2Ck/YIx4aPCTJJ0w4VzeqIL8I1bKXhxyzIdoyFV6ZWIdoZjtKdpN+MYq6eVkDLHhK0LVKO4JfNO/+S03/1nxTUoyaZnBkpcAkNaBIcF1JbHMH7Jw4aXcj25iySlcozBsfcZkgAmtW+rhV45ymLD5CUbSKtLBz089J++g0HUKTjFRXnNKPvFfmAlncRtzs6wEhGWMd5QH5J0cR3U1O+i2PwaceUbgWvWcRYZvSFYVzCgNBQqfzMQzldIYK/7Qhl4wiRbnXtqkM9kFJXoMN5bMwL+GBYjR0L\"}",
+      "expect": {
+        "profile": "personal",
+        "introduction": {
+          "ownerName": "",
+          "assistantName": "",
+          "hometown": "",
+          "interests": "",
+          "relationships": "",
+          "goals": "",
+          "persona": "",
+          "assistantHome": "",
+          "family": "",
+          "pets": "",
+          "work": "",
+          "workInterests": "",
+          "hobbies": "",
+          "duties": "",
+          "communication": "",
+          "boundaries": ""
+        }
+      }
+    },
+    {
+      "name": "older format, still readable",
+      "file": "{\"format\":\"pea-profile-export-v1\",\"salt\":\"BAQEBAQEBAQEBAQEBAQEBA==\",\"iv\":\"hISEhISEhISEhISE\",\"data\":\"RnplNLdX3V5Kz4v4gWaCYrtPoBhpBYbnzZgSSRc6ffaG0bD1RHmsFigS4LCC0HMdS32JKB4gyqw5mslmaGzDNPgrszhg/O4v2iI0E97xzXW5OEwnosFOXcEBQ/i15W+e6tMtteKmfljsK84Dby5Brpx9PslwFzvlO6fsNCJ6bA8TcPYd96UJPhloa6LWoEFhKj+GndYdhR4+8LnynaaF/RP2MjOGDGrsyeCIFJxHIlhczXnmYk5MxSDQph+ABdoiUNoUtSQmBPDRdAjQWYaCzpND1dC9V1GCezXyv0va1P0AzKf28clgBcnXY6ZubKa9NVmQ\"}",
+      "expect": {
+        "profile": "work",
+        "introduction": {
+          "ownerName": "Synthetic Sam",
+          "assistantName": "Pod",
+          "hometown": "Fixtureville",
+          "interests": "Growing synthetic peas",
+          "relationships": "",
+          "goals": "Finish the test garden",
+          "persona": "Warm and brief"
+        }
+      }
+    },
+    {
+      "name": "keys in another order",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"BQUFBQUFBQUFBQUFBQUFBQ==\",\"iv\":\"hYWFhYWFhYWFhYWF\",\"data\":\"a8oPdsOKMZH/mIIMQlzgYAhJoeJ26XLNjYwLPdtFIgr2zX5LRfBcROK9F4jUO7f0Fsz/hEgF3FU2GFJAMVlDh6U3Q1lajMgxdwXzeddAGYCMePFqnr4OyQM7T77KF70dYPgoBJt6/ZkUNky5ersyoAgCbPGpguzQw3ZzOEkm+OY3A9Taj3KleP4k5E6tQSmn4fjiR0p93CcevOTpQENwikIiwShGkiOOlUdRIWkb6TVQQTj8NungzlurrfZm9tELoRBlAtESaWqWmr8MVcpRtwbokZIeihLvESnLlWgoDDTdYESy+UoqB8uuVtA5+mJyFaZxImFM/OluMTPpps6D/STRQYJNGOf6DYs5WpmzZ6OFi6g/jBuW+1kbWg9DhKdtl9V5IGwK0cu3Rs2zkzc4j4xjP+RWPM2AD70Frr+sn5bnpRMMnGAz9k/iAFDhz+T+Yh7oPZdASIYnkOP0srQ2QB8Qlo06+ZnYPum9LBPiKiAOi0xAKdPNUogYYrKAfFG+2qOYVXak6eomidgfLoIq/3q1dNbKFPTfSzHpT1+YMp15EQ/UGDPAhVP9UGNP2rEOdq+2xujD0JOwjwnZ5GzmJ3QcorNYWe/904QdfHEXjjrZ71CEI+hJmeQRah/loHWF5hbx1jKn15bcpGyfPy7/MHLiAQa46nOaitIJx5uMcj9ECF5lXHY6GyTYu/6ooUtP4fFcbyxA1jX5TxQcwNF0N/wipEm8ZJYi3XM06TX+8w==\"}",
+      "expect": {
+        "profile": "personal",
+        "introduction": {
+          "boundaries": "No surprises",
+          "communication": "Plain words.\nShort lines.",
+          "duties": "Waters the fixtures",
+          "hobbies": "Zoë’s café quiz, 🌱 gardening",
+          "workInterests": "Contracts",
+          "work": "Tests software",
+          "pets": "A fixture cat named Tab",
+          "family": "Two synthetic siblings",
+          "assistantHome": "A synthetic greenhouse",
+          "persona": "Warm and brief",
+          "goals": "Finish the test garden",
+          "relationships": "",
+          "interests": "Growing synthetic peas",
+          "hometown": "Fixtureville",
+          "assistantName": "Pod",
+          "ownerName": "Synthetic Sam"
+        }
+      }
+    },
+    {
+      "name": "answers at their exact limits",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"BgYGBgYGBgYGBgYGBgYGBg==\",\"iv\":\"hoaGhoaGhoaGhoaG\",\"data\":\"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\"}",
+      "expect": {
+        "profile": "work",
+        "introduction": {
+          "ownerName": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+          "assistantName": "Pod",
+          "hometown": "Fixtureville",
+          "interests": "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+          "relationships": "",
+          "goals": "Finish the test garden",
+          "persona": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+          "assistantHome": "A synthetic greenhouse",
+          "family": "Two synthetic siblings",
+          "pets": "A fixture cat named Tab",
+          "work": "Tests software",
+          "workInterests": "Contracts",
+          "hobbies": "Zoë’s café quiz, 🌱 gardening",
+          "duties": "Waters the fixtures",
+          "communication": "Plain words.\nShort lines.",
+          "boundaries": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+        }
+      }
+    }
+  ],
+  "refused": [
+    {
+      "name": "a different passphrase",
+      "why": "the passphrase does not open it",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"CQkJCQkJCQkJCQkJCQkJCQ==\",\"iv\":\"iYmJiYmJiYmJiYmJ\",\"data\":\"mXrzXgBwBBZVqhFHv4+AbVKGKkIarQfcCNxLZa/YDp8r/d5vHSQ7uqKAxc6JxNeK93t1aOkA239Ry7v8OZU8Ti30m+n9pNBSCLCsmuArSeeHy0H8P5a8G7P+FtWBYk/nPGNCK9LDRG3nZ08agbG/eR3WQGhY9cTCq+AsVpmSrOm4nsyv5r/YCi7wC71PgWyXdjVKDnJ0JjxWWiCF/Ax9SsMjKHyv6tgWHRJVuEWUQRGBVjbdmQ12IdQThmumkFl5wTgHNZZVfeF04nxmn0zBSfBkambbWGQXPgT8AC4POd3ak+bk1sBOZXFbglnJnyVYEn9Kko687g==\"}"
+    },
+    {
+      "name": "one byte changed",
+      "why": "the contents fail their integrity check",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"BwcHBwcHBwcHBwcHBwcHBw==\",\"iv\":\"h4eHh4eHh4eHh4eH\",\"data\":\"Yee2YKu5kR/8cnY498GMxWWZDHN8gbpqr4llmdd94V7QYHI6ZC/Z8aN6EhAoKxw3sGccnA8tPaREWWl4Hi2em3RUcpQ4xuh3WuxJ15Am1qaiat/fUKW8rP3NSNk6S/EuRvRGtL3HKZH92EM4YJD+T61ErNf0FfusYfU+taSgxI230O4Hxxlxn/8gfjlDKCanSZnUygfgSjB+V7psVgFU91qsIY0CW9E6D4U+iUagzYeZHxfSdQU0fp555WXg2oS61a8quS9qrmJjEU6H8g1y/hzzgkJcfXhrGd5nEYs4ZFwDg4IqW2jgjJqmDIX325k95KJ3XFHH7A==\"}"
+    },
+    {
+      "name": "new file relabelled as the older format",
+      "why": "the format name is part of the integrity check",
+      "file": "{\"format\":\"pea-profile-export-v1\",\"salt\":\"CAgICAgICAgICAgICAgICA==\",\"iv\":\"iIiIiIiIiIiIiIiI\",\"data\":\"AbJerwpOidxB1LplH8sCaeOx/rgBPDvor/LFJYcYg+iCoNRswf5/pw3JAJYPARg4YyqV99inD5zPoZrMj+O2xsUCm2BIxWT0Q/m6opbtgp/b270Ly78zh/Uj8zD4ZD1i3/wFj2YXc9rAluDhR1Rv5fMHu8oJVEGcDZP9xGlSNQv/VYLEFPShs0g4ynJq2OBWoNUTH3B2hKcIg67AWcY9rqEwdaHztqZxJgvHxMOt+/vxEmjlEYmCZPqUYWzyfMCq/O4V04EWSx0LiJXzf4ar26MZQRomGSbZtO/AQdD8SBoyrSH2aEZ1NC5SgurPVLztxdadvmY+Mw==\"}"
+    },
+    {
+      "name": "unknown format name",
+      "why": "only the two known formats are read",
+      "file": "{\"format\":\"pea-profile-export-v3\",\"salt\":\"CgoKCgoKCgoKCgoKCgoKCg==\",\"iv\":\"ioqKioqKioqKioqK\",\"data\":\"h/L0qx7KAnHy/WXFmZV8Tq1YWbZQa8QWLfVWt1OyHMl7+1hRCp2/wuXPQCQ3bWqDd0KZrlSyXm9K8/1+G1yo8gcFx98XjIiDS1ttam48jwgtUGRKTzvLEuilMohSyOulnXyBJHKlWcU+dp2ogjmn9B/lnS+5IQlv07CNJa6Vbb/F+8sb93f1iVoQPJdlvU/YZs1ftyJKDxumFtq16YWBxwbuCmuH9K1URxnEyfckoEGf1qdzKG8lFFUNhVfDUInEUkJY/ptlGVri4ckf/Byai038Yi5G51+9yqeJUkJ4kYW0S751GdM6l0042zGgxNxGQq1jV8ccdA==\"}"
+    },
+    {
+      "name": "an extra field on the outside",
+      "why": "the outer object has exactly four fields",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"CwsLCwsLCwsLCwsLCwsLCw==\",\"iv\":\"i4uLi4uLi4uLi4uL\",\"data\":\"/LEPbqIyRUhW05A8ixoGyqE6XUVI82luH3vEXfuT+xaIvBN/zI2wZHbbxfpczpU1Jkb/OwdrP4FYIaMoAbG7jZe9Gf2Fa8kabsXOLopwuhoujEA7Q2MmuDSJyVa4pLKj/036VqcpbY/zKcFBkuB4FPyPm/SzYMc+8nuIsnLjl1njjd+zwEnPDsE5AQVixESU6mLbc1kZ1GfuOKo2z3IyXAW5LYfV232RPKJIpJaqZklpZanSREOfLeCg1eI+2rIl9dapdHNcKtMPxGx2u7SYg5u3YRc6nolnfFqkB1EsXL8MWrq68uzGsEHch4Ua3m8kZFceuiRwjw==\",\"note\":\"x\"}"
+    },
+    {
+      "name": "a missing field on the outside",
+      "why": "the outer object has exactly four fields",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"DAwMDAwMDAwMDAwMDAwMDA==\",\"data\":\"+D830e4b53jXKLe6XnzdBgt/aHSMLRKEeM3+N50CQ0DFQKMoaklhDVYQ7rFv48FWxaTfT7Nr+XdiycmqgzMamtCs2QDjjXSlgXW8rDjLAkpzNoshCVNYjzy0H0onpYyaFM+5mB0UJkNFBl0K6w5rVlEw9vFE5vOc9vQkd9gqF/TJiNG4D2pzbc7T3mFkZsv6RhECfjwV2ysqStePGEjMimFYjJX8u2lnY/vsjYA1BXCrN/ah0xPYmLldz6o63+9ReLKgDdZ9ADffV97fbz+61sCBmla0Z59vc6M2OPJmpuJyhs4Wumk70OuAUMBWQWaWZI5MvItsMQ==\"}"
+    },
+    {
+      "name": "salt of the wrong length",
+      "why": "the salt is 16 bytes",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"AQEBAQEBAQE=\",\"iv\":\"jY2NjY2NjY2NjY2N\",\"data\":\"YSOvBDosFM86P/i+xepsac7yqAIx3HsJkSQdF2gtYhatnFV2+7fbdOMjg8DrdeBNR5q8xbua+pZWv71CKuS8WdkqQtypjhGRtjfwMMLf4duvswn7tPaD+Gl0lXd3FC8ubVghdZzCJ0QfMTg3ty2LZuyiPD8/XcAvEkvCwOeJW2jHLYIaDn431cMNuMbuX28UM7ru3QU1qUOO2k5jMDUSVDIQlUXYHXVDlh38MoAPiIEibGY6mMvuMR9y9uyAN5rXsZhlx7sztaE9j0OjM+aUjiH+gKf0QUlKjnve3zlzHCoDD0lEGP+0+5kV0pCWAbhs508vwUE/1Q==\"}"
+    },
+    {
+      "name": "URL-safe base64",
+      "why": "standard base64 with padding only",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"Dg4ODg4ODg4ODg4ODg4ODg==\",\"iv\":\"jo6Ojo6Ojo6Ojo6O\",\"data\":\"j_YvIs9uFD90VEQ_qmZ6lkEsjvo-ynG9-knv09hu6XA0c4Xf25sDZdVYNQIXIG5LI95FTeQYoMo1YrJvrnySNlzXhmsew_elsdjKpDfgKtlvj6hePFF7RR_BQ3mZzbDPn9o3zAC6pVXLGV6qHBFhtYzMJyNFU55xUb1CvmlpgHKwA5Gn8PvU10t37BYW9_qZHKq9j30OyfyerHcv7S9s6d-Xu0rkyZpc1aWObwgIOsQl85AkEjGcdJ96fhcd-W-JDgRL0kYs7uTqKo7rPT70WICUd_HND9emgbFQ29yN7HAHkOmiRu9S0fLG_i5P5ptFuHBToBJF7w-\"}"
+    },
+    {
+      "name": "not JSON",
+      "why": "the file is one JSON object",
+      "file": "pea-profile-export-v2"
+    },
+    {
+      "name": "a Blended profile",
+      "why": "only Personal and Work profiles travel",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"Dw8PDw8PDw8PDw8PDw8PDw==\",\"iv\":\"j4+Pj4+Pj4+Pj4+P\",\"data\":\"Bl4/UB/i2VTs199SNygAoMzX6E+ledTYuU9bd2KvQimWVj6s3xbmPDbxRMhEegNmKRgWd2eevVAkJkaBohPRj0KDtn8B4qZcspSXHEk4rTyi+Q4BWc93glesKcVU7hBju1ceEYEnfQUKDYc6+iR3LstJwYxUbgWt4vm7lhKQ19Dd2D3mX2eTyztXm1tTcbdMcqJ6Wg6hKzzzM3V34+zf7WAvllcTlscig9tf873vzdB3URHQvC3QgwGciZILllMSeZf23judWl2g0ta8yAaqX6c7SCFdnpDWg3AQnI++lFg/TcZxjTXuL8ZnnlePvjn69/+keBZ2\"}"
+    },
+    {
+      "name": "an extra field inside",
+      "why": "the inner object has exactly profile and introduction",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"EBAQEBAQEBAQEBAQEBAQEA==\",\"iv\":\"kJCQkJCQkJCQkJCQ\",\"data\":\"KP23FIKB7OCY2PO2leusnDAFs2F/n/eWvmJJRV3CFJO43T6Raqc0LRNwI71k3Wbxyk+HhGrk27JlIM5lDFgir+3MwUlaseCy0T6B4SUV7bF0xv9N1OEkYdFbC3c65s5JHdlWJR3CAAeCUdQAYLFiFSkpp/o7WTfpSWjhZkg6M0SwbVwr+QvskgO+S4g1lP397iOoI6SaKr/tMZ0E85wUxmdEy6YrQu6OtdSkFQhhMHEnjpC5pUC14//OwJOAM1dsqUhd7n9hSpLKe3ei83tPzpTYRDR7qfBchd4/ZR2fvu5GDqE/cGVr6Y916SnNyXnWeXkCpXv/dWiR416mmlsgoArCEb+6\"}"
+    },
+    {
+      "name": "an unknown answer",
+      "why": "answers are exactly the seven or exactly the sixteen",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"EREREREREREREREREREREQ==\",\"iv\":\"kZGRkZGRkZGRkZGR\",\"data\":\"bUtTiYDgYz3TpBY1X4VXBP+HAHQ2iJ0wiNL981v7tatVYmkkUATikATbX+8iYdo9W7Cq4H40Q3hheCtfa7v6LDKn8rzHE+mlOoh3293FeBiHccaHYIQ7foJL/nY94lqU58jewlxW20iIssVL3Lc3G07L5pj5K5m0bK1Crfcgj0vjumIR+s9g+80jrDDqcrH1WwJCQHAx3IeHWsB6LuCNCjn0Qn+rpx7A2N5V1oS1GSMFiAta5W/ygkMKlMPJitVYBADXygAKTnvF4yagVVfoFsna2p28OMfTTNUCVocfqEzH1ySz+33uDUmvon13hE6MPa/YT94nfUPZbWflrPMfjHpudkQ8ow==\"}"
+    },
+    {
+      "name": "some but not all of the later answers",
+      "why": "answers are exactly the seven or exactly the sixteen",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"EhISEhISEhISEhISEhISEg==\",\"iv\":\"kpKSkpKSkpKSkpKS\",\"data\":\"hmH4aagTbyMggP2f9RDotXfpk0qwjvLZR5qPVb0MmnpGV2gRT7CkAmrQD63YsbOpSgM9Zw3iXTJkm45UQWYeTkH+C92J3NetgOinXzf2vB629D1HDpA7wHQroL6w/1n2woUWwQu71U+4iHV5H/H86G0ZTAJVPa2u+uSZ8NqfqoBvkaWlhmbcnQrNPXgyDkssL048nqgxM1AA8rfo4xMLvRHk5D16IOHqz8p8F8PEUDbJU75rkbJuzWsRLQ7f9Z20FpLW/7yjtRxTSf98LraNbh6ZOm89bR127JxoH0j6TVTEUmD5Fq3egMm2MnuJDFt3Hc5tiih6L2R7i2ZdSHtm5lGRA0E=\"}"
+    },
+    {
+      "name": "an answer over its limit",
+      "why": "ownerName is at most 80",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"ExMTExMTExMTExMTExMTEw==\",\"iv\":\"k5OTk5OTk5OTk5OT\",\"data\":\"ZLRd3jcXd69wM528ePD9n0gHb95vA/Y44EBf0SJd5IZqz/NXwXEXEd6yUIOpuPfy+HWIf8fz7g3FGdEeyzXUJS1fB7wpTOensOR5iFlJ15otNYoK7za9UQb99f0ZakBlxfjokzA5IRxLbhMOTCJCXjc18Sw0UpAu5D+zrQ6hC3fZym7P3hN/Cj0hAlz8Y66U1ZFv5pJxeP5YqMrubSdqR87jViw1biI7xl+w7wM3nTCBSrnPzTWxlu3+bwuHwYhP19llFn9YcuzhwvlUqZzSNSWJumxWNF8eiBfu/yFrbRdvgh/OafGnRb29umWMR4w9fBgPiBdQPeGhCjI4xjmsHrXYgsGm9wqMgCOPa3t4FlnIwYyT2SgJDtfUI3fqZQCjo5W1imBBmNVascJk4xK4ayE3SAMtM7AbI9C5\"}"
+    },
+    {
+      "name": "an emoji answer over its limit",
+      "why": "limits count UTF-16 units, so 301 two-unit emoji exceed 600",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"FBQUFBQUFBQUFBQUFBQUFA==\",\"iv\":\"lJSUlJSUlJSUlJSU\",\"data\":\"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\"}"
+    },
+    {
+      "name": "an answer that is not text",
+      "why": "every answer is a string",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"FRUVFRUVFRUVFRUVFRUVFQ==\",\"iv\":\"lZWVlZWVlZWVlZWV\",\"data\":\"s9vDwtG+ei2Ui+x6KNxIDdneIQLedBbIPK+ZM1XDdQBRTBwRVnSIPm72p4UGGgD6nQS92trUIp9wL2fOKLwkzViMCK7hjR+kuoI6TpVnDGF4YbHSYJFODsdZ6+8NG9ID6nIm9WTEwksrRD4AS8/0dVVTS8GGopIPHg+UGyKHsfDUIo6xNaePS/t1KDvqlFCqTEXS/ffVDlbe0058t/JNYlSwkhj7006Tdgsw0hJJSsHYxT75/LKE1vI9hIIGYxyTjUyk0XmipEvQMb+rbK8L/o73VDpy/T3vTJ5BgYHM/FfidqY=\"}"
+    },
+    {
+      "name": "credential-like text in an answer",
+      "why": "text that looks like a credential refuses the file",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"FhYWFhYWFhYWFhYWFhYWFg==\",\"iv\":\"lpaWlpaWlpaWlpaW\",\"data\":\"KqDYyBRt9Hd/XsIAaLdzbGqLXBE9CTkDwQyL8M1m8SZIL98QILBo5OERDC5q+A5TZBzo+QIVoj4+S9xt4M0XkZ7AuBq7HiPwMs8089Kh/5sO86gNqhCC6yFxzWMNI36zJmHWOA/1GTPRfe1lo+AvNVFx2/cvEdp0wXJAuIB6O7dqz9z56UxjbCOo63KctRpD6ec6eVbM4a577y4lZXDFfhLLlZJ70SI6ItA65aeb44wSo9+Y5S3TU3jUfVwMysUzUnrVAiNbSspNvrzlCHUMQjn8xlHIAhwqVIHaShyrKvhEZBmx0BdMoxUVFt49oG+NDZ8t+u+7GiGmPsKKa+zjlAYXDgT8ZpQ=\"}"
+    },
+    {
+      "name": "contents that are not UTF-8",
+      "why": "the contents are UTF-8 JSON",
+      "file": "{\"format\":\"pea-profile-export-v2\",\"salt\":\"FxcXFxcXFxcXFxcXFxcXFw==\",\"iv\":\"l5eXl5eXl5eXl5eX\",\"data\":\"mjnFPtJ4Z1fjfr/os3ScjW3kZHo=\"}"
+    }
+  ]
+}

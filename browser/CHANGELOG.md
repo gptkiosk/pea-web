@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.37] - 2026-11-15
+
+### Added
+
+- The encrypted profile file that **Export this profile…** writes is now a documented, shared format with test files, so the iPhone app can adopt it. Nothing changes in the app yet: a profile still cannot be imported from an iPhone until the iPhone app writes this file.
+
 ## [0.1.0-dev.36] - 2026-11-15
 
 ### Added

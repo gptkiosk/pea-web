@@ -4,6 +4,7 @@ The two apps are separate codebases that never read each other's files. What kee
 
 - Fixtures: [`tests/fixtures/ActionFixtures.json`](../tests/fixtures/ActionFixtures.json), version 1. Every vector is a whole synthetic model reply and what the parser must return. `tests/contracts.test.mjs` checks them against this app.
 - Policy fixtures for profile sharing and Drive ancestry are separate: `tests/fixtures/PolicyFixtures.json`.
+- Fixtures for the encrypted profile file: [`tests/fixtures/ProfileFixtures.json`](../tests/fixtures/ProfileFixtures.json), version 1, checked by `tests/profile-contract.test.mjs`. See [The profile file](#the-profile-file).
 - Feature status on each side: [PARITY.md](PARITY.md).
 
 Vectors marked `web_only` describe behavior that is deliberately different in a browser. They are listed under each block below.
@@ -118,6 +119,51 @@ Sent with every request as a label, whether or not the introduction is shared. O
 ## Files PEA creates in Drive
 
 Both apps set the public file property `peaCreated` to `1` on files they create, and each recognizes the other's files by it. The property is a label only: any app with access to a file can set it. The web additionally sets a private app property of the same name, visible only to its own Google client, and requires it before sharing a file's text automatically or replacing a document. Files created by the iPhone app therefore appear on the web as labelled but not confirmed until the owner confirms them in a review.
+
+## The profile file
+
+One file carries the interview answers of one profile from one PEA app to another. PEA Web writes it with **Export this profile…** and reads it with **Import a profile…**. The iPhone app does not write or read it yet; this section is what it would follow. Nothing else travels in it: no chats, memories, to-dos, keys, tokens or permissions.
+
+The file is a small JSON text file, named `pea-web-profile.json` by the web. Any name ending `.json` is accepted.
+
+**Outside.** One JSON object with exactly these four fields, at most 40,000 characters in all:
+
+| Field | Value |
+| --- | --- |
+| `format` | `pea-profile-export-v2`. The older `pea-profile-export-v1` is still read and never written. |
+| `salt` | 16 random bytes |
+| `iv` | 12 random bytes |
+| `data` | the sealed contents followed by the 16-byte tag |
+
+`salt`, `iv` and `data` are standard base64 with `=` padding, not the URL-safe kind. Use a fresh random salt and `iv` for every file.
+
+**Sealing.**
+
+1. The passphrase is what the owner typed, 12 to 256 UTF-16 units long, turned into bytes as UTF-8 with no trimming and no normalization.
+2. The key is PBKDF2 with HMAC-SHA-256 over those bytes and the salt, 600,000 rounds for v2 and 310,000 for v1, giving 32 bytes.
+3. The contents are sealed with AES-256-GCM using that key and the `iv`. The format name, as UTF-8 bytes, is the additional authenticated data, so a file cannot be relabelled as the other format.
+
+**Inside.** UTF-8 JSON of at most 28,984 bytes, one object with exactly two fields:
+
+- `profile`: `personal` or `work`. A Blended profile has no answers of its own and does not travel.
+- `introduction`: an object whose values are all text. It holds either exactly the seven original answers or exactly all sixteen, never a mixture, and no other field. An answer left blank is an empty string.
+
+| Answer | Most UTF-16 units |
+| --- | --- |
+| `ownerName`, `assistantName` | 80 |
+| `hometown` | 120 |
+| `interests` | 1,200 |
+| `relationships`, `goals` | 600 |
+| `persona` | 900 |
+| `assistantHome`, `family`, `pets`, `work`, `workInterests`, `hobbies`, `duties`, `communication`, `boundaries` (the nine later answers) | 600 each |
+
+Lengths are counted in UTF-16 units, as a browser counts them, so most emoji count as two. Text that looks like a credential in any answer refuses the whole file. The order of fields does not matter.
+
+**Reading.** An app refuses the whole file, changes nothing and gives one plain message, without saying which check failed, when the passphrase is wrong, any byte was altered, the format is unknown, a field is missing or extra, a length is wrong, or the contents break a rule above. After a file opens, the web shows the owner each answer that would change and applies nothing until they approve. The file does not say which app or version wrote it.
+
+The fixtures hold six files that must open, with the answers each must give, and eighteen that must be refused, each with its reason. All were sealed with the synthetic passphrase in the fixture file and fixed salts, for tests only.
+
+Differences: none yet, because only the web implements it. Whether the iPhone app's interview holds the same sixteen answers under these names is for its own change to establish; a difference there is a change to this contract first.
 
 ## Changing a contract
 

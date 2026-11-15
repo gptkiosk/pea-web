@@ -38,6 +38,7 @@ How to read the status columns:
 | Model configuration export and import | Built | Built | Same portable format |
 | Voice | Built with browser speech | Built with native speech and Walk mode | Fish Audio and ElevenLabs on Web: not yet, 0.2. No locked-screen voice in a browser |
 | Conversation history and reviewed memories | Built, encrypted on this browser | Built, encrypted archive | Archives are not interchangeable yet |
+| Moving interview answers between apps (profile file) | Built: export and import, web to web | Not yet | The file format is now a shared contract with fixtures ([CONTRACTS.md](CONTRACTS.md#the-profile-file)); the iPhone app has to adopt it in its own change before a file can go either way |
 | Encrypted backup and restore | Built, Web-only files | Built, one file per profile in the PEA folder | iPhone-readable backup on Web: not yet, after 0.2 |
 | Public research, weather, headlines, Home card | Not yet, 0.2 | Built | Web needs a server-side fetcher that checks resolved addresses |
 | Her history cards, daily life and life timeline | Not yet, 0.2 | Built | |
