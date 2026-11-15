@@ -6,7 +6,7 @@
 
 ![PEA pea-pod mascot](browser/assets/pea-mascot.svg)
 
-Use PEA Web by itself, or alongside the separately distributed native PEA iPhone app. No iOS source, Apple tools, developer Mac, bundled provider key or paid membership token is needed here. The iOS app remains a separate product and codebase. No model usage is bundled: provider API charges/limits and any free-model data-use conditions are yours to review.
+Use PEA Web by itself, or alongside the separately distributed native PEA iPhone app. No iOS source, Apple tools, developer Mac, bundled provider key or paid membership token is needed here. The iOS app remains a separate product and codebase. A Mac launcher that runs PEA without Python or Terminal is being built in [`mac/`](mac/README.md); it is not ready to download. No model usage is bundled: provider API charges/limits and any free-model data-use conditions are yours to review.
 
 ## Try the interface
 
@@ -70,6 +70,6 @@ python3 -m unittest discover -s browser/server -p 'test_*.py' -v
 python3 browser/server/conformance/run.py
 ```
 
-Node.js 22+ is needed only for tests (the browser-level tests use its built-in WebSocket and need Chrome or Chromium); Git and OpenSSH signing support are also used by release tests/build tooling. See [contributing](CONTRIBUTING.md), [agent entry](AGENTS.md) and [handoff](HANDOFF.md). Feedback is a reviewed GitHub draft or PR, never an automatic upload of chats or diagnostics.
+The Mac launcher has its own checks, which need a Mac with Swift and are listed in [mac/README.md](mac/README.md); nothing above depends on them. Node.js 22+ is needed only for tests (the browser-level tests use its built-in WebSocket and need Chrome or Chromium); Git and OpenSSH signing support are also used by release tests/build tooling. See [contributing](CONTRIBUTING.md), [agent entry](AGENTS.md) and [handoff](HANDOFF.md). Feedback is a reviewed GitHub draft or PR, never an automatic upload of chats or diagnostics.
 
 Apache 2.0 · [LICENSE](LICENSE) · [NOTICE](NOTICE). Copyright 2026 Bamcio Ventures LLC. Product information: [Bamcio](https://bamcio.com/). The public repository is the source/install reference; a Bamcio.com product listing follows when the product is ready.

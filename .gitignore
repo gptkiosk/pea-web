@@ -21,3 +21,5 @@ venv/
 /releases/
 /dist/
 /runtime/
+/mac/.build/
+/mac/build/

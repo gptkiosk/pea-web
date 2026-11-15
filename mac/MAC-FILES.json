@@ -1,0 +1,11 @@
+[
+  "MAC-FILES.json",
+  "Package.swift",
+  "README.md",
+  "Sources/PEAGatewayCore/Gateway.swift",
+  "Sources/PEAGatewayCore/HTTP.swift",
+  "Sources/PEAGatewayCore/JSON.swift",
+  "Sources/PEAGatewayCore/Rules.swift",
+  "Sources/pea-gateway/main.swift",
+  "Tests/PEAGatewayCoreTests/RulesTests.swift"
+]

@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.32] - 2026-11-15
+
+### Added
+
+- The gateway rewritten in Swift, in a new `mac/` folder, as the base of a Mac app that will need no Python and no Terminal. It reads the same rules file as the Python gateway and passes the same conformance suite. There is no app to download yet.
+
+### Changed
+
+- Both gateways now refuse a chat request with a repeated key, `NaN` or `Infinity`, text that is not UTF-8 or holds half of a surrogate pair, and any request that repeats a header deciding access (`Host`, `Origin`, `Authorization`, `Content-Length`, `Content-Type`, `Transfer-Encoding`). The app never sends any of these.
+
 ## [0.1.0-dev.31] - 2026-11-15
 
 ### Added

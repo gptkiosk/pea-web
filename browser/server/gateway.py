@@ -68,6 +68,17 @@ def read_token(path):
     return token
 
 
+def strict_json(data):
+    """JSON as UTF-8 only, with no repeated keys and no NaN or Infinity, so both gateways read a body the same way."""
+    def pairs(items):
+        if len({key for key, _ in items}) != len(items):
+            raise ValueError('Repeated key.')
+        return dict(items)
+    def constant(_name):
+        raise ValueError('Not a number.')
+    return json.loads(bytes(data).decode('utf-8'), object_pairs_hook=pairs, parse_constant=constant)
+
+
 def validate_chat(raw):
     if not isinstance(raw, dict) or set(raw) - set(CONTRACT['chatFields']):
         raise ValueError('Only text chat is supported; tools and provider overrides are disabled.')
@@ -80,6 +91,7 @@ def validate_chat(raw):
     for row in rows:
         if not isinstance(row, dict) or set(row) != {'role', 'content'} or row['role'] not in CONTRACT['roles'] or not isinstance(row['content'], str):
             raise ValueError('Only plain text system/user/assistant messages are supported.')
+        row['content'].encode('utf-8')  # half of a surrogate pair is not text; this raises ValueError
         total += len(row['content'])
     limit = raw.get('max_tokens', LIMITS['defaultMaxTokens'])
     if total > LIMITS['messageCharacters'] or type(limit) is not int or not 1 <= limit <= LIMITS['maxTokens']:
@@ -189,6 +201,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def boundary(self, auth=False):
+        # A header that decides access may appear once. Two values would let two readers disagree.
+        if any(len(self.headers.get_all(name, [])) > 1 for name in ('Host', 'Origin', 'Authorization', 'Content-Length', 'Content-Type', 'Transfer-Encoding')):
+            self.reply(400, {'error': 'Bad request.'})
+            return False
         if self.headers.get('Host') not in self.server.hosts or self.headers.get('Origin') not in (None, *self.server.origins):
             self.reply(403, {'error': 'Origin or host rejected.'})
             return False
@@ -256,7 +272,7 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get('Content-Length', '0'))
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
-            body = validate_chat(json.loads(self.rfile.read(length)))
+            body = validate_chat(strict_json(self.rfile.read(length)))
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
             return self.reply(400, {'error': 'Invalid or oversized text chat request.'})
