@@ -109,7 +109,7 @@ test('a model can only propose to-do changes; the owner approves the exact list'
   assert.deepEqual(await openTitles(page), ['Call the synthetic dentist']);
   assert.match(await page.text('#todo-list'), /Due .+ · reminder/);
   await page.waitFor(
-    `document.getElementById('messages').innerText.includes('Added “Call the synthetic dentist” to your to-do list, with a reminder.')`,
+    `document.getElementById('messages').innerText.includes('Added to your list: “Call the synthetic dentist” (reminder set).')`,
     'the receipt of what happened',
   );
   assert.equal(await page.hasText('Review to-do changes'), false, 'the proposal cannot be applied twice');
@@ -128,7 +128,7 @@ test('a model can only propose to-do changes; the owner approves the exact list'
   await openReview(page, 'Review to-do changes');
   await page.click('#review-approve');
   await page.waitFor(
-    `document.getElementById('messages').innerText.includes('Not done: I couldn’t tell which item')`,
+    `document.getElementById('messages').innerText.includes('Left as it was: could not tell which item')`,
     'an honest account of what was not done',
   );
   assert.deepEqual(page.outsideRequests(), []);

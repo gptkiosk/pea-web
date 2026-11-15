@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Documents from templates — 2026-11-15
+
+Branch `feature/document-templates`, development identity `0.1.0-dev.24`. Second parity slice. The owner allowed a read-only look at the iPhone policies for the remaining 0.1.0 features; the block format and limits match, and all code, layout notes and wording here are our own.
+
+`browser/documents.mjs` is pure: the 21 types with a label, whether they are titled, and a short layout note; `docProposals(raw, current)` for `doc_create` and `doc_update`; `docHTML` (everything escaped, bullets, checkboxes, the rental note); `docPlain`, `docSummary`, `typesMentioned`, `docGuidance` and `claimsDocument`. `Services.call` gained an `upload` option and a fixed `/upload/drive/v3/files` route; `createRichDocument` does one multipart upload after checking the folder and verifies the answer; `replaceDocument` checks the Drive version and the created-by-PEA mark first. `live-ui.mjs` keeps `currentDoc` per profile for the tab, decides folder or file, and `writeDocument` runs the review and the write. `app.mjs` offers Review document, shows the outcome, and for the file path a download link. The earlier `document_draft` block still handles simple forms and plain editable drafts; `documentGuidance` is no longer sent because `docGuidance` covers both.
+
+Correction to the previous slice: several to-do receipt sentences, a guidance example and one disclaimer sentence had been written too close to the private app's wording. They are reworded here; behavior is unchanged.
+
+Tests: 10 unit tests for documents, 4 for the Drive calls against a synthetic Drive (one upload with the right metadata and no text in the address, refusals, no retry after an uncertain write, replacement refused after a hand edit or for a file PEA did not create, the fixed upload route); 4 browser tests on the file path (whole text reviewed, cancel, approve once, escaped HTML with an injected script inert, a revision, the rental note, refusals and a correction, and one profile unable to revise or see another's document). Totals: 149 unit, 35 browser (three consecutive clean runs each as Mac and as Linux), 27 gateway and release.
+
+Limits: creating or replacing a real Google Doc was not exercised in a browser, because tests cannot sign in to Google; that path is covered only by the synthetic-Drive unit tests and needs owner acceptance. The open document is forgotten on reload or new chat. Next: call, text and map links with copy boxes.
+
 ## To-dos and reminders — 2026-11-15
 
 Branch `feature/todos-and-reminders`, development identity `0.1.0-dev.23`. First parity slice. The owner allowed a read-only look at the iPhone to-do policy to match its block format; nothing was copied, and the Web code and wording are our own.

@@ -1,11 +1,6 @@
-import {
-  storyGuidance,
-  emailGuidance,
-  documentGuidance,
-  calendarGuidance,
-  navigationGuidance,
-} from './actions.mjs';
+import { storyGuidance, emailGuidance, calendarGuidance, navigationGuidance } from './actions.mjs';
 import { presenceAt } from './presence.mjs';
+import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
 import {
   Services,
   ServiceError,
@@ -52,6 +47,8 @@ export function installConnections(hooks) {
         workspace: null,
         roots: [],
         github: null,
+        // The document PEA last wrote for this profile in this tab: its text, and its Drive file if one was made.
+        currentDoc: null,
         allowData: false,
         shareIntro: false,
         shareCalendar: false,
@@ -208,6 +205,48 @@ export function installConnections(hooks) {
       };
     });
   }
+  // Where a written document goes: the PEA folder when Google and a folder are connected,
+  // otherwise a file the owner downloads.
+  function documentDestination() {
+    const s = state();
+    return s.google && s.google.expires > Date.now() && s.workspace ? 'folder' : 'file';
+  }
+  // Shows the owner the whole document, then creates it, replaces it or prepares it as a file.
+  // Returns what actually happened, or null if the owner cancelled.
+  async function writeDocument(request) {
+    const s = state(),
+      who = p(),
+      draft = request.draft,
+      html = docHTML(draft),
+      text = `${docSummary(request)}\n\n${docPlain(draft)}`;
+    if (documentDestination() === 'file') {
+      const ok = await review(
+        'Prepare this document as a file?',
+        `Profile: ${who}\n\n${text}\n\nNo PEA folder is connected, so nothing is created in Google. Approval offers this document as a file to download and nothing is sent to anyone.`,
+      );
+      if (!ok) return null;
+      if (who !== p()) throw new ServiceError('Profile changed. Review the document again.');
+      s.currentDoc = { file: null, draft };
+      return { status: 'file', html, title: draft.title };
+    }
+    const g = googleSession(),
+      replacing = request.update && s.currentDoc?.file;
+    const ok = await review(
+      replacing ? 'Replace this document in your PEA folder?' : 'Create this document in your PEA folder?',
+      `${g.account}\n${s.workspace.folder.title}\nProfile: ${who}\n\n${text}\n\n${replacing ? 'The whole text is replaced, and only if nobody has changed the document since PEA wrote it.' : 'A new Google Doc is created in this folder.'} Nothing is shared or sent to anyone.`,
+    );
+    if (!ok) return null;
+    if (who !== p()) throw new ServiceError('Profile changed. Review the document again.');
+    return run(async () => {
+      busy(true);
+      const file = replacing
+        ? await service.replaceDocument(s.currentDoc.file, html, s.workspace, g.token)
+        : await service.createRichDocument(draft.title, html, s.workspace, g.token);
+      if (who === p()) s.currentDoc = { file, draft };
+      await refresh();
+      return { status: replacing ? 'replaced' : 'created', title: draft.title };
+    });
+  }
   async function run(action) {
     if (operationActive) {
       note('Finish or stop the active request first.');
@@ -285,7 +324,11 @@ export function installConnections(hooks) {
       '\n' +
       emailGuidance +
       '\n' +
-      documentGuidance +
+      docGuidance({
+        destination: documentDestination(),
+        current: s.currentDoc?.draft ?? null,
+        message: text,
+      }) +
       '\n' +
       calendarGuidance +
       '\n' +
@@ -1074,6 +1117,11 @@ export function installConnections(hooks) {
     render,
     run,
     review,
+    writeDocument,
+    currentDocument: () => state().currentDoc?.draft ?? null,
+    forgetDocument() {
+      state().currentDoc = null;
+    },
     prepareDocument(proposal) {
       if ($('draft').open) throw new ServiceError('Close the current document draft first.');
       draft(proposal.kind === 'form', proposal.content);

@@ -99,9 +99,9 @@ test('reviewed requests add, skip duplicates, set reminders only for a future ti
   assert.equal(first.changed, 2);
   assert.equal(first.items[0].remind, true);
   assert.equal(first.items[1].remind, false);
-  assert.match(first.say, /^Added “Call the dentist” and “Buy milk” to your to-do list, with a reminder\./);
-  assert.match(first.say, /“Buy milk” has no future time, so no reminder was set/);
-  assert.match(first.say, /was already on the list/);
+  assert.match(first.say, /^Added to your list: “Call the dentist” and “Buy milk” \(reminder set\)\./);
+  assert.match(first.say, /No reminder for “Buy milk” because its time is not in the future/);
+  assert.match(first.say, /is already on your list, so it was not added again/);
   assert(validateTodos(first.items));
 
   const past = applyTodoRequests(
@@ -128,7 +128,7 @@ test('checking off needs one clear match and never guesses between several', () 
   const exact = applyTodoRequests([{ op: 'done', title: 'buy MILK' }], items, 'personal', now + 5);
   assert.equal(exact.items.find((t) => t.title === 'Buy milk').done, true);
   assert.equal(exact.items.find((t) => t.title === 'Buy milk').completed, now + 5);
-  assert.match(exact.say, /^Checked off “Buy milk”\.$/);
+  assert.match(exact.say, /^Marked as finished: “Buy milk”\.$/);
 
   const partial = applyTodoRequests([{ op: 'done', title: 'dentist' }], items, 'personal', now);
   assert.equal(partial.items.find((t) => t.title === 'Call the dentist').done, true);
@@ -139,7 +139,7 @@ test('checking off needs one clear match and never guesses between several', () 
     unclear.items.some((t) => t.done),
     false,
   );
-  assert.match(unclear.say, /Not done: I couldn’t tell which item “Call the” is/);
+  assert.match(unclear.say, /Left as it was: could not tell which item “Call the” means/);
 
   const otherProfile = applyTodoRequests([{ op: 'done', title: 'Buy milk' }], items, 'work', now);
   assert.equal(otherProfile.changed, 0, 'another profile’s list is never touched');
@@ -156,7 +156,7 @@ test('a full list refuses more and the two profiles are counted separately', () 
     now,
   );
   assert.equal(applied.changed, 0);
-  assert.match(applied.say, /Not done: your list is full/);
+  assert.match(applied.say, /Left as it was: the list is full, so “One more” was not added/);
   assert.equal(addTodo(items, 'work', 'Work item', {}, now).length, 201);
 });
 

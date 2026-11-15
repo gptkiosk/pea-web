@@ -32,6 +32,7 @@ import { installDragDrop, makeMessageDraggable } from './dragdrop-ui.mjs';
 import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
+import { claimsDocument, docProposals } from './documents.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -54,7 +55,9 @@ const chats = {},
   emailReady = new Set(),
   calendarReady = new Map(),
   // What happened to each approved to-do proposal, shown in place of its button.
-  todoDone = new Map();
+  todoDone = new Map(),
+  // The outcome of each approved document proposal: a sentence, and a download link when it became a file.
+  docDone = new Map();
 let reviewingStory = false;
 const history = (surface, who = profile) => chats[`${who}:${surface}`] ?? (chats[`${who}:${surface}`] = []);
 const message = (role, text, extra = {}) => ({
@@ -306,6 +309,68 @@ function proposalButton(m, surface) {
         renderCollaboration();
       } catch (error) {
         notice(error.message || 'Could not prepare the event.');
+      } finally {
+        reviewingStory = false;
+      }
+    };
+    return b;
+  }
+  if (docDone.has(m.id)) {
+    const done = docDone.get(m.id);
+    const receipt = document.createElement('small');
+    receipt.textContent = done.say;
+    if (done.href) {
+      const link = document.createElement('a');
+      link.className = 'text-button';
+      link.textContent = 'Download the document';
+      link.download = done.name;
+      link.href = done.href;
+      receipt.append(' ', link);
+    }
+    return receipt;
+  }
+  const written = proposals.get(m.id);
+  if (written?.kind === 'doc' && !m.incomplete && written.profile === profile) {
+    const b = document.createElement('button');
+    b.className = 'text-button';
+    b.textContent =
+      (written.request.update ? 'Review new version: ' : 'Review document: ') + written.request.draft.title;
+    b.onclick = async () => {
+      if (reviewingStory || live.isBusy()) {
+        notice('Finish the current request first.');
+        return;
+      }
+      reviewingStory = true;
+      const who = profile;
+      try {
+        if (!history(surface, who).some((x) => x.id === m.id) || proposals.get(m.id) !== written) return;
+        const result = await live.writeDocument(written.request);
+        if (!result) return;
+        const title = result.title;
+        docDone.set(
+          m.id,
+          result.status === 'file'
+            ? {
+                say: `“${title}” is ready as a file. Nothing was created in Google.`,
+                href: 'data:text/html;charset=utf-8,' + encodeURIComponent(result.html),
+                name:
+                  title
+                    .replace(/[^A-Za-z0-9 _.-]+/g, ' ')
+                    .trim()
+                    .slice(0, 80) + '.html',
+              }
+            : {
+                say:
+                  result.status === 'replaced'
+                    ? `Replaced the text of “${title}” in your PEA folder.`
+                    : `Created “${title}” in your PEA folder.`,
+              },
+        );
+        proposals.delete(m.id);
+        renderChat();
+        renderCollaboration();
+      } catch (error) {
+        notice(error.message || 'Could not write the document.');
       } finally {
         reviewingStory = false;
       }
@@ -785,15 +850,16 @@ live = installConnections({
       docs = complete ? documentProposals(raw) : [],
       events = complete ? calendarProposals(raw) : [],
       navs = complete ? navigationProposals(raw) : [],
-      changes = complete ? todoProposals(raw) : [];
+      changes = complete ? todoProposals(raw) : [],
+      written = complete ? docProposals(raw, live.currentDocument()) : [];
     reply.text = visibleReply(raw);
     if (complete && warnsOfUnconfirmedStory(reply.text))
       reply.text += '\n\nNo story was added by this reply. Review and approve a proposal before it is added.';
     if (complete && warnsOfUnconfirmedEmail(reply.text))
       reply.text += '\n\nPEA did not send an email. Review and send it yourself in your mail app.';
-    if (complete && warnsOfUnconfirmedDocument(reply.text))
+    if (complete && !written.length && (warnsOfUnconfirmedDocument(reply.text) || claimsDocument(reply.text)))
       reply.text +=
-        '\n\nPEA did not create a file from this reply. Open the draft and review creation separately.';
+        '\n\nPEA did not create a document from this reply. Review and approve a proposal before anything is written.';
     if (complete && warnsOfUnconfirmedCalendar(reply.text))
       reply.text +=
         '\n\nPEA did not schedule an event from this reply. Review and import an event file yourself.';
@@ -820,6 +886,15 @@ live = installConnections({
       !navs.length
     )
       proposals.set(reply.id, { profile, kind: 'todo', requests: changes });
+    else if (
+      written.length === 1 &&
+      !items.length &&
+      !emails.length &&
+      !docs.length &&
+      !events.length &&
+      !navs.length
+    )
+      proposals.set(reply.id, { profile, kind: 'doc', request: written[0] });
     memory.record(surface);
     if (surface === 'chat') renderChat();
     else renderCollaboration();
@@ -979,6 +1054,8 @@ memory = installMemory({
     emailReady.clear();
     calendarReady.clear();
     todoDone.clear();
+    docDone.clear();
+    live.forgetDocument();
     voice?.stop();
     globalThis.speechSynthesis?.cancel();
     for (const key of Object.keys(chats)) delete chats[key];
