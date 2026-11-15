@@ -29,8 +29,14 @@ public final class Launcher: ObservableObject {
     private let tokens: TokenStore
     private let defaults: UserDefaults
     private var gateway: Gateway?
+    private let reminders: ReminderCenter?
+    /// Whether reminders from PEA in the browser are shown as notifications on this Mac.
+    @Published public private(set) var remindersOn = false
+    /// False when this copy of PEA cannot show notifications at all, for example when run from source.
+    public var canRemind: Bool { reminders != nil }
 
-    public init(webRoot: URL, tokens: TokenStore, defaults: UserDefaults) {
+    public init(webRoot: URL, tokens: TokenStore, defaults: UserDefaults, notifications: NotificationPoster? = nil) {
+        reminders = notifications.map { ReminderCenter(poster: $0, defaults: defaults) }
         self.webRoot = webRoot
         self.tokens = tokens
         self.defaults = defaults
@@ -41,6 +47,23 @@ public final class Launcher: ObservableObject {
         let identity = try? BuildIdentity.read(root: webRoot.resolvingSymlinksInPath())
         version = identity?["version"]?.string ?? "unknown"
         repository = identity?["repository"]?.string
+        if notifications != nil, defaults.bool(forKey: "reminders") {
+            notifications?.isPermitted { allowed in Task { @MainActor in self.remindersOn = allowed } }
+        }
+    }
+
+    /// Turns reminders as notifications on or off. Turning them on makes the system ask the owner
+    /// once; the answer is whether they are on afterwards. Turning them off withdraws any still waiting.
+    @discardableResult
+    public func setReminders(_ wanted: Bool) async -> Bool {
+        guard let reminders else { return false }
+        if wanted {
+            remindersOn = await withCheckedContinuation { done in reminders.turnOn { done.resume(returning: $0) } }
+        } else {
+            reminders.turnOff()
+            remindersOn = false
+        }
+        return remindersOn
     }
 
     /// The address PEA is opened at. `127.0.0.1` and not a name, so it is the same browser origin every time.
@@ -63,7 +86,7 @@ public final class Launcher: ObservableObject {
         status = .starting
         let wanted = port
         do {
-            let next = try Gateway(Gateway.Options(port: wanted, token: try token(), upstream: upstream, root: webRoot))
+            let next = try Gateway(Gateway.Options(port: wanted, token: try token(), upstream: upstream, root: webRoot, reminders: reminders))
             gateway = next
             next.start { error in
                 Task { @MainActor in

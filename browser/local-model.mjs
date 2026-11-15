@@ -17,7 +17,7 @@ export class LocalModel {
   }
   async request(path, key, { body, signal } = {}) {
     if (
-      !['/v1/models', '/v1/chat/completions'].includes(path) ||
+      !['/v1/models', '/v1/chat/completions', '/v1/reminders'].includes(path) ||
       typeof key !== 'string' ||
       !/^[A-Za-z0-9_-]{32,128}$/.test(key)
     )
@@ -43,6 +43,24 @@ export class LocalModel {
               : 'Local model unavailable. Refresh the model list; no cloud fallback.',
       );
     return r;
+  }
+  // Asks whether this server can show reminders as system notifications (only PEA for Mac can), or,
+  // given a list, replaces the reminders it is holding with exactly that list.
+  async reminders(key, list) {
+    const r = await this.request('/v1/reminders', key, {
+      body: list ? { reminders: list } : undefined,
+      signal: AbortSignal.timeout(8000),
+    });
+    let answer = null;
+    try {
+      answer = JSON.parse((await r.text()).slice(0, 200));
+    } catch {
+      // Treated as not available below.
+    }
+    return {
+      available: answer?.available === true,
+      scheduled: Number.isInteger(answer?.scheduled) ? answer.scheduled : 0,
+    };
   }
   async catalogue(key) {
     const r = await this.request('/v1/models', key),

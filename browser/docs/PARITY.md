@@ -17,7 +17,7 @@ How to read the status columns:
 | OpenRouter models with separate roles | Built | Built | None known |
 | Owner's own local model | Built, Chat and Greenhouse | Built, Chat only | iPhone has no local Greenhouse |
 | Model-sharing review before every new disclosure | Built | Built | Web re-reviews when a file excerpt, name or setting changes |
-| To-dos with reminders (`pea-task`) | Built | Built | Web reminders appear only while the page is open |
+| To-dos with reminders (`pea-task`) | Built | Built | Web reminders appear only while the page is open, unless the owner hands them to PEA for Mac, which shows them as notifications |
 | Documents from 20 templates (`pea-doc`) | Built | Built | Web has one look, no bold or italic; Web offers a file when no folder is connected |
 | Replace a document only if unchanged | Built | Built | None known |
 | Call, text and directions (`pea-open`) | Built, needs a number | Built, looks names up in Contacts | No Contacts in a browser |

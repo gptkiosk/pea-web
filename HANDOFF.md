@@ -23,6 +23,27 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Reminders as Mac notifications — 2026-11-15
+
+**Branch `mac/reminder-notifications`, development identity `0.1.0-dev.35`.** First 0.2 piece after the Mac app. Owner's choices: the notification shows the to-do's title and is kept by macOS; reminders from every profile are handed over.
+
+- Rule first: `browser/server/contract.json` gained `reminders` (path `/v1/reminders`, fields `id`, `title`, `due`, at most 64 items, id pattern, 120-character one-line title, `due` a whole number of milliseconds up to year 3000). `GET` answers `{"available":bool}`; `POST {"reminders":[…]}` replaces the whole list and answers `{"available":bool,"scheduled":n}`. Both need the token, host and origin checks like the model routes.
+- `browser/server/gateway.py`: `validate_reminders`; the list is checked and dropped, and the answer is always not available. `browser/server/conformance/run.py`: `test_reminders_are_checked_the_same_way_and_need_the_token` (21 tests now), passing on both gateways.
+- `mac/Sources/PEAGatewayCore`: `Reminder`, `ReminderSink`, `Contract.validateReminders`, the two routes, `Gateway.Options.reminders`. Only reminders still ahead are passed to the sink; the gateway keeps and logs nothing.
+- `mac/Sources/PEALauncherCore/Reminders.swift`: `ReminderCenter` (on only when the owner's switch is on and the system permits; remembered in defaults; turning off withdraws) and `SystemNotifications` (`UNUserNotificationCenter`, identifiers `pea-reminder-<id>`, calendar trigger, shown in the foreground too). `Launcher.setReminders`, `remindersOn`, `canRemind`. Menu item **Show Reminders as Notifications**, present only in a packaged app.
+- `pea-gateway --reminders-file PATH`: test-only stand-in that writes accepted lists to a file. The browser test harness uses it in Swift mode.
+- Page: `remindersForMac` in `todos.mjs`; `LocalModel.reminders`; `todos-ui.mjs` adds the switch `#todo-mac-on` on Today, a review before the first hand-over, re-sending whenever the list changes, and no sending while the saved board is locked or the page has no token. The choice is kept in `localStorage` under `pea-mac-reminders-v1`. When the Mac has the list, the browser's own system notification is skipped.
+- Tests: Swift 21 (2 new for the rules, 2 new for the center and the running app with a fake notification service); unit tests for the list and the request; `browser/tests/dom/mac-reminders.test.mjs` with 3 browser tests (one for a gateway that cannot take reminders, two that need `PEA_GATEWAY=swift`: agree, decline, every profile, check off, turn off, reload and reconnect).
+
+Known gaps:
+
+- **No real notification has been shown.** Whether macOS grants notification permission to the unsigned build, what the notification looks like, and the menu item itself are unchecked. The owner tries this by hand.
+- The page's token is not kept across a reload, so after one the Mac keeps its last list until the local model is connected again. A to-do checked off in that window still notifies.
+- Clicking a notification does not open PEA. No recurring reminders. The Mac holds at most 64, the soonest.
+- The to-do review in Chat and the Today text were reworded slightly; no other web behavior changed.
+
+Next action: the owner rebuilds with `mac/build.sh`, turns both switches on and adds a reminder a few minutes ahead. Then the remaining 0.2 items: update check, and the web features listed for 0.2 in PARITY.md.
+
 ## The Mac app, steps 5 and 6 of 6: the launcher app and the signing guide — 2026-11-15
 
 **Branch `mac/launcher-app`, development identity `0.1.0-dev.34`.** Stacked on step 4.
@@ -43,7 +64,7 @@ Known gaps:
 - Built for this Mac's processor only. No sandbox, no update check, no reminders as notifications. The window also appears when opened at login.
 - A development token item named "PEA connection token" now exists in the login Keychain of the Mac this was built on.
 
-Next action: the owner tries `mac/build/PEA.app`, then rehearses `mac/SIGNING.md`. After that, the remaining 0.2 items: reminders as system notifications, update check, and the web features listed for 0.2 in PARITY.md.
+Next action: the owner tries `mac/build/PEA.app`, then rehearses `mac/SIGNING.md`. After that, the remaining 0.2 items: reminders as system notifications (now built, see above), update check, and the web features listed for 0.2 in PARITY.md.
 
 ## The Mac app, step 4 of 6: the browser suite on the Swift gateway — 2026-11-15
 

@@ -8,6 +8,7 @@
   "Sources/PEAGatewayCore/JSON.swift",
   "Sources/PEAGatewayCore/Rules.swift",
   "Sources/PEALauncherCore/Launcher.swift",
+  "Sources/PEALauncherCore/Reminders.swift",
   "Sources/PEALauncherCore/TokenStore.swift",
   "Sources/PEAMac/PEAMacApp.swift",
   "Sources/pea-gateway/main.swift",

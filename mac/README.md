@@ -16,17 +16,33 @@ open mac/build/PEA.app
 - **Copy Connection Token** puts the token on the clipboard. In PEA, open Connections, choose Local model and paste it. The token is made on first launch and kept in your login Keychain. It is never written to a file or shown on screen.
 - **Local Model Address…** is where your model server is, by default Ollama at `http://127.0.0.1:11434`. Only an address on this Mac is accepted.
 - **Start at Login** asks macOS to open PEA when you log in.
+- **Show Reminders as Notifications** lets PEA in your browser hand this Mac your reminders, so they appear as notifications even when the browser tab or this app is closed. See [Reminders](#reminders).
 - **Quit PEA** stops the gateway.
 
 If another program already uses port 18770, PEA says so and offers the next free port. Your browser treats each port as a separate site, so chats, memories and boards saved in the browser under one port are not visible under another. They are not deleted.
 
 The build is unsigned and only opens on the Mac that built it. Signing and notarizing are the owner's steps: [SIGNING.md](SIGNING.md).
 
+## Reminders
+
+On its own, PEA in a browser can only remind you while its tab is open. With the Mac app it can hand reminders over ahead of time. Two switches must both be on, and both start off:
+
+1. In the Mac app's menu, **Show Reminders as Notifications**. macOS then asks once whether PEA may show notifications.
+2. In PEA in the browser, on Today under To-dos, **Also remind me through PEA for Mac**. It appears once the local model is connected with the connection token, and shows a review of what will be handed over before anything is.
+
+What is handed over is the title and time of each open reminder still ahead, from the Personal and Work profiles alike, at most 64 at a time, and the whole list again whenever it changes. The app passes them to macOS, which shows each at its time. The app writes nothing to a file itself, but macOS keeps the waiting titles in plain form, outside the browser's encrypted storage, and may show them on the lock screen.
+
+Turning either switch off withdraws the reminders still waiting. The page can only update the Mac while it is open and connected: a to-do checked off in a tab that has not reconnected since a reload is still on the Mac until it does.
+
+The route is `/v1/reminders` on the gateway and needs the connection token like the model routes. Its rules are in `browser/server/contract.json`. The Python gateway and the command-line tool check a list in exactly the same way and answer that reminders are not available, so the offer never appears there.
+
+Not checked yet: whether macOS allows notifications from the unsigned development build, and how a real notification looks. The automated tests use a stand-in for the notification service and never show one.
+
 ## What is here
 
 - `Sources/PEAGatewayCore`: the gateway. It listens on `127.0.0.1` only, serves the web files named in `browser/server/contract.json`, and passes text chat to a model server on the same Mac. It keeps no log of requests or conversations and cannot be pointed at another machine.
 - `Sources/pea-gateway`: a command-line tool around the core, for development and tests.
-- `Sources/PEALauncherCore`: what the app does apart from drawing: the Keychain token, remembered port and model address, starting and stopping the gateway, finding a free port.
+- `Sources/PEALauncherCore`: what the app does apart from drawing: the Keychain token, remembered port and model address, starting and stopping the gateway, finding a free port, and `Reminders.swift`, which decides whether reminders handed over by the page become notifications.
 - `Sources/PEAMac`: the SwiftUI menu, window and dialogs.
 - `build.sh`: assembles the unsigned `PEA.app` with the web files, the rules file, a build stamp and an icon drawn from the pea icon.
 - `Tests`: unit tests for the request reader, the chat rules, the model address rule, the token check and file reading, and launcher tests that start a real gateway on a spare port, stop it, restart it and handle a busy port.
@@ -54,6 +70,8 @@ PEA_GATEWAY_COMMAND="[\"$PWD/mac/.build/debug/pea-gateway\"]" python3 browser/se
 PEA_GATEWAY=swift node --test browser/tests/dom/*.test.mjs
 ```
 
+`pea-gateway` also takes `--reminders-file PATH`, for tests only: accepted reminders are written to that file in place of being shown.
+
 To try it by hand with a token file made by `python3 browser/server/local.py setup`:
 
 ```sh
@@ -71,6 +89,6 @@ mac/.build/debug/pea-gateway --root browser --token-file "$HOME/.config/pea/conn
 
 - Signing, notarization and a disk image: owner's steps in [SIGNING.md](SIGNING.md), not yet rehearsed.
 - A build for Intel Macs, the app sandbox, and checking for updates.
-- Reminders still appear only while a PEA tab is open; the app does not yet show them as system notifications.
+- Reminders as notifications are built but have not been seen working on a real Mac: see [Reminders](#reminders). A notification cannot yet be clicked to open PEA, and there are no recurring reminders.
 - The window also appears when PEA is opened at login.
 - The menus and dialogs are checked by hand, not by an automated test.

@@ -181,6 +181,9 @@ export async function startGateway(upstreamPort) {
           String(port),
           '--upstream',
           upstream,
+          // Stands in for the Mac's notifications: accepted reminders are written here, not shown.
+          '--reminders-file',
+          join(folder, 'reminders.json'),
         ],
         { stdio: ['ignore', 'pipe', 'pipe'] },
       ),
@@ -217,6 +220,15 @@ export async function startGateway(upstreamPort) {
   return {
     origin,
     token,
+    // The last list of reminders the gateway handed on, or null if it has handed on none. Only the
+    // Swift gateway can take reminders; the Python one always says they are not available.
+    reminders() {
+      try {
+        return JSON.parse(readFileSync(join(folder, 'reminders.json'), 'utf8'));
+      } catch {
+        return null;
+      }
+    },
     close: async () => {
       await stop(child);
       remove(folder);

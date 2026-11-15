@@ -102,6 +102,35 @@ def validate_chat(raw):
     return {**raw, 'max_tokens': limit, 'temperature': temperature}
 
 
+REMINDERS = CONTRACT['reminders']
+REMINDER_ID = re.compile(REMINDERS['idPattern'] + r'\Z')
+
+
+def validate_reminders(raw):
+    """Checks a list of reminders: {"reminders":[{"id","title","due"}]}, due in milliseconds since 1970.
+
+    This gateway cannot show notifications, so the list is checked and then dropped; nothing is kept or logged.
+    """
+    if not isinstance(raw, dict) or set(raw) != {'reminders'} or not isinstance(raw['reminders'], list) or len(raw['reminders']) > REMINDERS['items']:
+        raise ValueError('A bounded list of reminders is required.')
+    seen = set()
+    for row in raw['reminders']:
+        if not isinstance(row, dict) or set(row) != set(REMINDERS['fields']):
+            raise ValueError('A reminder has an id, a title and a due time.')
+        identity, title, due = row['id'], row['title'], row['due']
+        if not isinstance(identity, str) or not REMINDER_ID.fullmatch(identity) or identity in seen:
+            raise ValueError('Reminder ids must be simple and different.')
+        seen.add(identity)
+        if not isinstance(title, str) or not 1 <= len(title) <= REMINDERS['titleCharacters']:
+            raise ValueError('A reminder title is one short line.')
+        title.encode('utf-8')  # half of a surrogate pair is not text; this raises ValueError
+        if any(ord(c) < 0x20 or 0x7F <= ord(c) <= 0x9F or ord(c) in (0x2028, 0x2029) for c in title):
+            raise ValueError('A reminder title is one short line.')
+        if type(due) is not int or not 1 <= due <= REMINDERS['dueMax']:
+            raise ValueError('A reminder is due at a whole number of milliseconds.')
+    return raw['reminders']
+
+
 class Gateway(ThreadingHTTPServer):
     daemon_threads = True
     # Connections waiting to be accepted. One page load asks for about twenty files at once; the library default
@@ -231,6 +260,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, self.server.build_info())
             except (OSError, ValueError):
                 return self.reply(503, {'error': 'Build identity unavailable.'})
+        if self.path == REMINDERS['path']:
+            return self.reply(200, {'available': False})
         if self.path == '/v1/models':
             if not self.server.model_lock.acquire(blocking=False):
                 return self.reply(429, {'error': 'Local model busy. No automatic retry.'})
@@ -264,18 +295,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.boundary(auth=True):
             return
-        if self.path != '/v1/chat/completions':
-            return self.reply(404, {'error': 'Only model listing and text chat are exposed.'})
+        if self.path not in ('/v1/chat/completions', REMINDERS['path']):
+            return self.reply(404, {'error': 'Only model listing, text chat and reminders are exposed.'})
+        reminders = self.path == REMINDERS['path']
         try:
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json' or self.headers.get('Transfer-Encoding'):
                 raise ValueError()
             length = int(self.headers.get('Content-Length', '0'))
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
-            body = validate_chat(strict_json(self.rfile.read(length)))
+            body = (validate_reminders if reminders else validate_chat)(strict_json(self.rfile.read(length)))
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
-            return self.reply(400, {'error': 'Invalid or oversized text chat request.'})
+            return self.reply(400, {'error': 'Invalid reminder list.' if reminders else 'Invalid or oversized text chat request.'})
+        if reminders:
+            # Checked and dropped: only PEA for Mac can show a notification.
+            return self.reply(200, {'available': False, 'scheduled': 0})
         if body['model'] not in self.server.models or time.monotonic() - self.server.models_at > LIMITS['modelListSeconds']:
             return self.reply(409, {'error': 'Refresh and choose a model listed by this server.'})
         if not self.server.model_lock.acquire(blocking=False):

@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.35] - 2026-11-15
+
+### Added
+
+- Reminders as Mac notifications. With PEA for Mac, a reminder can now appear even when the browser tab is closed. It needs two switches, both off to begin with: **Show Reminders as Notifications** in the Mac app's menu, and **Also remind me through PEA for Mac** under To-dos on Today, which first shows exactly what will be handed over. The Mac is given the title and time of each open reminder in your Personal and Work profiles, and macOS keeps them in plain form outside the browser's encrypted storage. Turning either switch off withdraws them. Not yet seen working on a real Mac with the unsigned build.
+
+### Changed
+
+- The gateway rules gained a reminders route, `/v1/reminders`, which needs the connection token. The Python gateway checks a list the same way and answers that reminders are not available.
+
 ## [0.1.0-dev.34] - 2026-11-15
 
 ### Added

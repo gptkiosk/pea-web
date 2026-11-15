@@ -391,6 +391,70 @@ class Conformance(unittest.TestCase):
         self.assertGreater(len(body), LIMITS['streamBytes'] // 2)
 
     # --- nothing else is exposed ---------------------------------------------------------
+    def test_reminders_are_checked_the_same_way_and_need_the_token(self):
+        path = CONTRACT['reminders']['path']
+        rules = CONTRACT['reminders']
+        good = {'id': 'a1b2c3d4-0000-4000-8000-000000000001', 'title': 'Call Zo\u00eb \U0001F4DE about the \u201cplan\u201d', 'due': 1900000000000}
+        self.assertEqual(self.call('GET', path)[0], 401)
+        self.assertEqual(self.call('POST', path, body={'reminders': [good]})[0], 401)
+        self.assertEqual(self.call('POST', path + '?token=' + TOKEN, body={'reminders': [good]})[0], 401)
+        self.assertEqual(self.call('GET', path, token=TOKEN, headers={'Origin': 'https://evil.example'})[0], 403)
+        self.assertEqual(self.call('POST', path, token=TOKEN, body={'reminders': [good]}, headers={'Origin': 'https://evil.example'})[0], 403)
+        status, headers, body = self.call('GET', path, token=TOKEN)
+        self.assertEqual(status, 200)
+        self.assert_contract_headers(headers, 'reminders')
+        # The gateways under test here have no way to show a notification; PEA for Mac answers true.
+        self.assertEqual(json.loads(body), {'available': False})
+        many = [{**good, 'id': f'id-{n}', 'due': 1900000000000 + n} for n in range(rules['items'])]
+        for accepted in ([], [good], [{**good, 'due': 1}], [{**good, 'title': 'x' * rules['titleCharacters']}],
+                         [{**good, 'title': '\U0001F4DE' * rules['titleCharacters']}], [{**good, 'due': rules['dueMax']}], many):
+            status, headers, body = self.call('POST', path, token=TOKEN, body={'reminders': accepted}, headers={'Origin': self.origin})
+            self.assertEqual(status, 200, json.dumps(accepted)[:90])
+            self.assert_contract_headers(headers, 'reminders')
+            self.assertEqual(json.loads(body), {'available': False, 'scheduled': 0})
+        bad = [
+            {}, [], 'text', None, {'reminders': {}}, {'reminders': 'x'}, {'reminders': [good], 'profile': 'work'}, {'items': [good]},
+            {'reminders': many + [{**good, 'id': 'one-more'}]}, {'reminders': [good, good]},
+            {'reminders': ['x']}, {'reminders': [{'id': 'a', 'title': 'x'}]}, {'reminders': [{**good, 'profile': 'work'}]},
+            {'reminders': [{**good, 'id': ''}]}, {'reminders': [{**good, 'id': 'x' * 65}]}, {'reminders': [{**good, 'id': 'a b'}]},
+            {'reminders': [{**good, 'id': '../a'}]}, {'reminders': [{**good, 'id': 7}]},
+            {'reminders': [{**good, 'title': ''}]}, {'reminders': [{**good, 'title': 'x' * (rules['titleCharacters'] + 1)}]},
+            {'reminders': [{**good, 'title': 'two\nlines'}]}, {'reminders': [{**good, 'title': 'tab\there'}]},
+            {'reminders': [{**good, 'title': 'nul\u0000'}]}, {'reminders': [{**good, 'title': 'sep\u2028'}]},
+            {'reminders': [{**good, 'title': 'c1\u0085'}]}, {'reminders': [{**good, 'title': ['x']}]},
+            {'reminders': [{**good, 'due': 0}]}, {'reminders': [{**good, 'due': -5}]}, {'reminders': [{**good, 'due': rules['dueMax'] + 1}]},
+            {'reminders': [{**good, 'due': 1.5}]}, {'reminders': [{**good, 'due': '1900000000000'}]}, {'reminders': [{**good, 'due': True}]},
+            {'reminders': [{**good, 'due': None}]},
+        ]
+        for body in bad:
+            status, headers, _ = self.call('POST', path, token=TOKEN, body=json.dumps(body).encode(), headers={'Content-Type': 'application/json'})
+            self.assertEqual(status, 400, json.dumps(body)[:90])
+            self.assert_contract_headers(headers, '400')
+        whole = json.dumps({'reminders': [good]}).encode()
+        for body, headers in (
+            (b'{not json', {'Content-Type': 'application/json'}),
+            (whole, {'Content-Type': 'text/plain'}),
+            (whole, {}),
+            (b'', {'Content-Type': 'application/json'}),
+            (b'{"reminders":[],"reminders":[]}', {'Content-Type': 'application/json'}),
+            (b'{"reminders":[{"id":"a","title":"x","due":1900000000000,"id":"a"}]}', {'Content-Type': 'application/json'}),
+            (b'{"reminders":[{"id":"a","title":"x","due":1900000000000.0}]}', {'Content-Type': 'application/json'}),
+            (b'{"reminders":[{"id":"a","title":"x","due":19e11}]}', {'Content-Type': 'application/json'}),
+            (b'{"reminders":[{"id":"a","title":"x","due":NaN}]}', {'Content-Type': 'application/json'}),
+            (b'{"reminders":[{"id":"a","title":"\\ud83d","due":1900000000000}]}', {'Content-Type': 'application/json'}),
+            (b'{"reminders":[{"id":"a","title":"\xff","due":1900000000000}]}', {'Content-Type': 'application/json'}),
+            (b'\xef\xbb\xbf' + whole, {'Content-Type': 'application/json'}),
+            (whole + b' x', {'Content-Type': 'application/json'}),
+        ):
+            self.assertEqual(self.call('POST', path, token=TOKEN, body=body, headers=headers)[0], 400, str(body[:60]))
+        self.assertEqual(self.raw(
+            f'POST {path} HTTP/1.1\r\nHost: {self.host}\r\nAuthorization: Bearer {TOKEN}\r\n'
+            f'Content-Type: application/json\r\nContent-Length: {LIMITS["requestBytes"] + 1}\r\n\r\n'), 400, 'an oversized list is refused from its length alone')
+        for other in (path + '/', path + '/x', path + '?x=1', '/' + path, '/api/reminders'):
+            self.assertIn(self.call('POST', other, token=TOKEN, body={'reminders': []})[0], (401, 404), other)
+            self.assertIn(self.call('GET', other, token=TOKEN)[0], (401, 404), other)
+        self.assertEqual(Upstream.seen, [], 'reminders never reach the model server')
+
     def test_no_other_route_method_or_proxying_exists(self):
         self.assertEqual(self.call('GET', '/v1/other', token=TOKEN)[0], 404)
         self.assertEqual(self.call('POST', '/v1/models', token=TOKEN, body={})[0], 404)

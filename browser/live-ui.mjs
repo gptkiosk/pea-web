@@ -970,6 +970,7 @@ export function installConnections(hooks) {
       s.localKey = key;
       s.localModels = models;
       s.approvals.clear();
+      hooks.localChanged?.();
       note(
         'Local model list loaded. Choose Local models for Chat and/or Greenhouse. No inference or cloud request was made.',
       );
@@ -980,6 +981,7 @@ export function installConnections(hooks) {
     state().localModels = [];
     state().approvals.clear();
     render();
+    hooks.localChanged?.();
     note('Forgot the local server token in this profile.');
   };
   $('context-clear').onclick = () => {
@@ -1174,6 +1176,9 @@ export function installConnections(hooks) {
       for (const s of sessions.values()) s.approvals.clear();
     },
     isBusy: () => operationActive,
+    // The local server's token, from this profile or failing that another one connected in this tab.
+    localKey: () => state().localKey || [...sessions.values()].map((s) => s.localKey).find(Boolean) || '',
+    macReminders: (key, list) => local.reminders(key, list),
     model(surface, role) {
       const s = state();
       if (!s.key && !s.localKey) return null;

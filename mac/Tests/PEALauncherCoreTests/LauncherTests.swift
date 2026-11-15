@@ -37,6 +37,105 @@ final class LauncherTests: XCTestCase {
         return ((response as! HTTPURLResponse).statusCode, data)
     }
 
+    /// Stands in for the system's notifications: it records what would be waiting and never shows anything.
+    final class FakeNotifications: NotificationPoster, @unchecked Sendable {
+        let lock = NSLock()
+        var permission = true
+        var asked = 0
+        var lists = [[Reminder]]()
+        func askPermission(_ done: @escaping (Bool) -> Void) {
+            lock.lock(); asked += 1; let answer = permission; lock.unlock()
+            done(answer)
+        }
+        func isPermitted(_ done: @escaping (Bool) -> Void) {
+            lock.lock(); let answer = permission; lock.unlock()
+            done(answer)
+        }
+        func show(exactly reminders: [Reminder]) {
+            lock.lock(); lists.append(reminders); lock.unlock()
+        }
+        var shown: [[Reminder]] { lock.lock(); defer { lock.unlock() }; return lists }
+    }
+
+    func send(_ url: URL, token: String, body: String) async throws -> (Int, String) {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data(body.utf8)
+        let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
+        return ((response as! HTTPURLResponse).statusCode, String(decoding: data, as: UTF8.self))
+    }
+
+    func testRemindersNeedTheOwnersSwitchAndTheSystemsPermission() async throws {
+        let fake = FakeNotifications()
+        let center = ReminderCenter(poster: fake, defaults: defaults)
+        let one = Reminder(id: "a", title: "Water the peas", due: Date().addingTimeInterval(600))
+        XCTAssertFalse(center.available, "off until the owner turns it on")
+        center.replace(with: [one])
+        XCTAssertEqual(fake.shown, [], "nothing is shown while off")
+        fake.permission = false
+        var answer = await withCheckedContinuation { done in center.turnOn { done.resume(returning: $0) } }
+        XCTAssertFalse(answer, "the system said no")
+        XCTAssertFalse(center.available)
+        fake.permission = true
+        answer = await withCheckedContinuation { done in center.turnOn { done.resume(returning: $0) } }
+        XCTAssertTrue(answer)
+        XCTAssertEqual(fake.asked, 2)
+        center.replace(with: [one])
+        XCTAssertEqual(fake.shown, [[one]])
+        XCTAssertTrue(ReminderCenter(poster: fake, defaults: defaults).available, "still on at the next launch")
+        fake.permission = false
+        XCTAssertFalse(ReminderCenter(poster: fake, defaults: defaults).available, "off again if the system withdrew its permission")
+        center.turnOff()
+        XCTAssertFalse(center.available)
+        XCTAssertEqual(fake.shown.last, [], "turning off withdraws what was waiting")
+        fake.permission = true
+        XCTAssertFalse(ReminderCenter(poster: fake, defaults: defaults).available, "and stays off at the next launch")
+    }
+
+    func testTheRunningAppTakesRemindersOnlyWhenTurnedOn() async throws {
+        let port = try XCTUnwrap(Launcher.freePort(after: 43000))
+        defaults.set(Int(port), forKey: "port")
+        let fake = FakeNotifications()
+        let app = Launcher(webRoot: LauncherTests.browser, tokens: MemoryTokenStore(), defaults: defaults, notifications: fake)
+        XCTAssertTrue(app.canRemind)
+        XCTAssertFalse(launcher().canRemind, "run from source there is nothing to show reminders with")
+        app.start()
+        try await wait(for: app) { $0 == .running }
+        let url = app.address.appendingPathComponent("v1/reminders"), token = try app.token()
+        let ahead = Int(Date().timeIntervalSince1970 * 1000) + 600_000
+        let list = #"{"reminders":[{"id":"soon","title":"Water the peas","due":\#(ahead)},{"id":"gone","title":"Yesterday","due":1000}]}"#
+        let refused = try await get(url)
+        XCTAssertEqual(refused.0, 401)
+        var state = try await get(url, token: token)
+        XCTAssertEqual(String(decoding: state.1, as: UTF8.self), #"{"available":false}"#)
+        var sent = try await send(url, token: token, body: list)
+        XCTAssertEqual(sent.0, 200)
+        XCTAssertEqual(sent.1, #"{"available":false,"scheduled":0}"#)
+        XCTAssertEqual(fake.shown, [], "nothing is handed on while the switch is off")
+        let on = await app.setReminders(true)
+        XCTAssertTrue(on)
+        XCTAssertTrue(app.remindersOn)
+        state = try await get(url, token: token)
+        XCTAssertEqual(String(decoding: state.1, as: UTF8.self), #"{"available":true}"#)
+        sent = try await send(url, token: token, body: list)
+        XCTAssertEqual(sent.1, #"{"available":true,"scheduled":1}"#)
+        XCTAssertEqual(fake.shown.last?.map(\.id), ["soon"], "a reminder already past is not handed on")
+        XCTAssertEqual(fake.shown.last?.first?.title, "Water the peas")
+        let bad = try await send(url, token: token, body: #"{"reminders":[{"id":"x","title":"two\nlines","due":5}]}"#)
+        XCTAssertEqual(bad.0, 400)
+        XCTAssertEqual(fake.shown.last?.map(\.id), ["soon"], "a refused list changes nothing")
+        sent = try await send(url, token: token, body: #"{"reminders":[]}"#)
+        XCTAssertEqual(sent.1, #"{"available":true,"scheduled":0}"#)
+        XCTAssertEqual(fake.shown.last, [], "an empty list withdraws them all")
+        await app.setReminders(false)
+        XCTAssertFalse(app.remindersOn)
+        state = try await get(url, token: token)
+        XCTAssertEqual(String(decoding: state.1, as: UTF8.self), #"{"available":false}"#)
+        await app.stop()
+    }
+
     func testATokenIsMadeOnceAndKept() throws {
         let store = MemoryTokenStore()
         let first = try launcher(store).token()

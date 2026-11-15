@@ -7,6 +7,7 @@ import {
   clearFinished,
   describeRequests,
   dueReminders,
+  remindersForMac,
   parseLocalMoment,
   removeTodo,
   setTodoDone,
@@ -258,4 +259,33 @@ test('the review lists each change in plain words', () => {
   assert.match(lines[0], /^Add: “Call the dentist” · due .+ · remind me$/);
   assert.equal(lines[1], 'Add: “Buy milk”');
   assert.equal(lines[2], 'Check off: “Old chore”');
+});
+
+test('the Mac is handed only open reminders still ahead, from every profile, soonest first', () => {
+  const now = 1_800_000_000_000;
+  let items = addTodo([], 'personal', 'Later one', { due: now + 5000, remind: true }, now);
+  items = addTodo(items, 'work', 'Sooner one', { due: now + 1000, remind: true }, now);
+  items = addTodo(items, 'personal', 'Due but no reminder', { due: now + 2000 }, now);
+  items = addTodo(items, 'personal', 'No time at all', {}, now);
+  items = addTodo(items, 'work', 'Finished one', { due: now + 3000, remind: true }, now);
+  items = setTodoDone(items, items.at(-1).id, true, now);
+  const list = remindersForMac(items, now);
+  assert.deepEqual(
+    list.map((r) => r.title),
+    ['Sooner one', 'Later one'],
+  );
+  assert.deepEqual(Object.keys(list[0]), ['id', 'title', 'due']);
+  assert.equal(list[0].due, now + 1000);
+  assert.match(list[0].id, /^[A-Za-z0-9-]{1,64}$/);
+  assert.deepEqual(
+    remindersForMac(items, now + 1000).map((r) => r.title),
+    ['Later one'],
+    'one whose time has come is not sent',
+  );
+  assert.deepEqual(remindersForMac(items, now + 5000), []);
+  let many = [];
+  for (let n = 0; n < 70; n++)
+    many = addTodo(many, 'personal', 'Item ' + n, { due: now + 100 + n, remind: true }, now);
+  assert.equal(remindersForMac(many, now).length, 64);
+  assert.equal(remindersForMac(many, now)[63].title, 'Item 63');
 });
