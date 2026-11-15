@@ -1,6 +1,12 @@
 import { inWorkspace } from './policy.mjs';
 const ID = /^[A-Za-z0-9_-]{10,100}$/;
-const fields = 'id,name,mimeType,parents,version,createdTime,trashed,properties';
+const fields = 'id,name,mimeType,parents,version,createdTime,trashed,properties,appProperties';
+// Two marks say PEA created a file. `properties` is public: any app with access to the file can read
+// or set it, and the iPhone app uses it. `appProperties` is private to this app's own Google client,
+// so no other app can forge it. Only the private mark unlocks anything; the public one is a label.
+const created = { properties: { peaCreated: '1' }, appProperties: { peaCreated: '1' } };
+export const madeByPEA = (file) => file?.appProperties?.peaCreated === '1';
+export const labelledPEA = (file) => file?.properties?.peaCreated === '1';
 const folderMIME = 'application/vnd.google-apps.folder';
 const documentMIME = 'application/vnd.google-apps.document';
 export const driveScope = 'https://www.googleapis.com/auth/drive';
@@ -450,7 +456,7 @@ export class Services {
             addParents: w.folder.id,
             ...(metadata.parents?.length ? { removeParents: metadata.parents.join(',') } : {}),
           }),
-          { token, method: 'PATCH', body: { properties: { peaCreated: '1' } } },
+          { token, method: 'PATCH', body: { ...created } },
         );
         await this.member(ref.formId, w, token);
         await this.call('forms', `/v1/forms/${ref.formId}:batchUpdate`, {
@@ -473,7 +479,7 @@ export class Services {
             name: draft.title,
             mimeType: 'application/vnd.google-apps.document',
             parents: [w.folder.id],
-            properties: { peaCreated: '1' },
+            ...created,
           },
         });
         await this.member(ref.id, w, token);
@@ -501,7 +507,7 @@ export class Services {
       name: title,
       mimeType: documentMIME,
       parents: [w.folder.id],
-      properties: { peaCreated: '1' },
+      ...created,
     });
     const data =
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}` +
@@ -535,13 +541,13 @@ export class Services {
     if (
       !file ||
       file.mimeType !== documentMIME ||
-      file.properties?.peaCreated !== '1' ||
+      !madeByPEA(file) ||
       typeof html !== 'string' ||
       new TextEncoder().encode(html).length > 400000
     )
       throw new ServiceError('Only a document PEA created can be replaced.');
     const current = await this.member(file.id, w, token);
-    if (current.version !== file.version || current.properties?.peaCreated !== '1')
+    if (current.version !== file.version || !madeByPEA(current))
       throw new ServiceError(
         'This document was changed after PEA wrote it. Nothing was replaced; open it and decide what to keep.',
       );
@@ -557,6 +563,35 @@ export class Services {
       );
     }
     return this.member(file.id, w, token);
+  }
+  // Sets the private mark on files that carry only the public label, after the owner has reviewed
+  // the list. Every file is checked first, so either all of them are still as reviewed or nothing
+  // is written.
+  async confirmCreated(files, w, token) {
+    if (!Array.isArray(files) || !files.length || files.length > 25)
+      throw new ServiceError('Choose 1 to 25 files per review.');
+    const checked = [];
+    for (const file of files) {
+      const current = await this.member(file.id, w, token);
+      if (
+        current.id === w.folder.id ||
+        current.mimeType === folderMIME ||
+        current.version !== file.version ||
+        current.name !== file.name ||
+        !labelledPEA(current)
+      )
+        throw new ServiceError(
+          'A file changed since the review. Nothing was confirmed; refresh and review again.',
+        );
+      if (!madeByPEA(current)) checked.push(current);
+    }
+    for (const file of checked)
+      await this.call('drive', this.drivePath(file.id, { fields }), {
+        token,
+        method: 'PATCH',
+        body: { appProperties: { peaCreated: '1' } },
+      });
+    return checked.length;
   }
   async change(change, w, token) {
     const f = await this.member(change.file.id, w, token);

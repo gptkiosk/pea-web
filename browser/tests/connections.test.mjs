@@ -292,7 +292,7 @@ test('GitHub delivery accepts only plain repository names and safe source files'
 });
 
 const docMIME = 'application/vnd.google-apps.document';
-function fakeDrive({ version = '5', peaCreated = '1', uploadAnswer } = {}) {
+function fakeDrive({ version = '5', peaCreated = '1', publicMark = '1', uploadAnswer } = {}) {
   const root = 'pea_root_000001',
     file = 'pea_doc_0000001';
   const calls = [];
@@ -310,7 +310,8 @@ function fakeDrive({ version = '5', peaCreated = '1', uploadAnswer } = {}) {
     mimeType: docMIME,
     parents: [root],
     version,
-    properties: { peaCreated },
+    properties: { peaCreated: publicMark },
+    appProperties: { peaCreated },
   });
   const services = new Services(async (url, options) => {
     const u = new URL(url);
@@ -350,6 +351,7 @@ test('a rich document is created in the PEA folder by one upload that carries no
     mimeType: docMIME,
     parents: [drive.root],
     properties: { peaCreated: '1' },
+    appProperties: { peaCreated: '1' },
   });
   assert(upload.options.body.includes('Content-Type: text/html; charset=UTF-8\r\n\r\n' + html));
   assert.equal(drive.calls[0].options.method, 'GET', 'the folder is checked before anything is written');
@@ -385,7 +387,13 @@ test('creation refuses bad names and oversized text, and never retries an uncert
 
 test('a document is replaced only if PEA made it and nobody changed it since', async () => {
   const drive = fakeDrive({ version: '5' });
-  const file = { id: drive.file, mimeType: docMIME, version: '5', properties: { peaCreated: '1' } };
+  const file = {
+    id: drive.file,
+    mimeType: docMIME,
+    version: '5',
+    properties: { peaCreated: '1' },
+    appProperties: { peaCreated: '1' },
+  };
   await drive.services.replaceDocument(file, '<p>NEW TEXT</p>', drive.w, 'synthetic-only');
   const [upload] = drive.uploads();
   assert.equal(upload.options.method, 'PATCH');
@@ -403,7 +411,7 @@ test('a document is replaced only if PEA made it and nobody changed it since', a
 
   const notOurs = fakeDrive({ peaCreated: '0' });
   await assert.rejects(
-    notOurs.services.replaceDocument({ ...file, properties: {} }, '<p>x</p>', notOurs.w, 't'),
+    notOurs.services.replaceDocument({ ...file, appProperties: {} }, '<p>x</p>', notOurs.w, 't'),
     /Only a document PEA created/,
   );
   await assert.rejects(
@@ -430,4 +438,65 @@ test('the upload route is fixed and accepts nothing but a Drive file identifier'
       () => s.call('drive', path, { method: 'POST', upload: { type: 'text/html', data: 'x' } }),
       /Destination rejected/,
     );
+});
+
+test('the public label alone unlocks nothing: only this app\u2019s private mark counts', async () => {
+  const { madeByPEA, labelledPEA } = await import('../connections.mjs');
+  const forged = { properties: { peaCreated: '1' } };
+  assert.equal(labelledPEA(forged), true);
+  assert.equal(madeByPEA(forged), false, 'another app can set the public label');
+  assert.equal(madeByPEA({ appProperties: { peaCreated: '1' } }), true);
+  assert.equal(madeByPEA(null), false);
+
+  // A document that another app labelled is never replaced, even when the caller claims the mark.
+  const drive = fakeDrive({ peaCreated: '0', publicMark: '1' });
+  const claimed = {
+    id: drive.file,
+    mimeType: docMIME,
+    version: '5',
+    properties: { peaCreated: '1' },
+    appProperties: { peaCreated: '1' },
+  };
+  await assert.rejects(
+    drive.services.replaceDocument(claimed, '<p>x</p>', drive.w, 't'),
+    /changed after PEA wrote it/,
+  );
+  assert.equal(drive.uploads().length, 0);
+});
+
+test('confirming existing files sets the private mark only after every file is checked', async () => {
+  const drive = fakeDrive({ peaCreated: '0', publicMark: '1' });
+  const listed = { id: drive.file, name: 'Sam Rivera Resume', version: '5' };
+  assert.equal(await drive.services.confirmCreated([listed], drive.w, 'synthetic-only'), 1);
+  const writes = drive.calls.filter((c) => c.options.method === 'PATCH');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].u.pathname, '/drive/v3/files/' + drive.file);
+  assert.deepEqual(JSON.parse(writes[0].options.body), { appProperties: { peaCreated: '1' } });
+
+  const already = fakeDrive({ peaCreated: '1' });
+  assert.equal(
+    await already.services.confirmCreated([listed], already.w, 't'),
+    0,
+    'nothing to write when already marked',
+  );
+  assert.equal(already.calls.filter((c) => c.options.method === 'PATCH').length, 0);
+
+  for (const [options, file] of [
+    [{ peaCreated: '0', version: '6' }, listed],
+    [{ peaCreated: '0' }, { ...listed, name: 'Renamed since review' }],
+    [{ peaCreated: '0', publicMark: '0' }, listed],
+  ]) {
+    const changed = fakeDrive(options);
+    await assert.rejects(changed.services.confirmCreated([file], changed.w, 't'), /Nothing was confirmed/);
+    assert.equal(changed.calls.filter((c) => c.options.method === 'PATCH').length, 0);
+  }
+  await assert.rejects(drive.services.confirmCreated([], drive.w, 't'), /1 to 25 files/);
+  await assert.rejects(
+    drive.services.confirmCreated(
+      Array.from({ length: 26 }, () => listed),
+      drive.w,
+      't',
+    ),
+    /1 to 25 files/,
+  );
 });

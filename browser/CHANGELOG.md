@@ -10,6 +10,11 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 - Selecting a version older than the one in use is refused unless you add `--allow-older`, because an older program may refuse data saved by a newer one. Rollback to the previous version still works as before.
 - Check for updates now warns when a stable build's own version is no longer published, or is newer than the latest published stable version, since either can mean it was withdrawn.
 
+### Changed
+
+- Files PEA creates in your Google Drive folder now carry a private mark that only PEA's own Google connection can set, beside the visible "created by PEA" label. Only the private mark lets PEA share a file's text with your model automatically when you open it, or replace a document with a revision. Any app with access could set the old label.
+- Files created before this version show "Labelled as created by PEA · not confirmed". A new **Confirm files PEA created…** button lists them for you to review; confirming adds the private mark and changes nothing else. Until then they are treated like files you added yourself.
+
 ## [0.1.0-dev.27] - 2026-11-15
 
 ### Changed

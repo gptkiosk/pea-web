@@ -115,6 +115,10 @@ The `honesty` section of the fixtures lists sincere and non-sincere questions, c
 
 Sent with every request as a label, whether or not the introduction is shared. On the web it must be one line of letters, apostrophes, dots and hyphens, at most three words and forty characters; anything else is sent as PEA.
 
+## Files PEA creates in Drive
+
+Both apps set the public file property `peaCreated` to `1` on files they create, and each recognizes the other's files by it. The property is a label only: any app with access to a file can set it. The web additionally sets a private app property of the same name, visible only to its own Google client, and requires it before sharing a file's text automatically or replacing a document. Files created by the iPhone app therefore appear on the web as labelled but not confirmed until the owner confirms them in a review.
+
 ## Changing a contract
 
 1. Open a pull request here that changes this page, the fixtures (raising `version` when an existing vector's meaning changes) and the web parser together.

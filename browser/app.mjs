@@ -31,6 +31,7 @@ import { installCommands } from './commands-ui.mjs';
 import { installDragDrop, makeMessageDraggable } from './dragdrop-ui.mjs';
 import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
+import { labelledPEA, madeByPEA } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
 import { claimsDocument, docProposals } from './documents.mjs';
 import {
@@ -227,9 +228,11 @@ function fileRow(f) {
   detail.textContent = f.local
     ? 'Opened locally'
     : f.live
-      ? f.properties?.peaCreated
+      ? madeByPEA(f)
         ? 'Created by PEA'
-        : 'Added by you'
+        : labelledPEA(f)
+          ? 'Labelled as created by PEA · not confirmed'
+          : 'Added by you'
       : f.properties.peaCreated
         ? 'Sample · created by PEA'
         : 'Sample · added by you';
