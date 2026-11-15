@@ -40,7 +40,8 @@ How to read the status columns:
 | Conversation history and reviewed memories | Built, encrypted on this browser | Built, encrypted archive | Archives are not interchangeable yet |
 | Moving interview answers between apps (profile file) | Built: export and import, web to web | Not yet | The file format is now a shared contract with fixtures ([CONTRACTS.md](CONTRACTS.md#the-profile-file)); the iPhone app has to adopt it in its own change before a file can go either way |
 | Encrypted backup and restore | Built, Web-only files | Built, one file per profile in the PEA folder | iPhone-readable backup on Web: not yet, after 0.2 |
-| Public research, weather, headlines, Home card | Not yet, 0.2 | Built | Web needs a server-side fetcher that checks resolved addresses |
+| Weather | Built: a card on Today for one place the owner types | Built | Web asks Open-Meteo directly from the browser after a review; shown to the owner only, never given to a model; free service is for non-commercial use |
+| Public research, headlines, Home card | Not yet, 0.2 | Built | Web needs a server-side fetcher that checks resolved addresses |
 | Her history cards, daily life and life timeline | Not yet, 0.2 | Built | |
 | Deck projects | Not yet, 0.2 | Built | Behavior to be confirmed first |
 | Automatic sync between devices | Not yet | Not yet | |

@@ -66,6 +66,7 @@
   "tests/dom/reviews.test.mjs",
   "tests/dom/stability.test.mjs",
   "tests/dom/todos.test.mjs",
+  "tests/dom/weather.test.mjs",
   "tests/dom/workspace.test.mjs",
   "tests/documents.test.mjs",
   "tests/dragdrop.test.mjs",
@@ -86,10 +87,13 @@
   "tests/taskboard.test.mjs",
   "tests/todos.test.mjs",
   "tests/voice.test.mjs",
+  "tests/weather.test.mjs",
   "tests/workspace.test.mjs",
   "todos-ui.mjs",
   "todos.mjs",
   "voice.mjs",
+  "weather-ui.mjs",
+  "weather.mjs",
   "workspace-ui.mjs",
   "workspace.mjs"
 ]

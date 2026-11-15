@@ -23,6 +23,24 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Weather on Today — 2026-11-15
+
+**Branch `feature/weather-card`, development identity `0.1.0-dev.38`.** First web piece of "public research, weather, headlines, Home card". Owner's choices: weather first; Open-Meteo as the source.
+
+- Evidence read on 2026-11-15 from open-meteo.com (terms, pricing, forecast and geocoding documentation): free service needs no key and is for non-commercial use only, under 10,000 calls a day; data is CC BY 4.0 and needs a credit; logs may hold network addresses and coordinates and are deleted after 90 days; the operator is in Switzerland. The National Weather Service (US only) and MET Norway (asks browsers not to call it directly) were read and not chosen.
+- `browser/weather.mjs` (pure): `placeQuery`, `placesURL`, `readPlaces` (at most five, positions rounded to two decimals), `forecastURL`, `readForecast` (strict; any surprise throws), `describeWeather`, `validSavedWeather`, `weatherConsent`.
+- `browser/weather-ui.mjs`: the card. The first request in a page waits for a review; a saved place (`localStorage`, `pea-weather-v1`, place and unit only) is fetched on load, on Refresh, and on returning to a tab whose forecast is over 30 minutes old. Requests carry no credentials or referrer and follow no redirect. Turning off removes the saved place.
+- `browser/index.html` and `browser/server/contract.json`: the card's markup; `connect-src` gains the two Open-Meteo addresses (both gateways read the contract); `weather.mjs` and `weather-ui.mjs` are in the served file list.
+- Tests: `browser/tests/weather.test.mjs` (5) and `browser/tests/dom/weather.test.mjs` (2 browser tests with the service faked by the harness: off by default, decline, agree, lookup, markup in a place name shown as text, forecast, units, credit, nothing in a chat request, failed and malformed refresh, reload, turn off, not found, lookup failure).
+
+Known gaps:
+
+- The automated tests never contact Open-Meteo. The real service was asked once by hand from the command line for a well-known city: both answers passed `readPlaces` and `readForecast` in both units, and both addresses allow a browser page on another origin.
+- One place, shared by every profile on this browser, saved unencrypted. No hourly view, no alerts, no weather in what a model sees.
+- The non-commercial limit is stated in the review; nothing enforces it. A commercial deployment needs Open-Meteo's paid plan, which uses a different address and a key and is not supported.
+
+Next action: the rest of this parity row (public research through a gateway fetcher that checks resolved addresses, headlines, Home card), which needs a contract change and both gateways.
+
 ## The profile file as a shared contract — 2026-11-15
 
 **Branch `contracts/profile-file`, development identity `0.1.0-dev.37`.** The owner asked where to find an iPhone export to import; there is none, because the import reads only the web's own file. This slice writes that file's format down so the iPhone app can adopt it. No app behavior changed.
