@@ -158,6 +158,8 @@ export function installWorkspace({ onFocus, canChange = () => true }) {
     beside: (name) => (wide.matches ? set(openBeside(layout, name)) : set(openWorkspace(layout, name))),
     close: (name) => set(closePane(layout, name)),
     toggle: () => toggle.click(),
+    swap: () => set(swapPanes(layout)),
+    wide: () => wide.matches,
     layout: () => ({ ...layout, panes: [...layout.panes] }),
     shown: () => visiblePanes(layout, wide.matches ? minimumSplitWidth : 0),
     render,

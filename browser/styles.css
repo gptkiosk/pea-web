@@ -3027,3 +3027,63 @@ main:has(.panes.split) {
     font-size: 38px;
   }
 }
+
+/* Command palette and shortcut help. */
+#palette {
+  width: min(560px, 92vw);
+  padding: 14px;
+  margin-top: 12vh;
+}
+#palette-input {
+  width: 100%;
+  font-size: 16px;
+  padding: 12px 14px;
+}
+#palette-list {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  margin-top: 10px;
+}
+.palette-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.palette-option[aria-selected="true"] {
+  background: var(--control);
+  color: var(--green);
+}
+.palette-hint {
+  margin: 10px 4px 0;
+}
+kbd {
+  font:
+    11px ui-monospace,
+    monospace;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--sub);
+  background: var(--field);
+  white-space: nowrap;
+}
+#menu-palette kbd {
+  margin-left: 8px;
+}
+#shortcut-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 12px 18px;
+  align-items: center;
+  margin: 8px 0 18px;
+}
+#shortcut-list dt,
+#shortcut-list dd {
+  margin: 0;
+  font-size: 14px;
+}
