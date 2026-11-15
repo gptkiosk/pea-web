@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.38] - 2026-11-15
+
+### Added
+
+- Weather on Today. Type a town or city, agree to a short review, and choose the place you meant; Today then shows the temperature, conditions, wind and the next three days. It is off until you turn it on. Your browser asks Open-Meteo, a public weather service, directly: it sees your network address and the place, rounded to about a kilometre. The weather is shown to you only and is never given to your model. Open-Meteo's free service is for personal, non-commercial use. **Turn weather off** removes the saved place.
+
+### Changed
+
+- The page may now contact two more addresses, `api.open-meteo.com` and `geocoding-api.open-meteo.com`, and only for the weather card.
+
 ## [0.1.0-dev.37] - 2026-11-15
 
 ### Added

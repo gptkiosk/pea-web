@@ -31,6 +31,7 @@ import { installCommands } from './commands-ui.mjs';
 import { installDragDrop, makeMessageDraggable } from './dragdrop-ui.mjs';
 import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
+import { installWeather } from './weather-ui.mjs';
 import { labelledPEA, madeByPEA } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
 import { claimsDocument, docProposals } from './documents.mjs';
@@ -1581,3 +1582,4 @@ installCommands({
 if (location.hash.slice(1)) tab(location.hash.slice(1));
 
 void installReleaseUI();
+installWeather({ notice, review: live.review });

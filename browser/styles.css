@@ -3116,6 +3116,47 @@ kbd {
   flex: 1 1 220px;
   min-width: 0;
 }
+#weather-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+#weather-form #weather-place {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.weather-now {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.weather-now strong {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+.weather-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+}
+.weather-actions .text-button,
+#weather-places .text-button {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+#weather-credit a {
+  color: var(--green);
+}
+.weather-days {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
 .todo-check {
   display: inline-flex;
   align-items: center;
