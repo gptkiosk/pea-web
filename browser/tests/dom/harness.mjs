@@ -164,6 +164,9 @@ class Page {
     this.sessionId = sessionId;
     this.contextId = contextId;
     this.requests = [];
+    // Synthetic answers for addresses a test stands in for, and every request they received.
+    this.routes = [];
+    this.intercepted = [];
   }
   send(method, params = {}) {
     return this.browser.send(method, params, this.sessionId);
@@ -221,6 +224,29 @@ class Page {
   }
   text(selector) {
     return this.evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText ?? ''`);
+  }
+  // Answers requests whose address starts with `prefix` from the test itself, so the page can be
+  // checked against another service's answers without contacting it. `answer(url)` returns
+  // { status, body } and the body is sent as JSON.
+  async route(prefix, answer) {
+    this.routes.push({ prefix, answer });
+    await this.send('Fetch.enable', { patterns: this.routes.map((r) => ({ urlPattern: r.prefix + '*' })) });
+  }
+  async answerPaused({ requestId, request }) {
+    const route = this.routes.find((r) => request.url.startsWith(r.prefix));
+    if (!route) return this.send('Fetch.continueRequest', { requestId });
+    this.intercepted.push({ url: request.url, method: request.method, headers: request.headers });
+    const { status = 200, body = {} } = route.answer(request.url) ?? { status: 404 };
+    return this.send('Fetch.fulfillRequest', {
+      requestId,
+      responseCode: status,
+      responseHeaders: [
+        { name: 'Content-Type', value: 'application/json' },
+        { name: 'Access-Control-Allow-Origin', value: '*' },
+        { name: 'Cache-Control', value: 'no-store' },
+      ],
+      body: Buffer.from(JSON.stringify(body)).toString('base64'),
+    });
   }
   // Presses a real key, as a keyboard would. `text` is what the key types, if anything.
   async press(key, { alt = false, ctrl = false, meta = false, shift = false, code, text } = {}) {
@@ -333,6 +359,11 @@ export async function launchBrowser() {
       else resolve(message.result);
     } else if (message.method === 'Network.requestWillBeSent') {
       pages.get(message.sessionId)?.requests.push(message.params.request.url);
+    } else if (message.method === 'Fetch.requestPaused') {
+      pages
+        .get(message.sessionId)
+        ?.answerPaused(message.params)
+        .catch(() => {});
     }
   };
   const browser = {

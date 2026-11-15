@@ -12,6 +12,8 @@ import {
   knownPrice,
   validCode,
   validRepo,
+  madeByPEA,
+  labelledPEA,
 } from './connections.mjs';
 import { parseConfiguration } from './shared-config.mjs';
 import { LocalModel } from './local-model.mjs';
@@ -82,6 +84,7 @@ export function installConnections(hooks) {
       'collab-send',
       'github-connect',
       'cleanup',
+      'confirm-created',
       'draft-create',
     ])
       $(id).disabled = on;
@@ -154,6 +157,8 @@ export function installConnections(hooks) {
     $('workspace-state').textContent = s.workspace ? 'Your Drive' : 'Samples';
     $('preview-state').textContent =
       s.key || s.localKey ? 'CUSTOMER-OWNED CONNECTIONS' : 'LOCAL PREVIEW · SAMPLE DATA';
+    // Offered only when some file carries the public label without this app's own private mark.
+    $('confirm-created').hidden = !unconfirmed().length;
     $('context-file').hidden = !currentAttachment;
     $('context-file-name').textContent = currentAttachment?.name ?? '';
     const id = modelID(s, hooks.surface());
@@ -566,7 +571,8 @@ export function installConnections(hooks) {
     const s = state();
     if (
       file.live &&
-      file.properties?.peaCreated === '1' &&
+      // The private mark, not the public label: another app can set the label on any file.
+      madeByPEA(file) &&
       s.sharePeaFiles &&
       !file.mimeType.startsWith('image/') &&
       file.content &&
@@ -612,6 +618,33 @@ export function installConnections(hooks) {
     $('draft-title').value = form ? 'Untitled form' : 'PEA draft';
     $('draft-text').value = content;
     $('draft').showModal();
+  }
+  // Files labelled as PEA-created that this app has not marked itself. They were made before the
+  // private mark existed, by the iPhone app, or labelled by something else.
+  const unconfirmed = () =>
+    hooks
+      .files()
+      .filter(
+        (f) => f.live && f.profile === p() && labelledPEA(f) && !madeByPEA(f) && !/folder$/.test(f.mimeType),
+      );
+  async function confirmCreated() {
+    const s = state(),
+      g = googleSession(),
+      who = p(),
+      files = unconfirmed().slice(0, 25);
+    if (!files.length) throw new ServiceError('There is nothing to confirm.');
+    if (
+      !(await review(
+        'Confirm files PEA created',
+        `${g.account} · ${s.workspace.folder.title}\n\nThese files are labelled as created by PEA, but the label can be set by any app with access to them:\n${files.map((f) => f.name).join('\n')}\n\nConfirm only files you recognize as PEA\u2019s. Confirmed files can be shared with your model automatically when you open them (under your Drive source setting) and can be replaced by a document revision. Their contents are not changed, and nothing is shared or sent now.${unconfirmed().length > 25 ? '\n\nMore remain; this review covers the first 25.' : ''}`,
+      ))
+    )
+      return;
+    if (who !== p()) throw new ServiceError('Profile changed.');
+    busy(true);
+    const count = await service.confirmCreated(files, s.workspace, g.token);
+    await refresh();
+    note(`Confirmed ${count} file${count === 1 ? '' : 's'} as created by PEA. Nothing was shared.`);
   }
   async function cleanup() {
     const s = state(),
@@ -1061,6 +1094,7 @@ export function installConnections(hooks) {
     });
   $('drive-refresh').onclick = () => run(refresh);
   $('cleanup').onclick = () => run(cleanup);
+  $('confirm-created').onclick = () => run(confirmCreated);
   $('new-doc').onclick = () => draft(false);
   $('new-form').onclick = () => draft(true);
   $('use-reply-doc').onclick = () =>

@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Review items L7 and L8 — 2026-11-15
+
+Branch `fix/release-standing-and-drive-marker`, development identity `0.1.0-dev.28`. These were the last two open items from the 2026-11-11 review.
+
+**L7, withdrawn and older releases.** `browser/server/releases.py`: `version_key` orders versions by semantic-version precedence; `revoke` records a staged release in `revoked.json` under the install root with a reason; `activate` refuses a withdrawn release and refuses a version older than the one in use unless `allow_older` is set (`--allow-older`); `rollback` passes `allow_older` but still refuses a withdrawn previous version; `list` reports withdrawn releases. `browser/releases.mjs` gains `releaseStanding`, used by Check for updates in `release-ui.mjs`: a stable build also asks whether its own version tag is still published and warns if it is not, or if it is newer than the latest published stable version. Development builds are told they are ahead as expected.
+
+**L8, the Drive mark.** Files PEA creates carried only `properties.peaCreated`, which any app with access can read or set. `connections.mjs` now also writes `appProperties.peaCreated`, private to this app's Google client, on every creation path, and exports `madeByPEA` (private mark) and `labelledPEA` (public label). Only the private mark unlocks the two privileged behaviors: `maybeAutoAttach` in `live-ui.mjs` and `replaceDocument`. The public label is kept because the iPhone app uses a different Google client, cannot see private marks, and recognizes files by the label. Migration: `Services.confirmCreated` sets the private mark on up to 25 labelled files after re-checking membership, version, name and label for every file before writing anything; the owner reaches it through a Confirm files PEA created button that appears only when such files exist and shows the list in a review. Unconfirmed files are labelled as such in the file list and are otherwise treated like files the owner added.
+
+Tests: 4 release-manager tests (31 gateway and release); 1 unit test for the update messages and 2 for the Drive mark and confirmation, with the existing Drive tests updated (174 unit); 4 browser tests for the update check, with GitHub's answers supplied through a new `Page.route` in the harness, asserting the two questions asked, no credentials and no referrer (47 browser, three consecutive clean runs each as Mac and as Linux).
+
+Limits: the Drive changes are covered by unit tests against a synthetic Drive only, because tests cannot sign in to Google; the confirm step and the changed labels need owner acceptance with a real account. Files created by the iPhone app will show as not confirmed on the web until the owner confirms them. The withdrawn-release list is local to the machine, not a signed notice from the publisher.
+
+Next: the stability pass (soak tests, Safari and Firefox, owner acceptance) and the release, which needs the owner's production signing key.
+
 ## Contracts, shared fixtures and the parity matrix — 2026-11-15
 
 Branch `docs/contracts-and-parity`, development identity `0.1.0-dev.27`. No application code changed.

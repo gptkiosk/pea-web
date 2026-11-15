@@ -30,7 +30,7 @@ How to read the status columns:
 | Email draft (`pea-email`) | Built, opens the mail app | Built, with Contacts and an optional Shortcut | Formats not yet aligned; Web has no CC, BCC or attachments |
 | Calendar | Built as a file to import | Built, changes the calendar directly | Web direct changes: not yet, 0.2 |
 | Calendar and Gmail glance | Built, read-only | Built | None known |
-| PEA Drive folder | Built | Built, with PDF and richer import | Web has no PDF import |
+| PEA Drive folder | Built | Built, with PDF and richer import | Web has no PDF import. Web trusts only its own private mark on files; files the iPhone app created show as not confirmed until the owner confirms them |
 | Simple forms | Built | Built | None known |
 | Sheets and Slides editing, briefs, receipt ledger | Not yet, after 0.2 | Built | |
 | Story board | Built, with model proposals (`pea-story`) | Built | Web-only block name |

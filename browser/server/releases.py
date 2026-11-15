@@ -299,13 +299,68 @@ def verify_staged(root, release):
     return manifest
 
 
-def activate(root, release):
+def version_key(version):
+    """Sort key following semantic-version precedence: a release ranks above its own pre-releases."""
+    core, _, pre = version.split('+', 1)[0].partition('-')
+    numbers = tuple(int(n) for n in core.split('.'))
+    if not pre:
+        return (numbers, 1, ())
+    return (numbers, 0, tuple((0, int(part), '') if part.isdigit() else (1, 0, part) for part in pre.split('.')))
+
+
+def release_version(release):
+    """The version inside a managed release identifier such as v1.2.3-0123456789ab."""
+    return release[1:].rsplit('-', 1)[0]
+
+
+def revoked(root):
+    """Releases the operator has withdrawn on this machine, with the reason given at the time."""
+    path = root / 'revoked.json'
+    if path.is_symlink():
+        raise ValueError('Withdrawn-release list changed.')
+    if not path.exists():
+        return {}
+    value = json.loads(regular(path, 200_000).decode())
+    if (not isinstance(value, dict) or len(value) > 500 or any(
+            not isinstance(k, str) or not re.fullmatch(r'v[0-9A-Za-z.+-]+-[a-f0-9]{12}', k)
+            or not isinstance(v, str) or len(v) > 200 for k, v in value.items())):
+        raise ValueError('Withdrawn-release list is not recognized.')
+    return value
+
+
+def revoke(root, release, reason):
+    """Marks a staged release as withdrawn so it can no longer be selected. The files are kept."""
+    if not isinstance(release, str) or not re.fullmatch(r'v[0-9A-Za-z.+-]+-[a-f0-9]{12}', release):
+        raise ValueError('Choose a listed release identifier.')
+    reason = ' '.join(str(reason or '').split())
+    if not reason or len(reason) > 200:
+        raise ValueError('Give a short reason, up to 200 characters.')
+    path = root / 'releases' / release
+    if (root / 'releases').is_symlink() or path.is_symlink() or not path.is_dir():
+        raise ValueError('Staged version is unavailable.')
+    current = revoked(root)
+    current[release] = reason
+    atomic_json(root / 'revoked.json', current)
+    return target(root, 'current') == 'releases/' + release
+
+
+def activate(root, release, allow_older=False):
     recover(root)
     verify_staged(root, release)
+    withdrawn = revoked(root)
+    if release in withdrawn:
+        raise ValueError('This version was withdrawn on this machine (' + withdrawn[release] + '). No switch made.')
     old, previous = target(root, 'current'), target(root, 'previous')
     new = 'releases/' + release
     if old == new:
         raise ValueError('Already selected; nothing changed.')
+    if old and not allow_older:
+        in_use = release_version(Path(old).name)
+        if version_key(release_version(release)) < version_key(in_use):
+            raise ValueError(
+                'Version ' + release_version(release) + ' is older than ' + in_use + ', which is in use. An older program '
+                'may refuse data saved by a newer one. Use rollback for the previous version, or add --allow-older '
+                'after making backups. No switch made.')
     atomic_json(root / 'pending.json', {'old': old, 'previous': previous, 'new': new})
     set_pointer(root, 'previous', old)
     set_pointer(root, 'current', new)
@@ -317,12 +372,17 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     p = sub.add_parser('identity'); p.add_argument('--source', type=Path, default=BROWSER); p.add_argument('--write', type=Path)
     p = sub.add_parser('build'); p.add_argument('--source', type=Path, default=BROWSER); p.add_argument('--output', type=Path, required=True); p.add_argument('--development', action='store_true')
-    for command in ('init', 'stage', 'list', 'activate', 'rollback', 'recover'):
+    for command in ('init', 'stage', 'list', 'activate', 'rollback', 'recover', 'revoke'):
         p = sub.add_parser(command); p.add_argument('--root', type=Path, required=True)
         if command == 'init': p.add_argument('--allowed-signers', type=Path, required=True)
         if command == 'stage':
             for option in ('archive', 'manifest', 'signature'): p.add_argument('--' + option, type=Path, required=True)
-        if command == 'activate': p.add_argument('--release', required=True)
+        if command == 'activate':
+            p.add_argument('--release', required=True)
+            p.add_argument('--allow-older', action='store_true', help='Select a version older than the one in use; make backups first.')
+        if command == 'revoke':
+            p.add_argument('--release', required=True)
+            p.add_argument('--reason', required=True, help='Why this version must not be used, up to 200 characters.')
         if command in ('activate', 'rollback'): p.add_argument('--confirm', action='store_true', help='Confirm code-pointer switch; stop the gateway and save active work first.')
     args = parser.parse_args()
     try:
@@ -337,16 +397,19 @@ def main():
             if args.command == 'init': initialize(root, args.allowed_signers)
             elif args.command == 'stage': print(stage(root, args.archive, args.manifest, args.signature))
             elif args.command == 'list':
-                print(json.dumps({'current': target(root, 'current'), 'previous': target(root, 'previous'), 'pendingRecovery': (root / 'pending.json').exists(), 'versions': sorted(p.name for p in (root / 'releases').glob('v*') if p.is_dir() and not p.is_symlink())}, indent=2))
+                print(json.dumps({'current': target(root, 'current'), 'previous': target(root, 'previous'), 'pendingRecovery': (root / 'pending.json').exists(), 'versions': sorted(p.name for p in (root / 'releases').glob('v*') if p.is_dir() and not p.is_symlink()), 'withdrawn': revoked(root)}, indent=2))
             elif args.command == 'recover': recover(root)
+            elif args.command == 'revoke':
+                in_use = revoke(root, args.release, args.reason)
+                print('Marked as withdrawn; it can no longer be selected.' + (' It is the version in use now: activate another version or roll back.' if in_use else ''))
             else:
                 if not args.confirm: raise ValueError('Review the version and save active work, then supply --confirm. No switch made.')
                 if args.command == 'rollback':
                     recover(root)
                     previous = target(root, 'previous')
                     if not previous: raise ValueError('No previous verified program version is available.')
-                    activate(root, Path(previous).name)
-                else: activate(root, args.release)
+                    activate(root, Path(previous).name, allow_older=True)
+                else: activate(root, args.release, allow_older=args.allow_older)
                 print('Program pointer selected. Start/restart the gateway deliberately and verify /api/build-info. No user data was changed.')
     except (ValueError, OSError, subprocess.SubprocessError, tarfile.TarError) as exc:
         parser.exit(1, f'PEA release operation refused: {exc}\n')

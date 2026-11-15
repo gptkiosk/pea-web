@@ -92,3 +92,61 @@ test('main branch comparison makes no unsupported ancestry or integrity claim', 
   assert.throws(() => compareMain('not-a-commit', a, false));
   assert.throws(() => compareMain(a, 'short', false));
 });
+
+test('the release check says plainly whether this build is behind, current, ahead or possibly withdrawn', async () => {
+  const { releaseStanding } = await import('../releases.mjs');
+  const behind = releaseStanding({
+    installed: '0.1.0',
+    channel: 'stable',
+    latest: 'v0.2.0',
+    installedPublished: true,
+  });
+  assert.equal(behind.level, 'update');
+  assert.match(behind.text, /^Available: v0\.2\.0\./);
+  assert.match(behind.text, /No installation has started/);
+
+  const current = releaseStanding({
+    installed: '0.2.0',
+    channel: 'stable',
+    latest: 'v0.2.0',
+    installedPublished: true,
+  });
+  assert.equal(current.level, 'info');
+  assert.match(current.text, /No newer version was identified/);
+
+  const development = releaseStanding({ installed: '0.3.0-dev.4', channel: 'development', latest: 'v0.2.0' });
+  assert.equal(development.level, 'info');
+  assert.match(development.text, /development build \(0\.3\.0-dev\.4\) is ahead .* as expected/);
+
+  const ahead = releaseStanding({
+    installed: '0.3.0',
+    channel: 'stable',
+    latest: 'v0.2.0',
+    installedPublished: null,
+  });
+  assert.equal(ahead.level, 'warning');
+  assert.match(ahead.text, /newer than the latest published stable version \(v0\.2\.0\)/);
+  assert.match(ahead.text, /may have been withdrawn/);
+
+  const gone = releaseStanding({
+    installed: '0.2.0',
+    channel: 'stable',
+    latest: 'v0.2.1',
+    installedPublished: false,
+  });
+  assert.equal(gone.level, 'warning', 'a withdrawn version is a warning even when an update exists');
+  assert.match(gone.text, /Version 0\.2\.0 is no longer among the published releases/);
+  assert.match(gone.text, /latest published stable version is v0\.2\.1/);
+
+  const devMissing = releaseStanding({
+    installed: '0.2.0-dev.1',
+    channel: 'development',
+    latest: 'v0.1.0',
+    installedPublished: false,
+  });
+  assert.equal(devMissing.level, 'info', 'a development build is never published, so that is not a warning');
+  for (const text of [behind, current, development, ahead, gone].map((s) => s.text))
+    assert.match(text, /nothing was changed|No installation has started/i);
+  assert.throws(() => releaseStanding({ installed: 'not-a-version', channel: 'stable', latest: 'v1.0.0' }));
+  assert.throws(() => releaseStanding({ installed: '1.0.0', channel: 'stable', latest: 'latest' }));
+});

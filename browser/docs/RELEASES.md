@@ -57,6 +57,19 @@ python3 browser/server/releases.py recover --root "$HOME/PEA-Web-program"
 
 Rollback re-verifies the previous signed program and swaps the two pointers. It does not revert conversations, Drive files, model data or other user data. A changed program is refused rather than silently trusted. Recovery completes/undoes the pointer bookkeeping according to the atomic switch; unexpected manual pointer changes require local inspection. There is no automatic health-based rollback. Keep current and previous versions; older staged directories are not automatically deleted in this first manager. Existing external backup policy remains separate.
 
+## Older and withdrawn versions
+
+```sh
+# Mark a staged version as one that must not be used. Its files are kept.
+python3 browser/server/releases.py revoke --root "$HOME/PEA-Web-program" --release v0.1.0-0123456789ab --reason "Short reason"
+# Deliberately select a version older than the one in use, after making backups:
+python3 browser/server/releases.py activate --root "$HOME/PEA-Web-program" --release v0.1.0-0123456789ab --confirm --allow-older
+```
+
+`activate` refuses a version older than the one in use unless `--allow-older` is given, because an older program may refuse to open a library or board saved by a newer one. `rollback` to the previous version needs no extra flag. A withdrawn version cannot be selected or rolled back to, and `list` shows withdrawn versions with their reasons. The withdrawn list is kept on this machine in `revoked.json` under the install root; it is your own record, not a signed notice from the publisher.
+
+In the app, **Check for updates** tells a stable build when its own version is no longer among the published releases, or is newer than the latest published stable version. Either can mean the version was withdrawn. The check only reads public release information and never installs anything.
+
 ## Suggestions and PRs
 
 The footer offers a themed suggestion/bug form. **Prepare draft** shows the exact user-entered title, description and public build identity before sharing. No conversation, account details, documents, keys, logs or host identifiers are attached automatically. Credential-pattern rejection is an additional guard, not complete redaction; review your own text. Download the Markdown brief for a contributor's fork/PR, or open a prefilled GitHub issue and choose whether to submit it. A suggestion does not automatically become code or an approved PR. A maintainer/contributor implements it on a branch, runs the web-only checks and submits a reviewed PR. The customer's configured GitHub work repository/token is never used for product feedback.

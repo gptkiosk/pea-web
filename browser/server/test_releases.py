@@ -131,6 +131,64 @@ class ReleaseChecks(unittest.TestCase):
         command(sys.executable, str(script), 'rollback', '--root', str(self.root), '--confirm')
         self.assertEqual(r.target(self.root, 'current'), 'releases/' + first)
         self.assertEqual((data / 'archive').read_bytes(), b'unchanged user data')
+    def test_version_order_follows_semantic_versioning(self):
+        order = ['0.1.0-dev.2', '0.1.0-dev.10', '0.1.0-rc.1', '0.1.0', '0.1.1', '0.2.0-dev.1', '0.2.0', '1.0.0']
+        keys = [r.version_key(v) for v in order]
+        self.assertEqual(keys, sorted(keys))
+        self.assertEqual(len(set(keys)), len(keys))
+        self.assertEqual(r.version_key('1.2.3+build.7'), r.version_key('1.2.3'))
+        self.assertEqual(r.release_version('v0.1.0-dev.2-0123456789ab'), '0.1.0-dev.2')
+    def test_older_version_needs_an_explicit_choice_and_rollback_still_works(self):
+        first = self.stage(); r.activate(self.root, first)
+        self.config['version'] = '0.1.0-dev.2'; self.write_source(); self.commit()
+        second = r.stage(self.root, *self.package('next'))
+        r.activate(self.root, second)
+        with self.assertRaisesRegex(ValueError, 'is older than 0.1.0-dev.2'):
+            r.activate(self.root, first)
+        self.assertEqual(r.target(self.root, 'current'), 'releases/' + second)
+        script = Path(r.__file__).resolve()
+        refused = subprocess.run([sys.executable, str(script), 'activate', '--root', str(self.root), '--release', first, '--confirm'], capture_output=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn(b'--allow-older', refused.stderr)
+        command(sys.executable, str(script), 'activate', '--root', str(self.root), '--release', first, '--confirm', '--allow-older')
+        self.assertEqual(r.target(self.root, 'current'), 'releases/' + first)
+        r.activate(self.root, second)
+        command(sys.executable, str(script), 'rollback', '--root', str(self.root), '--confirm')
+        self.assertEqual(r.target(self.root, 'current'), 'releases/' + first)
+    def test_withdrawn_version_cannot_be_selected_or_rolled_back_to(self):
+        first = self.stage(); r.activate(self.root, first)
+        self.config['version'] = '0.1.0-dev.2'; self.write_source(); self.commit()
+        second = r.stage(self.root, *self.package('next'))
+        self.assertFalse(r.revoke(self.root, second, '  Synthetic   defect  '))
+        self.assertEqual(r.revoked(self.root), {second: 'Synthetic defect'})
+        with self.assertRaisesRegex(ValueError, r'withdrawn on this machine \(Synthetic defect\)'):
+            r.activate(self.root, second)
+        self.assertEqual(r.target(self.root, 'current'), 'releases/' + first)
+        self.assertTrue((self.root / 'releases' / second).is_dir(), 'the files are kept')
+        self.assertTrue(r.revoke(self.root, first, 'Also withdrawn'), 'withdrawing the version in use says so')
+        script = Path(r.__file__).resolve()
+        listed = json.loads(subprocess.run([sys.executable, str(script), 'list', '--root', str(self.root)], capture_output=True, check=True).stdout)
+        self.assertEqual(set(listed['withdrawn']), {first, second})
+        for bad in ('../outside', 'v9.9.9-000000000000', ''):
+            with self.assertRaises(ValueError):
+                r.revoke(self.root, bad, 'x')
+        for reason in ('', 'x' * 201):
+            with self.assertRaises(ValueError):
+                r.revoke(self.root, second, reason)
+        (self.root / 'revoked.json').write_text('{"not-a-release": 7}')
+        with self.assertRaisesRegex(ValueError, 'not recognized'):
+            r.activate(self.root, second)
+    def test_rollback_refuses_a_withdrawn_previous_version(self):
+        first = self.stage(); r.activate(self.root, first)
+        self.config['version'] = '0.1.0-dev.2'; self.write_source(); self.commit()
+        second = r.stage(self.root, *self.package('next'))
+        r.activate(self.root, second)
+        r.revoke(self.root, first, 'Synthetic defect')
+        script = Path(r.__file__).resolve()
+        refused = subprocess.run([sys.executable, str(script), 'rollback', '--root', str(self.root), '--confirm'], capture_output=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn(b'withdrawn', refused.stderr)
+        self.assertEqual(r.target(self.root, 'current'), 'releases/' + second)
     def test_modified_program_refuses_reactivation_and_reports_modified(self):
         release = self.stage(); r.activate(self.root, release)
         browser = self.root / 'current/browser'
