@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.19] - 2026-11-14
+
+### Fixed
+
+- The app sometimes opened as a page whose buttons did nothing. The local gateway kept only five connections waiting, a browser asks for about twenty files at once, and a refused file meant the app never started. Reloading usually worked. The gateway now accepts the whole burst, and serves 64 connections at once instead of 8 so a second tab or a phone beside a desktop is not turned away.
+- A review that opened straight after another one closed could be cancelled without a word, because the first dialog reported that it had closed a moment late. Nothing was approved by mistake, but an approval could be lost and the request had to be repeated. Late reports are now ignored.
+
 ## [0.1.0-dev.18] - 2026-11-14
 
 ### Fixed

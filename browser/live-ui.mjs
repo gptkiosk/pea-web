@@ -199,7 +199,11 @@ export function installConnections(hooks) {
         finish(true);
       };
       $('review-cancel').onclick = () => finish(false);
-      $('review').onclose = () => finish(false);
+      // Closing a dialog reports it a moment later. If the next review has already opened by then,
+      // that late report belongs to the previous one and must not cancel this one.
+      $('review').onclose = () => {
+        if (!$('review').open) finish(false);
+      };
     });
   }
   async function run(action) {

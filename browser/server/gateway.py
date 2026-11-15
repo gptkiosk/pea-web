@@ -36,8 +36,12 @@ CSP = ("default-src 'self'; script-src 'self' https://accounts.google.com/gsi/cl
 
 
 BUILD_INFO_TTL = 60
-# Seconds a client has to deliver a complete request. The per-read socket timeout alone lets a trickling client hold one of the eight slots.
+# Seconds a client has to deliver a complete request. The per-read socket timeout alone lets a trickling client hold a connection slot.
 REQUEST_DEADLINE = 20
+# Connections served at once; more are closed unanswered. A browser opens six per page and keeps spare idle
+# ones for up to the request deadline, so eight was too few for two tabs or a phone beside a desktop.
+# Model requests have their own limit of two.
+CLIENT_SLOTS = 64
 
 
 def upstream_url(value):
@@ -88,9 +92,12 @@ def validate_chat(raw):
 
 class Gateway(ThreadingHTTPServer):
     daemon_threads = True
+    # Connections waiting to be accepted. One page load asks for about twenty files at once; the library default
+    # of five refused part of that burst, a module failed to load and the app never started.
+    request_queue_size = 128
     def __init__(self, address, *, token, upstream, public_origin=None):
         super().__init__(address, Handler)
-        self.client_slots = threading.BoundedSemaphore(8)
+        self.client_slots = threading.BoundedSemaphore(CLIENT_SLOTS)
         self.token_digest = hashlib.sha256(token.encode()).digest()
         self.upstream = upstream_url(upstream)
         self.model_lock = threading.BoundedSemaphore(2)
