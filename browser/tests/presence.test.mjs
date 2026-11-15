@@ -58,3 +58,31 @@ test('the optional delivery hint enters the same reviewed request without tools 
   assert.doesNotMatch(service.body(args).messages[0].content, /Optional character delivery/);
   assert.throws(() => service.body({ ...args, delivery: 'sk-or-v1-' + 'a'.repeat(40) }));
 });
+
+test('the delivery preference is two booleans, survives damage and never throws when storage is refused', async () => {
+  const { presencePreferences, loadPresencePreferences, savePresencePreferences } =
+    await import('../presence.mjs');
+  assert.deepEqual(presencePreferences({ personal: true, work: 'yes', blended: true, note: 'x' }), {
+    personal: true,
+    work: false,
+  });
+  for (const bad of [null, 'on', 7, []])
+    assert.deepEqual(presencePreferences(bad), { personal: false, work: false });
+  const data = {};
+  const storage = { getItem: (k) => data[k] ?? null, setItem: (k, v) => (data[k] = v) };
+  assert.equal(savePresencePreferences({ personal: false, work: true }, storage), true);
+  assert.deepEqual(loadPresencePreferences(storage), { personal: false, work: true });
+  assert.deepEqual(Object.keys(JSON.parse(data['pea-presence-v1'])).sort(), ['personal', 'work']);
+  data['pea-presence-v1'] = '{broken';
+  assert.deepEqual(loadPresencePreferences(storage), { personal: false, work: false });
+  const refused = {
+    getItem() {
+      throw new Error('refused');
+    },
+    setItem() {
+      throw new Error('refused');
+    },
+  };
+  assert.deepEqual(loadPresencePreferences(refused), { personal: false, work: false });
+  assert.equal(savePresencePreferences({ personal: true }, refused), false);
+});

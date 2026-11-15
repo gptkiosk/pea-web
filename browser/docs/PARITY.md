@@ -60,6 +60,14 @@ Story proposals moved to their own `pea-story` block with `story_add`, so the tw
 
 Text inside an ordinary fenced block is a copy box: shown with its label and a Copy button, and left out of Read reply. A block still arriving already shows as a box. PEA's own action blocks are removed before this and are never shown or copyable.
 
+## Honesty and the assistant's name
+
+Every request carries a short rule: never say or imply being human, answer that question plainly, and keep stories about the character's own life as light conversation rather than fact or advice. The app does not rely on the model obeying. After each completed reply it adds one fixed sentence when the reply claims to be human or denies being an AI, or when the owner sincerely asked what PEA is and the reply did not plainly say it is an AI. Figures of speech such as "are you even human" do not count as sincere, text inside fenced blocks is not treated as a claim, and the sentence is added at most once. The sentence is part of the message, so it is also read aloud.
+
+The assistant's name from the interview is sent with every request as a label, independently of the introduction-sharing switch. It is shown in the model-sharing review and is part of the approval identity. Only one line of letters, apostrophes, dots and hyphens in at most three words and forty characters is accepted; anything else, including text that reads as an instruction, falls back to PEA. The owner's own name still travels only with the shared introduction.
+
+Local-time delivery is now a per-profile preference stored on the browser as two booleans. Not yet ported from iPhone: parsing a home city for weather and news, the character's history and daily life, and removing unprompted disclaimers.
+
 ## Reviewed email drafts
 
 A completed model proposal may offer a draft to one explicitly specified email address. Review shows the originating profile, exact address, subject and body. Cancel changes nothing; approval reveals a separate mail-app link, and the owner chooses whether to open and send it. PEA does not transmit email itself. The model cannot add headers or multiple recipients, and malformed, interrupted, oversized, credential-like or mixed action blocks are rejected. The model's action block is hidden from displayed and spoken replies and is not restored as an actionable draft after reload. Mail-client behavior and URL length limits differ; long drafts and physical mobile devices need acceptance testing. Contacts, attachments, CC/BCC and direct Gmail drafts are not implemented.

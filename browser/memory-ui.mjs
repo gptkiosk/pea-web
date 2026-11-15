@@ -1,3 +1,4 @@
+import { loadPresencePreferences, savePresencePreferences } from './presence.mjs';
 import { ServiceError } from './connections.mjs';
 import {
   ConversationVault,
@@ -30,7 +31,8 @@ export function installMemory(hooks) {
     profileURL = null;
   // Threads the library could not take (full or over limits). Saving resumes as soon as one fits again.
   const active = new Map(),
-    presence = new Map(),
+    // Local-time delivery is a per-profile preference kept on this browser; it does not live in the library.
+    presence = new Map(Object.entries(loadPresencePreferences())),
     unsaved = new Set();
   let source = null,
     editingMemory = null;
@@ -425,9 +427,10 @@ export function installMemory(hooks) {
   $('bio-presence').onchange = () => {
     if (!eligible()) return;
     presence.set(profile(), $('bio-presence').checked);
+    savePresencePreferences(Object.fromEntries(presence));
     invalidate();
     hooks.notice(
-      'Local-time delivery changed for this tab/profile. Review its style with the next model request.',
+      'Local-time delivery changed for this profile on this browser. Review its style with the next model request.',
     );
   };
   $('interview-save').onclick = async () => {
@@ -521,7 +524,6 @@ export function installMemory(hooks) {
         active.clear();
         unsaved.clear();
         share.clear();
-        presence.clear();
         $('memory-share').checked = false;
         hooks.clearAll();
         source = null;
@@ -801,7 +803,6 @@ export function installMemory(hooks) {
       active.clear();
       unsaved.clear();
       share.clear();
-      presence.clear();
       $('memory-share').checked = false;
       hooks.clearAll();
       fillInterview();
@@ -850,7 +851,6 @@ export function installMemory(hooks) {
     active.clear();
     unsaved.clear();
     share.clear();
-    presence.clear();
     source = null;
     editingMemory = null;
     hooks.clearAll();
@@ -896,6 +896,7 @@ export function installMemory(hooks) {
       return {
         introduction: introductionContext(value),
         persona: value.persona,
+        assistantName: value.assistantName,
         presence: presence.get(profile()) ?? false,
         memories: memoryContext(library, profile(), query, share.get(profile()) ?? false),
       };

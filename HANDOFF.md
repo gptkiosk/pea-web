@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Honesty, assistant name and remembered delivery — 2026-11-15
+
+Branch `feature/honesty-and-name`, development identity `0.1.0-dev.26`. Fourth parity slice.
+
+`browser/honesty.mjs` is pure: `honestyRule` (sent with every request), `sincereQuestion`, `claimsHuman`, `admitsAI`, `needsHonestyCorrection` and the fixed `honestyCorrection`; plus `assistantName` (a strict label, falling back to PEA) and `nameLine`. `live-ui.mjs` appends the rule and the name line to the system message, shows the name in the model-sharing review and adds it to the approval fingerprint. `app.mjs` runs the check in `finishReply` against the owner's last message on that surface and appends the sentence once. `memory-ui.mjs` passes `assistantName` in the request context and keeps the delivery switch in `localStorage` (`pea-presence-v1`, two booleans) through new helpers in `presence.mjs`; it is no longer cleared on lock, unlock or restore.
+
+Tests: 5 unit tests for honesty and names, 1 for the delivery preference; 3 browser tests (a human claim corrected whatever was asked, a dodged sincere question answered by the app, a plain answer and a figure of speech left alone; the name in the review and the system message, a new review when it changes, and an instruction-like name not sent; the delivery choice surviving a reload per profile). The Copy button's "Copied" label could vanish at once, because the conversation is sometimes redrawn just after a reply and the redraw replaces the button; CI caught this as an intermittent failure. Copying itself always worked. A notice now confirms it and the test checks the notice. Totals: 164 unit, 43 browser (four consecutive clean runs each as Mac and as Linux), 27 gateway and release.
+
+Limits: the patterns are English only. A sincere question in another language, or a human claim worded outside the patterns, is not caught by the app and relies on the rule sent to the model. The home-city parser from the plan is deferred to the 0.2 slice that uses it (weather and the Home card), since nothing here would consume it. Next: parity matrix restructure, contracts document and fixtures, then review items L7 and L8, then the stability pass.
+
 ## Phone links and copy boxes — 2026-11-15
 
 Branch `feature/phone-links-copy-boxes`, development identity `0.1.0-dev.25`. Third parity slice.

@@ -28,7 +28,7 @@ In **Interview & persona**, enable the local-time switch to vary delivery throug
 
 Device **Read reply** uses the chosen browser voice and speed from **Talk with PEA → Choose a voice & speed**. Those two settings are stored locally for this browser and apply to both profiles; they do not travel with private profiles. A missing saved voice falls back to the device default. During quiet hours, local-time delivery asks for seven percent slower speech and a slightly lower pitch; other periods retain ordinary delivery. Browsers/voices may interpret those values differently. The voice-room option can play a completed reply after sending; playback is otherwise explicit. No second model request, timer, new microphone permission or background audio is added.
 
-The switch is per-profile and tab-only, off by default and reset on reload/unlock/Lock. It is not part of the encrypted archive or portable model configuration. Saved persona wording is still independent of this optional delivery cue. Physical phone/headset expression needs owner acceptance.
+The switch is per-profile and off by default. The choice is remembered on this browser as two on/off values, one per profile, and is no longer reset on reload, unlock or Lock; clearing the browser's site data resets it. It is not part of the encrypted archive or portable model configuration. Saved persona wording is still independent of this optional delivery cue. Physical phone/headset expression needs owner acceptance.
 
 ## Sourced, owner-reviewed memory
 
