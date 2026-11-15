@@ -28,3 +28,5 @@ jobs:
         run: node --test browser/tests/dom/*.test.mjs
       - name: Synthetic gateway and release checks
         run: python3 -m unittest discover -s browser/server -p 'test_*.py' -v
+      - name: Gateway conformance (black box, synthetic model server)
+        run: python3 browser/server/conformance/run.py

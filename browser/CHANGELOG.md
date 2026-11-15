@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.31] - 2026-11-15
+
+### Added
+
+- A black-box conformance suite for the gateway, `browser/server/conformance/run.py`. It starts a gateway as a separate process with a synthetic model server behind it and checks, over plain HTTP, everything a PEA gateway must do and refuse: the file list, host and origin checks, the token, model list filtering, every chat refusal, streaming limits, connection limits and the request deadline. It imports nothing from the gateway, so the Mac app's gateway will be held to exactly the same tests. It runs in CI.
+
+### Changed
+
+- A request whose address begins with two slashes is now refused. Before, the answer depended on the Python version: some served the file as if one slash had been sent.
+
 ## [0.1.0-dev.30] - 2026-11-15
 
 ### Changed
