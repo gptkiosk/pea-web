@@ -437,16 +437,25 @@ async function waitUntil(check, what, timeout = 8000) {
   }
 }
 
-// Sends one owner message from Chat and approves the "before sharing with your model" review.
+// Sends one owner message from Chat. The first message with a given set of choices stops at the
+// "before sharing with your model" review, which is approved here; later ones reuse that approval.
 export async function askModel(stack, page, message) {
   const sent = stack.model.requests.length;
   await page.fill('#thought', message);
   await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
-  await page.waitFor(`document.querySelector('#review').open`, 'the model sharing review');
-  if (stack.model.requests.length !== sent)
-    throw new Error('A request reached the model before the sharing review was approved.');
-  await page.click('#review-approve');
-  await page.waitFor(`!document.querySelector('#review').open`);
+  let reviewed = false;
+  await waitUntil(() => {
+    if (stack.model.requests.length > sent) return true;
+    page.evaluate(`document.querySelector('#review').open`).then(
+      (open) => (reviewed ||= open),
+      () => {},
+    );
+    return reviewed;
+  }, 'the model sharing review or the request');
+  if (reviewed && stack.model.requests.length === sent) {
+    await page.click('#review-approve');
+    await page.waitFor(`!document.querySelector('#review').open`);
+  }
   await waitUntil(() => stack.model.requests.length > sent, 'the request to reach the model');
   // The profile switch is disabled for as long as a request is in progress.
   await page.waitFor(`!document.querySelector('#profile').disabled`, 'the reply to finish');

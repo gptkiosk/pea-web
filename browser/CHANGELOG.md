@@ -2,6 +2,21 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.23] - 2026-11-15
+
+### Added
+
+- A to-do list on Today, separate from the story board. Add an item with an optional due time and reminder, check it off, reopen it, remove it, or clear the finished ones. Personal and Work each have their own list of up to 200.
+- You can ask in Chat or Greenhouse to add or check off to-dos. PEA shows the exact changes and nothing happens until you approve; afterwards it says what was done and what was not, for example when it could not tell which item you meant. A model cannot delete items.
+- Reminders appear inside PEA when their time comes, and as a system notification too if you choose that. They only appear while PEA is open in this browser; nothing runs in the background.
+- A switch under the list lets your model see your open and recently finished to-dos for the current profile. It is off to begin with, and turning it on asks you to review what is shared again.
+- "Add a to-do" in the command palette.
+
+### Changed
+
+- To-dos are kept with the story board: in this tab, or in the same encrypted record if you turned that on. A board with to-dos cannot be opened by an earlier build, which refuses it without changing it; a board without to-dos is saved exactly as before. Make an encrypted backup before trying an older build.
+- Model proposals for a story now use a block named `pea-story`. `pea-task` now means to-dos, as it does in the iPhone app.
+
 ## [0.1.0-dev.22] - 2026-11-15
 
 ### Added

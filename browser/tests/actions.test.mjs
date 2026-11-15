@@ -56,33 +56,33 @@ import {
   calendarGuidance,
   warnsOfUnconfirmedCalendar,
 } from '../actions.mjs';
-const block = (s) => '```pea-task\n' + s + '\n```';
+const block = (s) => '```pea-story\n' + s + '\n```';
 test('only one complete, strict add proposal can be offered for review', () => {
-  const text = 'I can prepare that.\n' + block('{"op":"task_add","title":"Plan the garden"}');
+  const text = 'I can prepare that.\n' + block('{"op":"story_add","title":"Plan the garden"}');
   assert.deepEqual(storyProposals(text), [{ title: 'Plan the garden', details: '', acceptance: '' }]);
   assert.equal(visibleReply(text).trim(), 'I can prepare that.');
   for (const bad of [
     '{}',
     '[]',
     '{"op":"task_done","title":"Garden"}',
-    '{"op":"task_add","title":" Garden"}',
-    '{"op":"task_add","title":"Garden","remind":true}',
-    '{"op":"task_add","title":"Garden","due":"tomorrow"}',
-    '{"op":"task_add","title":""}',
-    '{"op":"task_add","title":"' + 'x'.repeat(121) + '"}',
-    '{"op":"task_add","title":"sk-or-v1-' + 'a'.repeat(40) + '"}',
+    '{"op":"story_add","title":" Garden"}',
+    '{"op":"story_add","title":"Garden","remind":true}',
+    '{"op":"story_add","title":"Garden","due":"tomorrow"}',
+    '{"op":"story_add","title":""}',
+    '{"op":"story_add","title":"' + 'x'.repeat(121) + '"}',
+    '{"op":"story_add","title":"sk-or-v1-' + 'a'.repeat(40) + '"}',
     'not json',
   ])
     assert.deepEqual(storyProposals(block(bad)), []);
   assert.deepEqual(
-    storyProposals(block('{"op":"task_add","title":"A"}') + block('{"op":"task_add","title":"B"}')),
+    storyProposals(block('{"op":"story_add","title":"A"}') + block('{"op":"story_add","title":"B"}')),
     [],
   );
-  assert.deepEqual(storyProposals('```pea-task\n{"op":"task_add","title":"A"}'), []);
+  assert.deepEqual(storyProposals('```pea-story\n{"op":"story_add","title":"A"}'), []);
 });
 test('partial action fences and unsupported actions never appear in displayed or spoken projection', () => {
   const prefix = 'Let’s consider it.\n';
-  const action = block('{"op":"task_add","title":"PRIVATE ACTION"}');
+  const action = block('{"op":"story_add","title":"PRIVATE ACTION"}');
   for (let i = 1; i <= action.length; i++)
     assert(!visibleReply(prefix + action.slice(0, i)).includes('PRIVATE ACTION'));
   assert.equal(visibleReply('Hello\n```pea-email\n{"secret":"CANARY"}\n```').trim(), 'Hello');
@@ -127,8 +127,8 @@ test('email drafts require one safe, explicit recipient and exact bounded fields
     assert.deepEqual(emailProposals(emailBlock({ ...d, ...patch })), []);
   assert.deepEqual(emailProposals(emailBlock(d) + emailBlock(d)), []);
   assert.deepEqual(emailProposals(emailBlock(d).slice(0, -3)), []);
-  assert.deepEqual(emailProposals(emailBlock(d) + block('{"op":"task_add","title":"Task"}')), []);
-  assert.deepEqual(storyProposals(emailBlock(d) + block('{"op":"task_add","title":"Task"}')), []);
+  assert.deepEqual(emailProposals(emailBlock(d) + block('{"op":"story_add","title":"Task"}')), []);
+  assert.deepEqual(storyProposals(emailBlock(d) + block('{"op":"story_add","title":"Task"}')), []);
 });
 test('draft links encode headers and body; model output never sends email', () => {
   const d = { to: 'reader@example.com', subject: 'A & B?', body: 'One\nTwo & three' };
@@ -202,7 +202,7 @@ test('calendar proposals require valid explicit UTC instants and a narrow action
     { op: 'create_event' },
   ])
     assert.deepEqual(calendarProposals(calendarBlock({ ...d, ...patch })), []);
-  assert.deepEqual(calendarProposals(calendarBlock(d) + block('{"op":"task_add","title":"Task"}')), []);
+  assert.deepEqual(calendarProposals(calendarBlock(d) + block('{"op":"story_add","title":"Task"}')), []);
   assert.deepEqual(calendarProposals(calendarBlock(d).slice(0, -3)), []);
   assert.equal(visibleReply('Review this.\n' + calendarBlock(d)).trim(), 'Review this.');
 });
@@ -226,7 +226,7 @@ test('calendar file escapes injected properties and folds long UTF-8 lines', () 
 
 test('story scope and acceptance are bounded and require a strict single proposal', () => {
   const d = {
-    op: 'task_add',
+    op: 'story_add',
     title: 'Plan the garden',
     details: 'Compare herbs\nand locations',
     acceptance: 'Choose two options',

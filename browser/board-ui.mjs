@@ -12,6 +12,7 @@ import { ServiceError, containsCredential } from './connections.mjs';
 const $ = (id) => document.getElementById(id);
 export function installBoard(hooks) {
   let tasks = [],
+    todos = [],
     vault = null,
     locked = true,
     saving = false,
@@ -35,7 +36,7 @@ export function installBoard(hooks) {
     if (vault?.key) {
       saving = true;
       try {
-        await vault.save(tasks);
+        await vault.save(tasks, todos);
         $('board-storage-note').textContent = 'Encrypted board saved on this browser.';
       } catch (error) {
         locked = true;
@@ -90,6 +91,7 @@ export function installBoard(hooks) {
     return b;
   }
   function render() {
+    hooks.boardChanged?.();
     const current = tasks.find((t) => t.id === active && t.profile === profile());
     $('active-story').hidden = !current;
     $('active-story').textContent = current ? `PEA-${current.number} · ${current.stage}` : '';
@@ -430,7 +432,7 @@ export function installBoard(hooks) {
   };
   $('board-import-open').onclick = async () => {
     try {
-      if (!idle() || !vault || vault.key || tasks.length || (await vault.storage.get()))
+      if (!idle() || !vault || vault.key || tasks.length || todos.length || (await vault.storage.get()))
         throw new ServiceError(
           'Restore requires an empty browser board and no tab-only stories. Nothing was changed.',
         );
@@ -450,7 +452,7 @@ export function installBoard(hooks) {
       file = $('board-import-file').files?.[0];
     input.value = '';
     try {
-      if (!idle() || !vault || vault.key || tasks.length || (await vault.storage.get()))
+      if (!idle() || !vault || vault.key || tasks.length || todos.length || (await vault.storage.get()))
         throw new ServiceError(
           'Restore requires an empty browser board and no tab-only stories. Nothing was changed.',
         );
@@ -463,7 +465,7 @@ export function installBoard(hooks) {
         ))
       )
         return;
-      if (!idle() || vault.key || tasks.length || !$('board-import').open)
+      if (!idle() || vault.key || tasks.length || todos.length || !$('board-import').open)
         throw new ServiceError('Board changed. Nothing was imported.');
       porting = true;
       render();
@@ -472,7 +474,8 @@ export function installBoard(hooks) {
       await vault.importEncrypted(
         serialized,
         password,
-        () => !vault.key && !tasks.length && $('board-import').open && !active && !hooks.busy(),
+        () =>
+          !vault.key && !tasks.length && !todos.length && $('board-import').open && !active && !hooks.busy(),
       );
       locked = true;
       $('board-import').close();
@@ -497,6 +500,7 @@ export function installBoard(hooks) {
       clearBackup();
       vault.lock();
       tasks = [];
+      todos = [];
       locked = true;
       render();
       say('Board locked on this browser. Unlock with your passphrase.');
@@ -504,7 +508,7 @@ export function installBoard(hooks) {
     }
     if (
       locked &&
-      tasks.length &&
+      (tasks.length || todos.length) &&
       !(await hooks.review(
         'Reload saved board',
         'This tab has unsaved board changes. Unlocking replaces them with the latest saved board. Copy anything you need before continuing.',
@@ -528,12 +532,13 @@ export function installBoard(hooks) {
     try {
       if (!vault) vault = await BoardVault.open();
       if (!$('board-unlock').open) return;
-      const next = await vault.unlock(password, tasks);
+      const next = await vault.unlock(password, tasks, todos);
       if (!$('board-unlock').open) {
         vault.lock();
         return;
       }
       tasks = next;
+      todos = vault.todos;
       locked = false;
       unlocking = false;
       $('board-unlock').close();
@@ -594,5 +599,15 @@ export function installBoard(hooks) {
       render();
     },
     active: () => active,
+    // The to-do list shares this board's storage, lock and save.
+    todoStore: {
+      items: () => todos,
+      usable: () => !locked,
+      change(update) {
+        ensure();
+        todos = update(todos);
+        void save();
+      },
+    },
   };
 }

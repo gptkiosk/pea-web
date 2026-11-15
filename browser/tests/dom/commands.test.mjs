@@ -96,6 +96,7 @@ test(
       `document.getElementById('profile').value === 'work'`,
       'the Work profile',
     );
+    await runCommand('add to-do', `document.activeElement.id === 'todo-title'`, 'focus in the to-do field');
     await runCommand('add story', `document.activeElement.id === 'story-title'`, 'focus in the story title');
     await page.close();
   },

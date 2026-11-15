@@ -7,8 +7,8 @@ import { askModel, browserSkipReason, openConnectedPage, openReview, startStack 
 const skip = browserSkipReason();
 const options = { skip, timeout: 45000 };
 const story =
-  'I can capture that.\n```pea-task\n' +
-  JSON.stringify({ op: 'task_add', title: 'Synthetic story', details: 'Synthetic scope' }) +
+  'I can capture that.\n```pea-story\n' +
+  JSON.stringify({ op: 'story_add', title: 'Synthetic story', details: 'Synthetic scope' }) +
   '\n```\n';
 
 let stack;
