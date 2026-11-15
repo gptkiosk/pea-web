@@ -23,25 +23,25 @@ from urllib.parse import urlsplit
 from build_identity import build_identity
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_REQUEST = 128_000
-MODEL_ID = re.compile(r'[A-Za-z0-9._:/@+\-]{1,100}\Z')
-ASSETS = {'index.html', 'styles.css', 'app.mjs', 'policy.mjs', 'connections.mjs',
-          'live-ui.mjs', 'taskboard.mjs', 'board-ui.mjs', 'local-model.mjs',
-          'voice.mjs', 'workspace.mjs', 'workspace-ui.mjs', 'commands.mjs', 'commands-ui.mjs', 'dragdrop.mjs', 'dragdrop-ui.mjs', 'todos.mjs', 'todos-ui.mjs', 'documents.mjs', 'handoff.mjs', 'honesty.mjs', 'shared-config.mjs', 'actions.mjs', 'presence.mjs', 'memory.mjs', 'memory-ui.mjs', 'profile-transfer.mjs', 'release.json', 'build-info.json', 'CHANGELOG.md', 'releases.mjs', 'release-ui.mjs', 'assets/pea-icon.svg', 'assets/pea-mascot.svg'}
-CSP = ("default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; "
-       "style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' blob:; "
-       "connect-src 'self' https://openrouter.ai https://api.github.com https://accounts.google.com "
-       "https://www.googleapis.com https://docs.googleapis.com https://forms.googleapis.com; "
-       "frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
-
-
-BUILD_INFO_TTL = 60
+# Every rule a PEA gateway follows lives in contract.json beside this file: which files it serves, the
+# headers on every answer, and every limit. The Mac app embeds the same file, so the two gateways
+# cannot drift apart. Nothing below repeats a value from it.
+CONTRACT = json.loads(Path(__file__).with_name('contract.json').read_text())
+if CONTRACT.get('version') != 1:
+    raise SystemExit('Unsupported gateway contract version.')
+LIMITS = CONTRACT['limits']
+MAX_REQUEST = LIMITS['requestBytes']
+MODEL_ID = re.compile(LIMITS['modelIdPattern'] + r'\Z')
+ASSETS = frozenset(CONTRACT['assets'])
+HEADERS = tuple(CONTRACT['headers'].items())
+CSP = CONTRACT['headers']['Content-Security-Policy']
+BUILD_INFO_TTL = LIMITS['buildInfoSeconds']
 # Seconds a client has to deliver a complete request. The per-read socket timeout alone lets a trickling client hold a connection slot.
-REQUEST_DEADLINE = 20
+REQUEST_DEADLINE = LIMITS['requestDeadlineSeconds']
 # Connections served at once; more are closed unanswered. A browser opens six per page and keeps spare idle
 # ones for up to the request deadline, so eight was too few for two tabs or a phone beside a desktop.
-# Model requests have their own limit of two.
-CLIENT_SLOTS = 64
+# Model requests have their own limit.
+CLIENT_SLOTS = LIMITS['connections']
 
 
 def upstream_url(value):
@@ -63,29 +63,29 @@ def read_token(path):
     if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_uid != os.getuid():
         raise ValueError('Token file must be owned by this user, regular, and mode 0600.')
     token = p.read_text().strip()
-    if not re.fullmatch(r'[A-Za-z0-9_-]{32,128}', token):
+    if not re.fullmatch(LIMITS['tokenPattern'], token):
         raise ValueError('Use a random token of 32–128 URL-safe characters.')
     return token
 
 
 def validate_chat(raw):
-    if not isinstance(raw, dict) or set(raw) - {'model', 'messages', 'stream', 'max_tokens', 'temperature'}:
+    if not isinstance(raw, dict) or set(raw) - set(CONTRACT['chatFields']):
         raise ValueError('Only text chat is supported; tools and provider overrides are disabled.')
     if not isinstance(raw.get('model'), str) or not MODEL_ID.fullmatch(raw['model']) or raw.get('stream') is not True:
         raise ValueError('Choose a listed model and streaming text response.')
     rows = raw.get('messages')
-    if not isinstance(rows, list) or not 1 <= len(rows) <= 64:
+    if not isinstance(rows, list) or not 1 <= len(rows) <= LIMITS['messages']:
         raise ValueError('Bounded text messages are required.')
     total = 0
     for row in rows:
-        if not isinstance(row, dict) or set(row) != {'role', 'content'} or row['role'] not in ('system', 'user', 'assistant') or not isinstance(row['content'], str):
+        if not isinstance(row, dict) or set(row) != {'role', 'content'} or row['role'] not in CONTRACT['roles'] or not isinstance(row['content'], str):
             raise ValueError('Only plain text system/user/assistant messages are supported.')
         total += len(row['content'])
-    limit = raw.get('max_tokens', 384)
-    if total > 64_000 or type(limit) is not int or not 1 <= limit <= 4096:
+    limit = raw.get('max_tokens', LIMITS['defaultMaxTokens'])
+    if total > LIMITS['messageCharacters'] or type(limit) is not int or not 1 <= limit <= LIMITS['maxTokens']:
         raise ValueError('Message or output limit exceeded.')
-    temperature = raw.get('temperature', 0.7)
-    if type(temperature) not in (int, float) or not 0 <= temperature <= 2:
+    temperature = raw.get('temperature', LIMITS['defaultTemperature'])
+    if type(temperature) not in (int, float) or not 0 <= temperature <= LIMITS['temperatureMax']:
         raise ValueError('Invalid temperature.')
     return {**raw, 'max_tokens': limit, 'temperature': temperature}
 
@@ -94,13 +94,13 @@ class Gateway(ThreadingHTTPServer):
     daemon_threads = True
     # Connections waiting to be accepted. One page load asks for about twenty files at once; the library default
     # of five refused part of that burst, a module failed to load and the app never started.
-    request_queue_size = 128
+    request_queue_size = LIMITS['acceptBacklog']
     def __init__(self, address, *, token, upstream, public_origin=None):
         super().__init__(address, Handler)
         self.client_slots = threading.BoundedSemaphore(CLIENT_SLOTS)
         self.token_digest = hashlib.sha256(token.encode()).digest()
         self.upstream = upstream_url(upstream)
-        self.model_lock = threading.BoundedSemaphore(2)
+        self.model_lock = threading.BoundedSemaphore(LIMITS['concurrentModelRequests'])
         self.models = set()
         self.models_at = 0
         self.identity, self.identity_at, self.identity_lock = None, 0, threading.Lock()
@@ -141,7 +141,7 @@ class Gateway(ThreadingHTTPServer):
             return self.identity
 
     def upstream_call(self, method, path, body=None):
-        connection = http.client.HTTPConnection(*self.upstream, timeout=45)
+        connection = http.client.HTTPConnection(*self.upstream, timeout=LIMITS['upstreamTimeoutSeconds'])
         try:
             connection.request(method, '/v1/' + path, body=body,
                                headers={'Content-Type': 'application/json', 'Accept': 'text/event-stream' if method == 'POST' else 'application/json'})
@@ -156,7 +156,7 @@ class Handler(BaseHTTPRequestHandler):
     sys_version = ''
     def setup(self):
         super().setup()
-        self.connection.settimeout(15)
+        self.connection.settimeout(LIMITS['readTimeoutSeconds'])
 
     def handle_one_request(self):
         self.read_timer = threading.Timer(REQUEST_DEADLINE, self.expire)
@@ -181,15 +181,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', str(len(data)))
-        self.send_header('Cache-Control', 'no-store')
-        self.send_header('X-Content-Type-Options', 'nosniff')
-        self.send_header('Referrer-Policy', 'no-referrer')
-        self.send_header('X-Frame-Options', 'DENY')
-        self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
+        # The contract's headers go on every answer. Cross-Origin-Opener-Policy allows popups because
         # Google's sign-in popup must keep its opener; every other cross-origin window is detached.
-        self.send_header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
-        self.send_header('Content-Security-Policy', CSP)
-        self.send_header('Permissions-Policy', 'camera=(), geolocation=(), microphone=(self)')
+        for name, value in HEADERS:
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -220,11 +215,11 @@ class Handler(BaseHTTPRequestHandler):
             connection = None
             try:
                 connection, response = self.server.upstream_call('GET', 'models')
-                data = response.read(500_001)
-                if response.status != 200 or len(data) > 500_000:
+                data = response.read(LIMITS['modelListBytes'] + 1)
+                if response.status != 200 or len(data) > LIMITS['modelListBytes']:
                     raise ValueError()
                 rows = json.loads(data).get('data', [])
-                ids = list(dict.fromkeys(r['id'] for r in rows if isinstance(r, dict) and isinstance(r.get('id'), str) and MODEL_ID.fullmatch(r['id'])))[:100]
+                ids = list(dict.fromkeys(r['id'] for r in rows if isinstance(r, dict) and isinstance(r.get('id'), str) and MODEL_ID.fullmatch(r['id'])))[:LIMITS['models']]
                 if not ids:
                     raise ValueError()
                 self.server.models, self.server.models_at = set(ids), time.monotonic()
@@ -259,7 +254,7 @@ class Handler(BaseHTTPRequestHandler):
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
             return self.reply(400, {'error': 'Invalid or oversized text chat request.'})
-        if body['model'] not in self.server.models or time.monotonic() - self.server.models_at > 3600:
+        if body['model'] not in self.server.models or time.monotonic() - self.server.models_at > LIMITS['modelListSeconds']:
             return self.reply(409, {'error': 'Refresh and choose a model listed by this server.'})
         if not self.server.model_lock.acquire(blocking=False):
             return self.reply(429, {'error': 'Local model busy. No automatic retry.'})
@@ -271,19 +266,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(502, {'error': 'Local model rejected this request. No fallback.'})
                 return
             self.send_response(200)
-            self.send_header('Content-Type', 'text/event-stream')
-            self.send_header('Cache-Control', 'no-store')
-            self.send_header('X-Accel-Buffering', 'no')
-            self.send_header('X-Content-Type-Options', 'nosniff')
+            for name, value in CONTRACT['streamHeaders'].items():
+                self.send_header(name, value)
             self.end_headers()
             started = True
-            total, deadline = 0, time.monotonic() + 180
+            total, deadline = 0, time.monotonic() + LIMITS['streamSeconds']
             while time.monotonic() < deadline:
                 chunk = response.read1(4096)
                 if not chunk:
                     break
                 total += len(chunk)
-                if total > 2_000_000:
+                if total > LIMITS['streamBytes']:
                     break
                 self.wfile.write(chunk)
                 self.wfile.flush()

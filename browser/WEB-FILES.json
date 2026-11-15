@@ -40,6 +40,7 @@
   "releases.mjs",
   "server/build_identity.py",
   "server/check_source.py",
+  "server/contract.json",
   "server/gateway.py",
   "server/local.py",
   "server/releases.py",
