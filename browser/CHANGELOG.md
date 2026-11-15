@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.25] - 2026-11-15
+
+### Added
+
+- Ask PEA to call or text a number, or to get directions. You see exactly what will open, including every word of a text; after you approve, a link appears for you to press. PEA never places a call, sends a text or opens a map itself, and you still press Call or Send on your phone.
+- A browser has no contact list, so PEA asks for the number instead of looking up a name. FaceTime and Shortcuts stay iPhone-only.
+- Text a reply gives you to copy, such as an outline, a message to paste or code, now appears in a box with a Copy button. Read reply skips those boxes and reads only the words around them.
+
 ## [0.1.0-dev.24] - 2026-11-15
 
 ### Added

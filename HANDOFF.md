@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Phone links and copy boxes — 2026-11-15
+
+Branch `feature/phone-links-copy-boxes`, development identity `0.1.0-dev.25`. Third parity slice.
+
+`browser/handoff.mjs` is pure. `replySegments` splits a reply into prose and copy boxes, taking a short first line with no spaces (or starting `file:`) as the label and treating an unfinished fence as a box; `spokenReply` keeps the prose. `openProposals` accepts one `pea-open` row for a call, a text or directions with strict keys; `phoneNumber` normalizes 7 to 15 digits with an optional plus; `openLink` builds `tel:`, `sms:NUMBER?&body=` and a Google or Apple Maps directions address; `describeOpen`, `openLabel`, `openGuidance` and `claimsOpen` complete it. In `app.mjs`, `messageBody` draws boxes only when a reply has one (other replies render exactly as before), Read reply speaks `spokenReply` while still checking the unchanged message text, and the proposal follows the email pattern: review, then a link kept in `openReady`. The guidance and a one-line note about fenced text are appended in `live-ui.mjs`.
+
+Tests: 9 unit tests; 5 browser tests (a call link only after approval, none after cancel or reload, and no navigation; a text shown word for word with an encoded link; directions naming the service, opening in a new tab without a referrer, and no request to the map service before a press; a name without a number and a Shortcut refused, with a correction; a copy box that copies exactly through a stubbed clipboard and is absent from what a stubbed speech engine is given). Totals: 158 unit, 40 browser (three consecutive clean runs each as Mac and as Linux), 27 gateway and release.
+
+Limits: pressing a `tel:` or `sms:` link was not exercised, and on a computer without a phone app it does nothing; real phones are owner acceptance. Speech and the clipboard were stubbed in tests. Greenhouse `file:` blocks now show as copy boxes with their path as the label; delivery to GitHub still reads the message text and is unchanged. Next: honesty rules, assistant name and home city, then the parity matrix and contracts document.
+
 ## Documents from templates — 2026-11-15
 
 Branch `feature/document-templates`, development identity `0.1.0-dev.24`. Second parity slice. The owner allowed a read-only look at the iPhone policies for the remaining 0.1.0 features; the block format and limits match, and all code, layout notes and wording here are our own.
