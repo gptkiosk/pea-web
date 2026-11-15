@@ -23,6 +23,23 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The Mac app, step 3 of 6: the Swift gateway — 2026-11-15
+
+**Branch `mac/swift-gateway`, development identity `0.1.0-dev.32`.** Stacked on step 2.
+
+- `mac/` is a Swift package with no third-party dependencies (tools version 5.9, macOS 13 or later). `PEAGatewayCore` is the gateway; `pea-gateway` is a command-line tool around it for tests and development; `mac/README.md` is the folder's guide.
+  - `Gateway.swift`: a Network.framework listener bound to `127.0.0.1`, one serial queue for all state, one request per connection, connection and model-request limits, the request deadline and idle timer, model list, chat streaming with the size and time limits. Calls to the model server use one ephemeral `URLSession` with system proxies, cookies, credentials, caching and redirects all turned off.
+  - `Rules.swift`: loads `contract.json` (no built-in fallback for any value), chat validation, the loopback-only model address, the token check on a SHA-256 digest in constant time, token-file checks, build identity, and file reads that open every path part with `O_NOFOLLOW`.
+  - `JSON.swift`: a small strict JSON reader and writer. Foundation's reader cannot tell `1` from `1.0` or `true` from `1` reliably and accepts repeated keys, and the rules depend on those differences. Numbers keep their original text.
+  - `HTTP.swift`: a narrow request-head reader (64 KB, 100 headers, no folded lines, deciding headers at most once).
+- Results on this Mac (Swift 6.4): `swift test` 12 of 12; conformance 19 of 19 against Swift, Python 3.9 and Python 3.14; gateway, local and release tests 32 of 32.
+- Writing the second gateway showed five places where the two languages would have read the same request differently. Each was closed by making both refuse it, with a conformance case: repeated JSON key, `NaN`/`Infinity`, UTF-16 or byte-order-marked bodies, half of a surrogate pair in message text, and a repeated deciding header. In Python these are `strict_json`, one `encode` in `validate_chat` and the first check in `Handler.boundary`. The conformance suite also now checks that message text with accents, emoji, quotes, a backslash and control characters reaches the model server unchanged.
+- Repository rules: `tools/check_repository.py` also allows the files in `mac/MAC-FILES.json`, with the same scans. `AGENTS.md`, `README.md` and `CONTRIBUTING.md` say the repository holds PEA Web and its Mac launcher. CI has a second job, `mac`, on a macOS runner: build, Swift tests, conformance against `pea-gateway`. The `web` job is unchanged and needs no Mac. Branch protection still requires only `web`; the owner may want to require `mac` too.
+
+Known differences from the Python gateway, also listed in `mac/README.md`: no `--public-origin`; build identity without Git or the installed-manifest re-check; malformed or oversized request heads get a JSON answer; no `Server` or `Date` header. Known gaps: the Swift source has had no independent review; the 45-second upstream timeout and 180-second stream limit are set but not exercised by a test; the browser-level suite has not yet been run against Swift.
+
+Next action: step 4, a `PEA_GATEWAY=swift` switch in `browser/tests/dom/harness.mjs` so the 56 browser-level tests run against the Swift gateway in the `mac` job.
+
 ## The Mac app, step 2 of 6: gateway conformance suite — 2026-11-15
 
 **Branch `mac/conformance-suite`, development identity `0.1.0-dev.31`.** Stacked on step 1.

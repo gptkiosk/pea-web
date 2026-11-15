@@ -30,3 +30,17 @@ jobs:
         run: python3 -m unittest discover -s browser/server -p 'test_*.py' -v
       - name: Gateway conformance (black box, synthetic model server)
         run: python3 browser/server/conformance/run.py
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Build the Swift gateway
+        run: swift build --package-path mac
+      - name: Swift unit tests
+        run: swift test --package-path mac
+      - name: Gateway conformance against the Swift gateway (same suite as Python)
+        run: |
+          PEA_GATEWAY_COMMAND="[\"$PWD/mac/.build/debug/pea-gateway\"]" python3 browser/server/conformance/run.py

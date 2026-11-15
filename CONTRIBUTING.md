@@ -1,6 +1,6 @@
 # Contributing
 
-PEA Web is work in progress. Use an issue to discuss the intended behavior and acceptance criteria, then a focused branch/PR with relevant web-only tests. Keep the original mobile-friendly branding and make provider/data-sharing decisions explicit. No sibling/native repository or real user accounts are needed to develop or test.
+PEA Web is work in progress. Use an issue to discuss the intended behavior and acceptance criteria, then a focused branch/PR with relevant web-only tests. Changes under `mac/` also need the Swift tests and the gateway conformance suite described in [mac/README.md](mac/README.md); a gateway rule is changed in `browser/server/contract.json` and the conformance suite, then in both gateways. Keep the original mobile-friendly branding and make provider/data-sharing decisions explicit. No sibling/native repository or real user accounts are needed to develop or test.
 
 Run the README checks and stage named source files. Add no keys, personal prompts, chat excerpts, private host details, raw errors, local archives or large generated artifacts. Use `example.invalid` identities and temporary fakes in tests. For policy changes, version the fixture and explain compatibility; do not silently update a native copy.
 

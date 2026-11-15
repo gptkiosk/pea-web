@@ -282,6 +282,11 @@ class Conformance(unittest.TestCase):
         self.assertEqual(forwarded['max_tokens'], LIMITS['maxTokens'])
         self.call('POST', '/v1/chat/completions', token=TOKEN, body=self.chat())
         defaults = json.loads(Upstream.seen[-1][3])
+        text = 'Caf\u00e9 \U0001F331 "quoted" \\ back\nline\ttab \u0000 end'
+        self.call('POST', '/v1/chat/completions', token=TOKEN, body=self.chat(messages=[{'role': 'system', 'content': ''}, {'role': 'user', 'content': text}], temperature=0.25))
+        passed = json.loads(Upstream.seen[-1][3])
+        self.assertEqual(passed['messages'][1]['content'], text, 'text reaches the model unchanged')
+        self.assertEqual(passed['temperature'], 0.25)
         self.assertEqual((defaults['max_tokens'], defaults['temperature']), (LIMITS['defaultMaxTokens'], LIMITS['defaultTemperature']))
 
     def test_every_malformed_or_oversized_chat_is_refused_before_the_model_server(self):
@@ -312,6 +317,17 @@ class Conformance(unittest.TestCase):
             (json.dumps(self.chat()).encode(), {'Content-Type': 'text/plain'}),
             (json.dumps(self.chat()).encode(), {}),
             (b'', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","model":"tiny:test","stream":true,"messages":[{"role":"user","content":"x"}]}', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","stream":true,"messages":[{"role":"user","content":"x","role":"user"}]}', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","stream":true,"temperature":NaN,"messages":[{"role":"user","content":"x"}]}', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","stream":true,"temperature":Infinity,"messages":[{"role":"user","content":"x"}]}', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","stream":true,"max_tokens":10.0,"messages":[{"role":"user","content":"x"}]}', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","stream":true,"max_tokens":1e1,"messages":[{"role":"user","content":"x"}]}', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","stream":true,"messages":[{"role":"user","content":"\\ud83d"}]}', {'Content-Type': 'application/json'}),
+            (b'{"model":"tiny:test","stream":true,"messages":[{"role":"user","content":"\xff"}]}', {'Content-Type': 'application/json'}),
+            (b'\xef\xbb\xbf' + json.dumps(self.chat()).encode(), {'Content-Type': 'application/json'}),
+            (json.dumps(self.chat()).encode('utf-16'), {'Content-Type': 'application/json'}),
+            (json.dumps(self.chat()).encode() + b' x', {'Content-Type': 'application/json'}),
         ):
             self.assertEqual(self.call('POST', '/v1/chat/completions', token=TOKEN, body=body, headers=headers)[0], 400, str(headers))
         self.assertEqual(self.raw(
@@ -320,6 +336,12 @@ class Conformance(unittest.TestCase):
         self.assertEqual(self.raw(
             f'POST /v1/chat/completions HTTP/1.1\r\nHost: {self.host}\r\nAuthorization: Bearer {TOKEN}\r\n'
             'Content-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n'), 400, 'chunked bodies are refused')
+        for repeated in (f'Host: {self.host}\r\nHost: evil.example\r\n', f'Host: evil.example\r\nHost: {self.host}\r\n',
+                         f'Host: {self.host}\r\nAuthorization: Bearer wrong\r\n', f'Host: {self.host}\r\nContent-Length: 2\r\n'):
+            data = json.dumps(self.chat())
+            self.assertEqual(self.raw(
+                f'POST /v1/chat/completions HTTP/1.1\r\n{repeated}Authorization: Bearer {TOKEN}\r\n'
+                f'Content-Type: application/json\r\nContent-Length: {len(data)}\r\n\r\n{data}'), 400, 'a repeated deciding header is refused: ' + repeated.split()[-2])
         self.assertEqual(Upstream.seen, [], 'none of these reached the model server')
 
     def test_only_a_model_this_gateway_listed_can_be_used(self):

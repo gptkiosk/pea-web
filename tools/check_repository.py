@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan this public web Git index only; never traverse an operator/native checkout."""
+"""Scan this public Git index only (web files and the Mac launcher); never traverse an operator/native checkout."""
 from pathlib import Path, PurePosixPath
 import json
 import re
@@ -17,11 +17,19 @@ for name in names:
     p = PurePosixPath(name)
     if p.is_absolute() or str(p) != name or any(n in ('.', '..') or n.startswith('.') for n in p.parts):
         raise SystemExit('Unsafe public program path.')
+mac_names = json.loads((ROOT / 'mac/MAC-FILES.json').read_text())
+if (not isinstance(mac_names, list) or any(not isinstance(n, str) for n in mac_names)
+        or len(mac_names) != len(set(mac_names))):
+    raise SystemExit('Invalid Mac launcher allowlist.')
+for name in mac_names:
+    p = PurePosixPath(name)
+    if p.is_absolute() or str(p) != name or any(n in ('.', '..') or n.startswith('.') for n in p.parts):
+        raise SystemExit('Unsafe Mac launcher path.')
 root_files = {'README.md', 'LICENSE', 'NOTICE', 'AGENTS.md', 'HANDOFF.md', 'SECURITY.md',
               'CONTRIBUTING.md', 'SPLIT-ORIGIN.json', '.gitignore', 'tools/check_repository.py',
               '.github/workflows/checks.yml', '.github/PULL_REQUEST_TEMPLATE.md',
               '.github/ISSUE_TEMPLATE/improvement.yml'}
-allowed = root_files | {'browser/' + name for name in names}
+allowed = root_files | {'browser/' + name for name in names} | {'mac/' + name for name in mac_names}
 blocked_parts = {'standalone', 'ios', 'voice_runtime', '.runtime', 'runtime', 'node_modules',
                  '__pycache__', 'venv', '.venv', 'data', 'logs', 'backups', '.pea-build'}
 patterns = {
@@ -39,7 +47,7 @@ for entry in filter(None, git('ls-files', '--stage', '-z').split(b'\0')):
     if mode not in (b'100644', b'100755') or stage != b'0':
         errors.append((name, 'symlink, submodule or unresolved index entry')); continue
     if name not in allowed or set(path.parts) & blocked_parts:
-        errors.append((name, 'not public web source')); continue
+        errors.append((name, 'not listed public source')); continue
     data = git('show', ':' + name)
     if len(data) > 2_000_000:
         errors.append((name, 'oversized source')); continue
