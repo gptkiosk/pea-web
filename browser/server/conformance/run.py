@@ -439,6 +439,36 @@ class Conformance(unittest.TestCase):
         for thread in threads: thread.join()
         self.assertEqual(results, [200] * 25)
 
+    def test_six_tabs_loading_at_once_lose_no_request(self):
+        # Each tab opens six connections at a time and every file is a new connection, as in a browser.
+        # Thirty-six connections is well inside the limit, so a refusal here means finished
+        # connections are still being counted.
+        names = ['/'] + ['/' + name for name in CONTRACT['assets'] if (BROWSER / name).is_file()]
+        problems, lock = [], threading.Lock()
+        def tab():
+            for _ in range(8):
+                todo = list(names)
+                def worker():
+                    while True:
+                        with lock:
+                            if not todo:
+                                return
+                            name = todo.pop()
+                        try:
+                            status = self.call('GET', name)[0]
+                        except OSError as error:
+                            status = type(error).__name__
+                        if status != 200:
+                            with lock:
+                                problems.append((name, status))
+                workers = [threading.Thread(target=worker) for _ in range(6)]
+                for thread in workers: thread.start()
+                for thread in workers: thread.join()
+        tabs = [threading.Thread(target=tab) for _ in range(6)]
+        for thread in tabs: thread.start()
+        for thread in tabs: thread.join()
+        self.assertEqual(problems, [], f'{len(problems)} of {6 * 8 * len(names)} requests failed')
+
     def test_connections_beyond_the_limit_are_closed_unanswered(self):
         held = []
         try:

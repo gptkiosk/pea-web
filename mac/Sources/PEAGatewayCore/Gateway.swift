@@ -236,8 +236,12 @@ final class Client {
         idle = after(contract.readTimeoutSeconds) { self.close() }
     }
 
+    /// Closes the connection and gives its place back at once. Waiting for the system to report the
+    /// close would leave finished connections counted for a moment, and a busy page load would then
+    /// run into the connection limit and be refused.
     private func close() {
         connection.cancel()
+        finished()
     }
 
     /// Runs once when the connection is gone, however that happened. The retain cycle through the
