@@ -31,6 +31,7 @@ SERVER = Path(__file__).resolve().parents[1]
 BROWSER = SERVER.parent
 CONTRACT = json.loads((SERVER / 'contract.json').read_text())
 LIMITS = CONTRACT['limits']
+READER = CONTRACT['reader']
 TOKEN = secrets.token_urlsafe(32)
 
 
@@ -80,6 +81,104 @@ class Upstream(BaseHTTPRequestHandler):
         self.wfile.write(b'data: {"choices":[{"delta":{"content":"Synthetic"}}]}\n\ndata: [DONE]\n\n')
 
 
+class Site(BaseHTTPRequestHandler):
+    """A synthetic public web site for the page reader, reached only through the gateway's test stand-in."""
+    protocol_version = 'HTTP/1.1'
+    seen = []
+    big = 0
+
+    def log_message(self, *_args):
+        pass
+
+    def send(self, status, kind, body, extra=()):
+        self.send_response(status)
+        if kind:
+            self.send_header('Content-Type', kind)
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Connection', 'close')
+        for name, value in extra:
+            self.send_header(name, value)
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except OSError:
+            pass  # the reader hung up, as it does on a page that is too large
+
+    def do_GET(self):
+        type(self).seen.append((self.path, {k.lower(): v for k, v in self.headers.items()}))
+        html = '<!doctype html><title>Synthetic</title><p>Zo\u00eb\u2019s caf\u00e9 \U0001F331</p><script>alert(1)</script>'.encode()
+        route = self.path.split('?')[0]
+        if route == '/page':
+            return self.send(200, 'text/html; charset=utf-8', html)
+        if route == '/plain':
+            return self.send(200, 'Text/Plain', b'Plain synthetic text.\n')
+        if route == '/xhtml':
+            return self.send(200, 'application/xhtml+xml', b'<html xmlns="http://www.w3.org/1999/xhtml"><body>x</body></html>')
+        if route == '/empty':
+            return self.send(200, 'text/plain', b'')
+        if route == '/bom':
+            return self.send(200, 'text/plain', b'\xef\xbb\xbfAfter the mark')
+        if route == '/chunked':
+            self.send_response(200); self.send_header('Content-Type', 'text/html'); self.send_header('Transfer-Encoding', 'chunked')
+            self.send_header('Connection', 'close'); self.end_headers()
+            for piece in (html[:10], html[10:11], html[11:]):
+                self.wfile.write(b'%x;note=1\r\n' % len(piece) + piece + b'\r\n')
+            self.wfile.write(b'0\r\nTrailer: x\r\n\r\n')
+            return
+        if route == '/until-close':
+            self.send_response(200); self.send_header('Content-Type', 'text/plain'); self.send_header('Connection', 'close'); self.end_headers()
+            self.wfile.write(b'No length was given.'); self.close_connection = True
+            return
+        if route == '/moved':
+            return self.send(301, 'text/html', b'moved', [('Location', 'https://other.pea-conformance.example/page?a=1#part')])
+        if route == '/moved-here':
+            return self.send(302, None, b'', [('Location', '/page?from=moved')])
+        if route in ('/moved-plain', '/moved-inside', '/moved-number', '/moved-nowhere', '/moved-odd'):
+            target = {'/moved-plain': 'http://other.pea-conformance.example/page', '/moved-inside': 'https://printer.local/',
+                      '/moved-number': 'https://127.0.0.1/', '/moved-nowhere': None, '/moved-odd': '//other.pea-conformance.example/page'}[route]
+            return self.send(307, None, b'', [('Location', target)] if target else [])
+        if route == '/missing':
+            return self.send(404, 'text/html', b'SYNTHETIC SITE DETAIL')
+        if route == '/broken':
+            return self.send(500, 'text/html', b'SYNTHETIC SITE DETAIL')
+        if route == '/image':
+            return self.send(200, 'image/png', b'\x89PNG')
+        if route == '/json':
+            return self.send(200, 'application/json', b'{}')
+        if route == '/untyped':
+            return self.send(200, None, b'no type')
+        if route == '/packed':
+            return self.send(200, 'text/html', b'\x1f\x8b', [('Content-Encoding', 'gzip')])
+        if route == '/latin':
+            return self.send(200, 'text/html; charset=iso-8859-1', b'caf\xe9')
+        if route == '/big':
+            return self.send(200, 'text/plain', b'x' * (type(self).big + 1))
+        if route == '/just-fits':
+            return self.send(200, 'text/plain', b'x' * type(self).big)
+        if route == '/big-unannounced':
+            self.send_response(200); self.send_header('Content-Type', 'text/plain'); self.send_header('Connection', 'close'); self.end_headers()
+            try:
+                for _ in range(type(self).big // 65536 + 2):
+                    self.wfile.write(b'x' * 65536)
+            except OSError:
+                pass
+            self.close_connection = True
+            return
+        if route == '/slow':
+            self.send_response(200); self.send_header('Content-Type', 'text/plain'); self.send_header('Connection', 'close'); self.end_headers()
+            try:
+                for _ in range(60):
+                    self.wfile.write(b'drip '); self.wfile.flush(); time.sleep(0.5)
+            except OSError:
+                pass
+            self.close_connection = True
+            return
+        if route == '/garbage':
+            self.wfile.write(b'this is not HTTP\r\n\r\n'); self.close_connection = True
+            return
+        self.send(404, 'text/plain', b'no such synthetic page')
+
+
 def free_port():
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 0))
@@ -97,11 +196,33 @@ class Conformance(unittest.TestCase):
         fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w') as stream:
             stream.write(TOKEN + '\n')
+        Site.big = CONTRACT['reader']['bodyBytes']
+        cls.site = ThreadingHTTPServer(('127.0.0.1', 0), Site)
+        cls.site.daemon_threads = True
+        threading.Thread(target=cls.site.serve_forever, daemon=True).start()
+        cls.closed_port = free_port()
         cls.port = free_port()
         command = json.loads(os.environ.get('PEA_GATEWAY_COMMAND') or json.dumps([sys.executable, str(SERVER / 'gateway.py')]))
         cls.process = subprocess.Popen(
             [*command, '--port', str(cls.port), '--upstream', f'http://127.0.0.1:{cls.upstream.server_port}',
-             '--token-file', str(token_file), *(['--root', str(BROWSER)] if os.environ.get('PEA_GATEWAY_COMMAND') else [])],
+             '--token-file', str(token_file), *(['--root', str(BROWSER)] if os.environ.get('PEA_GATEWAY_COMMAND') else []),
+             # Stand-ins for public sites. A real name can never be given a local address this way.
+             '--reader-test-site', f'site.pea-conformance.example={cls.site.server_port}',
+             '--reader-test-site', f'other.pea-conformance.example={cls.site.server_port}',
+             '--reader-test-site', f'down.pea-conformance.example={cls.closed_port}',
+             '--reader-test-resolve', 'loopback.pea-conformance.example=127.0.0.1',
+             '--reader-test-resolve', 'private.pea-conformance.example=10.1.2.3',
+             '--reader-test-resolve', 'metadata.pea-conformance.example=169.254.169.254',
+             '--reader-test-resolve', 'six.pea-conformance.example=::1',
+             '--reader-test-resolve', 'mapped.pea-conformance.example=::ffff:127.0.0.1',
+             '--reader-test-resolve', 'ula.pea-conformance.example=fd00::1',
+             '--reader-test-resolve', 'linklocal.pea-conformance.example=fe80::1',
+             '--reader-test-resolve', 'mixed.pea-conformance.example=203.0.114.7,192.168.1.10',
+             '--reader-test-resolve', 'mixed-six.pea-conformance.example=2600::1,fc00::2',
+             '--reader-test-resolve', 'cgnat.pea-conformance.example=100.64.0.1',
+             '--reader-test-resolve', 'zero.pea-conformance.example=0.0.0.0',
+             '--reader-test-resolve', 'nat64.pea-conformance.example=64:ff9b::7f00:1',
+             '--reader-test-resolve', 'sixtofour.pea-conformance.example=2002:7f00:1::1'],
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         cls.host = f'127.0.0.1:{cls.port}'
         cls.origin = 'http://' + cls.host
@@ -125,12 +246,14 @@ class Conformance(unittest.TestCase):
             cls.process.kill()
         cls.process.stderr.close()
         cls.upstream.shutdown(); cls.upstream.server_close()
+        cls.site.shutdown(); cls.site.server_close()
         cls.folder.cleanup()
 
     def setUp(self):
         Upstream.mode = 'normal'
         Upstream.seen.clear()
         Upstream.release.clear()
+        Site.seen.clear()
 
     # --- helpers -------------------------------------------------------------------------
     def call(self, method, path, body=None, headers=None, token=None, timeout=10):
@@ -454,6 +577,148 @@ class Conformance(unittest.TestCase):
             self.assertIn(self.call('POST', other, token=TOKEN, body={'reminders': []})[0], (401, 404), other)
             self.assertIn(self.call('GET', other, token=TOKEN)[0], (401, 404), other)
         self.assertEqual(Upstream.seen, [], 'reminders never reach the model server')
+
+    # --- the page reader ----------------------------------------------------------------------
+
+    def read(self, url, **more):
+        status, headers, body = self.call('POST', READER['path'], token=TOKEN, body={'url': url}, timeout=30, **more)
+        self.assert_contract_headers(headers, 'reader ' + str(status))
+        return status, json.loads(body)
+
+    def test_the_reader_returns_a_public_text_page_and_sends_nothing_of_the_owners(self):
+        site = 'https://site.pea-conformance.example'
+        status, answer = self.read(site + '/page?q=1&r=%20x', headers={'Origin': self.origin, 'Cookie': 'session=SYNTHETIC', 'X-Extra': 'SYNTHETIC'})
+        self.assertEqual(status, 200)
+        self.assertEqual(answer, {'outcome': 'page', 'url': site + '/page?q=1&r=%20x', 'type': 'text/html',
+                                  'text': '<!doctype html><title>Synthetic</title><p>Zo\u00eb\u2019s caf\u00e9 \U0001F331</p><script>alert(1)</script>'})
+        path, sent = Site.seen[-1]
+        self.assertEqual(path, '/page?q=1&r=%20x', 'the address is passed on exactly')
+        self.assertEqual(sent.get('host'), 'site.pea-conformance.example')
+        self.assertEqual(sent.get('user-agent'), READER['userAgent'])
+        self.assertEqual(sent.get('accept'), READER['accept'])
+        self.assertEqual(sent.get('accept-encoding'), 'identity')
+        self.assertEqual(set(sent) - {'host', 'user-agent', 'accept', 'accept-encoding', 'connection'}, set(),
+                         'no token, cookie, origin, referrer or other header of the owner reaches the site')
+        self.assertNotIn(TOKEN, json.dumps(Site.seen))
+        for path, kind, text in (('/plain', 'text/plain', 'Plain synthetic text.\n'), ('/xhtml', 'application/xhtml+xml', None), ('/empty', 'text/plain', ''),
+                                 ('/bom', 'text/plain', 'After the mark'), ('/chunked', 'text/html', None), ('/until-close', 'text/plain', 'No length was given.'),
+                                 ('', 'text/plain', None), ('?x=1', 'text/plain', None)):
+            if path in ('', '?x=1'):
+                continue  # these ask the fake site for "/", which it does not have; checked below
+            status, answer = self.read(site + path)
+            self.assertEqual((status, answer.get('outcome'), answer.get('type')), (200, 'page', kind), path)
+            if text is not None:
+                self.assertEqual(answer['text'], text, path)
+        self.assertIn('caf\u00e9', self.read(site + '/chunked')[1]['text'], 'a page sent in pieces is put back together')
+        self.assertEqual(self.read(site + ':443/plain')[0], 200, 'the usual port may be written out')
+        self.assertEqual(self.read('https://SITE.pea-conformance.EXAMPLE/plain')[0], 200, 'capital letters in the name are fine')
+        self.read(site)
+        self.assertEqual(Site.seen[-1][0], '/', 'no path means the front page')
+        self.read(site + '?x=1')
+        self.assertEqual(Site.seen[-1][0], '/?x=1')
+        status, answer = self.read(site + '/just-fits')
+        self.assertEqual((status, len(answer.get('text', ''))), (200, READER['bodyBytes']), 'a page of exactly the limit is read')
+
+    def test_the_reader_never_follows_a_redirect(self):
+        site = 'https://site.pea-conformance.example'
+        before = len(Site.seen)
+        status, answer = self.read(site + '/moved')
+        self.assertEqual((status, answer), (200, {'outcome': 'redirect', 'url': site + '/moved',
+                                                  'location': 'https://other.pea-conformance.example/page?a=1'}))
+        status, answer = self.read(site + '/moved-here')
+        self.assertEqual((status, answer.get('location')), (200, site + '/page?from=moved'), 'a path on the same site is completed')
+        self.assertEqual([path for path, _ in Site.seen[before:]], ['/moved', '/moved-here'], 'the new address was not asked for')
+        for path in ('/moved-plain', '/moved-inside', '/moved-number', '/moved-nowhere', '/moved-odd'):
+            status, answer = self.read(site + path)
+            self.assertEqual((status, set(answer)), (502, {'error'}), path + ' leads somewhere the reader will not go')
+            self.assertNotIn('printer', json.dumps(answer))
+
+    def test_the_reader_refuses_everything_that_is_not_a_small_public_text_page(self):
+        site = 'https://site.pea-conformance.example'
+        for path in ('/missing', '/broken'):
+            status, answer = self.read(site + path)
+            self.assertEqual((status, answer.get('status')), (502, 404 if path == '/missing' else 500), path)
+            self.assertNotIn('SYNTHETIC SITE DETAIL', json.dumps(answer), 'an error page is not passed on')
+        for path in ('/image', '/json', '/untyped', '/packed', '/latin', '/big', '/big-unannounced', '/garbage', '/nothing-here'):
+            status, answer = self.read(site + path)
+            self.assertEqual((status, 'text' in answer, 'outcome' in answer), (502, False, False), path)
+        self.assertEqual(self.read('https://down.pea-conformance.example/page')[0], 502, 'a site that is not answering')
+        # Pages that never finish are given up on, and only a few reads run at once.
+        started = time.monotonic()
+        results = []
+        slow = [threading.Thread(target=lambda: results.append(self.read(site + '/slow')[0])) for _ in range(READER['concurrent'])]
+        for thread in slow:
+            thread.start()
+        deadline = time.monotonic() + 5
+        while sum(1 for path, _ in Site.seen if path == '/slow') < READER['concurrent'] and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertEqual(self.read(site + '/page')[0], 429, 'one more read than the limit is refused, not queued')
+        for thread in slow:
+            thread.join(READER['seconds'] + 10)
+        self.assertEqual(results, [502] * READER['concurrent'])
+        self.assertLess(time.monotonic() - started, READER['seconds'] + 6)
+        self.assertEqual(self.read(site + '/page')[0], 200, 'and the reader is free again afterwards')
+
+    def test_the_reader_never_contacts_a_private_or_local_address(self):
+        Site.seen.clear()
+        for name in ('loopback', 'private', 'metadata', 'six', 'mapped', 'ula', 'linklocal', 'mixed', 'mixed-six', 'cgnat', 'zero', 'nat64', 'sixtofour'):
+            status, answer = self.read(f'https://{name}.pea-conformance.example/page')
+            self.assertEqual((status, set(answer)), (422, {'error'}), name + ' leads to an address that is never read')
+        bad = [
+            'http://site.pea-conformance.example/page', 'HTTPS://site.pea-conformance.example/page', 'ftp://site.pea-conformance.example/',
+            'https://site.pea-conformance.example:8443/page', f'https://site.pea-conformance.example:{self.site.server_port}/page',
+            'https://site.pea-conformance.example:443:443/', 'https://site.pea-conformance.example:/',
+            'https://user@site.pea-conformance.example/page', 'https://user:pw@site.pea-conformance.example/page',
+            'https://site.pea-conformance.example/page#part', 'https://site.pea-conformance.example/a b',
+            'https://site.pea-conformance.example\\@evil.example/', 'https://site.pea-conformance.example/caf\u00e9',
+            'https://caf\u00e9.pea-conformance.example/', 'https://site.pea-conformance.example/\n', 'https://site.pea-conformance.example/\u0000',
+            'https://127.0.0.1/', f'https://127.0.0.1:{self.site.server_port}/page', 'https://2130706433/', 'https://0x7f.0.0.1/', 'https://0177.0.0.1/',
+            'https://127.1/', 'https://[::1]/', 'https://[::ffff:127.0.0.1]/', 'https://10.0.0.1/', 'https://169.254.169.254/latest/meta-data/',
+            'https://localhost/', 'https://localhost.localdomain/', 'https://printer.local/', 'https://server.internal/', 'https://router.lan/',
+            'https://nas.home/', 'https://1.0.0.127.in-addr.arpa/', 'https://hidden.onion/', 'https://unlisted.example/', 'https://anything.test/',
+            'https://single/', 'https://.pea-conformance.example/', 'https://site..example/', 'https://site.pea-conformance.example./',
+            'https://-site.pea-conformance.example/', 'https://' + 'a' * 64 + '.pea-conformance.example/', 'https://' + '.'.join(['a' * 60] * 5) + '.org/',
+            'https://site.pea-conformance.example/' + 'x' * READER['urlCharacters'], 'https://', 'site.pea-conformance.example/page', '',
+            f'http://127.0.0.1:{self.upstream.server_port}/v1/models', f'https://127.0.0.1:{self.port}/v1/models',
+        ]
+        for url in bad:
+            status, answer = self.read(url)
+            self.assertEqual((status, set(answer)), (400, {'error'}), url[:80])
+        for body in ({}, {'url': 7}, {'url': None}, {'url': ['https://site.pea-conformance.example/page']}, {'address': 'https://site.pea-conformance.example/page'},
+                     {'url': 'https://site.pea-conformance.example/page', 'method': 'POST'}, {'url': 'https://site.pea-conformance.example/page', 'headers': {}},
+                     [], 'https://site.pea-conformance.example/page', None):
+            self.assertEqual(self.call('POST', READER['path'], token=TOKEN, body=json.dumps(body).encode(), headers={'Content-Type': 'application/json'})[0], 400, json.dumps(body)[:60])
+        for body in (b'{"url":"https://site.pea-conformance.example/page","url":"https://site.pea-conformance.example/plain"}', b'{not json', b''):
+            self.assertEqual(self.call('POST', READER['path'], token=TOKEN, body=body, headers={'Content-Type': 'application/json'})[0], 400)
+        self.assertEqual(Site.seen, [], 'none of these reached any site')
+        self.assertEqual(Upstream.seen, [], 'and none reached the model server')
+
+    @unittest.skipUnless(os.environ.get('PEA_CONFORMANCE_LIVE') == '1', 'set PEA_CONFORMANCE_LIVE=1 to read real public sites')
+    def test_the_reader_against_real_sites_when_asked(self):
+        """The only test that uses the internet. It checks what the stand-in sites cannot: real name
+        lookups, connecting to the checked address, and certificates."""
+        status, answer = self.read('https://example.com/')
+        self.assertEqual((status, answer.get('outcome'), answer.get('type')), (200, 'page', 'text/html'))
+        self.assertIn('Example Domain', answer['text'])
+        # A public name that deliberately points at this machine.
+        self.assertEqual(self.read('https://localtest.me/')[0], 422)
+        # Certificates that are expired, for another name, or signed by nobody known.
+        for name in ('expired', 'wrong.host', 'self-signed', 'untrusted-root'):
+            self.assertEqual(self.read(f'https://{name}.badssl.com/')[0], 502, name)
+        self.assertEqual(self.read('https://no-such-name.pea-conformance.invalid-tld-for-test.org/')[0], 502)
+
+    def test_the_reader_needs_the_token_and_is_not_a_way_around_the_other_checks(self):
+        url = {'url': 'https://site.pea-conformance.example/page'}
+        self.assertEqual(self.call('POST', READER['path'], body=url)[0], 401)
+        self.assertEqual(self.call('POST', READER['path'] + '?token=' + TOKEN, body=url)[0], 401)
+        self.assertEqual(self.call('POST', READER['path'], token='x' * 43, body=url)[0], 401)
+        self.assertEqual(self.call('POST', READER['path'], token=TOKEN, body=url, headers={'Origin': 'https://evil.example'})[0], 403)
+        self.assertEqual(self.call('POST', READER['path'], token=TOKEN, body=url, headers={'Host': 'evil.example'})[0], 403)
+        self.assertIn(self.call('GET', READER['path'], token=TOKEN)[0], (404, 405), 'reading is asked for with POST only')
+        self.assertIn(self.call('GET', READER['path'] + '?url=https://site.pea-conformance.example/page', token=TOKEN)[0], (404, 405))
+        for other in (READER['path'] + '/', READER['path'] + '/x', '/' + READER['path'], '/api/read', '/v1/fetch', '/v1/proxy'):
+            self.assertIn(self.call('POST', other, token=TOKEN, body=url)[0], (401, 404), other)
+        self.assertEqual(Site.seen, [], 'nothing was read')
 
     def test_no_other_route_method_or_proxying_exists(self):
         self.assertEqual(self.call('GET', '/v1/other', token=TOKEN)[0], 404)

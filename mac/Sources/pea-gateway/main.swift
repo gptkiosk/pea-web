@@ -32,12 +32,30 @@ func fail(_ message: String) -> Never {
 
 var values = ["--port": "18770", "--upstream": "http://127.0.0.1:11434"]
 var arguments = Array(CommandLine.arguments.dropFirst())
+var testSites = [String: UInt16]()
+var testResolve = [String: [String]]()
 while !arguments.isEmpty {
     let name = arguments.removeFirst()
-    guard ["--port", "--upstream", "--token-file", "--root", "--reminders-file"].contains(name), !arguments.isEmpty else {
+    guard ["--port", "--upstream", "--token-file", "--root", "--reminders-file", "--reader-test-site", "--reader-test-resolve"].contains(name), !arguments.isEmpty else {
         fail("Usage: pea-gateway --root BROWSER_DIR --token-file PATH [--port N] [--upstream http://127.0.0.1:PORT]")
     }
-    values[name] = arguments.removeFirst()
+    let value = arguments.removeFirst()
+    // Stand-ins for public sites, for tests only: NAME.example=PORT and NAME.example=ADDRESS[,ADDRESS].
+    if name.hasPrefix("--reader-test-") {
+        let parts = value.split(separator: "=", maxSplits: 1).map(String.init)
+        guard parts.count == 2, parts[0].hasSuffix(".example"), !parts[1].isEmpty else { fail("A reader test name must end in .example and have a value.") }
+        if name == "--reader-test-site" {
+            guard let port = UInt16(parts[1]) else { fail("A reader test site needs a port.") }
+            testSites[parts[0]] = port
+        } else {
+            testResolve[parts[0]] = parts[1].split(separator: ",").map(String.init)
+        }
+        continue
+    }
+    values[name] = value
+}
+if !testSites.isEmpty || !testResolve.isEmpty {
+    FileHandle.standardError.write(Data("TEST MODE: the page reader has stand-in sites. Never use these options outside tests.\n".utf8))
 }
 guard let rootPath = values["--root"], let tokenFile = values["--token-file"] else { fail("Both --root and --token-file are required.") }
 guard let port = UInt16(values["--port"]!), port >= 1 else { fail("Choose a valid port.") }
@@ -48,8 +66,11 @@ do {
         fail("The web files were not found at that --root.")
     }
     let token = try readTokenFile((tokenFile as NSString).expandingTildeInPath, contract: try Contract(data: rules))
-    let gateway = try Gateway(Gateway.Options(port: port, token: token, upstream: values["--upstream"]!, root: root,
-                                              reminders: values["--reminders-file"].map { FileReminders(path: $0) }))
+    var options = Gateway.Options(port: port, token: token, upstream: values["--upstream"]!, root: root,
+                                  reminders: values["--reminders-file"].map { FileReminders(path: $0) })
+    options.readerTestSites = testSites
+    options.readerTestResolve = testResolve
+    let gateway = try Gateway(options)
     gateway.start { error in
         if let error { fail("PEA could not start on port \(port): \(error.localizedDescription)") }
         print("PEA is running at http://127.0.0.1:\(port)/")

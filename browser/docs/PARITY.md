@@ -41,7 +41,7 @@ How to read the status columns:
 | Moving interview answers between apps (profile file) | Built: export and import, web to web | Not yet | The file format is now a shared contract with fixtures ([CONTRACTS.md](CONTRACTS.md#the-profile-file)); the iPhone app has to adopt it in its own change before a file can go either way |
 | Encrypted backup and restore | Built, Web-only files | Built, one file per profile in the PEA folder | iPhone-readable backup on Web: not yet, after 0.2 |
 | Weather | Built: a card on Today for one place the owner types | Built | Web asks Open-Meteo directly from the browser after a review; shown to the owner only, never given to a model; free service is for non-commercial use |
-| Public research, headlines, Home card | Not yet, 0.2 | Built | Web needs a server-side fetcher that checks resolved addresses |
+| Public research, headlines, Home card | Not yet, 0.2. The gateway's page reader is built; nothing in the app uses it yet | Built | Next: the page's review and reading flow, then headlines and the Home card |
 | Her history cards, daily life and life timeline | Not yet, 0.2 | Built | |
 | Deck projects | Not yet, 0.2 | Built | Behavior to be confirmed first |
 | Automatic sync between devices | Not yet | Not yet | |

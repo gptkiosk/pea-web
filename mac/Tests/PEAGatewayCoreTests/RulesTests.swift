@@ -129,6 +129,55 @@ final class RulesTests: XCTestCase {
         }
     }
 
+    // MARK: Page reader
+
+    func testOnlyANamedPublicHTTPSAddressCanBeRead() throws {
+        let reader = contract.reader
+        for (url, host, path) in [("https://example.org/", "example.org", "/"), ("https://Example.ORG", "example.org", "/"),
+                                  ("https://a.b.co:443/x?y=1", "a.b.co", "/x?y=1"), ("https://xn--bcher-kva.de/a", "xn--bcher-kva.de", "/a"),
+                                  ("https://a.io?q=1", "a.io", "/?q=1")] {
+            let target = try reader.target(url)
+            XCTAssertEqual(target.host, host, url)
+            XCTAssertEqual(target.path, path, url)
+        }
+        for bad in ["http://example.org/", "HTTPS://a.org/", "https://example.org:8443/", "https://user@example.org/", "https://127.0.0.1/",
+                    "https://2130706433/", "https://0x7f.1/", "https://[::1]/", "https://localhost/", "https://printer.local/", "https://a.internal/",
+                    "https://example.org/#f", "https://example.org/a b", "https://example.org\\@evil.org/", "https://-a.org/", "https://a..org/",
+                    "https://a.org./", "https://a.b.c.1/", "https://site.example/", "https://a.org:443:443/", "https://a.org:/", "https://a.org/é",
+                    "https://", "", "https://a.org/" + String(repeating: "x", count: 2000)] {
+            XCTAssertThrowsError(try reader.target(bad), bad)
+        }
+        XCTAssertEqual(try reader.target("https://site.example/x", allowed: ["site.example"]).host, "site.example", "a test stand-in is allowed only by name")
+    }
+
+    func testPrivateAndLocalAddressesAreRefused() {
+        let reader = contract.reader
+        for inside in ["127.0.0.1", "127.255.255.254", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.1", "169.254.169.254", "100.64.0.1",
+                       "0.0.0.0", "255.255.255.255", "224.0.0.1", "198.18.0.1", "::1", "::", "fe80::1%en0", "fd00::1", "fc00::2", "::ffff:10.0.0.1",
+                       "::ffff:8.8.8.8", "64:ff9b::7f00:1", "2002:7f00:1::1", "2001:db8::1", "ff02::1", "not an address", ""] {
+            XCTAssertTrue(reader.refuses(address: inside), inside)
+        }
+        for outside in ["93.184.216.34", "8.8.8.8", "172.32.0.1", "172.15.255.255", "100.128.0.1", "198.20.0.1", "2606:2800:220:1:248:1893:25c8:1946", "2600::1"] {
+            XCTAssertFalse(reader.refuses(address: outside), outside)
+        }
+    }
+
+    func testAPageSentInPiecesIsPutBackTogetherOrRefused() throws {
+        struct Large: Error {}
+        func pieces(_ text: String, limit: Int = 100) throws -> String? {
+            try PageRead.unchunk(Data(text.utf8), limit: limit, large: Large()).map { String(decoding: $0, as: UTF8.self) }
+        }
+        XCTAssertEqual(try pieces("5\r\nHello\r\n1;x=y\r\n,\r\nA\r\n world 012\r\n0\r\n\r\n"), "Hello, world 012")
+        XCTAssertEqual(try pieces("0\r\n\r\n"), "")
+        XCTAssertNil(try pieces("5\r\nHel"), "not finished yet")
+        XCTAssertNil(try pieces("5\r\nHello\r\n"), "the last piece has not come")
+        XCTAssertNil(try pieces("5"), "a size that is still arriving")
+        for broken in ["zz\r\nHello\r\n0\r\n\r\n", "-5\r\nHello\r\n", "5\r\nHelloXX0\r\n\r\n", "\r\nHello\r\n", "123456789\r\nx\r\n"] {
+            XCTAssertThrowsError(try pieces(broken), broken)
+        }
+        XCTAssertThrowsError(try pieces("5\r\nHello\r\n5\r\nagain\r\n0\r\n\r\n", limit: 9)) { XCTAssertTrue($0 is Large) }
+    }
+
     func testModelNamesAndTokensFollowTheSharedPatterns() {
         for name in ["tiny:test", "second/model@v1", "a", String(repeating: "x", count: 100), "org/model-1.5+q4"] { XCTAssertTrue(contract.isModelID(name), name) }
         for name in ["", "bad model", String(repeating: "x", count: 101), "tiny\n", "tiny\u{0}", "модель", "a?b", "a#b", "a%20b"] { XCTAssertFalse(contract.isModelID(name), name) }

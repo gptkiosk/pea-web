@@ -14,6 +14,10 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         public var root: URL
         /// What shows reminders as notifications. Without one, the gateway says reminders are not available.
         public var reminders: ReminderSink?
+        /// Tests only: names the page reader is served from a plain HTTP port on this Mac, and names
+        /// given fixed addresses in place of a DNS answer. The app never sets either.
+        public var readerTestSites = [String: UInt16]()
+        public var readerTestResolve = [String: [String]]()
 
         public init(port: UInt16, token: String, upstream: String, root: URL, reminders: ReminderSink? = nil) {
             self.port = port
@@ -32,6 +36,9 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
     let hosts: Set<String>
     let origins: Set<String>
     let reminders: ReminderSink?
+    let readerTestSites: [String: UInt16]
+    let readerTestResolve: [String: [String]]
+    var pageReads = 0
     let queue = DispatchQueue(label: "pea.gateway")
 
     private var listener: NWListener?
@@ -56,6 +63,8 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         upstream = try Upstream(options.upstream)
         port = options.port
         reminders = options.reminders
+        readerTestSites = options.readerTestSites
+        readerTestResolve = options.readerTestResolve
         hosts = Set(["127.0.0.1", "localhost", "[::1]"].map { $0 + ":" + String(options.port) })
         origins = Set(hosts.map { "http://" + $0 })
         super.init()
@@ -213,6 +222,7 @@ final class Client {
     private var answered = false
     private var closed = false
     private var holdsModelSlot = false
+    private var pageRead: PageRead?
     private var call: Gateway.UpstreamCall?
 
     private var contract: Contract { gateway.contract }
@@ -267,6 +277,7 @@ final class Client {
         call?.cancel()
         call = nil
         releaseModelSlot()
+        endPageRead()
         connection.stateUpdateHandler = nil
         gateway.clientClosed(self)
     }
@@ -315,7 +326,7 @@ final class Client {
             route(head!)
         } else if buffer.count - bodyStart >= bodyLength {
             let body = buffer.subdata(in: buffer.startIndex + bodyStart..<buffer.startIndex + bodyStart + bodyLength)
-            if head?.target == contract.remindersPath { remind(body) } else { chat(body) }
+            if head?.target == contract.remindersPath { remind(body) } else if head?.target == contract.reader.path { read(body) } else { chat(body) }
         }
     }
 
@@ -358,13 +369,15 @@ final class Client {
             }
         case "POST":
             guard allowed(head, needsToken: true) else { return }
-            let forReminders = head.target == contract.remindersPath
-            guard forReminders || head.target == "/v1/chat/completions" else { return reply(404, error: "Only model listing, text chat and reminders are exposed.") }
+            let forReminders = head.target == contract.remindersPath, forReader = head.target == contract.reader.path
+            guard forReminders || forReader || head.target == "/v1/chat/completions" else {
+                return reply(404, error: "Only model listing, text chat, reminders and the page reader are exposed.")
+            }
             let type = head.headers["content-type"].map { String($0.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)[0]) }
             guard type == "application/json", head.headers["transfer-encoding"] == nil, let text = head.headers["content-length"],
                   (1...7).contains(text.count), text.allSatisfy({ ("0"..."9").contains($0) }), let length = Int(text),
                   length > 0, length <= contract.requestBytes else {
-                return reply(400, error: forReminders ? "Invalid reminder list." : "Invalid or oversized text chat request.")
+                return reply(400, error: forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
             }
             bodyLength = length
             advance()
@@ -432,6 +445,32 @@ final class Client {
     // MARK: Chat
 
     private var streamLimit: DispatchWorkItem?
+
+    /// Reads one public page the owner approved. The rules and the reading itself are in Reader.swift.
+    private func read(_ raw: Data) {
+        guard case .object(let body)? = try? JSON.parse(raw), body.keys == ["url"], let url = body["url"]?.string else {
+            return reply(400, error: "Invalid read request.")
+        }
+        guard gateway.pageReads < contract.reader.concurrent else { return reply(429, error: "The reader is busy. No automatic retry.") }
+        gateway.pageReads += 1
+        deadline?.cancel()
+        idle?.cancel()
+        answered = true  // nothing more is read from the browser; the answer comes when the page has been read
+        let reading = PageRead(rules: contract.reader, url: url, sites: gateway.readerTestSites, fixed: gateway.readerTestResolve, queue: gateway.queue) { code, answer in
+            self.endPageRead()
+            self.send(code: code, body: JSON.serialize(.object(answer)), type: "application/json")
+        }
+        pageRead = reading
+        watchForDisconnect()
+        reading.start()
+    }
+
+    private func endPageRead() {
+        guard let reading = pageRead else { return }
+        pageRead = nil
+        reading.cancel()
+        gateway.pageReads -= 1
+    }
 
     /// Takes the owner's whole list of reminders. Only those still ahead are handed on, and only when
     /// something here can show them; the list is never kept or logged by the gateway itself.
