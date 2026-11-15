@@ -144,6 +144,30 @@ class GatewayChecks(unittest.TestCase):
         self.assertEqual(self.call('/browser/server/gateway.py', token='')[0], 404)
         self.assertEqual(self.call('/browser/docs/MEMORY.md', token='')[0], 404)
 
+    def test_every_rule_comes_from_the_shared_contract(self):
+        contract = json.loads(Path(g.__file__).with_name('contract.json').read_text())
+        self.assertEqual(contract['version'], 1)
+        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles'})
+        self.assertEqual(g.ASSETS, frozenset(contract['assets']))
+        self.assertEqual(len(contract['assets']), len(set(contract['assets'])))
+        for name in contract['assets']:
+            self.assertRegex(name, r'^[A-Za-z0-9][A-Za-z0-9._/-]*$')
+            self.assertNotIn('..', name)
+            self.assertFalse(name.startswith('server/'), 'server source is never served')
+        limits = contract['limits']
+        self.assertEqual((g.MAX_REQUEST, g.CLIENT_SLOTS, g.REQUEST_DEADLINE, g.BUILD_INFO_TTL),
+                         (limits['requestBytes'], limits['connections'], limits['requestDeadlineSeconds'], limits['buildInfoSeconds']))
+        self.assertTrue(all(type(v) in (int, float, str) for v in limits.values()))
+        # The values the review settled on. Changing one is a deliberate contract change.
+        self.assertEqual({k: limits[k] for k in ('requestBytes', 'messages', 'messageCharacters', 'maxTokens', 'concurrentModelRequests', 'connections', 'acceptBacklog', 'requestDeadlineSeconds', 'streamBytes')},
+                         {'requestBytes': 128000, 'messages': 64, 'messageCharacters': 64000, 'maxTokens': 4096, 'concurrentModelRequests': 2, 'connections': 64, 'acceptBacklog': 128, 'requestDeadlineSeconds': 20, 'streamBytes': 2000000})
+        with urllib.request.urlopen(self.base + '/') as response:
+            for name, value in contract['headers'].items():
+                self.assertEqual(response.headers[name], value, name)
+        self.assertIn("frame-ancestors 'none'", contract['headers']['Content-Security-Policy'])
+        with self.assertRaises(urllib.error.HTTPError) as blocked:
+            urllib.request.urlopen(self.base + '/server/contract.json')
+        self.assertEqual(blocked.exception.code, 404, 'the contract file itself is not served')
     def test_static_security_headers(self):
         status, data, headers = self.call('/browser/')
         self.assertEqual(status, 200)

@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## 0.2 begins: the Mac app, step 1 of 6 — 2026-11-15
+
+The owner chose the Mac app as the first piece of 0.2 and settled its shape: a menu-bar and Dock launcher that runs PEA's gateway and opens PEA in the owner's normal browser (no embedded web view, because Google sign-in and speech recognition do not work in one); the gateway rewritten in Swift inside the app so no Python is needed; the code in this repository under `mac/`; an unsigned development build first, with signing and notarization left to the owner. Six steps, one pull request each: (1) shared rules file, (2) black-box conformance suite against the Python gateway, (3) Swift gateway core and a command-line tool that passes the same suite, with a macOS CI job and the repository's web-only rules amended for `mac/`, (4) the browser suite against the Swift gateway, (5) the app itself, (6) a signing hand-off document.
+
+The plan exists to control one risk: two gateways drifting apart. Hence one source for the rules, one black-box suite run against both, and the whole browser suite run against the Swift one.
+
+Working method from the owner, 2026-11-15: design and security-sensitive code on the main model; test runs, repeated runs, CI watching and looking at the running app in Sonnet subagents that report compactly.
+
+**Step 1, branch `mac/shared-gateway-rules`, development identity `0.1.0-dev.30`.** `browser/server/contract.json` (version 1) now holds the static file allowlist, the headers sent on every answer, the headers of a streamed answer, every limit, the allowed chat fields and roles. `gateway.py` reads it at import and keeps no copy of any value; a new test checks the two agree, pins the limits the review settled on, checks the headers on a live answer and that the file itself is not served. No behavior change: 32 gateway and release tests pass on Python 3.9 and 3.14, 174 unit, 56 browser.
+
+A Sonnet test run exposed a harness weakness: one browser run hung for ten minutes. If starting the test stack stalled past a hook's time limit, the processes already started were never stopped and kept the run alive. `harness.mjs` now registers every process it starts, kills them when the run exits and never lets them hold it open; the gateway probe has a time limit; and starting the stack has its own 45-second limit that stops whatever was started.
+
 ## Stability pass — 2026-11-15
 
 Branch `test/stability-pass`, development identity `0.1.0-dev.29`. No application code changed; the pass found no new defects.

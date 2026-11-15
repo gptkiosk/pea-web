@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.30] - 2026-11-15
+
+### Changed
+
+- No change to how the app behaves. The gateway's rules (which files it serves, the security headers on every answer and every limit) now live in one file, `server/contract.json`, which the gateway reads when it starts. This prepares for a Mac app that will follow exactly the same rules.
+
 ## [0.1.0-dev.29] - 2026-11-15
 
 ### Changed

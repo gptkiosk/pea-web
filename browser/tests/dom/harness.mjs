@@ -40,6 +40,21 @@ function remove(folder) {
   }
 }
 
+// Every process this harness starts. If a test run is abandoned partway, for example when a hook
+// times out while something is still starting, nothing else would stop them and they would keep
+// the run alive for ever. They are killed when this process exits, and none of them keeps it alive.
+const children = new Set();
+function track(child) {
+  children.add(child);
+  child.once('exit', () => children.delete(child));
+  child.unref();
+  for (const stream of [child.stdout, child.stderr]) stream?.unref?.();
+  return child;
+}
+process.once('exit', () => {
+  for (const child of children) child.kill('SIGKILL');
+});
+
 // Ends a child process and never waits forever for it: a stuck browser is killed outright.
 function stop(child) {
   return new Promise((resolve) => {
@@ -141,24 +156,27 @@ export async function startGateway(upstreamPort) {
   if (setup.status !== 0) throw new Error('Gateway setup failed: ' + setup.stderr);
   const token = readFileSync(join(config, 'connection-token'), 'utf8').trim();
   const port = await freePort();
-  const child = spawn(
-    'python3',
-    [
-      'local.py',
-      'start',
-      '--config-dir',
-      config,
-      '--port',
-      String(port),
-      '--upstream',
-      `http://127.0.0.1:${upstreamPort}`,
-    ],
-    { cwd: serverFolder, stdio: ['ignore', 'pipe', 'pipe'] },
+  const child = track(
+    spawn(
+      'python3',
+      [
+        'local.py',
+        'start',
+        '--config-dir',
+        config,
+        '--port',
+        String(port),
+        '--upstream',
+        `http://127.0.0.1:${upstreamPort}`,
+      ],
+      { cwd: serverFolder, stdio: ['ignore', 'pipe', 'pipe'] },
+    ),
   );
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; ; attempt++) {
     try {
-      if ((await fetch(origin + '/')).ok) break;
+      // A connection that is accepted but never answered must not stall the whole run.
+      if ((await fetch(origin + '/', { signal: AbortSignal.timeout(1500) })).ok) break;
     } catch {
       // Not listening yet.
     }
@@ -339,7 +357,9 @@ export async function launchBrowser() {
   ];
   // Hosted CI runners do not allow Chrome's sandbox. The only pages opened are this repository's own.
   if (process.env.CI) flags.push('--no-sandbox');
-  const child = spawn(chromePath(), [...flags, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+  const child = track(
+    spawn(chromePath(), [...flags, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] }),
+  );
   const endpoint = await new Promise((resolve, reject) => {
     let log = '';
     const timer = setTimeout(() => reject(new Error('Chrome did not start: ' + log.slice(-400))), 20000);
@@ -453,13 +473,30 @@ export async function startStack(reply) {
     // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
     await Promise.allSettled([parts.browser?.close(), parts.gateway?.close(), parts.model?.close()]);
   };
-  try {
+  // Starting must finish well inside a test hook's own time limit. If it does not, everything
+  // started so far is stopped here, because a hook that times out cannot clean up after itself.
+  let abandoned = false;
+  const start = (async () => {
     parts.model = await startFakeModel(reply);
+    if (abandoned) return;
     parts.gateway = await startGateway(parts.model.port);
+    if (abandoned) return;
     parts.browser = await launchBrowser();
+  })();
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('The test stack did not start within 45 seconds.')), 45000);
+  });
+  try {
+    await Promise.race([start, limit]);
   } catch (error) {
+    abandoned = true;
+    // Let a step that is still in flight settle so its process is known, then stop everything.
+    await Promise.race([start.catch(() => {}), new Promise((resolve) => setTimeout(resolve, 3000))]);
     await close();
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
   return { ...parts, close };
 }
