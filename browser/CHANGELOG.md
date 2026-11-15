@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.33] - 2026-11-15
+
+### Added
+
+- The browser-level tests can be served by the Swift gateway (`PEA_GATEWAY=swift`), and are in CI on a Mac, so the whole app is checked end to end against it.
+
 ## [0.1.0-dev.32] - 2026-11-15
 
 ### Added

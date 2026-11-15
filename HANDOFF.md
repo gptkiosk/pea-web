@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The Mac app, step 4 of 6: the browser suite on the Swift gateway — 2026-11-15
+
+**Branch `mac/browser-suite-on-swift`, development identity `0.1.0-dev.33`.** Stacked on step 3.
+
+- `browser/tests/dom/harness.mjs`: `PEA_GATEWAY=swift` starts `mac/.build/debug/pea-gateway` (or the file named by `PEA_GATEWAY_BINARY`) in place of `local.py`, with a token file the harness writes itself. Nothing else in the suite changes, so all 56 browser-level tests drive the app through the Swift gateway. The default is still the Python gateway and the `web` job is unchanged.
+- The `mac` CI job now also installs Node 22 and runs the browser suite with `PEA_GATEWAY=swift`.
+- Results on this Mac: 56 of 56 against Swift in eight runs one after another and in six runs two at a time; 56 of 56 against Python; 56 of 56 against Swift with the page pretending to be Linux.
+- Heavy load, measured for both gateways: with three whole suites running at once (three Chromes), tests time out waiting for the browser on **both** gateways (Python in 11 of 12 runs, Swift in 12 of 12, before the connection fix in step 3). That is the machine, not a gateway, and running suites side by side is not supported. It did lead to the connection-counting defect recorded under step 3, which was real.
+- In passing, on step 2's branch: the drag-and-drop test clicked Add to Inbox before the app had re-enabled it after a reply, and failed once in CI. It now waits for the button.
+
+Known gap: the comparison under heavy load was not repeated after the connection fix.
+
+Next action: step 5, the Mac app itself (menu-bar and Dock launcher, Keychain token, port handling, open in browser, start at login, `mac/build.sh` for an unsigned build).
+
 ## The Mac app, step 3 of 6: the Swift gateway — 2026-11-15
 
 **Branch `mac/swift-gateway`, development identity `0.1.0-dev.32`.** Stacked on step 2.
