@@ -41,6 +41,13 @@ jobs:
         run: swift build --package-path mac
       - name: Swift unit tests
         run: swift test --package-path mac
+      - name: Assemble the unsigned app and check what is inside it
+        run: |
+          mac/build.sh
+          test -x mac/build/PEA.app/Contents/MacOS/PEA
+          test -f mac/build/PEA.app/Contents/Resources/browser/server/contract.json
+          test ! -e mac/build/PEA.app/Contents/Resources/browser/server/gateway.py
+          plutil -lint mac/build/PEA.app/Contents/Info.plist
       - name: Gateway conformance against the Swift gateway (same suite as Python)
         run: |
           PEA_GATEWAY_COMMAND="[\"$PWD/mac/.build/debug/pea-gateway\"]" python3 browser/server/conformance/run.py

@@ -2,10 +2,16 @@
   "MAC-FILES.json",
   "Package.swift",
   "README.md",
+  "SIGNING.md",
   "Sources/PEAGatewayCore/Gateway.swift",
   "Sources/PEAGatewayCore/HTTP.swift",
   "Sources/PEAGatewayCore/JSON.swift",
   "Sources/PEAGatewayCore/Rules.swift",
+  "Sources/PEALauncherCore/Launcher.swift",
+  "Sources/PEALauncherCore/TokenStore.swift",
+  "Sources/PEAMac/PEAMacApp.swift",
   "Sources/pea-gateway/main.swift",
-  "Tests/PEAGatewayCoreTests/RulesTests.swift"
+  "Tests/PEAGatewayCoreTests/RulesTests.swift",
+  "Tests/PEALauncherCoreTests/LauncherTests.swift",
+  "build.sh"
 ]

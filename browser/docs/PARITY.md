@@ -53,6 +53,7 @@ How to read the status columns:
 | Drag and drop of files and messages | A drop never sends, saves or approves |
 | Works on Android and other browsers | Over HTTPS to the owner's own gateway |
 | Local package with signed releases | Production signing key not yet created |
+| Mac launcher app (menu bar and Dock) | Development build only, unsigned; opens PEA in the normal browser. See `mac/README.md` in the repository |
 
 ## Not built on either side
 

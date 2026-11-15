@@ -1,0 +1,162 @@
+import AppKit
+import PEAGatewayCore
+import PEALauncherCore
+import ServiceManagement
+import SwiftUI
+
+/// PEA for Mac: a menu-bar and Dock launcher. It runs PEA's gateway on this Mac and opens PEA in the
+/// owner's normal browser. There is no web view here, so sign-in and voice work as they do on the web.
+@main
+struct PEAMacApp: App {
+    @StateObject private var launcher: Launcher
+
+    init() {
+        // Packaged, the web files are inside the app. PEA_WEB_ROOT is for running from source.
+        let root = ProcessInfo.processInfo.environment["PEA_WEB_ROOT"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? Bundle.main.resourceURL!.appendingPathComponent("browser", isDirectory: true)
+        let service = (Bundle.main.bundleIdentifier ?? "pea.development") + ".gateway"
+        let launcher = Launcher(webRoot: root, tokens: KeychainTokenStore(service: service), defaults: .standard)
+        _launcher = StateObject(wrappedValue: launcher)
+        launcher.start()
+    }
+
+    var body: some Scene {
+        Window("PEA", id: "main") {
+            StatusView().environmentObject(launcher)
+        }
+        .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("Open PEA") { open(launcher) }.keyboardShortcut("o").disabled(!launcher.isRunning)
+            }
+        }
+        MenuBarExtra("PEA", systemImage: launcher.isRunning ? "leaf.fill" : "leaf") {
+            Actions().environmentObject(launcher)
+        }
+    }
+}
+
+@MainActor func open(_ launcher: Launcher) {
+    NSWorkspace.shared.open(launcher.address)
+}
+
+@MainActor func statusLine(_ launcher: Launcher) -> String {
+    switch launcher.status {
+    case .stopped: return "PEA is stopped"
+    case .starting: return "PEA is starting…"
+    case .running: return "PEA is running at 127.0.0.1:\(launcher.port)"
+    case .portBusy: return "Port \(launcher.port) is in use by another program"
+    case .failed(let reason): return "PEA could not start: \(reason)"
+    }
+}
+
+/// The actions, shared by the menu-bar menu and the window.
+struct Actions: View {
+    @EnvironmentObject var launcher: Launcher
+    @State private var startsAtLogin = SMAppService.mainApp.status == .enabled
+
+    var body: some View {
+        Text(statusLine(launcher))
+        Text("Version \(launcher.version)")
+        Divider()
+        Button("Open PEA") { open(launcher) }.disabled(!launcher.isRunning)
+        Button("Copy Connection Token") { copyToken() }
+        Button("Local Model Address…") { askForModelAddress() }
+        if case .portBusy(let free) = launcher.status {
+            Divider()
+            if let free {
+                Button("Use Port \(free) Instead…") { confirmPort(free) }
+            }
+            Button("Try Port \(launcher.port) Again") { launcher.start() }
+        } else if case .failed = launcher.status {
+            Button("Try Again") { launcher.start() }
+        }
+        Divider()
+        Toggle("Start at Login", isOn: Binding(get: { startsAtLogin }, set: { setLogin($0) }))
+        if let page = launcher.releasesPage {
+            Button("Releases") { NSWorkspace.shared.open(page) }
+        }
+        Divider()
+        Button("Quit PEA") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
+    }
+
+    private func copyToken() {
+        do {
+            let token = try launcher.token()
+            NSPasteboard.general.clearContents()
+            // Marked so clipboard managers that honor the convention do not keep a copy.
+            NSPasteboard.general.setString(token, forType: .string)
+            NSPasteboard.general.setString("", forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+            tell("Connection token copied", "In PEA, open Connections, choose Local model, and paste it into the connection token field. It stays in your Keychain; PEA never shows it.")
+        } catch {
+            tell("The token could not be read", String(describing: error))
+        }
+    }
+
+    private func askForModelAddress() {
+        let alert = NSAlert()
+        alert.messageText = "Local model address"
+        alert.informativeText = "The model server on this Mac, for example Ollama at http://127.0.0.1:11434. Only an address on this Mac is accepted; PEA will not send chat anywhere else through this route."
+        let field = NSTextField(string: launcher.upstream)
+        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do { try launcher.use(upstream: field.stringValue) } catch { tell("That address was not saved", String(describing: error)) }
+    }
+
+    private func confirmPort(_ free: UInt16) {
+        let alert = NSAlert()
+        alert.messageText = "Use port \(free)?"
+        alert.informativeText = "Your browser treats each port as a separate site. Chats, memories and boards you saved in the browser at port \(launcher.port) will not appear at port \(free), and will still be there if you go back. Nothing is deleted."
+        alert.addButton(withTitle: "Use Port \(free)")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task { await launcher.use(port: free) }
+    }
+
+    private func setLogin(_ wanted: Bool) {
+        do {
+            if wanted { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+        } catch {
+            tell("Start at login was not changed", error.localizedDescription)
+        }
+        startsAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    private func tell(_ title: String, _ detail: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = detail
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+}
+
+struct StatusView: View {
+    @EnvironmentObject var launcher: Launcher
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: launcher.isRunning ? "leaf.fill" : "leaf").font(.system(size: 28)).foregroundStyle(.green)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(statusLine(launcher)).font(.headline)
+                    Text("Version \(launcher.version) · model server \(launcher.upstream)").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Text("PEA runs on this Mac and opens in your browser. The first time, copy the connection token and paste it into Connections → Local model.")
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Open PEA") { open(launcher) }.keyboardShortcut(.defaultAction).disabled(!launcher.isRunning)
+                Menu("More") { Actions() }.fixedSize()
+            }
+        }
+        .padding(20)
+        .frame(width: 440, alignment: .leading)
+    }
+}

@@ -32,7 +32,7 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
 
     private var listener: NWListener?
     private var session: URLSession!
-    private var clients = 0
+    private var open = [ObjectIdentifier: Client]()
     var modelRequests = 0
     var models = Set<String>()
     var modelsAt = Date.distantPast
@@ -97,11 +97,17 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         }
     }
 
-    public func stop() {
+    /// Stops listening and drops every open connection. `done` is called once the port is free again.
+    public func stop(done: @escaping () -> Void = {}) {
         queue.async {
-            self.listener?.cancel()
-            self.listener = nil
             self.session.invalidateAndCancel()
+            for client in self.open.values { client.close() }
+            guard let listener = self.listener else { return done() }
+            self.listener = nil
+            listener.stateUpdateHandler = { state in
+                if case .cancelled = state { done() }
+            }
+            listener.cancel()
         }
     }
 
@@ -117,12 +123,13 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
 
     private func accept(_ connection: NWConnection) {
         // Past the limit a connection is closed without an answer, so held-open connections cannot pile up.
-        guard clients < contract.connections else { return connection.cancel() }
-        clients += 1
-        Client(connection: connection, gateway: self).start()
+        guard open.count < contract.connections else { return connection.cancel() }
+        let client = Client(connection: connection, gateway: self)
+        open[ObjectIdentifier(client)] = client
+        client.start()
     }
 
-    func clientClosed() { clients -= 1 }
+    func clientClosed(_ client: Client) { open.removeValue(forKey: ObjectIdentifier(client)) }
 
     func buildInfo() -> Data? {
         if let identity, Date().timeIntervalSince(identityAt) <= contract.buildInfoSeconds { return identity }
@@ -239,7 +246,7 @@ final class Client {
     /// Closes the connection and gives its place back at once. Waiting for the system to report the
     /// close would leave finished connections counted for a moment, and a busy page load would then
     /// run into the connection limit and be refused.
-    private func close() {
+    func close() {
         connection.cancel()
         finished()
     }
@@ -256,7 +263,7 @@ final class Client {
         call = nil
         releaseModelSlot()
         connection.stateUpdateHandler = nil
-        gateway.clientClosed()
+        gateway.clientClosed(self)
     }
 
     private func releaseModelSlot() {

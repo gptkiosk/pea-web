@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.34] - 2026-11-15
+
+### Added
+
+- PEA for Mac, as an unsigned development build: a menu-bar and Dock app that runs PEA on your Mac without Python or Terminal and opens it in your normal browser. It keeps the connection token in your Keychain, lets you set the local model address, can start at login, and offers another port when 18770 is taken. Build it with `mac/build.sh`. There is no signed download yet; the owner's signing steps are in `mac/SIGNING.md`.
+
 ## [0.1.0-dev.33] - 2026-11-15
 
 ### Added
