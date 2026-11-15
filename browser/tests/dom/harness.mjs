@@ -2,7 +2,8 @@
 // a headless Chrome driven over its debugging protocol. Nothing here contacts a real provider,
 // account or microphone, and every token is created for one run and deleted afterwards.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -145,33 +146,60 @@ export async function startFakeModel(reply) {
   };
 }
 
+// Which gateway serves the app under test. PEA_GATEWAY=swift runs the Mac app's gateway (built
+// beforehand with `swift build --package-path mac`, or named by PEA_GATEWAY_BINARY), so the whole
+// browser suite checks it serves the app exactly as the Python one does.
+export const gatewayKind = process.env.PEA_GATEWAY === 'swift' ? 'swift' : 'python';
+const swiftGateway =
+  process.env.PEA_GATEWAY_BINARY ||
+  fileURLToPath(new URL('../../../mac/.build/debug/pea-gateway', import.meta.url));
+
 // The real gateway, started the way an owner starts it, with a token made for this run only.
 export async function startGateway(upstreamPort) {
   const folder = mkdtempSync(join(tmpdir(), 'pea-dom-'));
   const config = join(folder, 'config');
-  const setup = spawnSync('python3', ['local.py', 'setup', '--config-dir', config], {
-    cwd: serverFolder,
-    encoding: 'utf8',
-  });
-  if (setup.status !== 0) throw new Error('Gateway setup failed: ' + setup.stderr);
-  const token = readFileSync(join(config, 'connection-token'), 'utf8').trim();
   const port = await freePort();
-  const child = track(
-    spawn(
-      'python3',
-      [
-        'local.py',
-        'start',
-        '--config-dir',
-        config,
-        '--port',
-        String(port),
-        '--upstream',
-        `http://127.0.0.1:${upstreamPort}`,
-      ],
-      { cwd: serverFolder, stdio: ['ignore', 'pipe', 'pipe'] },
-    ),
-  );
+  const upstream = `http://127.0.0.1:${upstreamPort}`;
+  let token, child;
+  if (gatewayKind === 'swift') {
+    if (!existsSync(swiftGateway))
+      throw new Error(
+        'PEA_GATEWAY=swift needs the Swift gateway built first: swift build --package-path mac',
+      );
+    mkdirSync(config, { mode: 0o700 });
+    token = randomBytes(32).toString('base64url');
+    writeFileSync(join(config, 'connection-token'), token + '\n', { mode: 0o600, flag: 'wx' });
+    child = track(
+      spawn(
+        swiftGateway,
+        [
+          '--root',
+          fileURLToPath(new URL('../../', import.meta.url)),
+          '--token-file',
+          join(config, 'connection-token'),
+          '--port',
+          String(port),
+          '--upstream',
+          upstream,
+        ],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+      ),
+    );
+  } else {
+    const setup = spawnSync('python3', ['local.py', 'setup', '--config-dir', config], {
+      cwd: serverFolder,
+      encoding: 'utf8',
+    });
+    if (setup.status !== 0) throw new Error('Gateway setup failed: ' + setup.stderr);
+    token = readFileSync(join(config, 'connection-token'), 'utf8').trim();
+    child = track(
+      spawn(
+        'python3',
+        ['local.py', 'start', '--config-dir', config, '--port', String(port), '--upstream', upstream],
+        { cwd: serverFolder, stdio: ['ignore', 'pipe', 'pipe'] },
+      ),
+    );
+  }
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; ; attempt++) {
     try {

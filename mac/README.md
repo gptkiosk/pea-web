@@ -18,7 +18,7 @@ Two gateways could drift apart. Three things prevent it:
 
 1. Neither gateway holds its own copy of a limit, a header or the file list. Both read `browser/server/contract.json`.
 2. `browser/server/conformance/run.py` tests a running gateway from the outside. Both gateways must pass it unchanged.
-3. The browser-level tests will also be run against this gateway (next step).
+3. The browser-level tests run against this gateway as well as the Python one, so the whole app is driven end to end through each.
 
 Where the two languages would read a request differently, both were made to refuse it: a repeated JSON key, `NaN`, text that is not UTF-8, half of a surrogate pair, a repeated `Host` or `Authorization` header, and an address starting with two slashes.
 
@@ -30,6 +30,7 @@ Needs a Mac with Xcode 15 or later, or the Swift 5.9 toolchain.
 swift build --package-path mac
 swift test --package-path mac
 PEA_GATEWAY_COMMAND="[\"$PWD/mac/.build/debug/pea-gateway\"]" python3 browser/server/conformance/run.py
+PEA_GATEWAY=swift node --test browser/tests/dom/*.test.mjs
 ```
 
 To try it by hand with a token file made by `python3 browser/server/local.py setup`:

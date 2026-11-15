@@ -44,3 +44,11 @@ jobs:
       - name: Gateway conformance against the Swift gateway (same suite as Python)
         run: |
           PEA_GATEWAY_COMMAND="[\"$PWD/mac/.build/debug/pea-gateway\"]" python3 browser/server/conformance/run.py
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Browser-level tests served by the Swift gateway (headless Chrome, synthetic model)
+        env:
+          PEA_DOM_REQUIRED: "1"
+          PEA_GATEWAY: swift
+        run: node --test browser/tests/dom/*.test.mjs
