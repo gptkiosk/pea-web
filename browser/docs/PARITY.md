@@ -1,26 +1,71 @@
-# PEA Web and native parity
+# PEA Web and iPhone parity
 
-Evidence date: 2026-11-12. Share behaviour and connection contracts; keep platform-appropriate layout and audio. This matrix distinguishes implemented source from real-account/device acceptance.
+Evidence date: 2026-11-15, Web `0.1.0-dev.27`. This page is the one place that says what each app has. Formats the two apps share are defined in [CONTRACTS.md](CONTRACTS.md) and checked by shared fixtures. The apps keep their own layout and audio; behavior and formats are what must match.
 
-| Capability | Web source | Native iOS source | Remaining acceptance/work |
+How to read the status columns:
+
+- **Built**: in the source and covered by automated tests on that side.
+- **Not yet**: planned, with the release it is planned for.
+- **Not possible** or **By design**: a platform limit or a deliberate difference.
+- Nothing on the Web side has been through real-device or real-account acceptance yet. That is tracked in [OPERATOR-ACCEPTANCE.md](OPERATOR-ACCEPTANCE.md) and is the last step before a release, not a row here.
+
+## Shared features
+
+| Feature | Web | iPhone | Differences and what is left |
 | --- | --- | --- | --- |
-| Chat / Today / Greenhouse, cream and dark green | Responsive, original pea art, compact workspace menu, setup cards, guided connection/interview flows and keyboard-accessible tabs | Compact native controls | Real mobile-browser testing |
-| OpenRouter text and specialist models | Independent Chat/collaboration/coding/image roles; reviewed routes | Chat and independent Greenhouse roles | Real model/provider availability |
-| Customer local model | Authenticated same-origin gateway; Chat and Greenhouse text | Own-server Chat connector | Physical phone/VPN stream; native local Greenhouse |
-| Reviewed email draft | Explicit address, exact review, optional mail-app link; never sends | Native mail-app draft and contact resolution | No web Contacts, attachments or CC/BCC; real-device mail-client acceptance |
-| Calendar event draft | Explicit UTC event proposal, review and manual iCalendar download/import | Native event workflow | No direct calendar write, recurrence or attendees; real calendar/device import testing |
-| Calendar/Gmail glance | Optional read-only Google scopes, bounded previews; sharing in Settings | Existing Calendar/Gmail adapters | Live Web OAuth/client verification |
-| PEA Drive workspace | Root confinement, moved-in files, nested list, text/image/code/simple diagrams | Same root contract, PDF and richer import | Live cross-device folder/version tests |
-| Docs and Forms | Documents from twenty templates plus a plain document: one `pea-doc` block with `doc_create` or `doc_update`, the whole text reviewed, then a formatted Google Doc in the PEA folder or a downloadable file when no folder is connected; replacement only if unchanged since PEA wrote it. Simple unpublished forms and plain editable drafts remain | Richer Docs/Sheets/Slides/Forms, briefs and receipt ledger | Port the remaining richer tools to Web |
-| To-dos and reminders | Per-profile list beside the story board; owner edits by hand; a model proposes `task_add` (optional local due time and reminder) and `task_done` in one `pea-task` block of up to 8 rows, applied only after a review of the exact changes, with an account of what was and was not done; in-page reminders and optional system notification while the page is open; optional sharing of open and recently finished items with the model | To-do list with local notifications and the same `pea-task` operations | Notifications when the app is closed are not possible in a browser; iPhone accepts a few looser block shapes that Web refuses; to-dos tied to a blocked calendar event are not ported; real-device and real-provider acceptance |
-| Phone links and copy boxes | `pea-open` with `open_call`, `open_text` and `open_directions`: the exact action reviewed, then an owner-pressed `tel:`, `sms:` or map link built by the app; fenced text shown as copy boxes and never read aloud | Call, text, FaceTime, directions and the owner's Shortcuts, with names looked up in Contacts; copy boxes | No Contacts in a browser, so a number is required; FaceTime and Shortcuts are iPhone-only; `tel:` and `sms:` links do nothing on a computer without a phone app; real-device acceptance |
-| Story board | Voice/typed commands, reviewed model story proposal and dispatch, optional encrypted board with competing-tab conflict detection | Encrypted local archive | Device persistence/voice acceptance, sync |
-| GitHub / image specialist | Reviewed draft PR and fixed-price image generation | Same reviewed workflows | Real write/image acceptance |
-| Persona and interview | Three-step form with the 13 standard questions, optional question playback and reviewed per-answer dictation, profile-bound encrypted library and optional local-time delivery | Persistent introduction, interview and sourced memory | Native-compatible profile transfer, continuous voice-led interview, separately protected wellbeing questions, persistent presence preference and richer fictional history/life |
-| Model configuration | Versioned, reviewed export/import, shared Drive document | Same portable contract; unsupported choices rejected | Automatic encrypted sync/conflict handling |
-| Voice | Chat and Greenhouse voice screens, explicit reviewed dictation, selectable browser/device voice and speed, optional reply playback; stops when hidden; Fish Audio and ElevenLabs key guidance only | Native discussion, dictation, voice choices and Walk mode | Browser cloud/local speech engines and native background acceptance |
-| Chat history and personal memory | Optional encrypted local library; search/continue, reviewed owner-message facts, bounded recent/relevant recall | Encrypted persistent archive, sourced recall | Browser/device backup and restore acceptance, native archive interoperability and opt-in cross-device synchronization |
-| Android/non-iOS | Responsive HTTPS browser over customer VPN | iOS only | Device/browser/audio acceptance |
+| Chat, Today and Greenhouse workspaces | Built | Built | Layout differs by design |
+| OpenRouter models with separate roles | Built | Built | None known |
+| Owner's own local model | Built, Chat and Greenhouse | Built, Chat only | iPhone has no local Greenhouse |
+| Model-sharing review before every new disclosure | Built | Built | Web re-reviews when a file excerpt, name or setting changes |
+| To-dos with reminders (`pea-task`) | Built | Built | Web reminders appear only while the page is open |
+| Documents from 20 templates (`pea-doc`) | Built | Built | Web has one look, no bold or italic; Web offers a file when no folder is connected |
+| Replace a document only if unchanged | Built | Built | None known |
+| Call, text and directions (`pea-open`) | Built, needs a number | Built, looks names up in Contacts | No Contacts in a browser |
+| FaceTime and Shortcuts | Not possible | Built | iPhone only |
+| Copy boxes, never read aloud | Built | Built | None known |
+| Never passes as human, enforced by the app | Built, English | Built | None known |
+| Assistant's name sent with every request | Built | Built | iPhone also always sends the owner's first name; Web sends it only with the shared introduction |
+| Time-of-day delivery, remembered | Built | Built | None known |
+| Interview and persona | Built, 13 questions in a form | Built, spoken | Web has no continuous voice-led interview or separately protected wellbeing questions |
+| Email draft (`pea-email`) | Built, opens the mail app | Built, with Contacts and an optional Shortcut | Formats not yet aligned; Web has no CC, BCC or attachments |
+| Calendar | Built as a file to import | Built, changes the calendar directly | Web direct changes: not yet, 0.2 |
+| Calendar and Gmail glance | Built, read-only | Built | None known |
+| PEA Drive folder | Built | Built, with PDF and richer import | Web has no PDF import |
+| Simple forms | Built | Built | None known |
+| Sheets and Slides editing, briefs, receipt ledger | Not yet, after 0.2 | Built | |
+| Story board | Built, with model proposals (`pea-story`) | Built | Web-only block name |
+| GitHub draft pull request and image specialist | Built | Built | None known |
+| Model configuration export and import | Built | Built | Same portable format |
+| Voice | Built with browser speech | Built with native speech and Walk mode | Fish Audio and ElevenLabs on Web: not yet, 0.2. No locked-screen voice in a browser |
+| Conversation history and reviewed memories | Built, encrypted on this browser | Built, encrypted archive | Archives are not interchangeable yet |
+| Encrypted backup and restore | Built, Web-only files | Built, one file per profile in the PEA folder | iPhone-readable backup on Web: not yet, after 0.2 |
+| Public research, weather, headlines, Home card | Not yet, 0.2 | Built | Web needs a server-side fetcher that checks resolved addresses |
+| Her history cards, daily life and life timeline | Not yet, 0.2 | Built | |
+| Deck projects | Not yet, 0.2 | Built | Behavior to be confirmed first |
+| Automatic sync between devices | Not yet | Not yet | |
+
+## Web only
+
+| Feature | Notes |
+| --- | --- |
+| Two workspaces side by side | Wide screens only |
+| Command palette and keyboard shortcuts | Never active while a review is open |
+| Drag and drop of files and messages | A drop never sends, saves or approves |
+| Works on Android and other browsers | Over HTTPS to the owner's own gateway |
+| Local package with signed releases | Production signing key not yet created |
+
+## Not built on either side
+
+Gmail drafts through the API, Sheets documents from a model, resume import, food or ride ordering, refresh while the app is closed, recurring reminders, and deleting to-dos by voice or by a model.
+
+## Keeping the two in step
+
+1. A feature is built on one side with tests.
+2. If it has a format a model writes, the format goes into [CONTRACTS.md](CONTRACTS.md) and vectors go into the shared fixtures, in the same change.
+3. The other side builds it from the contract and takes a reviewed copy of the fixtures.
+4. The row here changes when each side lands. A new iPhone feature starts as a row with Web "Not yet".
+
+## What a release must say
 
 The browser is not yet feature-complete against native. A public release must label these gaps rather than present source checks as full parity. No developer-host relay, Open WebUI owner login, bundled provider key, membership-token workaround or customer runtime data is required. Background/locked-screen browser microphone reliability is not promised.
 
@@ -34,7 +79,7 @@ Drag and drop is browser-only as well. A dropped file is opened by the same code
 
 The owner can type or dictate an explicit command such as “open Greenhouse” and submit it; the command switches to an existing workspace without a model request. A model may also suggest a Chat, Today or Greenhouse navigation button in its completed reply. Only the owner's click changes tabs. The proposal cannot include a URL, file, tool call or additional action; it is bound to the originating profile and conversation, is not restored after reload and cannot run while a request is active. Recognition still requires transcript review before submission. This does not open a specific document or execute a task.
 
-Next sequence: richer document/action tools → secured public research → customer-owned encrypted synchronization with conflict review → additional voice transports. Web library scope/limits are documented in [memory and recovery](MEMORY.md). Each slice must retain provider disclosure, profile boundaries and reviewed external writes.
+Next sequence after 0.1.0: secured public research with weather and the Home card → her history and daily life → direct calendar changes → additional voice transports → deck projects → iPhone-readable backup and reviewed synchronization. Web library scope/limits are documented in [memory and recovery](MEMORY.md). Each slice must retain provider disclosure, profile boundaries and reviewed external writes.
 
 
 ## Reviewed story proposals

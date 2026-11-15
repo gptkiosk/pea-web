@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Contracts, shared fixtures and the parity matrix — 2026-11-15
+
+Branch `docs/contracts-and-parity`, development identity `0.1.0-dev.27`. No application code changed.
+
+`browser/docs/CONTRACTS.md` defines what the two apps share: how a model asks for an action, the fields and limits of `pea-task`, `pea-doc` and `pea-open`, the Web-only `pea-story`, copy boxes, the honesty rules, the assistant's name, and how to change a contract. `browser/tests/fixtures/ActionFixtures.json` (version 1) holds 29 synthetic vectors plus honesty examples and the limits; `browser/tests/contracts.test.mjs` checks every vector and the limits against this app's parsers, so the file cannot drift from the code. Vectors marked `web_only` are the deliberate browser differences. `PolicyFixtures.json` is untouched, so its recorded digest still holds.
+
+`browser/docs/PARITY.md` now opens with one table of shared features with a status for each app, a Web-only table, the list of things neither app has, and the steps for keeping the two in step. The per-feature sections below it are unchanged. iPhone statuses come from the private features note the owner approved as the source and from the earlier matrix; they were not re-verified against a running iPhone build.
+
+Not aligned yet and said so in the contracts page: `pea-email`, `pea-calendar` and `pea-nav` are Web formats that differ from the iPhone's email and calendar actions and have no vectors. The iPhone app has not taken a copy of the fixtures; that is a separate change in its own repository.
+
+Checks: 171 unit tests (7 new), 43 browser, 27 gateway and release, source and boundary checks. Next: review items L7 and L8, then the stability pass and release.
+
 ## Honesty, assistant name and remembered delivery — 2026-11-15
 
 Branch `feature/honesty-and-name`, development identity `0.1.0-dev.26`. Fourth parity slice.

@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "about": "Synthetic vectors for the action blocks and honesty rules that PEA Web and the iPhone app both implement. Owned by the public pea-web repository. 'reply' is a whole model reply; 'expect' is what the parser must return, and an empty list means the reply offers nothing. Due times are the owner's local time.",
+  "limits": {
+    "todo": {
+      "title": 120,
+      "perProfile": 200,
+      "requests": 8
+    },
+    "document": {
+      "title": 100,
+      "heading": 120,
+      "sections": 30,
+      "body": 8000,
+      "total": 40000
+    },
+    "open": {
+      "message": 500,
+      "place": 150
+    }
+  },
+  "todo": [
+    {
+      "name": "add with due time and reminder",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"Renew the library card\", \"due\": \"2031-03-04T17:30\", \"remind\": true}]\n```\n",
+      "expect": [
+        {
+          "op": "add",
+          "title": "Renew the library card",
+          "due": "2031-03-04T17:30",
+          "remind": true
+        }
+      ]
+    },
+    {
+      "name": "add then finish in one block",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"Buy stamps\"}, {\"op\": \"task_done\", \"title\": \"Renew the library card\"}]\n```\n",
+      "expect": [
+        {
+          "op": "add",
+          "title": "Buy stamps",
+          "due": null,
+          "remind": false
+        },
+        {
+          "op": "done",
+          "title": "Renew the library card"
+        }
+      ]
+    },
+    {
+      "name": "a single row without an array",
+      "reply": "Sure.\n```pea-task\n{\"op\": \"task_add\", \"title\": \"Water the plant\"}\n```\n",
+      "expect": [
+        {
+          "op": "add",
+          "title": "Water the plant",
+          "due": null,
+          "remind": false
+        }
+      ]
+    },
+    {
+      "name": "title is trimmed to one line",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"  Tidy\\n the   desk \"}]\n```\n",
+      "expect": [
+        {
+          "op": "add",
+          "title": "Tidy the desk",
+          "due": null,
+          "remind": false
+        }
+      ]
+    },
+    {
+      "name": "delete is not an operation",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_delete\", \"title\": \"Buy stamps\"}]\n```\n",
+      "expect": []
+    },
+    {
+      "name": "a due time must be local, without a zone",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"Call back\", \"due\": \"2031-03-04T17:30Z\"}]\n```\n",
+      "expect": []
+    },
+    {
+      "name": "an impossible date",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"Call back\", \"due\": \"2031-02-30T09:00\"}]\n```\n",
+      "expect": []
+    },
+    {
+      "name": "nine rows is too many",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"Item 0\"}, {\"op\": \"task_add\", \"title\": \"Item 1\"}, {\"op\": \"task_add\", \"title\": \"Item 2\"}, {\"op\": \"task_add\", \"title\": \"Item 3\"}, {\"op\": \"task_add\", \"title\": \"Item 4\"}, {\"op\": \"task_add\", \"title\": \"Item 5\"}, {\"op\": \"task_add\", \"title\": \"Item 6\"}, {\"op\": \"task_add\", \"title\": \"Item 7\"}, {\"op\": \"task_add\", \"title\": \"Item 8\"}]\n```\n",
+      "expect": []
+    },
+    {
+      "name": "a title over 120 characters",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]\n```\n",
+      "expect": []
+    },
+    {
+      "name": "two action blocks in one reply",
+      "reply": "Sure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"One\"}]\n```\nSure.\n```pea-task\n[{\"op\": \"task_add\", \"title\": \"Two\"}]\n```\n",
+      "expect": []
+    },
+    {
+      "name": "an unfinished block",
+      "reply": "Sure.\n```pea-task\n[{\"op\":\"task_add\",\"title\":\"cut",
+      "expect": []
+    }
+  ],
+  "document": [
+    {
+      "name": "create a resume",
+      "reply": "Sure.\n```pea-doc\n{\"op\": \"doc_create\", \"type\": \"resume\", \"title\": \"Sam Rivera Resume\", \"sections\": [{\"heading\": \"Summary\", \"body\": \"Line cook.\"}, {\"heading\": \"Experience\", \"body\": \"- Ran the grill\\n- Trained cooks\"}]}\n```\n",
+      "expect": [
+        {
+          "update": false,
+          "draft": {
+            "type": "resume",
+            "title": "Sam Rivera Resume",
+            "sections": [
+              {
+                "heading": "Summary",
+                "body": "Line cook."
+              },
+              {
+                "heading": "Experience",
+                "body": "- Ran the grill\n- Trained cooks"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "a letter keeps no headings",
+      "reply": "Sure.\n```pea-doc\n{\"op\": \"doc_create\", \"type\": \"letter\", \"title\": \"Note to Ada\", \"sections\": [{\"heading\": \"Greeting\", \"body\": \"Dear Ada,\"}]}\n```\n",
+      "expect": [
+        {
+          "update": false,
+          "draft": {
+            "type": "letter",
+            "title": "Note to Ada",
+            "sections": [
+              {
+                "heading": null,
+                "body": "Dear Ada,"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "a layout hint is not a heading",
+      "reply": "Sure.\n```pea-doc\n{\"op\": \"doc_create\", \"type\": \"document\", \"title\": \"Plan\", \"sections\": [{\"heading\": \"paragraph_1\", \"body\": \"First.\"}]}\n```\n",
+      "expect": [
+        {
+          "update": false,
+          "draft": {
+            "type": "document",
+            "title": "Plan",
+            "sections": [
+              {
+                "heading": null,
+                "body": "First."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "an unknown type",
+      "reply": "Sure.\n```pea-doc\n{\"op\": \"doc_create\", \"type\": \"spreadsheet\", \"title\": \"Budget\", \"sections\": [{\"body\": \"x\"}]}\n```\n",
+      "expect": []
+    },
+    {
+      "name": "a title with a path separator",
+      "reply": "Sure.\n```pea-doc\n{\"op\": \"doc_create\", \"type\": \"document\", \"title\": \"a/b\", \"sections\": [{\"body\": \"x\"}]}\n```\n",
+      "expect": []
+    },
+    {
+      "name": "no sections",
+      "reply": "Sure.\n```pea-doc\n{\"op\": \"doc_create\", \"type\": \"document\", \"title\": \"Empty\", \"sections\": []}\n```\n",
+      "expect": []
+    },
+    {
+      "name": "an update with nothing written yet",
+      "reply": "Sure.\n```pea-doc\n{\"op\": \"doc_update\", \"sections\": [{\"body\": \"new\"}]}\n```\n",
+      "expect": []
+    }
+  ],
+  "open": [
+    {
+      "name": "call a number",
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_call\", \"who\": \"Ana\", \"number\": \"+1 555 010 0100\"}\n```\n",
+      "expect": [
+        {
+          "kind": "call",
+          "number": "+15550100100",
+          "who": "Ana"
+        }
+      ]
+    },
+    {
+      "name": "text a number",
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_text\", \"number\": \"555 010 0100\", \"message\": \"Leaving now.\"}\n```\n",
+      "expect": [
+        {
+          "kind": "text",
+          "number": "5550100100",
+          "who": "",
+          "message": "Leaving now."
+        }
+      ]
+    },
+    {
+      "name": "directions with a mode",
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_directions\", \"to\": \"Central Library\", \"mode\": \"walking\"}\n```\n",
+      "expect": [
+        {
+          "kind": "directions",
+          "place": "Central Library",
+          "mode": "walking"
+        }
+      ]
+    },
+    {
+      "name": "directions default to driving",
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_directions\", \"to\": \"Airport\"}\n```\n",
+      "expect": [
+        {
+          "kind": "directions",
+          "place": "Airport",
+          "mode": "driving"
+        }
+      ]
+    },
+    {
+      "name": "web only: a name without a number is refused",
+      "web_only": true,
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_call\", \"who\": \"Mom\"}\n```\n",
+      "expect": []
+    },
+    {
+      "name": "web only: FaceTime is refused",
+      "web_only": true,
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_facetime\", \"number\": \"555 010 0100\"}\n```\n",
+      "expect": []
+    },
+    {
+      "name": "a number that is too short",
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_call\", \"number\": \"12345\"}\n```\n",
+      "expect": []
+    },
+    {
+      "name": "a text over 500 characters",
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_text\", \"number\": \"555 010 0100\", \"message\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}\n```\n",
+      "expect": []
+    },
+    {
+      "name": "an address supplied by the model is not accepted",
+      "reply": "Sure.\n```pea-open\n{\"op\": \"open_url\", \"to\": \"https://example.invalid\"}\n```\n",
+      "expect": []
+    }
+  ],
+  "story": [
+    {
+      "name": "web only: a story for the Today board",
+      "web_only": true,
+      "reply": "Sure.\n```pea-story\n{\"op\": \"story_add\", \"title\": \"Plan the garden\", \"details\": \"Raised beds\", \"acceptance\": \"A drawn plan\"}\n```\n",
+      "expect": [
+        {
+          "title": "Plan the garden",
+          "details": "Raised beds",
+          "acceptance": "A drawn plan"
+        }
+      ]
+    },
+    {
+      "name": "web only: a to-do field on a story is refused",
+      "web_only": true,
+      "reply": "Sure.\n```pea-story\n{\"op\": \"story_add\", \"title\": \"Plan the garden\", \"due\": \"tomorrow\"}\n```\n",
+      "expect": []
+    }
+  ],
+  "honesty": {
+    "sincere": [
+      "Are you an AI?",
+      "are you a real person",
+      "Am I talking to a computer?",
+      "Is this a robot",
+      "Is your life real?",
+      "Do you really have a family?"
+    ],
+    "notSincere": [
+      "Are you even human, it is 5 am",
+      "You type like a robot",
+      "Are you ready?",
+      "What is an AI?"
+    ],
+    "claimsHuman": [
+      "I’m a real person, I promise.",
+      "Of course, I am human.",
+      "I am not an AI.",
+      "I'm as human as you."
+    ],
+    "noClaim": [
+      "I’m an AI assistant.",
+      "I am not a doctor.",
+      "Here is a line for your play:\n```\nI am a real person.\n```"
+    ],
+    "admits": [
+      "Yes, I’m an AI.",
+      "I am an AI assistant with a taste for rain."
+    ]
+  }
+}
