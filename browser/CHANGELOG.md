@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.27] - 2026-11-15
+
+### Changed
+
+- Documentation only. The parity page now shows, feature by feature, what PEA Web and the iPhone app each have, what is planned and what is deliberately different. A new contracts page describes the formats the two apps share, backed by a set of shared test cases.
+
 ## [0.1.0-dev.26] - 2026-11-15
 
 ### Added
