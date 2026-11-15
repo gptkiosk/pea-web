@@ -23,6 +23,28 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The Mac app, steps 5 and 6 of 6: the launcher app and the signing guide — 2026-11-15
+
+**Branch `mac/launcher-app`, development identity `0.1.0-dev.34`.** Stacked on step 4.
+
+- `mac/Sources/PEALauncherCore`: `Launcher` (status, remembered port and model address, start, stop, move to another port, change the model address, find a free port) and `TokenStore` (`KeychainTokenStore` as a generic password in the login Keychain, this device only, not synchronized; `MemoryTokenStore` for tests; `ConnectionToken.make`, 32 random bytes as 43 URL-safe characters). The token is made on first use and is never written to a file, a preference, a log or an address.
+- `mac/Sources/PEAMac/PEAMacApp.swift`: a SwiftUI `MenuBarExtra` and a small status window. Actions: Open PEA (default browser), Copy Connection Token (marked as concealed for clipboard managers), Local Model Address… (loopback only), a port offer when the port is busy with an explanation that another port is a separate browser site, Start at Login (`SMAppService`), Releases (from `release.json`'s repository, so a fork points at itself) and Quit. No web view.
+- `PEAGatewayCore`: `Gateway.stop(done:)` now drops open connections and reports when the port is free, so the app can restart on the same port; open connections are tracked by object, not counted.
+- `mac/build.sh`: release build, then `mac/build/PEA.app` with the binary, the web files named in `contract.json`, `server/contract.json`, `release.json`, a `build-info.json` stamp (commit and whether the tree was modified), `LICENSE`, `NOTICE`, an `Info.plist` (identifier `com.bamcio.pea.mac`, overridable with `PEA_BUNDLE_ID`; local networking only) and an icon made from `pea-icon.svg` with tools that ship with macOS. It never signs. The gateway source and tests are not copied into the app.
+- `mac/SIGNING.md`: the owner's steps for Developer ID signing, notarization, stapling and a disk image, with the things to expect on first use. **None of it has been run.**
+- CI `mac` job: also runs `mac/build.sh` and checks the bundle.
+- Tests on this Mac: `swift test` 17 of 17 (12 gateway, 5 launcher). The launcher tests start a real gateway on a spare port, fetch the page, check the model route needs the token, stop, confirm the port is closed, restart on the same port, and run a second launcher into the busy port and move it. The Keychain test uses a service name made for the run and removes it; it skips where no Keychain is usable.
+- The built app on this Mac: launches; stores its token in the Keychain; found port 18770 held by the existing preview and ended up serving on 18771; `/` answers 200, `/v1/models` 401 without the token, `/api/build-info` gives the stamped version and commit; the window shows status, version, model address and Open PEA with nothing clipped.
+
+Known gaps:
+
+- The menu contents, the port-change dialog, the token-copied dialog, the model-address dialog, the Dock icon and Start at Login were **not** checked by an automated look: the screen-control session was interrupted. The window was seen once; the move to port 18771 happened outside the check. These need the owner's eyes.
+- Connecting PEA in the browser to a real local model through the app has not been done.
+- Built for this Mac's processor only. No sandbox, no update check, no reminders as notifications. The window also appears when opened at login.
+- A development token item named "PEA connection token" now exists in the login Keychain of the Mac this was built on.
+
+Next action: the owner tries `mac/build/PEA.app`, then rehearses `mac/SIGNING.md`. After that, the remaining 0.2 items: reminders as system notifications, update check, and the web features listed for 0.2 in PARITY.md.
+
 ## The Mac app, step 4 of 6: the browser suite on the Swift gateway — 2026-11-15
 
 **Branch `mac/browser-suite-on-swift`, development identity `0.1.0-dev.33`.** Stacked on step 3.
