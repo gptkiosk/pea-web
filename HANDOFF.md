@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Review item L7: withdrawn and older releases — 2026-11-15
+
+Branch `fix/release-standing-and-drive-marker`, development identity `0.1.0-dev.28`. This change covers L7 only.
+
+`browser/server/releases.py`: `version_key` orders versions by semantic-version precedence; `revoke` records a staged release in `revoked.json` under the install root with a reason; `activate` refuses a withdrawn release and refuses a version older than the one in use unless `allow_older` is set (`--allow-older`); `rollback` passes `allow_older` but still refuses a withdrawn previous version; `list` reports withdrawn releases. `browser/releases.mjs` gains `releaseStanding`, used by Check for updates in `release-ui.mjs`: a stable build also asks whether its own version tag is still published and warns if it is not, or if it is newer than the latest published stable version. Development builds are told they are ahead as expected.
+
+Tests: 4 new release-manager tests (31 gateway and release tests in total) and 1 new unit test for the messages (172 unit). Not done in this change: a browser-level test of the update check, which needs GitHub's answers simulated in the test harness, and the withdrawn list is local to the machine, not a signed list from the publisher.
+
+L8 is not started. Plan: add `appProperties` to the Drive fields and write `appProperties.peaCreated` beside the public `properties.peaCreated` on every file PEA creates; require the private mark for privileged behavior (automatic excerpt sharing in `maybeAutoAttach`, `replaceDocument`); keep the public mark for display and for the iPhone app, which uses a different Google client and cannot see private marks; add a reviewed "confirm files PEA created" step that sets the private mark on existing files after checking membership and version, at most 25 per review. After L8: the stability pass (soak tests, Safari and Firefox, owner acceptance) and the release, which needs the owner's production signing key.
+
 ## Contracts, shared fixtures and the parity matrix — 2026-11-15
 
 Branch `docs/contracts-and-parity`, development identity `0.1.0-dev.27`. No application code changed.

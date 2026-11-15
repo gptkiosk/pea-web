@@ -1,10 +1,10 @@
 import {
   publicBuild,
-  newerVersion,
   validRepository,
   suggestionDraft,
   issueURL,
   compareMain,
+  releaseStanding,
 } from './releases.mjs';
 const $ = (id) => document.getElementById(id);
 async function boundedJSON(url, max = 200000) {
@@ -91,11 +91,36 @@ export async function installReleaseUI() {
       if (row.html_url !== expected) throw new Error('Unexpected release destination.');
       $('release-notes').textContent = String(row.body ?? 'No release notes.').slice(0, 50000);
       link('release-upstream', expected);
-      note(
-        newerVersion(row.tag_name, info.version)
-          ? `Available: ${row.tag_name}. Review notes, download the signed package, then stage and activate locally when ready. No installation has started.`
-          : `Latest published stable version: ${row.tag_name}. No newer version was identified; nothing was changed.`,
-      );
+      // A stable build also checks that its own version is still published. A missing one may
+      // have been withdrawn.
+      let installedPublished = null;
+      if (info.channel === 'stable') {
+        try {
+          const own = await fetch(
+            `https://api.github.com/repos/${info.repository}/releases/tags/v${info.version}`,
+            {
+              credentials: 'omit',
+              redirect: 'error',
+              cache: 'no-store',
+              referrerPolicy: 'no-referrer',
+              signal: AbortSignal.timeout(12000),
+              headers: { Accept: 'application/json' },
+            },
+          );
+          await own.body?.cancel();
+          installedPublished = own.status === 200 ? true : own.status === 404 ? false : null;
+        } catch {
+          installedPublished = null;
+        }
+      }
+      const standing = releaseStanding({
+        installed: info.version,
+        channel: info.channel,
+        latest: row.tag_name,
+        installedPublished,
+      });
+      $('release-note').dataset.level = standing.level;
+      note(standing.text);
     } catch (error) {
       note(
         error.message === 'Release information is unavailable.'

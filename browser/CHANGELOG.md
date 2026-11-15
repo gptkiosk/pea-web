@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.28] - 2026-11-15
+
+### Added
+
+- The release manager can mark a staged version as withdrawn (`revoke --release ... --reason ...`). A withdrawn version can no longer be selected or rolled back to; its files are kept.
+- Selecting a version older than the one in use is refused unless you add `--allow-older`, because an older program may refuse data saved by a newer one. Rollback to the previous version still works as before.
+- Check for updates now warns when a stable build's own version is no longer published, or is newer than the latest published stable version, since either can mean it was withdrawn.
+
 ## [0.1.0-dev.27] - 2026-11-15
 
 ### Changed

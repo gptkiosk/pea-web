@@ -36,6 +36,38 @@ export function newerVersion(candidate, current) {
   }
   return false;
 }
+// What to tell the owner after comparing this build with the published releases. Nothing is ever
+// installed from here. `installedPublished` is true or false when a stable build's own version
+// was looked up, and null when it was not or could not be.
+export function releaseStanding({ installed, channel, latest, installedPublished = null }) {
+  if (!versionParts(installed) || !versionParts(latest))
+    throw new Error('No eligible stable release returned.');
+  const shown = latest.startsWith('v') ? latest : 'v' + latest;
+  if (channel === 'stable' && installedPublished === false)
+    return {
+      level: 'warning',
+      text: `Version ${installed} is no longer among the published releases, so it may have been withdrawn. The latest published stable version is ${shown}. Read its notes and consider changing version; nothing was changed.`,
+    };
+  if (newerVersion(latest, installed))
+    return {
+      level: 'update',
+      text: `Available: ${shown}. Review notes, download the signed package, then stage and activate locally when ready. No installation has started.`,
+    };
+  if (newerVersion(installed, latest))
+    return channel === 'stable'
+      ? {
+          level: 'warning',
+          text: `This build (${installed}) is newer than the latest published stable version (${shown}). A stable version that is no longer the latest may have been withdrawn; check the releases page. Nothing was changed.`,
+        }
+      : {
+          level: 'info',
+          text: `This ${channel} build (${installed}) is ahead of the latest published stable version (${shown}), as expected. Nothing was changed.`,
+        };
+  return {
+    level: 'info',
+    text: `Latest published stable version: ${shown}. No newer version was identified; nothing was changed.`,
+  };
+}
 export function publicBuild(value) {
   if (
     !value ||
