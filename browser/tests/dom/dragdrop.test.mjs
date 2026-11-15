@@ -155,6 +155,8 @@ test(
       );
     assert.equal(await onBoard(), false, 'dropping adds nothing to the board');
 
+    // The button stays disabled for a moment after a reply while the request finishes; a click then does nothing.
+    await page.waitFor(`!document.getElementById('board-capture').disabled`, 'Add to Inbox to be enabled');
     await page.click('#board-capture');
     await page.waitFor(
       `document.getElementById('board-columns').textContent.includes('Plan the synthetic trip')`,
