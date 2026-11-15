@@ -28,6 +28,8 @@ import {
 import { installBoard } from './board-ui.mjs';
 import { installWorkspace } from './workspace-ui.mjs';
 import { installCommands } from './commands-ui.mjs';
+import { installDragDrop, makeMessageDraggable } from './dragdrop-ui.mjs';
+import { localFileKind } from './dragdrop.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -425,6 +427,7 @@ function renderChat() {
     d.append(l, t);
     const action = proposalButton(m, 'chat');
     if (action) d.append(action);
+    if (!m.preview && !m.incomplete) makeMessageDraggable(d, m.id);
     return d;
   });
   $('messages').replaceChildren(...nodes);
@@ -571,6 +574,7 @@ function renderCollaboration() {
     d.append(label, t);
     const action = proposalButton(m, 'greenhouse');
     if (action) d.append(action);
+    if (!m.incomplete) makeMessageDraggable(d, m.id);
     return d;
   });
   $('collab-messages').replaceChildren(...nodes);
@@ -645,45 +649,42 @@ $('discuss').onclick = () => {
 for (const id of ['days', 'recent-query', 'file-query']) $(id).oninput = renderLists;
 $('view-mode').onchange = renderPreview;
 $('local-open').onclick = () => $('local-file').click();
-$('local-file').onchange = async () => {
-  const f = $('local-file').files?.[0];
-  $('local-file').value = '';
-  if (!f) return;
-  if (f.size > 4 * 1024 * 1024) {
-    notice('Choose a local file under 4 MB.');
-    return;
+// Opens one local file for preview. The file picker and a drop both come through here.
+async function openLocalFile(f) {
+  if (!f) return null;
+  const accepted = localFileKind(f.name, f.type, f.size);
+  if (accepted.error) {
+    notice(accepted.error);
+    return null;
   }
-  const image = ['image/png', 'image/jpeg', 'image/webp'].includes(f.type);
-  const text = /\.(txt|md|csv|json|js|py|swift|mmd)$/i.test(f.name);
-  if (!image && !text) {
-    notice('Use a text/code file or PNG, JPEG or WebP image.');
-    return;
-  }
+  const who = profile;
+  const content = accepted.image ? '' : await f.text();
+  if (who !== profile) return null;
   if (imageURL) URL.revokeObjectURL(imageURL);
   const item = {
     id: crypto.randomUUID(),
     profile,
     name: f.name,
-    mimeType: image ? f.type : 'text/plain',
-    kind: image
-      ? 'image'
-      : /\.mmd$/i.test(f.name)
-        ? 'diagram'
-        : /\.(js|py|swift|json)$/i.test(f.name)
-          ? 'code'
-          : 'document',
+    mimeType: accepted.mimeType,
+    kind: accepted.kind,
     properties: {},
     createdTime: new Date().toISOString(),
     local: true,
-    content: image ? '' : await f.text(),
+    content,
   };
-  if (image) {
+  if (accepted.image) {
     imageURL = URL.createObjectURL(f);
     item.url = imageURL;
   }
   files.push(item);
   renderLists();
-  selectFile(item);
+  await selectFile(item);
+  return item;
+}
+$('local-file').onchange = async () => {
+  const f = $('local-file').files?.[0];
+  $('local-file').value = '';
+  await openLocalFile(f);
 };
 window.addEventListener('pagehide', () => {
   if (imageURL) URL.revokeObjectURL(imageURL);
@@ -1258,6 +1259,28 @@ window.addEventListener('pagehide', () => voice.stop());
 renderLists();
 const workspace = installWorkspace({ onFocus: focusChanged });
 workspace.render();
+installDragDrop({
+  openLocalFile,
+  // The same step as Discuss: the text is selected for the next request, which is reviewed before sending.
+  selectForChat(file) {
+    try {
+      live.attach(file);
+      tab('chat');
+    } catch (error) {
+      notice(error.message);
+    }
+  },
+  // Only a message in the active profile's own conversations can be dropped.
+  messageText: (id) =>
+    [...history('chat'), ...history('greenhouse')].find((m) => m.id === id && !m.incomplete)?.text ?? null,
+  context: () => ({
+    profile,
+    busy: live.isBusy(),
+    dialogOpen: Boolean(document.querySelector('dialog[open]')),
+  }),
+  notice,
+  tab,
+});
 installCommands({
   workspace,
   tab,

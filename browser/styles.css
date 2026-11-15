@@ -2939,6 +2939,8 @@ select:disabled {
 .panes.split {
   display: grid;
   align-items: start;
+  /* Room between the setup cards above and the two panes. */
+  margin-top: 20px;
 }
 main:has(.panes.split) {
   max-width: 1900px;
@@ -3086,4 +3088,18 @@ kbd {
 #shortcut-list dd {
   margin: 0;
   font-size: 14px;
+}
+
+/* Drag and drop: where a dragged file or message can land. */
+.panel.drop-ready,
+.nav.drop-ready {
+  outline: 2px dashed var(--green);
+  outline-offset: 4px;
+  border-radius: 22px;
+}
+.utterance[draggable="true"] {
+  cursor: grab;
+}
+.utterance[draggable="true"]:active {
+  cursor: grabbing;
 }

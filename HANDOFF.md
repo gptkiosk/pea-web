@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Drag and drop — 2026-11-15
+
+Branch `feature/drag-and-drop`, development identity `0.1.0-dev.22`. Third and last slice of the desktop workspace.
+
+`browser/dragdrop.mjs` holds the decisions: `localFileKind` (the file picker's rules, moved out of `app.mjs` so both paths share them), `fileDropPlan` (which workspace, and refusals while busy, in a dialog, in Blended or when empty) and `storyDraftFromMessage` (first non-empty line to 120 characters as the title, the text to 2,400 as scope). `browser/dragdrop-ui.mjs` adds the drop targets. `app.mjs` gains `openLocalFile`, used by both the picker and a drop. Dropping on Chat calls the same `live.attach` as Discuss. Messages are draggable unless incomplete or a preview, and a drag carries only the message id under `application/x-pea-message`; the text is looked up in the active profile's own conversations on drop, so an id from elsewhere drafts nothing. A window-level handler stops a stray file drop from navigating the browser away from the app.
+
+Also in this change, at the owner's request after trying split panes: 20 pixels of space between the setup cards and the panes, with a browser assertion.
+
+Tests: 4 unit tests; 6 browser tests using synthetic `DataTransfer` drops (a file on Chat is selected and its excerpt appears in the review, with nothing sent before or after declining; a file on Greenhouse previews without being selected and a second file is ignored with a notice; unsupported, oversized and Blended drops are refused; a drop outside a workspace is contained; a message on Today drafts a story that reaches the board only after Add to Inbox, and the drag carries no text; an unknown id drafts nothing). Totals: 122 unit, 25 browser (five consecutive clean runs each as Mac and as Linux), 27 gateway and release.
+
+Limits: drops are synthesized in the page, so a real pointer drag from the desktop or between panes has not been exercised by a test; that is worth trying by hand. Touch devices have no drag source. This completes the workspace slices; next are review items L7 and L8, then to-dos with reminders.
+
 ## Command palette and shortcuts — 2026-11-15
 
 Branch `feature/command-palette`, development identity `0.1.0-dev.21`. Second slice of the desktop workspace.

@@ -47,6 +47,11 @@ test('a wide screen can show two workspaces side by side and return to one', opt
     'no sideways scrolling',
   );
 
+  const gap = await page.evaluate(
+    `Math.round(document.getElementById('chat').getBoundingClientRect().top - document.querySelector('.setup-strip').getBoundingClientRect().bottom)`,
+  );
+  assert(gap >= 12, 'the panes sit clear of the setup cards above them: ' + gap);
+
   await page.click('#tab-today');
   assert.deepEqual(await shown(page), ['chat', 'today'], 'going to a shown workspace keeps both');
   assert.equal(await focused(page), 'today');
