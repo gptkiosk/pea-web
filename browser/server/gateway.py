@@ -192,6 +192,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get('Host') not in self.server.hosts or self.headers.get('Origin') not in (None, *self.server.origins):
             self.reply(403, {'error': 'Origin or host rejected.'})
             return False
+        # The address is used exactly as sent. Some Python versions quietly turn a doubled leading
+        # slash into one before this code runs, so it is refused here from the original request line.
+        target = (self.requestline.split() + ['', ''])[1]
+        if target.startswith('//'):
+            self.reply(404, {'error': 'Not found.'})
+            return False
         if auth:
             value = self.headers.get('Authorization', '')
             digest = hashlib.sha256(value.removeprefix('Bearer ').encode()).digest()

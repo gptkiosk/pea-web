@@ -67,6 +67,7 @@ python3 browser/server/check_source.py
 node --test browser/tests/*.test.mjs
 node --test browser/tests/dom/*.test.mjs
 python3 -m unittest discover -s browser/server -p 'test_*.py' -v
+python3 browser/server/conformance/run.py
 ```
 
 Node.js 22+ is needed only for tests (the browser-level tests use its built-in WebSocket and need Chrome or Chromium); Git and OpenSSH signing support are also used by release tests/build tooling. See [contributing](CONTRIBUTING.md), [agent entry](AGENTS.md) and [handoff](HANDOFF.md). Feedback is a reviewed GitHub draft or PR, never an automatic upload of chats or diagnostics.
