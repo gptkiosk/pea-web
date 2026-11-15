@@ -222,6 +222,35 @@ class Page {
   text(selector) {
     return this.evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText ?? ''`);
   }
+  // Presses a real key, as a keyboard would. `text` is what the key types, if anything.
+  async press(key, { alt = false, ctrl = false, meta = false, shift = false, code, text } = {}) {
+    const modifiers = (alt ? 1 : 0) | (ctrl ? 2 : 0) | (meta ? 4 : 0) | (shift ? 8 : 0);
+    const named = { Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38 };
+    const base = {
+      key,
+      code: code || (key.length === 1 ? 'Key' + key.toUpperCase() : key),
+      modifiers,
+      windowsVirtualKeyCode: named[key] || key.toUpperCase().charCodeAt(0),
+    };
+    await this.send('Input.dispatchKeyEvent', {
+      type: text ? 'keyDown' : 'rawKeyDown',
+      ...base,
+      ...(text ? { text } : {}),
+    });
+    await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+  }
+  // The platform's main modifier: Command on a Mac, Control elsewhere.
+  async mod() {
+    return (await this.evaluate(
+      `/mac|iphone|ipad/i.test(navigator.userAgentData?.platform || navigator.platform)`,
+    ))
+      ? { meta: true }
+      : { ctrl: true };
+  }
+  // The modifier used with 1, 2 and 3 to change workspace: Control on a Mac, Alt elsewhere.
+  async workspaceMod() {
+    return (await this.mod()).meta ? { ctrl: true } : { alt: true };
+  }
   // Pretends the window is this size, so the same page can be checked as a desktop and as a phone.
   setViewport(width, height) {
     return this.send('Emulation.setDeviceMetricsOverride', {

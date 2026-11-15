@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Command palette and shortcuts — 2026-11-15
+
+Branch `feature/command-palette`, development identity `0.1.0-dev.21`. Second slice of the desktop workspace.
+
+`browser/commands.mjs` is pure: `commandList(context)` builds the list from what is on screen (panes, focus, wide, profile, busy), `matchCommands` filters by plain substring words with a simple rank, and `shortcutFor(event, { mac, typing })` maps a key press to a shortcut name. The `shortcuts` table feeds both the handler and the help screen. `browser/commands-ui.mjs` draws the palette (`#palette`, a combobox with a listbox) and the help (`#shortcuts-dialog`), and maps each command id to a click on an existing control or a call into the workspace. A command runs only if it is on the current list, and it runs from the palette's `close` event because closing a dialog restores focus and would undo a command that moves it.
+
+Rules worth keeping: the global key handler returns early when any dialog is open other than the palette's own toggle; plain keys (`/`, `?`) are ignored in text fields; workspace keys use Control on a Mac and Alt elsewhere because browsers reserve Command or Control with a digit; the send shortcut submits the same form, so the model-sharing review still appears. Mac detection must be case-insensitive: Chrome reports `macOS` in `userAgentData.platform` and `MacIntel` in `navigator.platform`. A first version missed that and showed Ctrl shortcuts on a Mac.
+
+Tests: 7 unit tests; 7 browser tests using real key presses through `Page.press` (open, filter, arrow keys and run; layout, theme, profile and add-story commands; the right keys for this keyboard; no split commands at 390 pixels; plain keys only outside fields and workspace keys anywhere; the send shortcut stops at the sharing review; no shortcut works while a review is open and none approves it). Totals: 118 unit, 19 browser, 27 gateway and release. Local runs exercise the Mac key paths and CI the others.
+
+Limits: Safari and Firefox are untested. Alt with a digit types a symbol on some non-Mac layouts when no handler takes it; the handler takes it everywhere, including in text fields. Drag and drop is the next slice.
+
 ## Split panes — 2026-11-15
 
 Branch `feature/split-panes`, development identity `0.1.0-dev.20`. First slice of the desktop workspace.

@@ -27,6 +27,7 @@ import {
 } from './voice.mjs';
 import { installBoard } from './board-ui.mjs';
 import { installWorkspace } from './workspace-ui.mjs';
+import { installCommands } from './commands-ui.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -1257,6 +1258,11 @@ window.addEventListener('pagehide', () => voice.stop());
 renderLists();
 const workspace = installWorkspace({ onFocus: focusChanged });
 workspace.render();
+installCommands({
+  workspace,
+  tab,
+  context: () => ({ ...workspace.layout(), wide: workspace.wide(), profile, busy: live.isBusy() }),
+});
 if (location.hash.slice(1)) tab(location.hash.slice(1));
 
 void installReleaseUI();

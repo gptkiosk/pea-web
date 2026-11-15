@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.21] - 2026-11-15
+
+### Added
+
+- A command palette: press Command-K on a Mac or Ctrl+K elsewhere, or choose Commands in the menu, then type a few letters and press Return. It can go to a workspace, open one beside another, start a new chat, add a story, open past chats, the interview, connections or privacy, and switch theme or profile.
+- Keyboard shortcuts: Control-1, 2, 3 on a Mac (Alt elsewhere) for Chat, Today and Greenhouse; Command or Ctrl with backslash for the second workspace; Command or Ctrl with Return to send; slash to start writing; question mark for the list. The menu has a Keyboard shortcuts entry.
+- Commands and shortcuts only press controls already on the page, so every review still appears. They do nothing while a review or any other dialog is open, and plain keys are ignored while you are typing.
+
 ## [0.1.0-dev.20] - 2026-11-15
 
 ### Added
