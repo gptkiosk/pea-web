@@ -79,4 +79,3 @@ Storage and versions:
 - [ ] In a disposable install, stage two versions, activate the newer, and confirm that activating the older is refused without `--allow-older` and that a withdrawn version cannot be selected.
 
 Record the browser versions, device models and dates with the result, outside this public repository.
-
