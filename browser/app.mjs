@@ -26,6 +26,7 @@ import {
   speechReadPlan,
 } from './voice.mjs';
 import { installBoard } from './board-ui.mjs';
+import { installWorkspace } from './workspace-ui.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -123,24 +124,22 @@ function notice(message) {
   clearTimeout(notice.timer);
   notice.timer = setTimeout(() => ($('notice').textContent = ''), 6500);
 }
-function tab(next) {
-  if (!['chat', 'today', 'greenhouse'].includes(next)) return;
+function stopSpeaking() {
   if ($('speech-length')?.open) $('speech-length').close();
   voice?.stop();
   globalThis.speechSynthesis?.cancel();
+}
+// Going to a workspace. On a wide screen it may already be on screen beside another one.
+function tab(next) {
+  if (!['chat', 'today', 'greenhouse'].includes(next)) return;
+  stopSpeaking();
+  workspace.go(next);
+}
+// Called whenever the layout is drawn. The focused workspace is the one voice and sending act on.
+function focusChanged(next, changed) {
+  if (changed) stopSpeaking();
   activeTab = next;
   if (next === 'chat' || next === 'greenhouse') lastConversationSurface = next;
-  document.querySelectorAll('.panel').forEach((p) => {
-    p.hidden = p.id !== next;
-    p.classList.toggle('active', p.id === next);
-  });
-  document.querySelectorAll('[data-tab]').forEach((b) => {
-    const chosen = b.dataset.tab === next;
-    b.classList.toggle('selected', chosen);
-    b.setAttribute('aria-selected', String(chosen));
-    b.tabIndex = chosen ? 0 : -1;
-  });
-  $('page-title').textContent = { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse' }[next];
   live?.render();
 }
 function fileRow(f) {
@@ -1256,6 +1255,8 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => voice.stop());
 renderLists();
-tab(location.hash.slice(1) || activeTab);
+const workspace = installWorkspace({ onFocus: focusChanged });
+workspace.render();
+if (location.hash.slice(1)) tab(location.hash.slice(1));
 
 void installReleaseUI();

@@ -2,7 +2,7 @@
 // Run with: node --test browser/tests/dom/*.test.mjs
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { browserSkipReason, launchBrowser, startFakeModel, startGateway } from './harness.mjs';
+import { askModel, browserSkipReason, openConnectedPage, openReview, startStack } from './harness.mjs';
 
 const skip = browserSkipReason();
 const block = (name, value) => '```' + name + '\n' + JSON.stringify(value) + '\n```\n';
@@ -49,87 +49,25 @@ const replies = {
     block('pea-task', { op: 'task_add', title: 'Second action' }),
 };
 
-let model, gateway, browser;
+let stack, model, gateway;
 
 before(
   async () => {
     if (skip) return;
-    model = await startFakeModel((said) => {
+    stack = await startStack((said) => {
       const key = Object.keys(replies).find((word) => said.includes(word));
       return key ? replies[key] : 'A plain synthetic reply.';
     });
-    gateway = await startGateway(model.port);
-    browser = await launchBrowser();
+    ({ model, gateway } = stack);
   },
   { timeout: 60000 },
 );
 
-after(
-  async () => {
-    // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
-    await Promise.allSettled([browser?.close(), gateway?.close(), model?.close()]);
-  },
-  { timeout: 30000 },
-);
+after(() => stack?.close(), { timeout: 30000 });
 
-// Opens the app, connects the synthetic local model, and returns a page ready to chat.
-async function connectedPage() {
-  const page = await browser.newPage();
-  await page.goto(gateway.origin + '/');
-  await page.waitFor(
-    `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
-    'the app to finish starting',
-  );
-  await page.fill('#local-token', gateway.token);
-  await page.click('#local-connect');
-  await page.waitFor(
-    `[...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`,
-    'the local model list',
-  );
-  await page.fill('#chat-model', 'local:synthetic-model');
-  return page;
-}
-
-async function waitUntil(check, what, timeout = 8000) {
-  const until = Date.now() + timeout;
-  while (!check()) {
-    if (Date.now() > until) throw new Error('Timed out waiting for: ' + what);
-    await new Promise((resolve) => setTimeout(resolve, 40));
-  }
-}
-
+const connectedPage = () => openConnectedPage(stack);
+const ask = (page, message) => askModel(stack, page, message);
 const reviewOpen = (page) => page.evaluate(`document.querySelector('#review').open`);
-
-// Sends one owner message and approves the "before sharing with your model" review.
-async function ask(page, message) {
-  const sent = model.requests.length;
-  await page.fill('#thought', message);
-  await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
-  await page.waitFor(`document.querySelector('#review').open`, 'the model sharing review');
-  assert.equal(model.requests.length, sent, 'nothing reaches the model before the sharing review');
-  await page.click('#review-approve');
-  // The profile switch is disabled for as long as a request is in progress.
-  await page.waitFor(`!document.querySelector('#review').open`);
-  await waitUntil(() => model.requests.length > sent, 'the request to reach the model');
-  await page.waitFor(`!document.querySelector('#profile').disabled`, 'the reply to finish');
-}
-
-async function openReview(page, buttonText) {
-  await page.waitFor(
-    `[...document.querySelectorAll('#messages button')].some((b) => b.textContent.startsWith(${JSON.stringify(buttonText)}))`,
-    'the proposal button "' + buttonText + '"',
-  );
-  // The app ignores a click while the previous review is still closing, as it would a double click.
-  for (let attempt = 0; ; attempt++) {
-    await page.clickText(buttonText);
-    try {
-      await page.waitFor(`document.querySelector('#review').open`, 'the action review', 400);
-      return;
-    } catch (error) {
-      if (attempt >= 10) throw error;
-    }
-  }
-}
 
 test('declining the model sharing review sends nothing', { skip, timeout: 45000 }, async () => {
   const page = await connectedPage();
