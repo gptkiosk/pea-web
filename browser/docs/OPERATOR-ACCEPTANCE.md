@@ -7,7 +7,7 @@ PEA Web is work in progress: there is no finished installer or production signed
 ## 1. Record the source and run offline checks
 
 - [ ] Record the source revision, installed program version, service process and actual URL separately. Confirm the footer version/commit match the version you intended to install; source checks do not prove the installed runtime was updated.
-- [ ] In a **source checkout** with Node 20+ and Python 3.11+, run `python3 tools/check_repository.py`, `python3 browser/server/check_source.py`, `node --test browser/tests/*.test.mjs`, and `python3 -m unittest discover -s browser/server -p 'test_*.py' -q`. The index scan applies to a checkout with Git, not necessarily an installed package. Record the exact revision and results. Synthetic loopback sockets must be available.
+- [ ] In a **source checkout** with Node 22+ and Python 3.11+, run `python3 tools/check_repository.py`, `python3 browser/server/check_source.py`, `node --test browser/tests/dom/*.test.mjs` (needs Chrome or Chromium), `node --test browser/tests/*.test.mjs`, and `python3 -m unittest discover -s browser/server -p 'test_*.py' -q`. The index scan applies to a checkout with Git, not necessarily an installed package. Record the exact revision and results. Synthetic loopback sockets must be available.
 - [ ] In Updates, use the explicit main-branch comparison and published-release check; verify the displayed installed commit and understand that a differing main commit does not itself install an update or establish ancestry. Check that modified/unknown identity is disclosed.
 - [ ] For packages, independently verify the release signature with a separately trusted signing key; follow [updates and rollback](RELEASES.md). A matching footer alone is not signature verification. Confirm the previous verified version and a restore plan before updating.
 
@@ -48,3 +48,34 @@ PEA Web is work in progress: there is no finished installer or production signed
 - [ ] Before changing versions, save and test encrypted backups on a separate empty origin. Exercise the verified update and rollback process in a disposable installation; confirm the expected version, model endpoint, vault unlock and config after restart. A program rollback does not roll back browser IndexedDB or external Google/GitHub changes.
 
 Record failures with the build identity, test section, expected and observed behavior, browser/device, and sanitized logs. Treat any untested item as **not yet verified** rather than passed. See [self-hosting](SELF-HOSTING.md), [memory and recovery](MEMORY.md) and [parity](PARITY.md).
+
+## 7. Release 0.1.0: what automated tests cannot cover
+
+Everything below has automated tests against a synthetic model, a simulated Drive or simulated GitHub answers. These checks need a real account, a real device or a second browser, so only the owner can do them. Use test accounts and synthetic content.
+
+Browsers and devices:
+
+- [ ] Open the app in current Safari and Firefox on a computer as well as Chrome. Automated tests run in Chrome only. Check that the page starts, both themes look right and a message can be sent.
+- [ ] On a wide screen, show two workspaces side by side and drag the divider with a mouse. Drag a file from the desktop onto Chat and onto Greenhouse, and drag a message onto Today.
+- [ ] Turn on Reduce Motion in the operating system and confirm the app keeps its full layout and colors.
+- [ ] On a phone over HTTPS: the three tabs, the workspace menu, the command palette from the menu, and the to-do list.
+
+Actions with a real model:
+
+- [ ] Ask for a to-do with a reminder a few minutes ahead, approve it, keep the page open and confirm the reminder appears. If you allow system notifications, confirm that one appears too.
+- [ ] Ask for a document, read the review, and with a PEA folder connected confirm a formatted Google Doc is created there. Ask for a change and confirm it is replaced. Edit the document by hand in Google Docs, ask for another change and confirm PEA refuses to replace it.
+- [ ] Ask to call or text a number and to get directions, on a phone. Confirm the link opens the phone, message or map app and that nothing is sent until you press the final button there.
+- [ ] Ask "are you an AI?" and confirm the answer is plain.
+- [ ] Ask for an outline to copy, use the Copy button, and use Read reply to confirm the copied text is not read aloud.
+
+Google Drive:
+
+- [ ] After updating, open the PEA folder and confirm earlier files show "Labelled as created by PEA · not confirmed". Use Confirm files PEA created, review the list, and confirm they then show "Created by PEA".
+- [ ] Confirm that opening an unconfirmed file does not attach its text for the model automatically.
+
+Storage and versions:
+
+- [ ] Add to-dos, turn on encrypted saving for the board, reload, unlock and confirm the to-dos return. Download a board backup and restore it into a separate empty browser profile.
+- [ ] In a disposable install, stage two versions, activate the newer, and confirm that activating the older is refused without `--allow-older` and that a withdrawn version cannot be selected.
+
+Record the browser versions, device models and dates with the result, outside this public repository.

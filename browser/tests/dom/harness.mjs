@@ -69,7 +69,9 @@ async function freePort() {
   return port;
 }
 
-// An OpenAI-compatible stand-in. `reply(lastOwnerMessage)` returns the whole assistant reply.
+// An OpenAI-compatible stand-in. `reply(lastOwnerMessage)` returns the whole assistant reply, or an
+// object to misbehave on purpose: { status } answers with that error, { text, cut: true } drops the
+// connection halfway through the reply, and { text, delay } waits that many milliseconds first.
 export async function startFakeModel(reply) {
   const requests = [];
   const server = createServer((request, response) => {
@@ -86,13 +88,31 @@ export async function startFakeModel(reply) {
         requests.push(body);
         const owner = [...body.messages].reverse().find((message) => message.role === 'user');
         const said = typeof owner?.content === 'string' ? owner.content : JSON.stringify(owner?.content);
-        const text = String(reply(said, body));
-        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
-        // Split mid-block so the tests also cover a reply that arrives in pieces.
-        const middle = Math.floor(text.length / 2);
-        for (const piece of [text.slice(0, middle), text.slice(middle)])
-          response.write(`data: ${JSON.stringify({ choices: [{ delta: { content: piece } }] })}\n\n`);
-        response.end('data: [DONE]\n\n');
+        const answer = reply(said, body);
+        const plan = answer && typeof answer === 'object' ? answer : { text: String(answer) };
+        if (plan.status) {
+          response.writeHead(plan.status, { 'Content-Type': 'application/json', 'Retry-After': '7' });
+          response.end(JSON.stringify({ error: 'SYNTHETIC UPSTREAM DETAIL' }));
+          return;
+        }
+        const text = String(plan.text ?? '');
+        const send = () => {
+          if (response.destroyed) return;
+          response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          // Split mid-block so the tests also cover a reply that arrives in pieces.
+          const middle = Math.floor(text.length / 2);
+          const piece = (part) => `data: ${JSON.stringify({ choices: [{ delta: { content: part } }] })}\n\n`;
+          response.write(piece(text.slice(0, middle)));
+          if (plan.cut) {
+            // Let the first half reach the page, then drop the connection without finishing.
+            setTimeout(() => response.destroy(), 150);
+            return;
+          }
+          response.write(piece(text.slice(middle)));
+          response.end('data: [DONE]\n\n');
+        };
+        if (plan.delay) setTimeout(send, plan.delay);
+        else send();
       });
       return;
     }
@@ -167,6 +187,9 @@ class Page {
     // Synthetic answers for addresses a test stands in for, and every request they received.
     this.routes = [];
     this.intercepted = [];
+    // Uncaught errors and console errors from the page. A stability test expects none.
+    this.errors = [];
+    this.owned = true;
   }
   send(method, params = {}) {
     return this.browser.send(method, params, this.sessionId);
@@ -293,7 +316,9 @@ class Page {
     );
   }
   async close() {
-    await this.browser.send('Target.disposeBrowserContext', { browserContextId: this.contextId });
+    if (this.owned)
+      await this.browser.send('Target.disposeBrowserContext', { browserContextId: this.contextId });
+    else await this.browser.send('Target.closeTarget', { targetId: this.targetId });
   }
 }
 
@@ -359,6 +384,15 @@ export async function launchBrowser() {
       else resolve(message.result);
     } else if (message.method === 'Network.requestWillBeSent') {
       pages.get(message.sessionId)?.requests.push(message.params.request.url);
+    } else if (message.method === 'Runtime.exceptionThrown') {
+      const detail = message.params.exceptionDetails;
+      pages.get(message.sessionId)?.errors.push(detail.exception?.description || detail.text);
+    } else if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
+      pages
+        .get(message.sessionId)
+        ?.errors.push(
+          'console.error: ' + message.params.args.map((a) => a.value ?? a.description ?? '').join(' '),
+        );
     } else if (message.method === 'Fetch.requestPaused') {
       pages
         .get(message.sessionId)
@@ -383,14 +417,20 @@ export async function launchBrowser() {
       });
     },
     // Each page gets its own storage, so one test cannot see another's saved data.
-    async newPage() {
-      const { browserContextId } = await browser.send('Target.createBrowserContext');
+    // `beside` opens another tab that shares that page's storage, as a second tab of the same
+    // browser would.
+    async newPage(beside = null) {
+      const { browserContextId } = beside
+        ? { browserContextId: beside.contextId }
+        : await browser.send('Target.createBrowserContext');
       const { targetId } = await browser.send('Target.createTarget', {
         url: 'about:blank',
         browserContextId,
       });
       const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
       const page = new Page(browser, sessionId, browserContextId);
+      page.owned = !beside;
+      page.targetId = targetId;
       pages.set(sessionId, page);
       await page.send('Page.enable');
       await page.send('Runtime.enable');
@@ -425,8 +465,8 @@ export async function startStack(reply) {
 }
 
 // Opens the app, connects the synthetic local model, and returns a page ready to chat.
-export async function openConnectedPage(stack, { width, height } = {}) {
-  const page = await stack.browser.newPage();
+export async function openConnectedPage(stack, { width, height, beside = null } = {}) {
+  const page = await stack.browser.newPage(beside);
   if (width) await page.setViewport(width, height || 900);
   // PEA_DOM_PLATFORM=linux (or mac) makes the page see that kind of computer, so both sets of
   // keyboard shortcuts can be checked on one machine.

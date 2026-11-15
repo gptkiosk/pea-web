@@ -61,6 +61,7 @@
   "tests/dom/honesty.test.mjs",
   "tests/dom/releases.test.mjs",
   "tests/dom/reviews.test.mjs",
+  "tests/dom/stability.test.mjs",
   "tests/dom/todos.test.mjs",
   "tests/dom/workspace.test.mjs",
   "tests/documents.test.mjs",

@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.29] - 2026-11-15
+
+### Changed
+
+- No change to how the app behaves. This build adds stability tests and an acceptance checklist for the first release. The tests cover model failures, a reply cut off mid-stream, Stop, leaving the page during a request, a 30-turn conversation, full lists, a 4 MB file, two tabs on one encrypted board, and an encrypted library across a reload. They found no new defects.
+- The requirements now name the browsers the interface is built for: Chrome and Edge 111 or later, Safari 16.4 or later and Firefox 121 or later.
+
 ## [0.1.0-dev.28] - 2026-11-15
 
 ### Added

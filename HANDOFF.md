@@ -23,6 +23,22 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Stability pass — 2026-11-15
+
+Branch `test/stability-pass`, development identity `0.1.0-dev.29`. No application code changed; the pass found no new defects.
+
+`browser/tests/dom/stability.test.mjs` adds nine browser tests: (1) model errors of three kinds reported plainly, with one attempt each, no upstream text shown and the app usable afterwards; (2) a reply cut off mid-stream keeps what arrived, hides the half-received action block and offers nothing; (3) Stop ends a slow request and the stopped reply never arrives later; (4) leaving the page during a request starts clean; (5) thirty turns, with at most fourteen messages sent and early ones no longer sent; (6) 200 stories and 200 to-dos, with the 201st of each refused with a reason; (7) a file just under 4 MB attached, with only a bounded excerpt in the review and the request; (8) two tabs on one encrypted board, where the stale tab is stopped with a notice and its write never reaches storage; (9) an encrypted library with no readable text in IndexedDB, nothing shown while locked after reload, a wrong passphrase refused and the conversation back after unlocking. Every test also asserts the page threw no uncaught error and logged no console error.
+
+Harness additions: the synthetic model can answer with an error status, drop the connection mid-reply or delay; pages record uncaught exceptions and console errors in `page.errors`; `newPage(beside)` opens a second tab sharing the first one's storage.
+
+What the pass taught: the gateway reports every failure of the owner's model server with the same message, by design; a cut-off stream has its own message; opening a saved library asks for confirmation before replacing the tab's contents.
+
+`browser/docs/OPERATOR-ACCEPTANCE.md` gains section 7, the checks only the owner can do for 0.1.0: Safari and Firefox, a real pointer drag, Reduce Motion, a phone, a real model for each action, a real Google Doc created, replaced and refused after a hand edit, the Drive confirmation step, encrypted to-dos, and the release manager. README now states the browser versions the interface relies on and that tests need Node 22.
+
+Totals: 174 unit, 56 browser, 31 gateway and release.
+
+What is left for 0.1.0 is not code: the owner's acceptance run, the production signing key (created by the owner, never by an agent), then setting the version to `0.1.0`, building, signing and publishing.
+
 ## Review items L7 and L8 — 2026-11-15
 
 Branch `fix/release-standing-and-drive-marker`, development identity `0.1.0-dev.28`. These were the last two open items from the 2026-11-11 review.
