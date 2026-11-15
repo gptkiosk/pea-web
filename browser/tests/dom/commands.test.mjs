@@ -70,29 +70,33 @@ test(
   options,
   async () => {
     const page = await openConnectedPage(stack, { width: 1500 });
-    const runCommand = async (words) => {
+    // The command runs just after the palette has closed, so each step waits for its effect.
+    const runCommand = async (words, effect, what) => {
       await blur(page);
       await page.press('k', await page.mod());
       await page.waitFor(`document.getElementById('palette').open`);
       await typeText(page, words);
       await page.press('Enter');
       await page.waitFor(`!document.getElementById('palette').open`);
-      // The command runs just after the palette has closed.
-      await page.evaluate(`new Promise((resolve) => setTimeout(resolve, 60))`);
+      await page.waitFor(effect, what);
     };
-    await runCommand('beside today');
-    assert.deepEqual(
-      await page.evaluate(`[...document.querySelectorAll('.panel:not([hidden])')].map((p) => p.id).sort()`),
-      ['chat', 'today'],
+    await runCommand(
+      'beside today',
+      `[...document.querySelectorAll('.panel:not([hidden])')].map((p) => p.id).sort().join() === 'chat,today'`,
+      'Today beside Chat',
     );
-    const theme = () => page.evaluate(`document.documentElement.dataset.theme || 'light'`);
-    const was = await theme();
-    await runCommand('dark theme');
-    assert.notEqual(await theme(), was);
-    await runCommand('work profile');
-    assert.equal(await page.evaluate(`document.getElementById('profile').value`), 'work');
-    await runCommand('add story');
-    assert.equal(await page.evaluate(`document.activeElement.id`), 'story-title');
+    const was = await page.evaluate(`document.documentElement.dataset.theme || 'light'`);
+    await runCommand(
+      'dark theme',
+      `(document.documentElement.dataset.theme || 'light') !== ${JSON.stringify(was)}`,
+      'the theme to change',
+    );
+    await runCommand(
+      'work profile',
+      `document.getElementById('profile').value === 'work'`,
+      'the Work profile',
+    );
+    await runCommand('add story', `document.activeElement.id === 'story-title'`, 'focus in the story title');
     await page.close();
   },
 );
@@ -105,7 +109,7 @@ test('the help shows the keys for this kind of keyboard', options, async () => {
   const first = await page.evaluate(`document.querySelector('#shortcut-list kbd').textContent`);
   assert.equal(first, mac ? '⌘K' : 'Ctrl+K');
   // A Mac reports itself as "macOS" in one place and "MacIntel" in another; both must count.
-  if (process.platform === 'darwin') assert.equal(mac, true);
+  if (process.platform === 'darwin' && !process.env.PEA_DOM_PLATFORM) assert.equal(mac, true);
   await page.close();
 });
 

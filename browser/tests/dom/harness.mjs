@@ -397,6 +397,23 @@ export async function startStack(reply) {
 export async function openConnectedPage(stack, { width, height } = {}) {
   const page = await stack.browser.newPage();
   if (width) await page.setViewport(width, height || 900);
+  // PEA_DOM_PLATFORM=linux (or mac) makes the page see that kind of computer, so both sets of
+  // keyboard shortcuts can be checked on one machine.
+  const pretend = { linux: ['Linux x86_64', 'Linux'], mac: ['MacIntel', 'macOS'] }[
+    process.env.PEA_DOM_PLATFORM
+  ];
+  if (pretend)
+    await page.send('Emulation.setUserAgentOverride', {
+      userAgent: await page.evaluate('navigator.userAgent'),
+      platform: pretend[0],
+      userAgentMetadata: {
+        platform: pretend[1],
+        platformVersion: '',
+        architecture: '',
+        model: '',
+        mobile: false,
+      },
+    });
   await page.goto(stack.gateway.origin + '/');
   await page.waitFor(
     `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
