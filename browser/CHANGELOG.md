@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.39] - 2026-11-15
+
+### Added
+
+- Groundwork for public research: both gateways can now read one public web page when asked with the connection token. Nothing in the app asks yet, so there is nothing new to see. The reader only fetches `https://` pages from named public sites, never follows a redirect, never contacts a private or local address, sends nothing of yours to the site, and returns text only, up to 2 MB.
+
 ## [0.1.0-dev.38] - 2026-11-15
 
 ### Added

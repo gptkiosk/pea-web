@@ -147,7 +147,8 @@ class GatewayChecks(unittest.TestCase):
     def test_every_rule_comes_from_the_shared_contract(self):
         contract = json.loads(Path(g.__file__).with_name('contract.json').read_text())
         self.assertEqual(contract['version'], 1)
-        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders'})
+        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders', 'reader'})
+        self.assertEqual(g.READER, contract['reader'])
         self.assertEqual(g.REMINDERS, contract['reminders'])
         self.assertEqual(set(contract['reminders']), {'about', 'path', 'fields', 'items', 'idPattern', 'titleCharacters', 'dueMax'})
         self.assertTrue(contract['reminders']['path'].startswith('/v1/'), 'so it needs the token like the model routes')

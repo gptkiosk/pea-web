@@ -159,12 +159,19 @@ test(
   async () => {
     const page = await openConnectedPage(stack, { width: 1500 });
     await page.click('#tab-today');
+    // Added twenty at a time: each addition redraws the whole board, and on a slow machine one
+    // command adding all four hundred took longer than the harness allows any single command.
+    for (let from = 1; from <= 200; from += 20)
+      await page.evaluate(
+        `(() => {
+        const story = document.getElementById('story-title'), board = document.getElementById('board-add');
+        for (let i = ${from}; i < ${from} + 20; i++) { story.value = 'Synthetic story ' + i; board.requestSubmit(); }
+        const todo = document.getElementById('todo-title'), list = document.getElementById('todo-add');
+        for (let i = ${from}; i < ${from} + 20; i++) { todo.value = 'Synthetic to-do ' + i; list.requestSubmit(); }
+      })()`,
+      );
     const filled = await page.evaluate(
       `(() => {
-      const story = document.getElementById('story-title'), board = document.getElementById('board-add');
-      for (let i = 1; i <= 200; i++) { story.value = 'Synthetic story ' + i; board.requestSubmit(); }
-      const todo = document.getElementById('todo-title'), list = document.getElementById('todo-add');
-      for (let i = 1; i <= 200; i++) { todo.value = 'Synthetic to-do ' + i; list.requestSubmit(); }
       return {
         stories: document.querySelectorAll('#board-columns [data-story], #board-columns .story, #board-columns article').length,
         todos: document.querySelectorAll('#todo-list .todo-item').length,

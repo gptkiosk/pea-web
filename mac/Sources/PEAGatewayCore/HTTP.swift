@@ -45,7 +45,7 @@ struct RequestHead: Equatable {
 }
 
 enum Response {
-    private static let reasons = [200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 409: "Conflict",
+    private static let reasons = [200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 409: "Conflict", 422: "Unprocessable Content",
                                   429: "Too Many Requests", 431: "Request Header Fields Too Large", 501: "Not Implemented", 502: "Bad Gateway", 503: "Service Unavailable"]
 
     /// Answers are HTTP/1.0 and the connection closes after each one, as with the Python gateway.

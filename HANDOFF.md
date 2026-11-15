@@ -23,6 +23,27 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Public research, part 1: the gateway's page reader — 2026-11-15
+
+**Branch `research/gateway-reader`, development identity `0.1.0-dev.39`.** The owner chose public research as the next 0.2 piece. This part is the gateway side only; no page code calls it yet.
+
+- Rule first: `contract.json` gained `reader`. `POST /v1/read {"url"}` with the token. Answers: 200 `{"outcome":"page","url","type","text"}`; 200 `{"outcome":"redirect","url","location"}` (never followed); 400 for an address outside the grammar; 422 when the name leads to a refused address; 429 when two reads are already running; 502 for everything about the site (not found, unreachable, error status with `status`, not text, compressed, over 2 MB, not UTF-8, over 15 seconds, redirect to somewhere not allowed).
+- Address grammar, identical in both: `https://name[:443][/path][?query]`, printable ASCII, at most 2,000 characters, no user name, other port, fragment or backslash; the name needs a dot and a final label starting with a letter, so no numeric address in any form; final labels in `refusedSuffixes` are refused.
+- Addresses: every address the name resolves to must be outside `refusedNetworks` (loopback, private, link-local, carrier-grade NAT, documentation, multicast, reserved, IPv4-mapped, NAT64, 6to4, Teredo, unique-local). The connection goes to the first checked address, not to the name again; TLS is verified against the name.
+- Sent to the site: `Host`, the fixed `User-Agent` and `Accept` from the contract, `Accept-Encoding: identity`, `Connection: close`. Nothing of the owner's.
+- `browser/server/gateway.py`: `reader_target`, `reader_refuses`, `PinnedConnection`, `Gateway.read_page` with one timer that cuts the connection at 15 seconds. `mac/Sources/PEAGatewayCore/Reader.swift`: `ReaderRules`, `PageRead` (Network.framework to the checked address, explicit certificate check, own response and chunk reader).
+- Test stand-ins, on both gateways and never set by `local.py` or the Mac app: `--reader-test-site NAME.example=PORT` and `--reader-test-resolve NAME.example=ADDRESS[,ADDRESS]`. Names must end in `.example`, which is otherwise a refused suffix.
+- Tests: conformance now 26 plus 1 opt-in, passing on both gateways: page types, exact request headers, redirects reported and five bad ones refused, error pages not passed on, nine kinds of non-page refused, a dead site, two slow reads cut off and a third refused with 429, 13 names leading to refused addresses, 47 addresses outside the grammar, 13 malformed bodies, token and origin checks. `PEA_CONFORMANCE_LIVE=1` runs the one test that uses the internet; it was run once by hand on each gateway and passed (a real page read, a public name that points at this machine refused, four bad certificates refused). Swift unit tests: 3 new (grammar, addresses, chunks).
+
+Known gaps:
+
+- Nothing in the app uses the reader yet. Part 2 is the page: a model proposes an address, the owner approves that exact address, the text is reduced to plain words in the page, and it is shared with the model only under the model-sharing review. Retrieved text must never be able to grant an action.
+- The reader has had no independent security review. Name lookups use the system resolver; a system-wide proxy or VPN is not consulted or detected.
+- Only UTF-8 pages are read. No PDF, no images, no JavaScript-rendered pages, no search engine.
+- The live test depends on third-party sites and is not run in CI.
+
+Next action: part 2 as above, with browser-level regression tests against the stand-in site.
+
 ## Weather on Today — 2026-11-15
 
 **Branch `feature/weather-card`, development identity `0.1.0-dev.38`.** First web piece of "public research, weather, headlines, Home card". Owner's choices: weather first; Open-Meteo as the source.

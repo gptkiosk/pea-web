@@ -42,6 +42,7 @@ Not checked yet: whether macOS allows notifications from the unsigned developmen
 ## What is here
 
 - `Sources/PEAGatewayCore`: the gateway. It listens on `127.0.0.1` only, serves the web files named in `browser/server/contract.json`, and passes text chat to a model server on the same Mac. It keeps no log of requests or conversations and cannot be pointed at another machine.
+- `Sources/PEAGatewayCore/Reader.swift`: the page reader behind `/v1/read`. It looks a name up once, refuses it if any address is private or local, connects to one of those checked addresses with the certificate verified against the name, and reports a redirect without following it.
 - `Sources/pea-gateway`: a command-line tool around the core, for development and tests.
 - `Sources/PEALauncherCore`: what the app does apart from drawing: the Keychain token, remembered port and model address, starting and stopping the gateway, finding a free port, `Updates.swift`, which compares this build with the latest published release, and `Reminders.swift`, which decides whether reminders handed over by the page become notifications.
 - `Sources/PEAMac`: the SwiftUI menu, window and dialogs.
@@ -70,6 +71,8 @@ swift test --package-path mac
 PEA_GATEWAY_COMMAND="[\"$PWD/mac/.build/debug/pea-gateway\"]" python3 browser/server/conformance/run.py
 PEA_GATEWAY=swift node --test browser/tests/dom/*.test.mjs
 ```
+
+`pea-gateway` also takes `--reader-test-site NAME.example=PORT` and `--reader-test-resolve NAME.example=ADDRESS`, for tests only: stand-ins for public sites so the page reader can be tested without the internet. The app never sets them.
 
 `pea-gateway` also takes `--reminders-file PATH`, for tests only: accepted reminders are written to that file in place of being shown.
 

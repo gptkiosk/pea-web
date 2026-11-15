@@ -32,6 +32,7 @@ public struct Contract {
     public let streamSeconds: Double
     public let streamBytes: Int
     public let buildInfoSeconds: Double
+    public let reader: ReaderRules
     public let remindersPath: String
     public let reminderFields: Set<String>
     public let reminderItems: Int
@@ -123,6 +124,7 @@ public struct Contract {
         reminderTitleCharacters = title
         reminderDueMax = latest
         reminderID = expression
+        reader = try ReaderRules(root["reader"])
     }
 
     static func matches(_ expression: NSRegularExpression, _ text: String) -> Bool {

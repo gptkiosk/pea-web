@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import secrets
 import socket
+import ssl
 import stat
 import sys
 import threading
@@ -131,13 +132,83 @@ def validate_reminders(raw):
     return raw['reminders']
 
 
+READER = CONTRACT['reader']
+READER_NETWORKS = tuple(ipaddress.ip_network(n) for n in READER['refusedNetworks'])
+READER_HOST = re.compile(r'(?=.{1,%d}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\Z' % READER['hostCharacters'])
+
+
+class ReaderRefusal(Exception):
+    """A page that will not be read. `code` is the answer's status; `extra` is added to its JSON."""
+    def __init__(self, code, message, **extra):
+        super().__init__(message)
+        self.code, self.message, self.extra = code, message, extra
+
+
+def reader_target(url, allowed_names=()):
+    """Splits an address the reader may ask for into (host, path). Anything else raises ValueError.
+
+    Only https://name[:443]/path?query in printable ASCII: no user name, no other port, no fragment, no
+    numeric address, and no name that is private by convention. `allowed_names` are test stand-ins.
+    """
+    if not isinstance(url, str) or not 12 <= len(url) <= READER['urlCharacters'] or not url.startswith('https://'):
+        raise ValueError('Only an https:// address can be read.')
+    if any(not 0x21 <= ord(c) <= 0x7E or c in '\\#' for c in url):
+        raise ValueError('The address has a character that cannot be used.')
+    rest = url[len('https://'):]
+    cut = min((i for i in (rest.find('/'), rest.find('?')) if i >= 0), default=len(rest))
+    authority, tail = rest[:cut], rest[cut:]
+    if authority.endswith(':443'):
+        authority = authority[:-4]
+    host = authority.lower()
+    if not READER_HOST.fullmatch(host):
+        raise ValueError('Only a named public site on the usual port can be read.')
+    if host not in allowed_names and host.rsplit('.', 1)[-1] in READER['refusedSuffixes']:
+        raise ValueError('That name is not a public site.')
+    return host, ('/' + tail if tail.startswith('?') else tail or '/')
+
+
+def reader_refuses(address):
+    """Whether an address a name resolved to is one the reader must never contact."""
+    try:
+        ip = ipaddress.ip_address(address.split('%', 1)[0])
+    except ValueError:
+        return True
+    return any(ip.version == network.version and ip in network for network in READER_NETWORKS)
+
+
+class PinnedConnection(http.client.HTTPSConnection):
+    """HTTPS to one address that was already checked, verifying the certificate against the site's name."""
+    def __init__(self, host, address, timeout):
+        super().__init__(host, 443, timeout=timeout, context=ssl.create_default_context())
+        self.address = address
+
+    def connect(self):
+        raw = socket.create_connection((self.address, 443), self.timeout)
+        try:
+            self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+        except Exception:
+            raw.close()
+            raise
+
+
+def validate_read(raw):
+    if not isinstance(raw, dict) or set(raw) != set(READER['fields']):
+        raise ValueError('One address is required.')
+    return raw['url']
+
+
 class Gateway(ThreadingHTTPServer):
     daemon_threads = True
     # Connections waiting to be accepted. One page load asks for about twenty files at once; the library default
     # of five refused part of that burst, a module failed to load and the app never started.
     request_queue_size = LIMITS['acceptBacklog']
-    def __init__(self, address, *, token, upstream, public_origin=None):
+    def __init__(self, address, *, token, upstream, public_origin=None, reader_test_sites=None, reader_test_resolve=None):
         super().__init__(address, Handler)
+        # Stand-ins for public sites, for tests only: a name served in plain HTTP from a port on this
+        # machine, and a name given fixed addresses in place of a DNS answer. Never set by local.py.
+        self.reader_test_sites = dict(reader_test_sites or {})
+        self.reader_test_resolve = dict(reader_test_resolve or {})
+        self.reader_lock = threading.BoundedSemaphore(READER['concurrent'])
         self.client_slots = threading.BoundedSemaphore(CLIENT_SLOTS)
         self.token_digest = hashlib.sha256(token.encode()).digest()
         self.upstream = upstream_url(upstream)
@@ -180,6 +251,94 @@ class Gateway(ThreadingHTTPServer):
             if self.identity is None or time.monotonic() - self.identity_at > BUILD_INFO_TTL:
                 self.identity, self.identity_at = build_identity(ROOT), time.monotonic()
             return self.identity
+
+    def read_page(self, url):
+        """Reads one public page and returns what the owner's page is told. Raises ReaderRefusal otherwise."""
+        names = set(self.reader_test_sites) | set(self.reader_test_resolve)
+        try:
+            host, path = reader_target(url, names)
+        except ValueError as error:
+            raise ReaderRefusal(400, str(error)) from None
+        unreachable = ReaderRefusal(502, 'The site could not be reached.')
+        if host in self.reader_test_sites:
+            connection = http.client.HTTPConnection('127.0.0.1', self.reader_test_sites[host], timeout=READER['seconds'])
+        else:
+            if host in self.reader_test_resolve:
+                addresses = list(self.reader_test_resolve[host])
+            else:
+                try:
+                    addresses = list(dict.fromkeys(item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)))
+                except (OSError, UnicodeError):
+                    raise ReaderRefusal(502, 'That site could not be found.') from None
+            if not addresses:
+                raise ReaderRefusal(502, 'That site could not be found.')
+            # Every address the name has must be public, so no answer can steer the reader inward.
+            if any(reader_refuses(address) for address in addresses):
+                raise ReaderRefusal(422, 'That name leads to a private or local address, which is never read.')
+            connection = PinnedConnection(host, addresses[0], READER['seconds'])
+        # One clock for the whole read: when it runs out the connection is cut, however slowly the site is talking.
+        expired = threading.Event()
+        timer = None
+        try:
+            connection.connect()
+            raw = connection.sock
+
+            def cut():
+                expired.set()
+                try:
+                    raw.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+            timer = threading.Timer(READER['seconds'], cut)
+            timer.daemon = True
+            timer.start()
+            connection.putrequest('GET', path, skip_host=True, skip_accept_encoding=True)
+            for name, value in (('Host', host), ('User-Agent', READER['userAgent']), ('Accept', READER['accept']),
+                                ('Accept-Encoding', 'identity'), ('Connection', 'close')):
+                connection.putheader(name, value)
+            connection.endheaders()
+            response = connection.getresponse()
+            if response.status in (301, 302, 303, 307, 308):
+                location = (response.getheader('Location') or '').strip().split('#', 1)[0]
+                if location.startswith('/') and not location.startswith('//'):
+                    location = 'https://' + host + location
+                try:
+                    reader_target(location, names)
+                except ValueError:
+                    raise ReaderRefusal(502, 'The site sent the reader somewhere it will not go.') from None
+                # Not followed: the owner sees the new address and decides.
+                return {'outcome': 'redirect', 'url': url, 'location': location}
+            if response.status != 200:
+                raise ReaderRefusal(502, 'The site answered with an error.', status=response.status)
+            kind = (response.getheader('Content-Type') or '').split(';', 1)[0].strip().lower()
+            if kind not in READER['contentTypes'] or (response.getheader('Content-Encoding') or 'identity').strip().lower() != 'identity':
+                raise ReaderRefusal(502, 'That address is not a plain web page or text.')
+            declared = response.getheader('Content-Length')
+            if declared is not None and (not declared.isdigit() or int(declared) > READER['bodyBytes']):
+                raise ReaderRefusal(502, 'That page is too large to read.')
+            body = b''
+            while True:
+                chunk = response.read1(65536)
+                if not chunk:
+                    break
+                body += chunk
+                if len(body) > READER['bodyBytes']:
+                    raise ReaderRefusal(502, 'That page is too large to read.')
+            if expired.is_set():
+                raise unreachable
+            try:
+                text = body.decode('utf-8')
+            except UnicodeDecodeError:
+                raise ReaderRefusal(502, 'That page is not in a text encoding the reader accepts.') from None
+            return {'outcome': 'page', 'url': url, 'type': kind, 'text': text.removeprefix('\ufeff')}
+        except ReaderRefusal:
+            raise
+        except (OSError, ValueError, AttributeError, http.client.HTTPException):
+            raise unreachable from None
+        finally:
+            if timer:
+                timer.cancel()
+            connection.close()
 
     def upstream_call(self, method, path, body=None):
         connection = http.client.HTTPConnection(*self.upstream, timeout=LIMITS['upstreamTimeoutSeconds'])
@@ -295,19 +454,29 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.boundary(auth=True):
             return
-        if self.path not in ('/v1/chat/completions', REMINDERS['path']):
-            return self.reply(404, {'error': 'Only model listing, text chat and reminders are exposed.'})
+        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path']):
+            return self.reply(404, {'error': 'Only model listing, text chat, reminders and the page reader are exposed.'})
         reminders = self.path == REMINDERS['path']
+        reading = self.path == READER['path']
         try:
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json' or self.headers.get('Transfer-Encoding'):
                 raise ValueError()
             length = int(self.headers.get('Content-Length', '0'))
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
-            body = (validate_reminders if reminders else validate_chat)(strict_json(self.rfile.read(length)))
+            body = (validate_reminders if reminders else validate_read if reading else validate_chat)(strict_json(self.rfile.read(length)))
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
-            return self.reply(400, {'error': 'Invalid reminder list.' if reminders else 'Invalid or oversized text chat request.'})
+            return self.reply(400, {'error': 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+        if reading:
+            if not self.server.reader_lock.acquire(blocking=False):
+                return self.reply(429, {'error': 'The reader is busy. No automatic retry.'})
+            try:
+                return self.reply(200, self.server.read_page(body))
+            except ReaderRefusal as refusal:
+                return self.reply(refusal.code, {'error': refusal.message, **refusal.extra})
+            finally:
+                self.server.reader_lock.release()
         if reminders:
             # Checked and dropped: only PEA for Mac can show a notification.
             return self.reply(200, {'available': False, 'scheduled': 0})
@@ -354,6 +523,10 @@ def main():
     parser.add_argument('--token-file', required=True)
     parser.add_argument('--public-origin', help='Exact HTTPS origin of your own VPN/TLS reverse proxy; no public listener is opened.')
     parser.add_argument('--create-token', action='store_true', help='Create a new 0600 token file and exit; refuses overwrite.')
+    parser.add_argument('--reader-test-site', action='append', default=[], metavar='NAME.example=PORT',
+                        help='Tests only: serve this name to the page reader from plain HTTP on a port of this machine.')
+    parser.add_argument('--reader-test-resolve', action='append', default=[], metavar='NAME.example=ADDRESS[,ADDRESS]',
+                        help='Tests only: give this name these addresses in place of a DNS answer.')
     args = parser.parse_args()
     if args.create_token:
         p = Path(args.token_file).expanduser()
@@ -365,7 +538,16 @@ def main():
     token = read_token(args.token_file)
     if not 1 <= args.port <= 65535:
         parser.error('Choose a valid port.')
-    server = Gateway(('127.0.0.1', args.port), token=token, upstream=args.upstream, public_origin=args.public_origin)
+    sites, fixed = {}, {}
+    for entry, into in [(e, sites) for e in args.reader_test_site] + [(e, fixed) for e in args.reader_test_resolve]:
+        name, _, value = entry.partition('=')
+        if not READER_HOST.fullmatch(name) or not name.endswith('.example') or not value:
+            parser.error('A reader test name must end in .example and have a value.')
+        into[name] = int(value) if into is sites else value.split(',')
+    if sites or fixed:
+        print('TEST MODE: the page reader has stand-in sites. Never use these options outside tests.', file=sys.stderr)
+    server = Gateway(('127.0.0.1', args.port), token=token, upstream=args.upstream, public_origin=args.public_origin,
+                     reader_test_sites=sites, reader_test_resolve=fixed)
     print(f'PEA customer-owned UI: http://127.0.0.1:{args.port}/browser/ · private VPN/TLS required for phone access')
     try:
         server.serve_forever()
