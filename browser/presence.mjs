@@ -21,3 +21,26 @@ export function presenceAt(enabled, date = new Date()) {
     pitch: period === 'quiet hours' ? 0.96 : 1,
   };
 }
+
+// Whether local-time delivery is on, kept per profile on this browser so the choice survives a
+// reload. It is a preference only: no time, place or conversation content is stored with it.
+const presenceKey = 'pea-presence-v1';
+export function presencePreferences(value) {
+  const on = (profile) => Boolean(value && typeof value === 'object' && value[profile] === true);
+  return { personal: on('personal'), work: on('work') };
+}
+export function loadPresencePreferences(storage = globalThis.localStorage) {
+  try {
+    return presencePreferences(JSON.parse(storage.getItem(presenceKey) || '{}'));
+  } catch {
+    return presencePreferences({});
+  }
+}
+export function savePresencePreferences(value, storage = globalThis.localStorage) {
+  try {
+    storage.setItem(presenceKey, JSON.stringify(presencePreferences(value)));
+    return true;
+  } catch {
+    return false;
+  }
+}

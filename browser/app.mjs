@@ -42,6 +42,7 @@ import {
   replySegments,
   spokenReply,
 } from './handoff.mjs';
+import { honestyCorrection, needsHonestyCorrection } from './honesty.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -978,6 +979,15 @@ live = installConnections({
     if (complete && !opens.length && claimsOpen(reply.text))
       reply.text +=
         '\n\nPEA did not call, text or open directions. Review and approve a proposal, then press the link yourself.';
+    // PEA never passes as human. If the reply claimed to be, or dodged a sincere question about
+    // what it is, the app adds the plain sentence itself.
+    if (complete) {
+      const asked = history(surface)
+        .filter((m) => m.role === 'user')
+        .at(-1)?.text;
+      if (needsHonestyCorrection(reply.text, asked) && !reply.text.includes(honestyCorrection))
+        reply.text += '\n\n' + honestyCorrection;
+    }
     delete reply.raw;
     reply.incomplete = !complete;
     if (items.length === 1 && !emails.length) proposals.set(reply.id, { profile, ...items[0] });
