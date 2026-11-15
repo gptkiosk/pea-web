@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.22] - 2026-11-15
+
+### Added
+
+- Drop a text, code or image file onto Greenhouse to open it, the same as Open locally. Drop it onto Chat to also select its text for your next message; you still see the exact excerpt in the review before anything is sent.
+- Drag a message onto Today, or onto the Today tab, to start a story from it. The title and scope are filled in for you to edit, and nothing is added until you choose Add to Inbox.
+- A file dropped anywhere else no longer makes the browser leave the app to display it.
+
+### Changed
+
+- Side-by-side workspaces now sit a little below the setup cards instead of touching them.
+
 ## [0.1.0-dev.21] - 2026-11-15
 
 ### Added
