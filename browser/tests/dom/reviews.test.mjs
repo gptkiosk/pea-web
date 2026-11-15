@@ -19,8 +19,8 @@ const replies = {
     }),
   story:
     'I can capture that.\n' +
-    block('pea-task', {
-      op: 'task_add',
+    block('pea-story', {
+      op: 'story_add',
       title: 'Synthetic story',
       details: 'Synthetic scope',
       acceptance: 'Synthetic criteria',
@@ -46,7 +46,7 @@ const replies = {
   mixed:
     'Two things.\n' +
     block('pea-email', { op: 'email_draft', to: 'owner@example.invalid', subject: 'A', body: 'B' }) +
-    block('pea-task', { op: 'task_add', title: 'Second action' }),
+    block('pea-story', { op: 'story_add', title: 'Second action' }),
 };
 
 let stack, model, gateway;
@@ -247,6 +247,6 @@ test('a reply with two actions offers neither', { skip, timeout: 45000 }, async 
   await ask(page, 'Please send mixed actions.');
   assert.equal(await page.hasText('Review email draft'), false);
   assert.equal(await page.hasText('Review story'), false);
-  assert.doesNotMatch(await page.text('#messages'), /pea-email|pea-task|task_add/);
+  assert.doesNotMatch(await page.text('#messages'), /pea-email|pea-story|story_add/);
   await page.close();
 });

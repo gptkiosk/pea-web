@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## To-dos and reminders — 2026-11-15
+
+Branch `feature/todos-and-reminders`, development identity `0.1.0-dev.23`. First parity slice. The owner allowed a read-only look at the iPhone to-do policy to match its block format; nothing was copied, and the Web code and wording are our own.
+
+`browser/todos.mjs` is pure: item validation with an exact key set, `parseLocalMoment` (local `YYYY-MM-DDTHH:MM`, impossible dates refused), `todoProposals` (one `pea-task` block, array or single row, at most 8 rows, strict keys), `applyTodoRequests` (duplicates skipped, a reminder only for a future time, check-off by one exact or one partial match, per-profile limit, and a sentence saying what happened), owner operations, `todoGuidance` (items only when shared; up to 25 open and 5 finished in the last week), `claimsTodoChange` and `dueReminders`. `browser/todos-ui.mjs` draws the list in a new Today section, runs a 20-second reminder check that also fires when the tab becomes visible, and asks for notification permission only on a click.
+
+Storage: to-dos ride in the board's encrypted record. `encodeBoard` writes the earlier plain array when there are no to-dos and `{ schema: 2, tasks, todos }` otherwise; `decodeBoard` accepts both. `BoardVault.unlock` takes current to-dos and exposes `vault.todos`; `save(tasks, todos = this.todos)` keeps them when only stories change; lock clears them. An earlier build refuses a schema-2 board without changing it. `board-ui.mjs` holds the to-dos beside the stories and exports `todoStore`.
+
+Wiring: `app.mjs` parses `todoProposals` in `finishReply`, offers Review to-do changes, applies on approval and shows the outcome sentence in place of the button. `live-ui.mjs` appends the guidance to the system message, adds `shareTodos` (default off) to the approval fingerprint and names it in the model-sharing review. Story proposals now use `pea-story` / `story_add`; `pea-task` is to-dos only.
+
+Tests: 12 unit tests for the logic, 1 for the vault format; 6 browser tests (owner edits and profile separation; propose, cancel, approve once, check off, an unclear request reported; a claimed change corrected and a delete request ignored; the list absent from the system message until shared and re-reviewed, and the other profile's items never sent; a reminder appearing once when the page's clock passes the due time; an encrypted save, a locked reload showing nothing readable, and the item back after unlock). Totals: 135 unit, 31 browser (four consecutive clean runs each as Mac and as Linux), 27 gateway and release. Looked at in a browser at 1,500 and 375 pixels.
+
+Limits: reminders cannot fire while the page is closed, and an overdue reminder shows again once after each reload until the item is checked off. The system notification path was not exercised (permission is never granted in tests). To-dos are not yet in the library backup or any iPhone-readable file. The board backup format carries them. Next parity slices: document templates, then call, text and map links with copy boxes.
+
 ## Drag and drop — 2026-11-15
 
 Branch `feature/drag-and-drop`, development identity `0.1.0-dev.22`. Third and last slice of the desktop workspace.

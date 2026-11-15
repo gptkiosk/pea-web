@@ -37,6 +37,11 @@ export function installCommands({ workspace, tab, context }) {
         section.open = true;
       $('story-title').focus();
     },
+    'add-todo': () => {
+      tab('today');
+      $('todos-section').open = true;
+      $('todo-title').focus();
+    },
     history: () => press('library-open'),
     interview: () => press('interview-open'),
     connections: () => press('collab-config'),

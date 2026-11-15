@@ -259,3 +259,65 @@ test('locking cancels an in-progress unlock or queued save', async () => {
   await assert.rejects(task, /locked/);
   assert.deepEqual(record, saved);
 });
+
+test('to-dos are encrypted with the stories, survive lock and backup, and old boards stay readable', async () => {
+  const { addTodo } = await import('../todos.mjs');
+  const { encodeBoard, decodeBoard } = await import('../taskboard.mjs');
+  const makeStore = () => {
+    let record;
+    return {
+      get: async () => structuredClone(record),
+      comparePut: async (expected, value) => {
+        if (!sameBoardRevision(record, expected)) throw Error('conflict');
+        record = structuredClone(value);
+      },
+    };
+  };
+  const story = newStory([], 'personal', 'A story'),
+    todos = addTodo([], 'personal', 'CANARY PRIVATE TODO', {}, Date.now());
+
+  assert.deepEqual(encodeBoard([story], []), [story], 'no to-dos keeps the earlier format');
+  assert.deepEqual(decodeBoard([story]), { tasks: [story], todos: [] });
+  assert.deepEqual(decodeBoard(encodeBoard([story], todos)), { tasks: [story], todos });
+  for (const bad of [
+    { schema: 3, tasks: [story], todos },
+    { schema: 2, tasks: [story], todos, extra: 1 },
+    { schema: 2, tasks: [story], todos: [{ ...todos[0], title: '' }] },
+    { schema: 2, tasks: 'no', todos },
+    null,
+    'text',
+  ])
+    assert.throws(() => decodeBoard(bad));
+
+  const store = makeStore(),
+    vault = new BoardVault(store);
+  assert.deepEqual(await vault.unlock('synthetic board passphrase', [story], todos), [story]);
+  assert.deepEqual(vault.todos, todos);
+  assert(!new TextDecoder().decode((await store.get()).data).includes('CANARY'));
+  const more = addTodo(todos, 'work', 'Second', {}, Date.now());
+  await vault.save([story], more);
+  vault.lock();
+  assert.deepEqual(vault.todos, [], 'locking drops the to-dos from memory');
+  assert.deepEqual(await vault.unlock('synthetic board passphrase'), [story]);
+  assert.deepEqual(vault.todos, more);
+  await vault.save([story]);
+  assert.deepEqual(vault.todos, more, 'saving stories alone keeps the to-dos');
+  await assert.rejects(vault.save([story], [{ ...more[0], title: '' }]), /check its contents/);
+
+  const backup = await vault.exportEncrypted(),
+    targetStore = makeStore(),
+    target = new BoardVault(targetStore);
+  await target.importEncrypted(backup, 'synthetic board passphrase');
+  assert.deepEqual(await target.unlock('synthetic board passphrase'), [story]);
+  assert.deepEqual(target.todos, more);
+
+  const legacy = new BoardVault(makeStore());
+  await legacy.unlock('synthetic board passphrase', [story]);
+  legacy.lock();
+  await legacy.unlock('synthetic board passphrase');
+  assert.deepEqual(legacy.todos, []);
+  await assert.rejects(
+    new BoardVault(makeStore()).unlock('synthetic board passphrase', [story], [{ nope: true }]),
+    /invalid/,
+  );
+});

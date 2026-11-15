@@ -1,4 +1,5 @@
 import { containsCredential, ServiceError } from './connections.mjs';
+import { validateTodos } from './todos.mjs';
 export const stages = ['inbox', 'queued', 'working', 'review', 'done'];
 export function validStory(t) {
   return (
@@ -35,6 +36,28 @@ export function validateBoard(tasks) {
     new Set(tasks.map((t) => t.id)).size === tasks.length &&
     new Set(tasks.map((t) => t.number)).size === tasks.length
   );
+}
+// What the vault stores. A board with no to-dos is written as the plain list of stories that
+// earlier builds wrote, so they can still open it. Once there are to-dos it becomes an object,
+// which an earlier build refuses to open without changing it.
+export function encodeBoard(tasks, todos = []) {
+  return todos.length ? { schema: 2, tasks, todos } : tasks;
+}
+export function decodeBoard(value) {
+  if (Array.isArray(value)) {
+    if (!validateBoard(value)) throw new Error('board');
+    return { tasks: value, todos: [] };
+  }
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Object.keys(value).sort().join(',') !== 'schema,tasks,todos' ||
+    value.schema !== 2 ||
+    !validateBoard(value.tasks) ||
+    !validateTodos(value.todos)
+  )
+    throw new Error('board');
+  return { tasks: value.tasks, todos: value.todos };
 }
 export function newStory(tasks, profile, title, details = '', acceptance = '') {
   const task = {
@@ -171,6 +194,8 @@ export class BoardVault {
     this.key = null;
     this.salt = null;
     this.revision = null;
+    // The to-dos last loaded or saved with the stories; they travel in the same encrypted record.
+    this.todos = [];
     this.epoch = 0;
     this.chain = Promise.resolve();
   }
@@ -235,7 +260,7 @@ export class BoardVault {
       ['encrypt', 'decrypt'],
     );
   }
-  async unlock(passphrase, current = []) {
+  async unlock(passphrase, current = [], currentTodos = []) {
     const epoch = ++this.epoch;
     await this.chain.catch(() => {});
     this.chain = Promise.resolve();
@@ -244,6 +269,7 @@ export class BoardVault {
     this.revision = null;
     const saved = await this.storage.get();
     let tasks,
+      todos = [],
       key,
       salt,
       revision = null,
@@ -269,8 +295,7 @@ export class BoardVault {
           key,
           saved.data,
         );
-        tasks = JSON.parse(new TextDecoder().decode(plain));
-        if (!validateBoard(tasks)) throw new Error();
+        ({ tasks, todos } = decodeBoard(JSON.parse(new TextDecoder().decode(plain))));
         revision = saved.revision ?? {
           legacy: true,
           salt: new Uint8Array(saved.salt),
@@ -288,9 +313,10 @@ export class BoardVault {
         );
       }
     } else {
-      if (!validateBoard(current))
+      if (!validateBoard(current) || !validateTodos(currentTodos))
         throw new ServiceError('Board contents are invalid. Nothing was overwritten.');
       tasks = structuredClone(current);
+      todos = structuredClone(currentTodos);
       salt = crypto.getRandomValues(new Uint8Array(16));
       key = await this.derive(passphrase, salt);
     }
@@ -298,6 +324,7 @@ export class BoardVault {
     this.key = key;
     this.salt = salt;
     this.revision = revision;
+    this.todos = todos;
     if (!saved || upgrade) {
       try {
         await this.save(tasks);
@@ -317,10 +344,11 @@ export class BoardVault {
         : t,
     );
   }
-  save(tasks) {
-    if (!this.key || !validateBoard(tasks))
+  save(tasks, todos = this.todos) {
+    if (!this.key || !validateBoard(tasks) || !validateTodos(todos))
       return Promise.reject(new ServiceError('Unlock the board and check its contents before saving.'));
-    const plain = new TextEncoder().encode(JSON.stringify(tasks)),
+    this.todos = todos;
+    const plain = new TextEncoder().encode(JSON.stringify(encodeBoard(tasks, todos))),
       key = this.key,
       salt = this.salt,
       epoch = this.epoch;
@@ -414,8 +442,7 @@ export class BoardVault {
           key,
           data,
         );
-      if (!validateBoard(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plain))))
-        throw Error('schema');
+      decodeBoard(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plain)));
     } catch {
       throw new ServiceError(
         'Could not verify the board backup. Check the file and passphrase; nothing was changed.',
@@ -433,6 +460,7 @@ export class BoardVault {
   }
   lock() {
     this.epoch++;
+    this.todos = [];
     this.key = null;
     this.salt = null;
     this.revision = null;

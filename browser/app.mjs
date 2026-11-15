@@ -30,6 +30,8 @@ import { installWorkspace } from './workspace-ui.mjs';
 import { installCommands } from './commands-ui.mjs';
 import { installDragDrop, makeMessageDraggable } from './dragdrop-ui.mjs';
 import { localFileKind } from './dragdrop.mjs';
+import { installTodos } from './todos-ui.mjs';
+import { claimsTodoChange, todoProposals } from './todos.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -43,14 +45,16 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory;
+let live, board, voice, memory, todos;
 let voiceTarget = null;
 const chats = {},
   schedules = {},
   proposals = new Map(),
   consumed = new Set(),
   emailReady = new Set(),
-  calendarReady = new Map();
+  calendarReady = new Map(),
+  // What happened to each approved to-do proposal, shown in place of its button.
+  todoDone = new Map();
 let reviewingStory = false;
 const history = (surface, who = profile) => chats[`${who}:${surface}`] ?? (chats[`${who}:${surface}`] = []);
 const message = (role, text, extra = {}) => ({
@@ -370,6 +374,49 @@ function proposalButton(m, surface) {
     };
     return b;
   }
+  const change = proposals.get(m.id);
+  if (todoDone.has(m.id)) {
+    const receipt = document.createElement('small');
+    receipt.textContent = todoDone.get(m.id);
+    return receipt;
+  }
+  if (change?.kind === 'todo' && !m.incomplete && change.profile === profile) {
+    const b = document.createElement('button');
+    b.className = 'text-button';
+    b.textContent = 'Review to-do changes';
+    b.onclick = async () => {
+      if (reviewingStory || live.isBusy()) {
+        notice('Finish the current request first.');
+        return;
+      }
+      reviewingStory = true;
+      const who = profile;
+      try {
+        const approved = await live.review(
+          'Change your to-do list?',
+          `Profile: ${who}\n\n${todos.describe(change.requests)}\n\nNothing changes unless you approve. Reminders appear only while PEA is open in this browser. To-dos are kept with your story board, and its storage setting applies.`,
+        );
+        if (!approved) return;
+        if (
+          who !== profile ||
+          !history(surface, who).some((x) => x.id === m.id) ||
+          proposals.get(m.id) !== change ||
+          todoDone.has(m.id)
+        )
+          throw new Error('The conversation or profile changed. Review the changes again.');
+        const said = todos.apply(change.requests);
+        todoDone.set(m.id, said);
+        proposals.delete(m.id);
+        renderChat();
+        renderCollaboration();
+      } catch (error) {
+        notice(error.message || 'Could not change the to-do list.');
+      } finally {
+        reviewingStory = false;
+      }
+    };
+    return b;
+  }
   if (consumed.has(m.id)) {
     const receipt = document.createElement('small');
     receipt.textContent = 'Added to Today';
@@ -549,6 +596,7 @@ $('profile').onchange = () => {
   renderCollaboration();
   live.profileChanged();
   board.profileChanged();
+  todos.profileChanged();
   memory.profileChanged();
 };
 $('theme').onclick = () =>
@@ -690,6 +738,7 @@ window.addEventListener('pagehide', () => {
   if (imageURL) URL.revokeObjectURL(imageURL);
 });
 live = installConnections({
+  todoGuidance: (shared) => todos?.guidance(shared) ?? '',
   profile: () => profile,
   surface: () => (activeTab === 'greenhouse' ? 'greenhouse' : 'chat'),
   history,
@@ -735,7 +784,8 @@ live = installConnections({
       emails = complete ? emailProposals(raw) : [],
       docs = complete ? documentProposals(raw) : [],
       events = complete ? calendarProposals(raw) : [],
-      navs = complete ? navigationProposals(raw) : [];
+      navs = complete ? navigationProposals(raw) : [],
+      changes = complete ? todoProposals(raw) : [];
     reply.text = visibleReply(raw);
     if (complete && warnsOfUnconfirmedStory(reply.text))
       reply.text += '\n\nNo story was added by this reply. Review and approve a proposal before it is added.';
@@ -747,6 +797,9 @@ live = installConnections({
     if (complete && warnsOfUnconfirmedCalendar(reply.text))
       reply.text +=
         '\n\nPEA did not schedule an event from this reply. Review and import an event file yourself.';
+    if (complete && !changes.length && claimsTodoChange(reply.text))
+      reply.text +=
+        '\n\nPEA did not change your to-do list. Review and approve a proposal before anything changes.';
     delete reply.raw;
     reply.incomplete = !complete;
     if (items.length === 1 && !emails.length) proposals.set(reply.id, { profile, ...items[0] });
@@ -758,6 +811,15 @@ live = installConnections({
       proposals.set(reply.id, { profile, kind: 'calendar-proposal', draft: events[0] });
     else if (navs.length === 1 && !items.length && !emails.length && !docs.length && !events.length)
       proposals.set(reply.id, { profile, kind: 'navigation', tab: navs[0].tab });
+    else if (
+      changes.length &&
+      !items.length &&
+      !emails.length &&
+      !docs.length &&
+      !events.length &&
+      !navs.length
+    )
+      proposals.set(reply.id, { profile, kind: 'todo', requests: changes });
     memory.record(surface);
     if (surface === 'chat') renderChat();
     else renderCollaboration();
@@ -852,6 +914,7 @@ for (const [button, route, group, input] of [
     });
   };
 board = installBoard({
+  boardChanged: () => todos?.render(),
   review: live.review,
   dictate: (target) => requestDictation(target ?? 'board-command'),
   stopDictation: () => {
@@ -890,6 +953,12 @@ board = installBoard({
       : { started: dispatched, complete: false, text: last?.role === 'assistant' ? last.text : '' };
   },
 });
+todos = installTodos({
+  store: board.todoStore,
+  profile: () => profile,
+  notice,
+  review: live.review,
+});
 memory = installMemory({
   profile: () => profile,
   history,
@@ -909,6 +978,7 @@ memory = installMemory({
     consumed.clear();
     emailReady.clear();
     calendarReady.clear();
+    todoDone.clear();
     voice?.stop();
     globalThis.speechSynthesis?.cancel();
     for (const key of Object.keys(chats)) delete chats[key];

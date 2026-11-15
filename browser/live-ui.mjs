@@ -56,6 +56,7 @@ export function installConnections(hooks) {
         shareIntro: false,
         shareCalendar: false,
         shareMail: false,
+        shareTodos: false,
         sharePeaFiles: true,
         calendar: [],
         mail: [],
@@ -127,6 +128,7 @@ export function installConnections(hooks) {
     $('share-calendar').checked = s.shareCalendar;
     $('share-mail').checked = s.shareMail;
     $('share-pea-files').checked = s.sharePeaFiles;
+    $('share-todos').checked = s.shareTodos;
     $('share-intro').checked = s.shareIntro;
     $('greenhouse-role').value = s.role;
     $('drive-name').value = `PEA · ${p() === 'work' ? 'Work' : 'Personal'}`;
@@ -288,6 +290,10 @@ export function installConnections(hooks) {
       calendarGuidance +
       '\n' +
       navigationGuidance;
+    // To-do guidance always explains how to propose a change; the items themselves are added only
+    // under the owner's sharing setting for this profile.
+    const todoText = hooks.todoGuidance?.(s.shareTodos) ?? '';
+    if (todoText) body.messages[0].content += '\n' + todoText;
     if (surface === 'greenhouse')
       body.messages[0].content +=
         '\nThis is Greenhouse collaboration. Critique, iterate and build with the same approved persona/context. For source files emit fenced blocks with file:relative/path as the fence label. Suggest [PEA_MODEL:coding], [PEA_MODEL:image] or [PEA_MODEL:collaboration] when useful; you cannot grant permissions or claim to have saved, run or published anything.';
@@ -303,11 +309,12 @@ export function installConnections(hooks) {
       attachment,
       s.shareCalendar,
       s.shareMail,
+      s.shareTodos,
     ]);
     if (!s.approvals.has(fingerprint)) {
       const ok = await review(
         'Before sharing with your model',
-        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
+        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
           body.messages
             .slice(1, -1)
             .map((m) => m.role + ': ' + m.content)
@@ -927,6 +934,7 @@ export function installConnections(hooks) {
     ['share-calendar', 'shareCalendar'],
     ['share-mail', 'shareMail'],
     ['share-pea-files', 'sharePeaFiles'],
+    ['share-todos', 'shareTodos'],
   ])
     $(id).onchange = () => {
       state()[field] = $(id).checked;
