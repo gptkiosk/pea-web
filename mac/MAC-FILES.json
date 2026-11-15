@@ -10,9 +10,11 @@
   "Sources/PEALauncherCore/Launcher.swift",
   "Sources/PEALauncherCore/Reminders.swift",
   "Sources/PEALauncherCore/TokenStore.swift",
+  "Sources/PEALauncherCore/Updates.swift",
   "Sources/PEAMac/PEAMacApp.swift",
   "Sources/pea-gateway/main.swift",
   "Tests/PEAGatewayCoreTests/RulesTests.swift",
   "Tests/PEALauncherCoreTests/LauncherTests.swift",
+  "Tests/PEALauncherCoreTests/UpdatesTests.swift",
   "build.sh"
 ]

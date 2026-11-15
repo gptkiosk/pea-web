@@ -24,6 +24,7 @@ public final class Launcher: ObservableObject {
     @Published public private(set) var upstream: String
     public let version: String
     public let repository: String?
+    public let channel: String
 
     private let webRoot: URL
     private let tokens: TokenStore
@@ -47,6 +48,7 @@ public final class Launcher: ObservableObject {
         let identity = try? BuildIdentity.read(root: webRoot.resolvingSymlinksInPath())
         version = identity?["version"]?.string ?? "unknown"
         repository = identity?["repository"]?.string
+        channel = identity?["channel"]?.string ?? "development"
         if notifications != nil, defaults.bool(forKey: "reminders") {
             notifications?.isPermitted { allowed in Task { @MainActor in self.remindersOn = allowed } }
         }
@@ -72,6 +74,11 @@ public final class Launcher: ObservableObject {
     public var releasesPage: URL? { repository.flatMap { URL(string: "https://github.com/\($0)/releases") } }
 
     public var isRunning: Bool { status == .running }
+
+    /// Asks the public repository whether a newer release exists. Runs only when the owner asks.
+    public func checkForUpdates(from source: ReleaseSource) async -> UpdateStanding {
+        await Updates.check(repository: repository, version: version, channel: channel, source: source)
+    }
 
     /// The token, made on first use. It is shown to nobody; the owner copies it into PEA.
     public func token() throws -> String {
