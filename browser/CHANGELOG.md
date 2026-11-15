@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.20] - 2026-11-15
+
+### Added
+
+- On a wide screen two workspaces can sit side by side, for example Chat next to Today. Use the split button beside the theme switch, or Shift-click a tab to choose which workspace opens beside the current one. Drag the divider or use the arrow keys on it to resize; each pane scrolls on its own and can be swapped or closed from its bar. The layout is remembered on this browser as workspace names and a width, nothing else.
+- With Today beside Chat, a story you approve appears on the board while the conversation stays in view.
+
+### Changed
+
+- Narrow screens are unchanged: one workspace at a time with the same top tabs, and no split control. The app now reopens on the workspace you last used instead of always opening on Chat.
+
 ## [0.1.0-dev.19] - 2026-11-14
 
 ### Fixed

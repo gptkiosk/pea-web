@@ -24,6 +24,8 @@ The browser is not yet feature-complete against native. A public release must la
 
 ## Workspace navigation
 
+On a screen at least 1,100 pixels wide the owner can show two of Chat, Today and Greenhouse side by side, resize them and swap or close either. This is a browser-only layout choice with no iPhone equivalent: it shows and sizes the existing workspaces and cannot open a file, approve a review or grant access. Every review behaves the same in one pane or two. The layout is stored on this browser as workspace names and a width. Going to a workspace that is already on screen focuses it; otherwise it replaces the focused pane. Reading a reply aloud still stops when focus moves to the other pane.
+
 The owner can type or dictate an explicit command such as “open Greenhouse” and submit it; the command switches to an existing workspace without a model request. A model may also suggest a Chat, Today or Greenhouse navigation button in its completed reply. Only the owner's click changes tabs. The proposal cannot include a URL, file, tool call or additional action; it is bound to the originating profile and conversation, is not restored after reload and cannot run while a request is active. Recognition still requires transcript review before submission. This does not open a specific document or execute a task.
 
 Next sequence: richer document/action tools → secured public research → customer-owned encrypted synchronization with conflict review → additional voice transports. Web library scope/limits are documented in [memory and recovery](MEMORY.md). Each slice must retain provider disclosure, profile boundaries and reviewed external writes.

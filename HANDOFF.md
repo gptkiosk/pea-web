@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Split panes — 2026-11-15
+
+Branch `feature/split-panes`, development identity `0.1.0-dev.20`. First slice of the desktop workspace.
+
+`browser/workspace.mjs` is pure layout state: up to two of the three workspaces, which one has focus, and a split ratio clamped to 0.3–0.7. It normalizes anything read from storage and keeps nothing but those three fields (`localStorage` key `pea-workspace-v1`). `browser/workspace-ui.mjs` draws it over the existing panels, which are now wrapped in `#panes`: a split button in the header, Shift-click or Alt-click on a tab to open beside, a per-pane bar with Swap sides and Close, a divider that drags and answers arrow, Home and End keys, and focus that follows pointer or keyboard activity in a pane. Below 1,100 pixels it shows only the focused workspace and the split control is hidden by CSS. `tab()` in `app.mjs` now delegates to the workspace; the focused pane is still `activeTab`, so sending, voice and the navigation proposal are unchanged. In a split, panes are size containers and a container query collapses the Chat, Today and Greenhouse grids by pane width.
+
+Behavior change outside the split: the app reopens on the last focused workspace instead of always Chat.
+
+Tests: 8 unit tests for the layout state; 4 browser tests (side by side and back, Shift-click and replace rules, keyboard resize with limits and reload, a 390-pixel viewport showing one workspace and returning to two, and an approved story appearing in Today while Chat stays visible, with no request leaving the machine). Totals: 111 unit, 12 browser (ten consecutive clean runs), 27 gateway and release. Looked at in a browser at 1,500 pixels in dark and light and at 375 pixels.
+
+Limits: dragging the divider with a real pointer was not exercised by a test, only the keyboard path. Read-aloud stops when focus moves between panes; letting it continue is a possible later improvement. No command palette, shortcuts or drag and drop yet; those are the next two slices. The shared test setup moved into `browser/tests/dom/harness.mjs` (`startStack`, `openConnectedPage`, `askModel`, `openReview`, `Page.setViewport`).
+
 ## Browser-level tests and gateway load fix — 2026-11-14
 
 Branch `test/browser-level-reviews`, development identity `0.1.0-dev.19`.

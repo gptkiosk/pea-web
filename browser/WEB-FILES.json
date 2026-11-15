@@ -45,6 +45,7 @@
   "tests/connections.test.mjs",
   "tests/dom/harness.mjs",
   "tests/dom/reviews.test.mjs",
+  "tests/dom/workspace.test.mjs",
   "tests/fixtures/PolicyFixtures.json",
   "tests/fixtures/README.md",
   "tests/local-model.test.mjs",
@@ -56,5 +57,8 @@
   "tests/styles.test.mjs",
   "tests/taskboard.test.mjs",
   "tests/voice.test.mjs",
-  "voice.mjs"
+  "tests/workspace.test.mjs",
+  "voice.mjs",
+  "workspace-ui.mjs",
+  "workspace.mjs"
 ]

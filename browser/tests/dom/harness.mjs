@@ -222,6 +222,15 @@ class Page {
   text(selector) {
     return this.evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText ?? ''`);
   }
+  // Pretends the window is this size, so the same page can be checked as a desktop and as a phone.
+  setViewport(width, height) {
+    return this.send('Emulation.setDeviceMetricsOverride', {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+  }
   // Every address the page asked for that is not this machine. The tests expect none.
   outsideRequests() {
     return this.requests.filter(
@@ -335,4 +344,82 @@ export async function launchBrowser() {
     },
   };
   return browser;
+}
+
+// The whole synthetic stack for one test file: model, gateway and browser, stopped together.
+export async function startStack(reply) {
+  const parts = {};
+  const close = async () => {
+    // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
+    await Promise.allSettled([parts.browser?.close(), parts.gateway?.close(), parts.model?.close()]);
+  };
+  try {
+    parts.model = await startFakeModel(reply);
+    parts.gateway = await startGateway(parts.model.port);
+    parts.browser = await launchBrowser();
+  } catch (error) {
+    await close();
+    throw error;
+  }
+  return { ...parts, close };
+}
+
+// Opens the app, connects the synthetic local model, and returns a page ready to chat.
+export async function openConnectedPage(stack, { width, height } = {}) {
+  const page = await stack.browser.newPage();
+  if (width) await page.setViewport(width, height || 900);
+  await page.goto(stack.gateway.origin + '/');
+  await page.waitFor(
+    `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
+    'the app to finish starting',
+  );
+  await page.fill('#local-token', stack.gateway.token);
+  await page.click('#local-connect');
+  await page.waitFor(
+    `[...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`,
+    'the local model list',
+  );
+  await page.fill('#chat-model', 'local:synthetic-model');
+  return page;
+}
+
+async function waitUntil(check, what, timeout = 8000) {
+  const until = Date.now() + timeout;
+  while (!check()) {
+    if (Date.now() > until) throw new Error('Timed out waiting for: ' + what);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
+}
+
+// Sends one owner message from Chat and approves the "before sharing with your model" review.
+export async function askModel(stack, page, message) {
+  const sent = stack.model.requests.length;
+  await page.fill('#thought', message);
+  await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+  await page.waitFor(`document.querySelector('#review').open`, 'the model sharing review');
+  if (stack.model.requests.length !== sent)
+    throw new Error('A request reached the model before the sharing review was approved.');
+  await page.click('#review-approve');
+  await page.waitFor(`!document.querySelector('#review').open`);
+  await waitUntil(() => stack.model.requests.length > sent, 'the request to reach the model');
+  // The profile switch is disabled for as long as a request is in progress.
+  await page.waitFor(`!document.querySelector('#profile').disabled`, 'the reply to finish');
+}
+
+// Clicks a proposal button in Chat and waits for its review.
+export async function openReview(page, buttonText) {
+  await page.waitFor(
+    `[...document.querySelectorAll('#messages button')].some((b) => b.textContent.startsWith(${JSON.stringify(buttonText)}))`,
+    'the proposal button "' + buttonText + '"',
+  );
+  // The app ignores a click while the previous review is still closing, as it would a double click.
+  for (let attempt = 0; ; attempt++) {
+    await page.clickText(buttonText);
+    try {
+      await page.waitFor(`document.querySelector('#review').open`, 'the action review', 400);
+      return;
+    } catch (error) {
+      if (attempt >= 10) throw error;
+    }
+  }
 }
