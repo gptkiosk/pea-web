@@ -105,6 +105,8 @@ function messageBody(m) {
       try {
         await navigator.clipboard.writeText(segment.text);
         copy.textContent = 'Copied';
+        // The conversation may be redrawn at any moment, replacing this button, so the notice is the lasting confirmation.
+        notice('Copied to the clipboard.');
         setTimeout(() => (copy.textContent = 'Copy'), 1800);
       } catch {
         notice('Copying is blocked in this browser. Select the text and copy it by hand.');

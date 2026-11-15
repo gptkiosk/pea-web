@@ -9,6 +9,10 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 - PEA never passes as human. Every request tells the model so, and PEA checks each reply itself: if a reply says it is a person, or sidesteps a sincere question such as "are you an AI?", PEA adds one plain sentence saying it is an AI assistant.
 - The name you give the assistant in the interview now goes with every request, so it answers to that name even when the rest of the interview is not shared. The model-sharing review shows the name, and changing it asks you to review again. A name must be up to three words of letters; anything else is treated as PEA.
 
+### Fixed
+
+- Copying from a copy box now always confirms with a short notice. The button's own "Copied" label could disappear straight away.
+
 ### Changed
 
 - The local-time delivery switch is remembered on this browser for each profile instead of turning off on every reload.

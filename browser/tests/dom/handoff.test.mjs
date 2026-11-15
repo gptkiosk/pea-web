@@ -158,8 +158,8 @@ test('fenced text is a copy box that copies exactly and is never read aloud', op
   await page.waitFor(`window.copied.length === 1`, 'the copy');
   assert.deepEqual(await page.evaluate(`window.copied`), ['SYNTHETIC SLIDE ONE\nSYNTHETIC SLIDE TWO']);
   await page.waitFor(
-    `document.querySelector('#messages .copy-box button').textContent === 'Copied'`,
-    'the Copied label',
+    `(window.peaNotices || []).some((n) => n.includes('Copied to the clipboard.'))`,
+    'the confirmation that it was copied',
   );
 
   await page.click('#chat-read');
