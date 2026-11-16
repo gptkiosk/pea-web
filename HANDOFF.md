@@ -23,6 +23,26 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The Home card: "At a glance" on Today — 2026-11-16
+
+**Branch `feature/home-card`, on `main` after Headlines (#43) was merged; development identity `0.1.0-dev.42`.** Owner's choice: a summary at the top of Today, built from what is already on the page.
+
+- `browser/home.mjs` (pure): `homeLines({ weather, event, todos, headlines, now })` gives the lines in a fixed order, each naming the card it came from; `todoLine` counts open, overdue and due-later-today to-dos by the local day; text is put on one line and cut at 160 characters.
+- `browser/home-ui.mjs`: `installHome` draws `#home-card` once per moment of change. A line is a button that opens and scrolls to its card.
+- Sources, all already in the page: `installWeather(...).summary()`, `installTodos(...).open()` (this profile's open items; none in Blended), `installHeadlines(...).top(3)`, and the first event of a connected calendar (`schedules[profile].calendarOn`); the sample event is never shown. Weather, to-dos and headlines call a `changed` hook after they draw; `renderSchedule` and opening Today redraw it too.
+- No request is made for the summary and nothing in it is passed to `live.chat`. Assets now 42.
+- Tests: 5 unit tests in `browser/tests/home.test.mjs` (215 unit in all); 2 browser tests in `browser/tests/dom/home.test.mjs`: empty until a card has something; to-do, weather and headline lines appear and go as their cards change; a headline title with markup is text; a line opens its card; only the Headlines card contacted the stand-in site, once; no summary text in a model request; to-dos follow the profile.
+- Fix carried in the same change: `busyChanged` in `browser/app.mjs` now also calls `board.render()`. Before, a board redraw during a request left `#board-capture`, `#board-command-run` and `#board-mic` disabled after it ended (seen once in CI as a timeout in the drag-and-drop test). Guarded by "the board’s buttons come back when a request ends…" in `browser/tests/dom/dragdrop.test.mjs`, which fails without the fix; 75 browser tests in all.
+- CI note: on 2026-11-16 two runs failed only because headless Chrome did not start on the runner; the same commits passed in parallel runs. Not a product fault.
+
+Known gaps:
+
+- The calendar line was not exercised with a connected Google calendar in tests (no real accounts in tests); it reuses the event title and start text the Upcoming card already shows.
+- Overdue and due-today counts refresh when Today is opened or a card changes, not on a timer.
+- What the iPhone Home card shows is unknown here; this is the owner's stated web design, not a comparison.
+
+Next action: her history and daily life, per the parity sequence, or an independent review of the reader first.
+
 ## Headlines on Today — 2026-11-16
 
 **Branch `feature/headlines`, development identity `0.1.0-dev.41`.** Owner's choices: feeds the owner adds (no news service, no built-in list); shown to the owner only; refreshed only on a click; the Home card is to be a summary at the top of Today and is the next slice.

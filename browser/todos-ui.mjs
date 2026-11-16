@@ -26,7 +26,7 @@ const when = (ms) =>
 
 const macChoice = 'pea-mac-reminders-v1';
 
-export function installTodos({ store, profile, notice, review, mac = null }) {
+export function installTodos({ store, profile, notice, review, mac = null, changed = () => {} }) {
   // Reminders already shown in this page, so one is not repeated every time the list is checked.
   const reminded = new Set();
   const mine = () => store.items().filter((t) => t.profile === profile());
@@ -74,6 +74,8 @@ export function installTodos({ store, profile, notice, review, mac = null }) {
   }
 
   function render() {
+    // Whatever shows a summary of this list redraws after it.
+    queueMicrotask(changed);
     const usable = store.usable(),
       blended = !['personal', 'work'].includes(profile());
     const items = usable && !blended ? mine() : [];
@@ -286,6 +288,9 @@ export function installTodos({ store, profile, notice, review, mac = null }) {
   return {
     render,
     check,
+    // This profile's open to-dos, for the summary on Today.
+    open: () =>
+      store.usable() && ['personal', 'work'].includes(profile()) ? mine().filter((t) => !t.done) : [],
     // What the model is told about to-dos. The items are included only under the owner's setting.
     guidance: (shared) =>
       ['personal', 'work'].includes(profile())
