@@ -28,6 +28,8 @@
     "release-ui.mjs",
     "release.json",
     "releases.mjs",
+    "research-ui.mjs",
+    "research.mjs",
     "shared-config.mjs",
     "styles.css",
     "taskboard.mjs",

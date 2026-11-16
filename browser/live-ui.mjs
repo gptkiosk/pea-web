@@ -2,6 +2,7 @@ import { storyGuidance, emailGuidance, calendarGuidance, navigationGuidance } fr
 import { presenceAt } from './presence.mjs';
 import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
 import { openGuidance } from './handoff.mjs';
+import { readGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
 import {
   Services,
@@ -254,6 +255,9 @@ export function installConnections(hooks) {
       return { status: replacing ? 'replaced' : 'created', title: draft.title };
     });
   }
+  // The local server's token, from this profile or failing that another one connected in this tab.
+  const localKey = () =>
+    state().localKey || [...sessions.values()].map((s) => s.localKey).find(Boolean) || '';
   async function run(action) {
     if (operationActive) {
       note('Finish or stop the active request first.');
@@ -311,6 +315,8 @@ export function installConnections(hooks) {
             mail: s.shareMail ? s.mail.filter((e) => e.profile === who).slice(0, 3) : [],
           })
         : '';
+    // A web page the owner read is shared in Chat only, and only through the review below.
+    const page = surface === 'chat' ? (hooks.page?.() ?? null) : null;
     const history = hooks.history(surface),
       body = service.body({
         model: { ...model, id: model.wireID ?? model.id },
@@ -323,6 +329,7 @@ export function installConnections(hooks) {
         sources,
         memories,
         history,
+        page,
         text,
       });
     // Sent with every request: the honesty rule and the name the owner chose for the assistant.
@@ -345,6 +352,8 @@ export function installConnections(hooks) {
       navigationGuidance +
       '\n' +
       openGuidance +
+      // Reading a page needs this server's reader, so it is offered only when the server is connected.
+      (surface === 'chat' && localKey() ? '\n' + readGuidance : '') +
       '\nText for the owner to copy, such as an outline, a message to paste or code, goes in a plain fenced block; the app shows it with a Copy button and never reads it aloud.';
     // To-do guidance always explains how to propose a change; the items themselves are added only
     // under the owner's sharing setting for this profile.
@@ -367,11 +376,13 @@ export function installConnections(hooks) {
       s.shareMail,
       s.shareTodos,
       calledName,
+      page?.url ?? '',
+      page?.text ?? '',
     ]);
     if (!s.approvals.has(fingerprint)) {
       const ok = await review(
         'Before sharing with your model',
-        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nAssistant name (always sent): ${calledName}\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
+        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nAssistant name (always sent): ${calledName}\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nWeb page you read (exactly what is sent; a stranger wrote it, and the model is told to treat it as quoted data, not instructions):\n${page ? page.url + '\n\n' + page.text : 'None'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
           body.messages
             .slice(1, -1)
             .map((m) => m.role + ': ' + m.content)
@@ -384,7 +395,7 @@ export function installConnections(hooks) {
     }
     busy(true);
     controller = new AbortController();
-    const reply = hooks.beginReply(surface, text);
+    const reply = hooks.beginReply(surface, text, { sourced: Boolean(page) });
     onDispatch();
     try {
       await (model.local ? local : service).stream(
@@ -1176,8 +1187,8 @@ export function installConnections(hooks) {
       for (const s of sessions.values()) s.approvals.clear();
     },
     isBusy: () => operationActive,
-    // The local server's token, from this profile or failing that another one connected in this tab.
-    localKey: () => state().localKey || [...sessions.values()].map((s) => s.localKey).find(Boolean) || '',
+    localKey,
+    readPage: (key, url) => local.read(key, url),
     macReminders: (key, list) => local.reminders(key, list),
     model(surface, role) {
       const s = state();

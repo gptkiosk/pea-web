@@ -32,6 +32,8 @@ import { installDragDrop, makeMessageDraggable } from './dragdrop-ui.mjs';
 import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
 import { installWeather } from './weather-ui.mjs';
+import { installResearch } from './research-ui.mjs';
+import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
 import { claimsDocument, docProposals } from './documents.mjs';
@@ -58,7 +60,10 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory, todos;
+let live, board, voice, memory, todos, research;
+// Replies written while a web page was shared, and proposals to read a page that were carried out.
+const sourcedReplies = new Set(),
+  readDone = new Set();
 let voiceTarget = null;
 const chats = {},
   schedules = {},
@@ -381,6 +386,37 @@ function proposalButton(m, surface) {
     };
     return b;
   }
+  if (readDone.has(m.id)) {
+    const receipt = document.createElement('small');
+    receipt.textContent = 'Page read';
+    return receipt;
+  }
+  const reading = proposals.get(m.id);
+  if (reading?.kind === 'read' && !m.incomplete && reading.profile === profile) {
+    const b = document.createElement('button');
+    b.className = 'text-button';
+    b.textContent = 'Review page: ' + reading.address.host;
+    b.onclick = async () => {
+      if (reviewingStory) return;
+      reviewingStory = true;
+      const who = profile;
+      try {
+        if (
+          (await research.read(reading.address, 'model')) &&
+          who === profile &&
+          proposals.get(m.id) === reading
+        ) {
+          proposals.delete(m.id);
+          readDone.add(m.id);
+          restoreQuestion(surface, m.id);
+          renderChat();
+        }
+      } finally {
+        reviewingStory = false;
+      }
+    };
+    return b;
+  }
   const opening = proposals.get(m.id);
   if (opening?.kind === 'open' && !m.incomplete && opening.profile === profile) {
     if (openReady.has(m.id)) {
@@ -644,6 +680,12 @@ function proposalButton(m, surface) {
   };
   return b;
 }
+// After a page is read, the question that led to it goes back in the box for the owner to send.
+function restoreQuestion(surface, replyID) {
+  const thread = history(surface),
+    asked = thread[thread.findIndex((x) => x.id === replyID) - 1];
+  if (surface === 'chat' && asked?.role === 'user' && !$('thought').value) $('thought').value = asked.text;
+}
 function renderChat() {
   document.querySelector('.welcome').hidden = history('chat').length > 0;
   const nodes = history('chat').map((m) => {
@@ -778,6 +820,7 @@ $('profile').onchange = () => {
   live.profileChanged();
   board.profileChanged();
   todos.profileChanged();
+  research.profileChanged();
   memory.profileChanged();
 };
 $('theme').onclick = () =>
@@ -821,6 +864,13 @@ async function submit(surface) {
     field.value = '';
     tab(destination);
     notice('Opened ' + { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse' }[destination] + '.');
+    return;
+  }
+  // "read https://…" in the owner's own words. Chat only; the review comes before anything is asked.
+  const address = surface === 'chat' ? ownerRead(text) : null;
+  if (address) {
+    field.value = '';
+    await research.read(address, 'owner');
     return;
   }
   try {
@@ -942,8 +992,10 @@ live = installConnections({
     renderLists();
   },
 
-  beginReply(surface, text) {
+  page: () => research?.current() ?? null,
+  beginReply(surface, text, { sourced = false } = {}) {
     const reply = addReply(surface, text);
+    if (sourced) sourcedReplies.add(reply.id);
     renderChat();
     renderCollaboration();
     memory.record(surface);
@@ -961,15 +1013,24 @@ live = installConnections({
   },
   finishReply(surface, reply, complete) {
     const raw = reply.raw ?? '',
-      items = complete ? storyProposals(raw) : [],
-      emails = complete ? emailProposals(raw) : [],
-      docs = complete ? documentProposals(raw) : [],
-      events = complete ? calendarProposals(raw) : [],
-      navs = complete ? navigationProposals(raw) : [],
-      changes = complete ? todoProposals(raw) : [],
-      written = complete ? docProposals(raw, live.currentDocument()) : [],
-      opens = complete ? openProposals(raw) : [];
+      // A reply written with a web page in view offers nothing to approve: words from a stranger's
+      // page must not be able to steer the owner toward an action, however it is worded.
+      sourced = sourcedReplies.delete(reply.id),
+      offer = complete && !sourced,
+      items = offer ? storyProposals(raw) : [],
+      emails = offer ? emailProposals(raw) : [],
+      docs = offer ? documentProposals(raw) : [],
+      events = offer ? calendarProposals(raw) : [],
+      navs = offer ? navigationProposals(raw) : [],
+      changes = offer ? todoProposals(raw) : [],
+      written = offer ? docProposals(raw, live.currentDocument()) : [],
+      opens = offer ? openProposals(raw) : [],
+      reads = offer ? readProposals(raw) : [];
     reply.text = visibleReply(raw);
+    if (complete && sourced && /```pea-/i.test(raw)) reply.text += '\n\n' + sourcedNotice;
+    if (offer && !reads.length && claimsRead(reply.text))
+      reply.text +=
+        '\n\nPEA did not read a web page for this reply. It reads one only after you approve its exact address.';
     if (complete && warnsOfUnconfirmedStory(reply.text))
       reply.text += '\n\nNo story was added by this reply. Review and approve a proposal before it is added.';
     if (complete && warnsOfUnconfirmedEmail(reply.text))
@@ -1033,6 +1094,17 @@ live = installConnections({
       !navs.length
     )
       proposals.set(reply.id, { profile, kind: 'open', action: opens[0] });
+    else if (
+      reads.length === 1 &&
+      !items.length &&
+      !emails.length &&
+      !docs.length &&
+      !events.length &&
+      !navs.length &&
+      !changes.length &&
+      !written.length
+    )
+      proposals.set(reply.id, { profile, kind: 'read', address: reads[0] });
     memory.record(surface);
     if (surface === 'chat') renderChat();
     else renderCollaboration();
@@ -1184,6 +1256,8 @@ memory = installMemory({
   replace(surface, messages) {
     const current = history(surface);
     current.splice(0, current.length, ...messages);
+    // A page that was read belongs to the conversation it was read in.
+    if (surface === 'chat') research?.clear();
     renderChat();
     renderCollaboration();
   },
@@ -1583,3 +1657,12 @@ if (location.hash.slice(1)) tab(location.hash.slice(1));
 
 void installReleaseUI();
 installWeather({ notice, review: live.review });
+research = installResearch({
+  profile: () => profile,
+  notice,
+  review: live.review,
+  run: live.run,
+  isBusy: live.isBusy,
+  key: live.localKey,
+  read: live.readPage,
+});
