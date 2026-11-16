@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.42] - 2026-11-16
+
+### Added
+
+- "At a glance" at the top of Today: the weather now, your next calendar event, how many to-dos are open (with how many are overdue or due later today, and the next one), and the three newest headlines. Each line appears only when its card below has something, and pressing a line opens that card. The summary only repeats what Today already shows: it contacts nothing, and none of it is given to your model.
+
 ## [0.1.0-dev.41] - 2026-11-16
 
 ### Added

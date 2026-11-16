@@ -18,6 +18,8 @@
     "feeds-ui.mjs",
     "feeds.mjs",
     "handoff.mjs",
+    "home-ui.mjs",
+    "home.mjs",
     "honesty.mjs",
     "index.html",
     "live-ui.mjs",

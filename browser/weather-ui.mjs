@@ -47,7 +47,7 @@ async function ask(url, max = 100000) {
   return JSON.parse(text);
 }
 
-export function installWeather({ notice, review }) {
+export function installWeather({ notice, review, changed = () => {} }) {
   let saved = null,
     agreed = false,
     forecast = null,
@@ -66,6 +66,8 @@ export function installWeather({ notice, review }) {
     index === 0 ? 'Today' : new Date(date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' });
 
   function render(problem = '') {
+    // Whatever shows a summary of this card redraws after it.
+    queueMicrotask(changed);
     $('weather-status').textContent = !saved ? 'Off' : forecast ? forecast.now.temperature + degrees() : '…';
     $('weather-peek').textContent = !saved
       ? 'Off until you choose a place'
@@ -187,5 +189,17 @@ export function installWeather({ notice, review }) {
 
   render();
   if (saved) void refresh();
-  return { render, refresh };
+  return {
+    render,
+    refresh,
+    // What the card is showing now, for the summary on Today, or null while it is off or loading.
+    summary: () =>
+      saved && forecast
+        ? {
+            temperature: forecast.now.temperature + degrees(),
+            condition: describeWeather(forecast.now.code),
+            place: placeLabel(saved.place),
+          }
+        : null,
+  };
 }

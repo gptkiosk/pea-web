@@ -34,6 +34,7 @@ import { installTodos } from './todos-ui.mjs';
 import { installWeather } from './weather-ui.mjs';
 import { installResearch } from './research-ui.mjs';
 import { installHeadlines } from './feeds-ui.mjs';
+import { installHome } from './home-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -61,7 +62,7 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory, todos, research;
+let live, board, voice, memory, todos, research, weather, headlines, home;
 // Replies written while a web page was shared, and proposals to read a page that were carried out.
 const sourcedReplies = new Set(),
   readDone = new Set();
@@ -212,6 +213,8 @@ function stopSpeaking() {
 // Going to a workspace. On a wide screen it may already be on screen beside another one.
 function tab(next) {
   if (!['chat', 'today', 'greenhouse'].includes(next)) return;
+  // Overdue and due-today counts move with the clock, so the summary is redrawn on the way in.
+  if (next === 'today') home?.render();
   stopSpeaking();
   workspace.go(next);
 }
@@ -283,6 +286,7 @@ function renderLists() {
   $('context-title').textContent = `${profile[0].toUpperCase() + profile.slice(1)} space`;
 }
 function renderSchedule(sample) {
+  home?.render();
   const live = schedules[profile];
   const events = live?.events ?? (sample ? [sample] : []),
     mail = live?.mail ?? [];
@@ -1245,6 +1249,7 @@ todos = installTodos({
   notice,
   review: live.review,
   mac: { key: () => live.localKey(), send: (key, list) => live.macReminders(key, list) },
+  changed: () => home?.render(),
 });
 memory = installMemory({
   profile: () => profile,
@@ -1657,7 +1662,7 @@ installCommands({
 if (location.hash.slice(1)) tab(location.hash.slice(1));
 
 void installReleaseUI();
-installWeather({ notice, review: live.review });
+weather = installWeather({ notice, review: live.review, changed: () => home?.render() });
 research = installResearch({
   profile: () => profile,
   notice,
@@ -1667,7 +1672,8 @@ research = installResearch({
   key: live.localKey,
   read: live.readPage,
 });
-installHeadlines({
+headlines = installHeadlines({
+  changed: () => home?.render(),
   review: live.review,
   key: live.localKey,
   read: live.readPage,
@@ -1676,4 +1682,12 @@ installHeadlines({
     tab('chat');
     void research.read(address, 'feed', feed);
   },
+});
+// The summary at the top of Today repeats what the cards below hold; it asks nothing of anyone.
+home = installHome({
+  weather: () => weather.summary(),
+  // Only a connected calendar's next event; the sample event is not the owner's day.
+  event: () => (schedules[profile]?.calendarOn ? (schedules[profile].events[0] ?? null) : null),
+  todos: () => todos.open(),
+  headlines: () => headlines.top(3),
 });

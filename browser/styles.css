@@ -3170,6 +3170,44 @@ kbd {
 #weather-credit a {
   color: var(--green);
 }
+.home-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+#home-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.home-line {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.home-line:hover span:last-child,
+.home-line:focus-visible span:last-child {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.home-kind {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sub);
+  padding-top: 3px;
+}
 #headline-form {
   display: flex;
   flex-wrap: wrap;
