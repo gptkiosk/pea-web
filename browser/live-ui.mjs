@@ -4,6 +4,7 @@ import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
 import { openGuidance } from './handoff.mjs';
 import { readGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
+import { canonContext } from './canon.mjs';
 import {
   Services,
   ServiceError,
@@ -317,6 +318,8 @@ export function installConnections(hooks) {
         : '';
     // A web page the owner read is shared in Chat only, and only through the review below.
     const page = surface === 'chat' ? (hooks.page?.() ?? null) : null;
+    // Her history: at most two kept cards, in Chat, under the same switch as the introduction.
+    const canon = surface === 'chat' && s.shareIntro ? (hooks.canon?.(text) ?? null) : null;
     const history = hooks.history(surface),
       body = service.body({
         model: { ...model, id: model.wireID ?? model.id },
@@ -335,6 +338,7 @@ export function installConnections(hooks) {
     // Sent with every request: the honesty rule and the name the owner chose for the assistant.
     const calledName = assistantName(context.assistantName);
     body.messages[0].content += '\n' + honestyRule + '\n' + nameLine(context.assistantName);
+    if (canon?.send.length) body.messages[0].content += '\n' + canonContext(canon.send);
     body.messages[0].content +=
       '\n' +
       storyGuidance +
@@ -378,11 +382,12 @@ export function installConnections(hooks) {
       calledName,
       page?.url ?? '',
       page?.text ?? '',
+      canon?.stamp ?? '',
     ]);
     if (!s.approvals.has(fingerprint)) {
       const ok = await review(
         'Before sharing with your model',
-        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nAssistant name (always sent): ${calledName}\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nWeb page you read (exactly what is sent; a stranger wrote it, and the model is told to treat it as quoted data, not instructions):\n${page ? page.url + '\n\n' + page.text : 'None'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
+        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nAssistant name (always sent): ${calledName}\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nWeb page you read (exactly what is sent; a stranger wrote it, and the model is told to treat it as quoted data, not instructions):\n${page ? page.url + '\n\n' + page.text : 'None'}\n\nHer history (fiction your model wrote and you kept; at most two cards go with a message, mostly when you ask about her. Later messages may carry other cards from this list without asking again):\n${canon ? canon.all : 'Not shared'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
           body.messages
             .slice(1, -1)
             .map((m) => m.role + ': ' + m.content)
@@ -397,6 +402,7 @@ export function installConnections(hooks) {
     controller = new AbortController();
     const reply = hooks.beginReply(surface, text, { sourced: Boolean(page) });
     onDispatch();
+    if (canon) hooks.canonSent?.(canon.send.length);
     try {
       await (model.local ? local : service).stream(
         model.local ? s.localKey : s.key,
@@ -435,6 +441,56 @@ export function installConnections(hooks) {
       render();
     }
     return { started: true, complete: true, text: reply.text };
+  }
+  // One reviewed request outside the conversation, for the Chat model of this profile. Nothing from
+  // the chat, the interview or any service is added: the model gets exactly `system` and `user`,
+  // and the reply is handed back to the caller instead of being shown. Reviewed every time.
+  async function compose({ title, about, system, user }) {
+    const s = state(),
+      who = p(),
+      ticket = nonce;
+    if (who === 'blended') throw new ServiceError('Choose Work or Personal first.');
+    const model = [...s.localModels, ...s.models].find((m) => m.id === modelID(s, 'chat'));
+    if (!model) throw new ServiceError('Choose a chat model in Connections first.');
+    if (model.local && !s.localKey) throw new ServiceError('Reconnect the local server.');
+    if (!model.local && !s.key) throw new ServiceError('Reconnect OpenRouter.');
+    if (containsCredential(system + user))
+      throw new ServiceError('Something in this request looks like a password or key. Nothing was sent.');
+    const body = service.body({
+      model: { ...model, id: model.wireID ?? model.id },
+      profile: who,
+      allowData: s.allowData,
+      text: user,
+    });
+    body.messages = [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ];
+    const ok = await review(
+      title,
+      `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. What is sent may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No automatic retry or paid fallback.\n\n${about}\n\nEverything the model is told (exactly what is sent):\n${system}\n\n${user}`,
+    );
+    if (!ok) return { started: false };
+    if (ticket !== nonce || who !== p()) throw new ServiceError('Context changed; review again.');
+    busy(true);
+    controller = new AbortController();
+    let text = '';
+    try {
+      await (model.local ? local : service).stream(
+        model.local ? s.localKey : s.key,
+        body,
+        (delta) => {
+          if (text.length < 60000) text += delta;
+        },
+        controller.signal,
+      );
+    } finally {
+      controller = null;
+      busy(false);
+      render();
+    }
+    if (ticket !== nonce || who !== p()) throw new ServiceError('Profile changed. Nothing was kept.');
+    return { started: true, text };
   }
   async function googleConnect() {
     if (p() === 'blended') throw new ServiceError('Choose Work or Personal.');
@@ -1167,6 +1223,7 @@ export function installConnections(hooks) {
   render();
   return {
     chat,
+    compose,
     open,
     attach,
     maybeAutoAttach,

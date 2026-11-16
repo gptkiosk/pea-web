@@ -9,6 +9,8 @@
     "assets/pea-mascot.svg",
     "board-ui.mjs",
     "build-info.json",
+    "canon-ui.mjs",
+    "canon.mjs",
     "commands-ui.mjs",
     "commands.mjs",
     "connections.mjs",

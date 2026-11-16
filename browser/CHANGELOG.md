@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.43] - 2026-11-16
+
+### Added
+
+- Her history, in Past chats & memory: short cards about your assistant's character, set in the home you chose for her in the interview. Your own model writes them in one request that you start and review; you may add one public page about the place for its real history, read by your PEA server after its own review. You read every card before any is kept, and can delete any card or all of them. Cards are fiction for light conversation, for the Personal profile only, and are kept in this browser without encryption. In Chat at most two cards go with a message, mostly when you ask about her, and only while "Share my introduction" is on; the model-sharing review lists every card that may be sent.
+
 ## [0.1.0-dev.42] - 2026-11-16
 
 ### Added
