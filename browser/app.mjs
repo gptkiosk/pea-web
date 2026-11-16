@@ -33,6 +33,7 @@ import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
 import { installWeather } from './weather-ui.mjs';
 import { installResearch } from './research-ui.mjs';
+import { installHeadlines } from './feeds-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -1665,4 +1666,14 @@ research = installResearch({
   isBusy: live.isBusy,
   key: live.localKey,
   read: live.readPage,
+});
+installHeadlines({
+  review: live.review,
+  key: live.localKey,
+  read: live.readPage,
+  // A headline's own page is read like any other: Chat opens and the usual review names the address.
+  readInChat(address, feed) {
+    tab('chat');
+    void research.read(address, 'feed', feed);
+  },
 });
