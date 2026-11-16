@@ -208,5 +208,7 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
       sinceLast = count ? 0 : sinceLast + 1;
     },
     count: () => saved.cards.length,
+    // For other parts of her story, such as her days: the kept cards, in Personal only.
+    cards: () => (personal() ? saved.cards : []),
   };
 }

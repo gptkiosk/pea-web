@@ -45,7 +45,7 @@ How to read the status columns:
 | Headlines | Built: a card on Today listing titles from RSS or Atom feeds the owner adds; read by the PEA server on Add and Refresh only | Built | Web has no built-in sources and no news service; shown to the owner only, never given to a model. iPhone behavior not compared |
 | Home card | Built as "At a glance" at the top of Today: weather now, next connected-calendar event, open to-dos, three newest headlines | Built | Web's is a summary of the cards already on Today and asks nothing of anyone; the iPhone card's contents were not compared |
 | Her history cards | Built: the owner's model writes them in one reviewed request, from her home in the interview and optionally one public page; every card is reviewed before it is kept; at most two go with a Chat message | Built | Written from the owner's description of the iPhone behavior, not from its source. Web reads at most one public page the owner names, where the iPhone uses a few Wikipedia pages it finds; web keeps cards in the browser unencrypted and outside the profile file; web selection of cards is by tag and topic words, English only |
-| Dated entries about her days (life timeline) | Not yet, 0.2 | Built | On iPhone these come from what she says about her own days in chat |
+| Dated entries about her days (life timeline) | Built as "Her days": a week the owner's model writes in one reviewed request, plus notes from Chat that the owner turns on | Built | On iPhone these come from what she says in chat; how it recognises them was not compared. On web the model marks a note with a `pea-life` block and the app keeps one clean sentence. The written week is a web addition the owner asked for. No timeline view beyond the dated list |
 | Deck projects | Not yet, 0.2 | Built | Behavior to be confirmed first |
 | Automatic sync between devices | Not yet | Not yet | |
 
@@ -117,7 +117,7 @@ Every request carries a short rule: never say or imply being human, answer that 
 
 The assistant's name from the interview is sent with every request as a label, independently of the introduction-sharing switch. It is shown in the model-sharing review and is part of the approval identity. Only one line of letters, apostrophes, dots and hyphens in at most three words and forty characters is accepted; anything else, including text that reads as an instruction, falls back to PEA. The owner's own name still travels only with the shared introduction.
 
-Local-time delivery is now a per-profile preference stored on the browser as two booleans. Not yet ported from iPhone: parsing a home city for weather and news, dated entries about the character's days, and removing unprompted disclaimers.
+Local-time delivery is now a per-profile preference stored on the browser as two booleans. Not yet ported from iPhone: parsing a home city for weather and news, and removing unprompted disclaimers.
 
 ## Reviewed email drafts
 

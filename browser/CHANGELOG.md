@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.44] - 2026-11-16
+
+### Added
+
+- Her days, in Past chats & memory: short dated lines about your assistant character's own days, so that what she says tomorrow fits what she said today. **Write her week** sends one request, which you review first, and your model writes a line for each of eight days (the last three, today and the next four) set in her home and history; you read every line before any is kept. You can also let her keep a short note when she talks about her own day in Chat. That is off until you turn it on; each note is one plain sentence, you are told each time one is kept, and none is taken from a reply written while a web page is shared. Lines are fiction for light conversation, for the Personal profile only, kept in this browser without encryption for 14 days, and each can be deleted. The lines for the days around today go with your Chat messages only while "Share my introduction" is on.
+
 ## [0.1.0-dev.43] - 2026-11-16
 
 ### Added

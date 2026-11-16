@@ -36,6 +36,7 @@ import { installResearch } from './research-ui.mjs';
 import { installHeadlines } from './feeds-ui.mjs';
 import { installHome } from './home-ui.mjs';
 import { installCanon } from './canon-ui.mjs';
+import { installDays } from './days-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -63,7 +64,7 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory, todos, research, weather, headlines, home, canon;
+let live, board, voice, memory, todos, research, weather, headlines, home, canon, days;
 // Replies written while a web page was shared, and proposals to read a page that were carried out.
 const sourcedReplies = new Set(),
   readDone = new Set();
@@ -826,6 +827,7 @@ $('profile').onchange = () => {
   live.profileChanged();
   board.profileChanged();
   canon?.render();
+  days?.render();
   todos.profileChanged();
   research.profileChanged();
   memory.profileChanged();
@@ -986,6 +988,7 @@ live = installConnections({
   context: (text) => memory.context(text),
   canon: (text) => canon?.pick(text) ?? null,
   canonSent: (count) => canon?.sent(count),
+  days: () => days?.pick() ?? null,
   // The board's own buttons follow the request too; without this they stay as they were last drawn.
   busyChanged: () => {
     memory?.render();
@@ -1039,6 +1042,8 @@ live = installConnections({
       written = offer ? docProposals(raw, live.currentDocument()) : [],
       opens = offer ? openProposals(raw) : [],
       reads = offer ? readProposals(raw) : [];
+    // A note about her own day, kept only while the owner has notes on. Never from a sourced reply.
+    if (offer && surface === 'chat') days?.noteFrom(raw);
     reply.text = visibleReply(raw);
     if (complete && sourced && /```pea-/i.test(raw)) reply.text += '\n\n' + sourcedNotice;
     if (offer && !reads.length && claimsRead(reply.text))
@@ -1302,6 +1307,17 @@ canon = installCanon({
   isBusy: live.isBusy,
   key: live.localKey,
   read: live.readPage,
+});
+// Her days: dated lines about the character's own life. Kept in this browser, Personal only.
+days = installDays({
+  profile: () => profile,
+  interview: () => memory.context(''),
+  cards: () => canon.cards(),
+  review: live.review,
+  run: live.run,
+  compose: live.compose,
+  isBusy: live.isBusy,
+  notice,
 });
 for (const [id, target] of [
   ['menu-new-chat', 'library-new-chat'],
