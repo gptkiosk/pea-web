@@ -982,7 +982,11 @@ live = installConnections({
   files: () => visible(),
   selected: () => selected,
   context: (text) => memory.context(text),
-  busyChanged: () => memory?.render(),
+  // The board's own buttons follow the request too; without this they stay as they were last drawn.
+  busyChanged: () => {
+    memory?.render();
+    board?.render();
+  },
   setSchedule(events, mail, calendarOn, mailOn) {
     schedules[profile] = { events, mail, calendarOn, mailOn };
     renderLists();

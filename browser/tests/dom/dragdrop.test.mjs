@@ -10,7 +10,12 @@ const options = { skip, timeout: 45000 };
 let stack;
 before(
   async () => {
-    if (!skip) stack = await startStack(() => 'Plan the synthetic trip\nBook a synthetic hotel.');
+    if (!skip)
+      stack = await startStack((message) =>
+        message.includes('slowly')
+          ? { text: 'A slow synthetic reply.', delay: 1500 }
+          : 'Plan the synthetic trip\nBook a synthetic hotel.',
+      );
   },
   { timeout: 60000 },
 );
@@ -175,3 +180,34 @@ test('a message id from elsewhere drafts nothing', options, async () => {
   assert.equal(await page.evaluate(`document.getElementById('story-title').value`), '');
   await page.close();
 });
+
+test(
+  'the board’s buttons come back when a request ends, even if the board was redrawn during it',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1500 });
+    const sent = stack.model.requests.length;
+    await page.fill('#thought', 'Answer slowly.');
+    await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+    await page.waitFor(
+      `document.querySelector('#review').open || document.querySelector('#profile').disabled`,
+      'the review or the request',
+    );
+    if (await page.evaluate(`document.querySelector('#review').open`)) await page.click('#review-approve');
+    await page.waitFor(`document.querySelector('#profile').disabled`, 'the request to be in progress');
+    // Anything that redraws the board mid-request will do; this checkbox is one the owner can reach.
+    const during = await page.evaluate(
+      `(() => { document.getElementById('board-removed').dispatchEvent(new Event('change')); return document.getElementById('board-capture').disabled; })()`,
+    );
+    assert.equal(during, true, 'no story is added while a request is running');
+    await page.waitFor(`!document.querySelector('#profile').disabled`, 'the reply to finish');
+    assert.equal(stack.model.requests.length, sent + 1);
+    assert.deepEqual(
+      await page.evaluate(
+        `['board-capture', 'board-command-run', 'board-mic'].map((id) => document.getElementById(id).disabled)`,
+      ),
+      [false, false, false],
+    );
+    await page.close();
+  },
+);
