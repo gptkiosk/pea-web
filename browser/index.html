@@ -40,6 +40,14 @@
 <p class="muted" id="weather-note"></p>
 <div id="weather-credit" hidden><p class="weather-actions"><button id="weather-refresh" class="text-button" type="button">Refresh</button><button id="weather-off" class="text-button" type="button">Turn weather off</button></p><p class="muted"><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Weather data by Open-Meteo.com</a>, CC BY 4.0, rounded here.</p></div>
 </div></details>
+<details class="card today-section" id="headlines-section"><summary><span><strong>Headlines</strong><small id="headline-peek">Off until you add a feed</small></span><span class="pill" id="headline-status">Off</span></summary><div class="section-content">
+<ul id="headline-list" class="headline-list" aria-label="Headlines"></ul>
+<p class="weather-actions"><button id="headline-refresh" class="text-button" type="button" hidden>Refresh</button></p>
+<form id="headline-form"><label class="sr" for="headline-address">Feed address</label><input id="headline-address" maxlength="2000" placeholder="https://… address of an RSS or Atom feed" autocomplete="off" inputmode="url" required><button class="primary" id="headline-add">Add feed</button></form>
+<ul id="headline-feeds" class="headline-feeds" aria-label="Your feeds"></ul>
+<p class="muted" id="headline-note" role="status"></p>
+<p class="muted">Headlines come from feeds you add. They are shown to you only and are never given to your model.</p>
+</div></details>
 <details class="card today-section" id="todos-section" open><summary><span><strong>To-do list</strong><small>Quick things to remember</small></span><span class="pill" id="todo-count">0 open</span></summary><div class="section-content">
 <div id="todo-reminders-box" class="todo-reminders" role="status" hidden><strong>Reminders</strong><ul id="todo-reminders"></ul><button id="todo-reminders-dismiss" class="text-button" type="button">Dismiss</button></div>
 <form id="todo-add"><label class="sr" for="todo-title">New to-do</label><input id="todo-title" maxlength="120" placeholder="Add a to-do…" autocomplete="off" required><label class="sr" for="todo-due">Due (optional)</label><input id="todo-due" type="datetime-local"><label class="todo-check"><input id="todo-remind" type="checkbox"> Remind me</label><button class="primary" id="todo-submit">Add</button></form>

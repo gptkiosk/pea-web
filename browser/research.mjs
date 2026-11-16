@@ -122,6 +122,7 @@ const NAMED = {
   szlig: '\u00df',
   ccedil: '\u00e7',
 };
+export const decodeEntities = decode;
 function decode(text) {
   return text.replace(
     /&(?:#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6})|([A-Za-z][A-Za-z0-9]{1,10}));/g,
@@ -303,12 +304,14 @@ export function readFailure(status, siteStatus) {
 }
 
 // The words of the review the owner sees before PEA's server asks a site for a page.
-export function describeRead(address, { profile, from, moved = null }) {
+export function describeRead(address, { profile, from, moved = null, feed = '' }) {
   const source =
     from === 'owner'
       ? 'From: your own message'
       : from === 'model'
         ? 'Suggested by: your model. Check the address is one you meant, and that it holds nothing private.'
-        : `The page at ${moved} says it has moved to this address. Check it is one you are happy to read.`;
+        : from === 'feed'
+          ? `From: a headline you chose in ${feed}. That site wrote the address; check it is one you are happy to read.`
+          : `The page at ${moved} says it has moved to this address. Check it is one you are happy to read.`;
   return `Profile: ${profile}\n${source}\n\nAddress (exactly what is requested):\n${address.url}\n\nIf you approve, your PEA server asks ${address.host} for this one page. The site sees your internet address, the whole address above and a fixed description of PEA’s reader, as it would for any visitor. It gets no cookies, no sign-in and nothing from your chats. PEA follows no links and no redirects on its own.\n\nNothing is sent to a model by this step. PEA keeps up to ${researchLimits.excerpt.toLocaleString('en-US')} characters of the page’s plain words in this tab, shows them to you, and shares them with your model only when you next send a message in Chat, after the usual review. Words on a web page can never make PEA take an action.`;
 }

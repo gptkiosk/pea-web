@@ -112,6 +112,9 @@ class Site(BaseHTTPRequestHandler):
             return self.send(200, 'text/html; charset=utf-8', html)
         if route == '/plain':
             return self.send(200, 'Text/Plain', b'Plain synthetic text.\n')
+        if route in ('/rss', '/atom', '/xml', '/text-xml'):
+            kind = {'/rss': 'application/rss+xml; charset=utf-8', '/atom': 'Application/Atom+XML', '/xml': 'application/xml', '/text-xml': 'text/xml'}[route]
+            return self.send(200, kind, b'<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Synthetic feed</title></channel></rss>')
         if route == '/xhtml':
             return self.send(200, 'application/xhtml+xml', b'<html xmlns="http://www.w3.org/1999/xhtml"><body>x</body></html>')
         if route == '/empty':
@@ -600,7 +603,8 @@ class Conformance(unittest.TestCase):
         self.assertEqual(set(sent) - {'host', 'user-agent', 'accept', 'accept-encoding', 'connection'}, set(),
                          'no token, cookie, origin, referrer or other header of the owner reaches the site')
         self.assertNotIn(TOKEN, json.dumps(Site.seen))
-        for path, kind, text in (('/plain', 'text/plain', 'Plain synthetic text.\n'), ('/xhtml', 'application/xhtml+xml', None), ('/empty', 'text/plain', ''),
+        for path, kind, text in (('/plain', 'text/plain', 'Plain synthetic text.\n'), ('/xhtml', 'application/xhtml+xml', None),
+                                 ('/rss', 'application/rss+xml', None), ('/atom', 'application/atom+xml', None), ('/xml', 'application/xml', None), ('/text-xml', 'text/xml', None), ('/empty', 'text/plain', ''),
                                  ('/bom', 'text/plain', 'After the mark'), ('/chunked', 'text/html', None), ('/until-close', 'text/plain', 'No length was given.'),
                                  ('', 'text/plain', None), ('?x=1', 'text/plain', None)):
             if path in ('', '?x=1'):

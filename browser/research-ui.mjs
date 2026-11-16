@@ -30,8 +30,8 @@ export function installResearch(hooks) {
     hooks.notice('That page is no longer shared.');
   };
 
-  // Reviews and reads one address. `from` is 'owner' or 'model'. Returns true when a page was kept.
-  async function read(address, from) {
+  // Reviews and reads one address. `from` is 'owner', 'model' or 'feed' (with the feed's name). Returns true when a page was kept.
+  async function read(address, from, feed = '') {
     if (reading || hooks.isBusy()) {
       hooks.notice('Finish the current request first.');
       return false;
@@ -54,7 +54,7 @@ export function installResearch(hooks) {
       for (let hop = 0; ; hop++) {
         const approved = await hooks.review(
           moved ? 'This page has moved. Read the new address?' : 'Read this public web page?',
-          describeRead(next, { profile: who, from: moved ? 'site' : from, moved }),
+          describeRead(next, { profile: who, from: moved ? 'site' : from, moved, feed }),
         );
         if (!approved) return false;
         if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the page again.');

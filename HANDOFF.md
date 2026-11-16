@@ -23,6 +23,25 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Headlines on Today — 2026-11-16
+
+**Branch `feature/headlines`, development identity `0.1.0-dev.41`.** Owner's choices: feeds the owner adds (no news service, no built-in list); shown to the owner only; refreshed only on a click; the Home card is to be a summary at the top of Today and is the next slice.
+
+- Rule first: `contract.json` `reader.contentTypes` gained `application/rss+xml`, `application/atom+xml`, `application/xml`, `text/xml`, and `reader.accept` names them. Both gateways read the list from the contract, so no gateway code changed. Conformance reads four feed-typed pages on both gateways (still 26 plus 1 opt-in). Assets now 40.
+- `browser/feeds.mjs` (pure): `readFeed` (RSS 2.0, RSS 1.0/RDF and Atom by a bounded scan with `indexOf`, no DOM and no XML parser; titles reduced to one plain line through `pageText`; 20 items a feed), `headlineLink` (https to a named site only; the reading address is the same without its fragment and must pass `pageAddress`), `mergeHeadlines` (newest first, 30), `validSavedFeeds`, `describeFeed`, `headlineDate`.
+- `browser/feeds-ui.mjs`: `installHeadlines`. Saved in `localStorage` `pea-headlines-v1` as `{feeds:[{url,name}]}`, for the browser, not per profile; titles are held for the tab only. Add = review, one read, must parse as a feed. Refresh = one read per feed, one at a time. A moved feed is reported with its new address and not followed. Returns `top(n)`, `refreshedAt()`, `count()` for the coming Home card.
+- **Read in Chat** calls `research.read(address, 'feed', name)`; `describeRead` has a `feed` wording. Headlines are not passed to `live.chat` anywhere.
+- Tests: 12 unit tests in `browser/tests/feeds.test.mjs` (210 unit in all); 5 browser tests in `browser/tests/dom/headlines.test.mjs` against the stand-in site: nothing asked before approval or without Refresh or on reopening; one request per read with nothing of the owner's; titles are text (markup and script in a title do nothing; non-https links are not links); only address and name saved; no headline in any model request; Read in Chat goes through the page review; non-feeds, moved feeds, errors and private names refused in PEA's words; one failing feed leaves the rest.
+
+Known gaps:
+
+- Only UTF-8 feeds (the reader's rule), up to 2 MB. No images, summaries or categories. No discovery of a site's feed from its home page. Feeds that need a sign-in or a non-443 port cannot be added.
+- The feed list is per browser, not per profile, as with weather.
+- `application/xml` and `text/xml` mean the reader will now return any small public XML document as text. It is still one GET to a public https site with nothing of the owner's.
+- Not tried against a real feed through the app by anyone. No independent security review. Not compared with the iPhone app.
+
+Next action: the Home card: a summary at the top of Today (weather now, next event, to-dos due today, top headlines) built only from what the page already holds.
+
 ## Public research, part 2: the page's review and reading flow — 2026-11-16
 
 **Branch `research/page-flow`, development identity `0.1.0-dev.40`.** The app now uses the reader from part 1. No gateway or contract rule changed; `contract.json` only lists the two new served files (assets now 38).

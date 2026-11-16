@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.41] - 2026-11-16
+
+### Added
+
+- Headlines on Today, from feeds you add. Paste the address of any site's RSS or Atom feed, approve it once, and its newest titles appear in a list, newest first across all your feeds (up to 8 feeds, 20 titles from each, 30 shown). Your PEA server reads a feed when you add it and each time you press **Refresh**, and never on its own, so it needs the server connected (Connections → Local model). Each title links to its page in your browser; **Read in Chat** reads that page through the usual approve-this-address review.
+- Headlines are shown to you only. They are never given to your model and are not saved; only each feed's address and name are kept in this browser, for every profile, until you remove it.
+
+### Changed
+
+- The page reader in both gateways now also accepts feeds (`application/rss+xml`, `application/atom+xml`, `application/xml`, `text/xml`). Everything else about it is unchanged.
+
 ## [0.1.0-dev.40] - 2026-11-16
 
 ### Added
