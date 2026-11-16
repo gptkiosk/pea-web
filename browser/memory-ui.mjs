@@ -897,6 +897,7 @@ export function installMemory(hooks) {
         introduction: introductionContext(value),
         persona: value.persona,
         assistantName: value.assistantName,
+        assistantHome: value.assistantHome ?? '',
         presence: presence.get(profile()) ?? false,
         memories: memoryContext(library, profile(), query, share.get(profile()) ?? false),
       };

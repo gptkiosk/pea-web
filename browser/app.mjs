@@ -35,6 +35,7 @@ import { installWeather } from './weather-ui.mjs';
 import { installResearch } from './research-ui.mjs';
 import { installHeadlines } from './feeds-ui.mjs';
 import { installHome } from './home-ui.mjs';
+import { installCanon } from './canon-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -62,7 +63,7 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory, todos, research, weather, headlines, home;
+let live, board, voice, memory, todos, research, weather, headlines, home, canon;
 // Replies written while a web page was shared, and proposals to read a page that were carried out.
 const sourcedReplies = new Set(),
   readDone = new Set();
@@ -824,6 +825,7 @@ $('profile').onchange = () => {
   renderCollaboration();
   live.profileChanged();
   board.profileChanged();
+  canon?.render();
   todos.profileChanged();
   research.profileChanged();
   memory.profileChanged();
@@ -982,6 +984,8 @@ live = installConnections({
   files: () => visible(),
   selected: () => selected,
   context: (text) => memory.context(text),
+  canon: (text) => canon?.pick(text) ?? null,
+  canonSent: (count) => canon?.sent(count),
   // The board's own buttons follow the request too; without this they stay as they were last drawn.
   busyChanged: () => {
     memory?.render();
@@ -1287,6 +1291,17 @@ memory = installMemory({
     renderChat();
     renderCollaboration();
   },
+});
+// Her history: cards the owner's model writes on request. Kept in this browser, Personal only.
+canon = installCanon({
+  profile: () => profile,
+  interview: () => memory.context(''),
+  review: live.review,
+  run: live.run,
+  compose: live.compose,
+  isBusy: live.isBusy,
+  key: live.localKey,
+  read: live.readPage,
 });
 for (const [id, target] of [
   ['menu-new-chat', 'library-new-chat'],

@@ -23,6 +23,27 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Her history cards — 2026-11-16
+
+**Branch `feature/her-history`, development identity `0.1.0-dev.43`.** Design follows the owner's written description of the iPhone behavior (the model writes the cards in one owner-triggered request; about 26 cards, 8 on the place and 18 invented; 0 to 2 cards per chat message). The iPhone source and its notes file were not read; the prompt and rules here are this repository's own.
+
+- `browser/canon.mjs` (pure): `canonLimits` (6 to 40 cards, 26 asked for, text 420, facts 6000, 2 per message, gap 8); `homeAnswer`; `historyPrompt({ home, persona, facts })` and `historyRequest`; `parseCanon(raw)` (complete top-level objects of the first JSON array, so a cut-off reply keeps whole cards; drops over-long, tagless, credential-like, address-bearing or `pea-` cards; assigns `card-N` ids); `validSavedCanon`; `askedAboutHer` (English patterns); `selectCards(cards, message, sinceLast)`; `canonContext`; `describeHistoryRequest`; `describeCards`.
+- `browser/canon-ui.mjs`: `installCanon(...)` returns `{ render, pick(message), sent(count), count() }`. Storage `localStorage` `pea-canon-v1` = `{ made, cards }`, Personal only, unencrypted. Flow: optional reviewed read of one page (`live.readPage`, redirects not followed) → `live.compose` review and request → `parseCanon` → "Keep these cards?" review → save.
+- `browser/live-ui.mjs`: new `compose({ title, about, system, user })`, a reviewed one-off request to the profile's Chat model that adds nothing from chat, interview or services and returns the text; callers wrap it in `run`. In `chat`, `hooks.canon(text)` is consulted only on the Chat surface with `shareIntro` on; chosen cards are appended to the system message, the kept set's stamp is in the approval fingerprint, and the review lists the whole set. `hooks.canonSent(count)` is called on dispatch.
+- `browser/memory-ui.mjs`: `context()` also returns `assistantHome`. `browser/index.html`: `#canon-section` in the library dialog. Assets now 44.
+- Tests: 12 unit tests in `browser/tests/canon.test.mjs`; 5 browser tests in `browser/tests/dom/canon.test.mjs` (nothing without home, Personal and approval; exactly one request with none of the owner's other answers or chat; hostile and malformed cards dropped and nothing a model wrote runs; second review before saving; delete and reload; a bad reply or a declined set keeps nothing; the place page has its own review and its words are shown before sending; two cards at most in Chat, none when sharing is off, none in Work).
+
+Known gaps:
+
+- No real model has written cards through this yet, so the prompt's quality, and whether 26 cards fit a given model's reply cap (3,500 tokens), are untested. A cut-off reply keeps the whole cards that arrived if there are at least six.
+- PEA cannot check that a model kept to the page's facts or invented no real person; the owner's review is the only check.
+- One page the owner names, not several pages PEA finds. No year field and no timeline view.
+- Cards are outside the encrypted library, its backup and the profile file, and are not cleared by locking the library.
+- Card selection and "asked about her" are English only.
+- Dated entries about her days (the iPhone's life timeline, and the owner's request that she know recent and coming days) are not built.
+
+Next action: dated entries about her days, then direct calendar changes, per the parity sequence.
+
 ## The Home card: "At a glance" on Today — 2026-11-16
 
 **Branch `feature/home-card`, on `main` after Headlines (#43) was merged; development identity `0.1.0-dev.42`.** Owner's choice: a summary at the top of Today, built from what is already on the page.
