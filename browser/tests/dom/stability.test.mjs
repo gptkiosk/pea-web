@@ -306,6 +306,8 @@ test(
     const page = await openConnectedPage(stack, { width: 1500 });
     await askModel(stack, page, 'SYNTHETIC PRIVATE QUESTION about tulips.');
     const openUnlock = async () => {
+      // The button is disabled while the library starts up; a click then does nothing.
+      await page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be ready');
       await page.click('#library-storage');
       await page.waitFor(`document.getElementById('library-unlock').open`, 'the library passphrase dialog');
     };
