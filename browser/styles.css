@@ -1283,6 +1283,26 @@ main {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.context-page details {
+  padding: 8px 14px 0;
+  font-size: 12px;
+}
+.context-page summary {
+  cursor: pointer;
+}
+#context-page-note {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+#context-page-text {
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 button,
 input,
 textarea,

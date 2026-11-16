@@ -146,6 +146,32 @@ export async function startFakeModel(reply) {
   };
 }
 
+// A stand-in for public web sites, for the page reader. The gateway is started in its test mode so
+// that the named sites lead here instead of to the internet. `answer(request)` returns
+// { status, type, body, location } for each { host, path }; every request is kept for the tests.
+export async function startFakeSite(answer) {
+  const requests = [];
+  const server = createServer((request, response) => {
+    const seen = { host: request.headers.host, path: request.url, headers: request.headers };
+    requests.push(seen);
+    const plan = answer(seen) ?? { status: 404, body: 'Not here.' };
+    const headers = { 'Content-Type': plan.type ?? 'text/html; charset=utf-8' };
+    if (plan.location) headers.Location = plan.location;
+    response.writeHead(plan.status ?? 200, headers);
+    response.end(plan.body ?? '');
+  });
+  const port = await listen(server);
+  return {
+    port,
+    requests,
+    close: () =>
+      new Promise((resolve) => {
+        server.close(resolve);
+        server.closeAllConnections();
+      }),
+  };
+}
+
 // Which gateway serves the app under test. PEA_GATEWAY=swift runs the Mac app's gateway (built
 // beforehand with `swift build --package-path mac`, or named by PEA_GATEWAY_BINARY), so the whole
 // browser suite checks it serves the app exactly as the Python one does.
@@ -155,7 +181,7 @@ const swiftGateway =
   fileURLToPath(new URL('../../../mac/.build/debug/pea-gateway', import.meta.url));
 
 // The real gateway, started the way an owner starts it, with a token made for this run only.
-export async function startGateway(upstreamPort) {
+export async function startGateway(upstreamPort, reader = []) {
   const folder = mkdtempSync(join(tmpdir(), 'pea-dom-'));
   const config = join(folder, 'config');
   const port = await freePort();
@@ -184,6 +210,7 @@ export async function startGateway(upstreamPort) {
           // Stands in for the Mac's notifications: accepted reminders are written here, not shown.
           '--reminders-file',
           join(folder, 'reminders.json'),
+          ...reader,
         ],
         { stdio: ['ignore', 'pipe', 'pipe'] },
       ),
@@ -195,12 +222,16 @@ export async function startGateway(upstreamPort) {
     });
     if (setup.status !== 0) throw new Error('Gateway setup failed: ' + setup.stderr);
     token = readFileSync(join(config, 'connection-token'), 'utf8').trim();
+    // An owner starts PEA through local.py, which has no test options. Only a run that needs the
+    // reader's stand-in sites starts the gateway itself, with the same token file.
+    const command = reader.length
+      ? ['gateway.py', '--token-file', join(config, 'connection-token'), '--port', String(port)]
+      : ['local.py', 'start', '--config-dir', config, '--port', String(port)];
     child = track(
-      spawn(
-        'python3',
-        ['local.py', 'start', '--config-dir', config, '--port', String(port), '--upstream', upstream],
-        { cwd: serverFolder, stdio: ['ignore', 'pipe', 'pipe'] },
-      ),
+      spawn('python3', [...command, '--upstream', upstream, ...reader], {
+        cwd: serverFolder,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }),
     );
   }
   const origin = `http://127.0.0.1:${port}`;
@@ -507,11 +538,16 @@ export async function launchBrowser() {
 }
 
 // The whole synthetic stack for one test file: model, gateway and browser, stopped together.
-export async function startStack(reply) {
+export async function startStack(reply, { site = null } = {}) {
   const parts = {};
   const close = async () => {
     // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
-    await Promise.allSettled([parts.browser?.close(), parts.gateway?.close(), parts.model?.close()]);
+    await Promise.allSettled([
+      parts.browser?.close(),
+      parts.gateway?.close(),
+      parts.model?.close(),
+      parts.site?.close(),
+    ]);
   };
   // Starting must finish well inside a test hook's own time limit. If it does not, everything
   // started so far is stopped here, because a hook that times out cannot clean up after itself.
@@ -519,7 +555,17 @@ export async function startStack(reply) {
   const start = (async () => {
     parts.model = await startFakeModel(reply);
     if (abandoned) return;
-    parts.gateway = await startGateway(parts.model.port);
+    // `site` is { names, resolve, answer }: names served by a stand-in site, and names given fixed
+    // addresses in place of a DNS answer.
+    const reader = [];
+    if (site) {
+      parts.site = await startFakeSite(site.answer);
+      if (abandoned) return;
+      for (const name of site.names ?? []) reader.push('--reader-test-site', `${name}=${parts.site.port}`);
+      for (const [name, addresses] of Object.entries(site.resolve ?? {}))
+        reader.push('--reader-test-resolve', `${name}=${addresses}`);
+    }
+    parts.gateway = await startGateway(parts.model.port, reader);
     if (abandoned) return;
     parts.browser = await launchBrowser();
   })();

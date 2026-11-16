@@ -23,6 +23,29 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Public research, part 2: the page's review and reading flow — 2026-11-16
+
+**Branch `research/page-flow`, development identity `0.1.0-dev.40`.** The app now uses the reader from part 1. No gateway or contract rule changed; `contract.json` only lists the two new served files (assets now 38).
+
+- `browser/research.mjs` (pure): `pageAddress` (the page's own check of an address, the same shape the server accepts; the server stays the authority and also refuses private names), `readProposals` (one `pea-read` block, exactly `{"op":"read","url"}`), `ownerRead` (the owner's whole message is `read https://…` or `fetch https://…`), `readGuidance`, `claimsRead`, `pageText` (HTML to plain words with its own small scanner, no DOM: scripts, styles, menus, footers, forms' controls, frames and drawings dropped; entities decoded; invisible and text-reordering characters removed; cut to 6,000 characters), `readFailure` (PEA's own words per status; the server's and site's wording is never shown), `describeRead` (the review text).
+- `browser/research-ui.mjs`: `installResearch`. One kept page per tab, tied to the profile it was read in; shown in `#context-page` above the chat with **Stop sharing**; dropped on profile change and when the chat is replaced. A redirect is a second review naming the new address; three approved reads at most. A page whose kept words look like a credential is not kept.
+- `browser/local-model.mjs`: `LocalModel.read(key, url)` calls `/v1/read`; the answer must echo the address asked for.
+- `browser/connections.mjs` `body({ page })`: the words go in the system message, labelled as untrusted quoted data from a stranger. `browser/live-ui.mjs`: Chat only; the page is part of the sharing fingerprint, so a new or changed page always brings the "Before sharing with your model" review back, and the review shows the address and the exact words. `readGuidance` is sent only in Chat and only when the server's token is connected.
+- The rule "retrieved content cannot grant tools" is enforced in `app.mjs` `finishReply`: a reply that was requested while a page was shared (`sourcedReplies`) has no proposal parsed from it at all, of any kind, and says so if it carried an action block.
+- `browser/server/releases.py`: the package file limit is now `MAX_FILES = 200` (was 100, with 101 for the manifest's list); `WEB-FILES.json` reached 101 names. No release exists yet, so no installed verifier is affected.
+- Tests: 14 unit tests in `browser/tests/research.test.mjs` (198 unit in all); 6 browser tests in `browser/tests/dom/research.test.mjs` against a stand-in site (`startFakeSite`, and `startStack(reply, { site })` in the harness, which starts the gateway with `--reader-test-site` / `--reader-test-resolve`; for Python that means `gateway.py` directly, since `local.py` has no test options). They check: nothing is read on a proposal or a cancel; the site gets one request with no cookie, authorization, referer or origin; nothing from the page runs or loads; hidden text is shown to the owner; the model gets the words only after the review; a sourced reply offers no button; a moved page asks again; private, missing, secret-bearing and empty pages are refused in PEA's words; profile change and new chat drop the page. Removing the sourced-reply rule makes its test fail (checked by hand once).
+
+Known gaps:
+
+- No search. No link following (the kept words carry no link addresses). No PDF, images or script-rendered pages. Only the first 6,000 characters of words are kept.
+- Text a browser would hide (for example `display:none`) is kept and shown, not removed; the owner sees it in the chip and in the review.
+- The no-action rule covers replies requested while a page is shared. After **Stop sharing**, earlier replies written with the page are still in the chat history sent to the model; every action still needs its own review.
+- A model can be led by one page to suggest another address only after the page is no longer shared; the owner reviews the exact address each time. Nothing private should be in an address; the review says so but cannot check it.
+- The reader and this flow have had no independent security review. Not compared with the iPhone app's research behavior.
+- Run by hand in a browser only through the automated tests' stand-in site, plus one live read on the owner's preview if they try it.
+
+Next action: headlines and the Home card (the rest of the old parity row), or an independent review of the reader first.
+
 ## Public research, part 1: the gateway's page reader — 2026-11-15
 
 **Branch `research/gateway-reader`, development identity `0.1.0-dev.39`.** The owner chose public research as the next 0.2 piece. This part is the gateway side only; no page code calls it yet.

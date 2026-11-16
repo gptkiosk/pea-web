@@ -2,6 +2,19 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.40] - 2026-11-16
+
+### Added
+
+- Reading a public web page in Chat. Type `read https://…` yourself, or ask about a page and let your model suggest its address; either way PEA first shows you the exact address and what the site will learn, and reads nothing unless you approve. It needs your PEA server connected (Connections → Local model), because the server does the reading. PEA keeps up to 6,000 characters of the page as plain words, shows them above the chat, and gives them to your model only when you send your next message and approve the usual review. **Stop sharing** removes the page; so does a new chat or changing profile. The page is not saved with your chats.
+- If a page has moved, PEA asks again with the new address instead of following it.
+
+### Changed
+
+- While a web page is shared, PEA offers no action buttons (email drafts, documents, to-dos and the rest) from the model's replies. Words on a stranger's page must not be able to steer you into an action. Stop sharing the page and ask again to act on what you learned.
+- PEA does not search the web, follow links, run a page's scripts, or read PDFs and pages that only work with scripts.
+- A release package may now name up to 200 web files instead of 100; this version has 101. No release has been published yet, so no installed copy is affected.
+
 ## [0.1.0-dev.39] - 2026-11-15
 
 ### Added

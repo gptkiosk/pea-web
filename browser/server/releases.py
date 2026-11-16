@@ -24,6 +24,8 @@ BROWSER = Path(__file__).resolve().parents[1]
 MAX_ARCHIVE = 20_000_000
 MAX_FILE = 2_000_000
 MAX_TOTAL = 40_000_000
+# How many web files a package may name. The built identity file is one more.
+MAX_FILES = 200
 
 
 def digest(data):
@@ -50,7 +52,7 @@ def safe_path(name):
 
 def source_files(source):
     names = json.loads(regular(Path(source) / 'WEB-FILES.json', 30000))
-    if not isinstance(names, list) or not 1 <= len(names) <= 100 or any(not isinstance(n, str) for n in names) or len(set(names)) != len(names):
+    if not isinstance(names, list) or not 1 <= len(names) <= MAX_FILES or any(not isinstance(n, str) for n in names) or len(set(names)) != len(names):
         raise ValueError('Invalid web source allowlist.')
     for name in names:
         if not safe_path('browser/' + name):
@@ -131,7 +133,7 @@ def verify_signature(manifest, signature, signers):
             or value.get('channel') not in ('stable', 'prerelease', 'development')):
         raise ValueError('Unsupported release identity or data schema.')
     files = value.get('files')
-    if not isinstance(files, dict) or not 1 <= len(files) <= 101:
+    if not isinstance(files, dict) or not 1 <= len(files) <= MAX_FILES + 1:
         raise ValueError('Invalid package file list.')
     archive = value.get('archive')
     if (not isinstance(archive, dict) or not isinstance(archive.get('name'), str)
@@ -208,7 +210,7 @@ def stage(root, archive, manifest_path, signature):
         seen = set()
         with tarfile.open(fileobj=io.BytesIO(raw), mode='r|') as tar:
             for member in tar:
-                if member.name not in manifest['files'] or member.name in seen or len(seen) >= 101:
+                if member.name not in manifest['files'] or member.name in seen or len(seen) >= MAX_FILES + 1:
                     raise ValueError('Archive contains extra, duplicate or missing entries.')
                 seen.add(member.name)
                 row = manifest['files'][member.name]

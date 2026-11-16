@@ -1,4 +1,5 @@
 import { ServiceError, consumeStream } from './connections.mjs';
+import { readFailure } from './research.mjs';
 // Same-origin gateway only: no arbitrary URL proxy, credential forwarding or cloud fallback.
 export class LocalModel {
   constructor(origin = globalThis.location?.origin, transport = globalThis.fetch.bind(globalThis)) {
@@ -15,9 +16,9 @@ export class LocalModel {
     this.origin = url.origin;
     this.transport = transport;
   }
-  async request(path, key, { body, signal } = {}) {
+  async request(path, key, { body, signal, anyStatus = false } = {}) {
     if (
-      !['/v1/models', '/v1/chat/completions', '/v1/reminders'].includes(path) ||
+      !['/v1/models', '/v1/chat/completions', '/v1/reminders', '/v1/read'].includes(path) ||
       typeof key !== 'string' ||
       !/^[A-Za-z0-9_-]{32,128}$/.test(key)
     )
@@ -32,7 +33,7 @@ export class LocalModel {
       referrerPolicy: 'no-referrer',
       signal: signal ?? AbortSignal.timeout(45000),
     });
-    if (!r.ok)
+    if (!r.ok && !anyStatus)
       throw new ServiceError(
         r.status === 401
           ? 'Local server token rejected.'
@@ -61,6 +62,31 @@ export class LocalModel {
       available: answer?.available === true,
       scheduled: Number.isInteger(answer?.scheduled) ? answer.scheduled : 0,
     };
+  }
+  // Asks this server to read one public page the owner has just approved. The answer is the page
+  // as text, or the address the site pointed to instead (never followed here or by the server).
+  // Refusals are told in PEA's own words; the server's and the site's wording is not shown.
+  async read(key, url, signal) {
+    const r = await this.request('/v1/read', key, {
+      body: { url },
+      signal: signal ?? AbortSignal.timeout(25000),
+      anyStatus: true,
+    });
+    let answer = null;
+    try {
+      answer = await r.json();
+    } catch {
+      // Handled as a failed read below.
+    }
+    if (r.ok && answer?.outcome === 'page' && answer.url === url && typeof answer.text === 'string')
+      return {
+        outcome: 'page',
+        type: answer.type === 'text/plain' ? 'text/plain' : 'text/html',
+        text: answer.text,
+      };
+    if (r.ok && answer?.outcome === 'redirect' && answer.url === url && typeof answer.location === 'string')
+      return { outcome: 'redirect', location: answer.location };
+    throw new ServiceError(readFailure(r.ok ? 0 : r.status, answer?.status));
   }
   async catalogue(key) {
     const r = await this.request('/v1/models', key),

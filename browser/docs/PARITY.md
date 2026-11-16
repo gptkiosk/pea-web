@@ -41,7 +41,8 @@ How to read the status columns:
 | Moving interview answers between apps (profile file) | Built: export and import, web to web | Not yet | The file format is now a shared contract with fixtures ([CONTRACTS.md](CONTRACTS.md#the-profile-file)); the iPhone app has to adopt it in its own change before a file can go either way |
 | Encrypted backup and restore | Built, Web-only files | Built, one file per profile in the PEA folder | iPhone-readable backup on Web: not yet, after 0.2 |
 | Weather | Built: a card on Today for one place the owner types | Built | Web asks Open-Meteo directly from the browser after a review; shown to the owner only, never given to a model; free service is for non-commercial use |
-| Public research, headlines, Home card | Not yet, 0.2. The gateway's page reader is built; nothing in the app uses it yet | Built | Next: the page's review and reading flow, then headlines and the Home card |
+| Public research | Partly built: one public page at a time in Chat, by the owner's typed address or a model's suggestion, each exact address approved first; kept as plain words and shared with a model only under the sharing review | Built | Web has no search, follows no links, reads no PDFs, and offers no actions from replies written while a page is shared. Needs the PEA server connected. iPhone behavior not compared |
+| Headlines, Home card | Not yet, 0.2 | Built | Next after public research |
 | Her history cards, daily life and life timeline | Not yet, 0.2 | Built | |
 | Deck projects | Not yet, 0.2 | Built | Behavior to be confirmed first |
 | Automatic sync between devices | Not yet | Not yet | |
