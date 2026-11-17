@@ -319,7 +319,11 @@ async function startGatewayOnce(upstreamPort, reader) {
   for (let attempt = 0; ; attempt++) {
     try {
       // A connection that is accepted but never answered must not stall the whole run.
-      if ((await fetch(origin + '/', { signal: AbortSignal.timeout(1500) })).ok) break;
+      // The answer is read to its end. Left unread, a page over 64 KB stalls the connection and
+      // some versions of Node then fail the whole test file with an internal assertion.
+      const answer = await fetch(origin + '/', { signal: AbortSignal.timeout(1500) });
+      await answer.arrayBuffer();
+      if (answer.ok) break;
     } catch {
       // Not listening yet.
     }

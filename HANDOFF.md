@@ -34,6 +34,7 @@ Resume: branch from `main`, keep one bounded slice per pull request, stage named
 - Tests: 8 unit tests in `browser/tests/speech.test.mjs`; 4 browser tests in `browser/tests/dom/speech.test.mjs` using `startStack(..., { voices })`, which starts a stand-in provider (`startFakeVoices`, `shortSound`) and passes `--speech-test-port` to whichever gateway is under test. The test browser now starts with sound allowed without a click. Checked by removal: skipping the review, falling back to the device voice on failure, and keeping the key across providers each fail tests.
 
 - Test setup: `startGateway` in `browser/tests/dom/harness.mjs` now tries again on another port, up to three times, when a gateway does not start, and the error carries the gateway's own last words. Test files run side by side and could be handed the same free port; that failed the Swift job on main once (run for `9e8965c`, re-run afterwards) and three local runs on 2026-11-16. The cause is inferred from the symptom, not observed directly.
+- Test setup: the same start check now reads the page it fetches to the end. `index.html` passed 64 KB in this change (65,431 to 67,115 bytes), and an unread answer of that size made every browser test file fail on CI's Node 22.23.4 with an internal `assert(!this.paused)`; it did not reproduce on Node 22.22.3 locally. The gateway's output is captured in a file in the run's temporary folder.
 
 Known gaps:
 
