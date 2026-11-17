@@ -3,7 +3,16 @@
 // account or microphone, and every token is created for one run and deleted afterwards.
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -254,6 +263,10 @@ async function startGatewayOnce(upstreamPort, reader) {
   const port = await freePort();
   const upstream = `http://127.0.0.1:${upstreamPort}`;
   let token, child;
+  // What the gateway says as it starts or fails goes to a file, for the error below. It never
+  // prints its token.
+  const heard = join(folder, 'gateway-output.txt'),
+    said = openSync(heard, 'w', 0o600);
   if (gatewayKind === 'swift') {
     if (!existsSync(swiftGateway))
       throw new Error(
@@ -279,7 +292,7 @@ async function startGatewayOnce(upstreamPort, reader) {
           join(folder, 'reminders.json'),
           ...reader,
         ],
-        { stdio: ['ignore', 'pipe', 'pipe'] },
+        { stdio: ['ignore', said, said] },
       ),
     );
   } else {
@@ -297,14 +310,11 @@ async function startGatewayOnce(upstreamPort, reader) {
     child = track(
       spawn('python3', [...command, '--upstream', upstream, ...reader], {
         cwd: serverFolder,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['ignore', said, said],
       }),
     );
   }
-  // What the gateway says as it starts or fails, for the error below. It never prints its token.
-  const said = [];
-  child.stderr?.on('data', (chunk) => said.push(String(chunk)));
-  child.stdout?.on('data', (chunk) => said.push(String(chunk)));
+  closeSync(said);
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; ; attempt++) {
     try {
@@ -316,9 +326,15 @@ async function startGatewayOnce(upstreamPort, reader) {
     if (attempt > 100 || child.exitCode !== null) {
       const exited = child.exitCode;
       child.kill();
+      let lastWords = 'it said nothing';
+      try {
+        lastWords = readFileSync(heard, 'utf8').slice(-300).trim() || lastWords;
+      } catch {
+        // Nothing was written.
+      }
       remove(folder);
       throw new Error(
-        `The gateway did not start. ${exited === null ? 'It was not answering' : 'It exited with ' + exited} on port ${port}: ${said.join('').slice(-300).trim() || 'it said nothing'}`,
+        `The gateway did not start. ${exited === null ? 'It was not answering' : 'It exited with ' + exited} on port ${port}: ${lastWords}`,
       );
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
