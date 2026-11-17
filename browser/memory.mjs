@@ -186,6 +186,57 @@ export function remember(
   });
   return check(next);
 }
+// Memories from a backup. A saved memory must point at the owner's words it came from, so each
+// quote is kept as the owner's message in a conversation named for what it is.
+export const broughtInTitle = 'Brought in from a backup';
+export function bringInMemories(library, profile, items, now = Date.now()) {
+  if (!profiles.includes(profile) || !Array.isArray(items))
+    throw new ServiceError('Choose Work or Personal. Nothing was changed.');
+  const next = structuredClone(library);
+  let thread = null;
+  for (const item of items) {
+    if (!thread || thread.messages.length >= 200) {
+      thread = next.threads.find(
+        (t) =>
+          t.profile === profile &&
+          t.surface === 'chat' &&
+          t.title === broughtInTitle &&
+          t.messages.length < 200 &&
+          t.messages.every((m) => m.role === 'user'),
+      );
+      if (!thread) {
+        thread = {
+          id: crypto.randomUUID(),
+          profile,
+          surface: 'chat',
+          title: broughtInTitle,
+          updated: now,
+          messages: [],
+        };
+        next.threads.push(thread);
+      }
+    }
+    const message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      text: item.quote,
+      at: item.created,
+      incomplete: false,
+      preview: false,
+    };
+    thread.messages.push(message);
+    thread.updated = now;
+    next.memories.push({
+      id: crypto.randomUUID(),
+      profile,
+      text: item.text,
+      source: { threadID: thread.id, messageID: message.id, quote: item.quote },
+      created: item.created,
+      expires: item.expires,
+    });
+  }
+  return check(next);
+}
 export function reviseMemory(library, profile, memoryID, fact) {
   if (!profiles.includes(profile) || typeof fact !== 'string')
     throw new ServiceError('Choose a valid memory and fact.');

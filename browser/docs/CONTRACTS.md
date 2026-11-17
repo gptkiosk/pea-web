@@ -168,7 +168,7 @@ Differences: none yet, because only the web implements it. Whether the iPhone ap
 
 ## The backup file
 
-One file carries one profile from one PEA app to another: its interview answers, reviewed memories, to-dos, the character's history cards and day lines, and deck projects. PEA Web's rules for it are in `backup.mjs`; its buttons are not built yet. The iPhone app does not write or read it; this section is what it would follow, and its own existing backup file is a different thing that this page does not describe. Never in the file: chats, files, provider or service keys, connection tokens, permissions, sharing switches, local ids, or anything of the other profile.
+One file carries one profile from one PEA app to another: its interview answers, reviewed memories, to-dos, the character's history cards and day lines, and deck projects. PEA Web writes and reads it under **Move this profile** in Past chats & memory; its rules are in `backup.mjs`. The iPhone app does not write or read it; this section is what it would follow, and its own existing backup file is a different thing that this page does not describe. Never in the file: chats, files, provider or service keys, connection tokens, permissions, sharing switches, local ids, or anything of the other profile.
 
 **Outside.** One JSON object with exactly four fields, at most 1,200,000 characters in all: `format` (`pea-backup-v1`), `salt` (16 random bytes), `iv` (12 random bytes) and `data` (the sealed contents followed by the 16-byte tag). The last three are standard base64 with `=` padding. Use a fresh random salt and `iv` for every file.
 
@@ -191,11 +191,11 @@ A Work file's `history` and `days` are empty: the character belongs to the Perso
 
 **Reading.** An app refuses the whole file, changes nothing and gives one plain message, without saying which check failed, for a wrong passphrase, an altered byte, an unknown format, or contents that break any rule above.
 
-**Combining.** The web only adds. It shows the owner every item that would be added and applies nothing until they approve. Nothing already there is changed or removed. Two items are the same thing when these match, ignoring case and outer spaces: a memory's `text`; a to-do's `title`; a card's `topic`; a line's `day` and `text`; a deck's `title`. When the same thing differs between the file and the device, the device's stays and the difference is listed. An interview answer is filled in only where the device's is blank. A memory that has expired, a line outside the days the app keeps, or a line for a day that already has three is left out and counted, as is anything there is no room for. How an app stores a memory's source is its own business; the web will keep each brought-in quote as the owner's words in a conversation marked as brought in from a backup.
+**Combining.** The web only adds. It shows the owner every item that would be added and applies nothing until they approve. Nothing already there is changed or removed. Two items are the same thing when these match, ignoring case and outer spaces: a memory's `text`; a to-do's `title`; a card's `topic`; a line's `day` and `text`; a deck's `title`. When the same thing differs between the file and the device, the device's stays and the difference is listed. An interview answer is filled in only where the device's is blank. A memory that has expired, a line outside the days the app keeps, or a line for a day that already has three is left out and counted, as is anything there is no room for. How an app stores a memory's source is its own business; the web keeps each brought-in quote as the owner's words in a conversation named "Brought in from a backup".
 
 The fixtures hold five files that must open, with the contents each must give, and thirty-six that must be refused, each with its reason. All were sealed with the synthetic passphrase in the fixture file and fixed salts, for tests only.
 
-Differences: none yet, because only the web implements it, and only its rules. Whether the iPhone app holds the same sections under these names and limits is for its own change to establish; a difference there is a change to this contract first.
+Differences: none yet, because only the web implements it. Whether the iPhone app holds the same sections under these names and limits is for its own change to establish; a difference there is a change to this contract first.
 
 ## Changing a contract
 

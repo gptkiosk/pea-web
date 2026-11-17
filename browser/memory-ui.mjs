@@ -3,6 +3,7 @@ import { ServiceError } from './connections.mjs';
 import {
   ConversationVault,
   emptyLibrary,
+  bringInMemories,
   captureThread,
   remember,
   reviseMemory,
@@ -887,6 +888,33 @@ export function installMemory(hooks) {
     record,
     profileChanged,
     render,
+    // For a backup: this profile's answers and every memory, and how many more memories fit.
+    portable() {
+      return eligible() && !failed
+        ? {
+            introduction: library.introductions[profile()],
+            memories: library.memories,
+            memoryRoom: 150 - library.memories.length,
+            threadRoom: library.threads.length < 40,
+          }
+        : null;
+    },
+    // From a reviewed backup: answers to fill in (or null) and memories to add. Resolves true if
+    // the result was also saved to the encrypted library, false if it lives in this tab only.
+    async bringIn({ introduction, memories }) {
+      ensure();
+      if (failed) throw new ServiceError('Resolve the local library warning first.');
+      const who = profile();
+      let next = library;
+      if (introduction)
+        next = { ...next, version: 2, introductions: { ...next.introductions, [who]: introduction } };
+      next = bringInMemories(next, who, memories);
+      library = next;
+      fillInterview();
+      invalidate();
+      await persist();
+      return Boolean(vault?.key) && !failed;
+    },
     presence: () => presence.get(profile()) ?? false,
     async clearSurface(surface) {
       await clearSurface(surface);

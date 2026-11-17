@@ -12,7 +12,9 @@ import {
   removeTodo,
   setTodoDone,
   todoGuidance,
+  validateTodos,
 } from './todos.mjs';
+import { ServiceError } from './connections.mjs';
 
 const $ = (id) => document.getElementById(id);
 const when = (ms) =>
@@ -288,6 +290,20 @@ export function installTodos({ store, profile, notice, review, mac = null, chang
   return {
     render,
     check,
+    // For a backup: every to-do, or null while the list cannot be read.
+    portable: () => (store.usable() ? store.items() : null),
+    // To-dos from a reviewed backup, added to this profile under new local ids.
+    bringIn(list) {
+      const who = profile();
+      store.change((items) => {
+        const next = [...items, ...list.map((t) => ({ ...t, id: crypto.randomUUID(), profile: who }))];
+        if (!validateTodos(next))
+          throw new ServiceError('These to-dos do not fit the list. Nothing was added.');
+        return next;
+      });
+      render();
+      return list.length;
+    },
     // This profile's open to-dos, for the summary on Today.
     open: () =>
       store.usable() && ['personal', 'work'].includes(profile()) ? mine().filter((t) => !t.done) : [],

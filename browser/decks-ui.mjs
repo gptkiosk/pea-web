@@ -283,5 +283,26 @@ export function installDecks({ profile, review, run, compose, isBusy }) {
   $('deck-outline').onclick = () => void outline();
   $('deck-write').onclick = () => void write();
   render();
-  return { render };
+  return {
+    render,
+    // For a backup: every project in this browser.
+    all: () => decks,
+    // Projects from a reviewed backup, added to this profile under new local ids.
+    bringIn(list) {
+      if (!usable() || !list.length) return 0;
+      const added = list.map((d) => ({
+        id: 'deck-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20),
+        profile: profile(),
+        changed: Date.now(),
+        ...d,
+      }));
+      const next = validSavedDecks([...decks, ...added]);
+      if (next.length !== decks.length + added.length)
+        throw new Error('These deck projects do not fit. Nothing was added.');
+      decks = next;
+      store();
+      render();
+      return added.length;
+    },
+  };
 }

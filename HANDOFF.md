@@ -23,6 +23,26 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Portable backup, part 2: Move this profile — 2026-11-16
+
+**Branch `feature/backup-buttons`, development identity `0.1.0-dev.51`.** Owner's choices as in part 1.
+
+- `browser/backup-ui.mjs`: `installBackup({ profile, review, isBusy, notice, memory, todos, canon, days, decks })` returns `{ render, profileChanged }`. Back up: passphrase, `gatherBackup`, review (`describeBackup`), `sealBackup`, a blob link. Bring in: `openBackup`, profile must match, `planRestore`, review (`describeRestore`), then a check that what is here is still what was compared, then the library first and the other stores after. A failure part-way says what was already added.
+- Store methods added for this: `memory-ui` `portable()` and `bringIn({ introduction, memories })`; `memory.mjs` `bringInMemories` and `broughtInTitle`; `todos-ui` `portable()` and `bringIn(list)`; `canon-ui` `bringIn(cards)`; `days-ui` `entries()` and `bringIn(lines)`; `decks-ui` `all()` and `bringIn(list)`. Each validates the result with its own saved-copy rule and assigns new local ids.
+- `browser/index.html`: `#portable-section` in the library dialog. Assets now 52.
+- Tests: 1 more unit test (brought-in memories) in `browser/tests/backup.test.mjs`; 3 browser tests in `browser/tests/dom/backup.test.mjs`. They seal a file in the test with `backup.mjs`, bring it in through the page, back the profile up from the page and open that file in the test: the contents match what was brought in. Checked by removal: skipping the review fails all three; accepting another profile's file fails the profile test; adding a differing item fails a unit and a browser test.
+
+Known gaps:
+
+- The iPhone app has not adopted the format, so this moves a profile between browsers only. Never tried between two real browsers on two devices; the tests use one browser with separate contexts.
+- Adding to five stores is not one transaction. The library goes first because it is the only step expected to refuse; if a later step failed, earlier ones stay and the message says so. Bringing the file in again adds only what is missing.
+- With the saved board locked, to-dos are left out of a backup and not brought in, and the review says so. With 40 conversations already saved, memories are not brought in.
+- Answers and memories brought in while encrypted saving is off live in the tab only; the note says so.
+- A brought-in history card changes the card set, so the next Chat message asks for the sharing review again. Sharing switches, the notes switch for her days, and voice or model choices do not travel.
+- No file in the PEA Drive folder, no automatic sync, no replacing or deleting from a file.
+
+Next action: the parity sequence in `browser/docs/PARITY.md` is complete on the Web side. What remains is the owner's: acceptance tries with real accounts, keys and a model; the iPhone app adopting the shared formats; the 0.1.0 acceptance run and signing key.
+
 ## Portable backup, part 1: the format — 2026-11-16
 
 **Branch `feature/portable-backup`, development identity `0.1.0-dev.50`.** Owner's choices: Web defines the shared format (the iPhone's own backup format is not available to read); one file per profile carrying interview answers and memories, to-dos, her history and days, and deck projects; combining adds what is missing and never changes or removes; the file is downloaded and chosen by hand. This pull request is the rules, the test files and the contract page only. Nothing in the app calls it yet.
@@ -39,7 +59,7 @@ Known gaps:
 - No second implementation has checked the fixtures. No file in the PEA Drive folder, no automatic sync, no merge beyond adding.
 - A brought-in memory keeps its expiry from the other device; an expired one is left out.
 
-Next action: part 2, the Back up and Bring in buttons with their reviews, and browser tests that move a profile from one browser context to another.
+Next action: done in the section above.
 
 ## Deck projects — 2026-11-16
 

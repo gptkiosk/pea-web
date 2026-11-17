@@ -7,6 +7,8 @@
     "app.mjs",
     "assets/pea-icon.svg",
     "assets/pea-mascot.svg",
+    "backup-ui.mjs",
+    "backup.mjs",
     "board-ui.mjs",
     "build-info.json",
     "canon-ui.mjs",
