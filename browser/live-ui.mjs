@@ -22,6 +22,9 @@ import { parseConfiguration } from './shared-config.mjs';
 import { LocalModel } from './local-model.mjs';
 const $ = (id) => document.getElementById(id);
 const calendarScope = 'https://www.googleapis.com/auth/calendar.events.readonly',
+  // See and change events on calendars the owner owns: the narrowest permission Google offers that
+  // can add to the main calendar. Asked for only when the owner ticks the box for it.
+  calendarWriteScope = 'https://www.googleapis.com/auth/calendar.events.owned',
   mailScope = 'https://www.googleapis.com/auth/gmail.readonly';
 export function installConnections(hooks) {
   const service = new Services(),
@@ -525,7 +528,7 @@ export function installConnections(hooks) {
     await new Promise((resolve, reject) => {
       const c = google.accounts.oauth2.initTokenClient({
         client_id: client,
-        scope: `openid email ${driveScope}${$('google-calendar-access').checked ? ' ' + calendarScope : ''}${$('google-mail-access').checked ? ' ' + mailScope : ''}`,
+        scope: `openid email ${driveScope}${$('google-calendar-write').checked ? ' ' + calendarWriteScope : $('google-calendar-access').checked ? ' ' + calendarScope : ''}${$('google-mail-access').checked ? ' ' + mailScope : ''}`,
         include_granted_scopes: false,
         callback: async (response) => {
           try {
@@ -538,7 +541,10 @@ export function installConnections(hooks) {
             if (!identity.email) throw new ServiceError('Google account identity was not returned.');
             const s = state();
             s.google = {
-              calendar: response.scope.split(' ').includes(calendarScope),
+              calendar: [calendarScope, calendarWriteScope].some((x) =>
+                response.scope.split(' ').includes(x),
+              ),
+              calendarWrite: response.scope.split(' ').includes(calendarWriteScope),
               mail: response.scope.split(' ').includes(mailScope),
               token: response.access_token,
               account: identity.email,
@@ -1238,6 +1244,23 @@ export function installConnections(hooks) {
     run,
     review,
     writeDocument,
+    // Whether this profile's Google sign-in may add events right now, and to whose calendar.
+    eventAccount() {
+      const g = state().google;
+      return g && g.expires > Date.now() && g.calendarWrite ? g.account : null;
+    },
+    // Adds an event the owner has just approved. Returns null if it could not be added.
+    addEvent(draft, id) {
+      const who = p();
+      return run(async () => {
+        const g = googleSession();
+        if (!g.calendarWrite) throw new ServiceError('Calendar changes are not connected for this profile.');
+        const added = await service.addEvent(g.token, who, draft, id);
+        // The Upcoming card should show it; a failed refresh does not undo the event.
+        if (who === p()) await refreshToday().catch(() => {});
+        return added;
+      });
+    },
     currentDocument: () => state().currentDoc?.draft ?? null,
     forgetDocument() {
       state().currentDoc = null;

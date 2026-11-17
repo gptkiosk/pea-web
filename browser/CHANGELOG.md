@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.45] - 2026-11-16
+
+### Added
+
+- PEA can add an event you approve straight to your Google calendar. It is off until you tick **Let PEA add events I approve** under Connections → Google and sign in again, because it needs a wider Google permission than the read-only one: to see, create, change and delete events on calendars you own. The review shows the title, notes, both times and the account; approving adds one event to your main calendar, with nobody invited and no notices sent, and shows a receipt with a link to it. If the answer is lost and you try again, PEA reuses the same event id so that Google refuses a second copy. Without the permission an approved event is still a file you import yourself. PEA cannot yet move or delete an event.
+
+### Changed
+
+- The assistant is now told that an event is added only by your approval, and the correction PEA adds when a reply claims to have scheduled something says the same.
+
 ## [0.1.0-dev.44] - 2026-11-16
 
 ### Added

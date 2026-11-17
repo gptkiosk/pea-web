@@ -28,7 +28,7 @@ How to read the status columns:
 | Time-of-day delivery, remembered | Built | Built | None known |
 | Interview and persona | Built, 13 questions in a form | Built, spoken | Web has no continuous voice-led interview or separately protected wellbeing questions |
 | Email draft (`pea-email`) | Built, opens the mail app | Built, with Contacts and an optional Shortcut | Formats not yet aligned; Web has no CC, BCC or attachments |
-| Calendar | Built as a file to import | Built, changes the calendar directly | Web direct changes: not yet, 0.2 |
+| Calendar | Built: an approved event is added to the main Google calendar when the owner has granted the wider permission, otherwise a file to import | Built, changes the calendar directly | Web cannot yet change or delete an event (next: only events PEA added). No guests, recurrence, all-day events or other calendars. Formats not aligned with iPhone |
 | Calendar and Gmail glance | Built, read-only | Built | None known |
 | PEA Drive folder | Built | Built, with PDF and richer import | Web has no PDF import. Web trusts only its own private mark on files; files the iPhone app created show as not confirmed until the owner confirms them |
 | Simple forms | Built | Built | None known |
@@ -136,6 +136,10 @@ Only the layouts for kinds named in the owner's message are sent to the model, u
 
 A model can propose a title and content for a document or simple form in Chat or Greenhouse. The owner opens an editable draft; nothing is created by that action. The existing PEA folder flow separately requires a Google connection, a selected folder and an explicit creation review. Forms contain one long-answer question per line and remain unpublished. A model action cannot select a different folder or alter sharing. Malformed, mixed, oversized and credential-like proposals are rejected and not restored after reload. Real Google account behavior, richer formatting and other document types require additional work and acceptance testing.
 
+
+## Adding an approved event to Google Calendar
+
+With **Let PEA add events I approve** ticked at Google sign-in, PEA asks Google for `calendar.events.owned` (see, create, change and delete events on calendars the owner owns; narrower than `calendar.events`, which covers every calendar) instead of the read-only permission, and only that box asks for it. If Google's answer does not include it, nothing changes: events stay files. When it is granted for the current profile, approving a `pea-calendar` proposal sends one request that adds the event to the account's main calendar with the title, notes and the two reviewed instants, no guests, `sendUpdates=none`, and a mark (`extendedProperties.private.peaCreated`, kept on the owner's copy of the event) that a later slice will use to recognise PEA's own events. Any app the owner has given calendar access could set the same mark, so it is a label, not proof. The review names the account. Each proposal uses one event id for every try, so a retry after a lost answer is refused by Google as a duplicate and shown as already added. Google's reference says it cannot guarantee every repeated id is caught when an event is created, so this is strong protection against a double entry, not a promise. Google's own error text is never shown. A reply written while a web page is shared can offer no event, as with every other action. Not built: changing or deleting events, guests, recurrence, all-day events, other calendars, and a choice of file when the permission is granted. Not checked against a real Google account.
 
 ## Reviewed calendar event drafts
 

@@ -10,6 +10,24 @@ export const labelledPEA = (file) => file?.properties?.peaCreated === '1';
 const folderMIME = 'application/vnd.google-apps.folder';
 const documentMIME = 'application/vnd.google-apps.document';
 export const driveScope = 'https://www.googleapis.com/auth/drive';
+// Google's rule for an event id the caller chooses: base32hex letters and digits.
+export const eventId = /^[a-v0-9]{5,64}$/;
+export const newEventId = (random = crypto.randomUUID()) => 'pea' + random.replace(/-/g, '');
+// Only a link to Google's own calendar pages is shown to the owner.
+export function eventLink(value) {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' &&
+      ['www.google.com', 'calendar.google.com'].includes(u.host) &&
+      !u.username &&
+      !u.password &&
+      value.length <= 500
+      ? u.href
+      : null;
+  } catch {
+    return null;
+  }
+}
 export function safeName(s) {
   return (
     typeof s === 'string' &&
@@ -127,7 +145,7 @@ export class Services {
     });
     if (!response.ok) {
       const retry = Number(response.headers.get('Retry-After'));
-      throw new ServiceError(
+      const failure = new ServiceError(
         response.status === 429
           ? `Rate limited.${Number.isFinite(retry) && retry > 0 && retry < 604800 ? ` Retry after ${Math.ceil(retry)} seconds.` : ''} No automatic retry.`
           : [401, 403].includes(response.status)
@@ -136,6 +154,9 @@ export class Services {
               ? 'Provider credit or allowance is required.'
               : 'The request failed. No automatic retry or paid fallback.',
       );
+      // The status only, never the service's own words, so a caller can tell "already there" apart.
+      failure.status = response.status;
+      throw failure;
     }
     if (raw === 'stream') return response;
     let total = 0;
@@ -403,6 +424,38 @@ export class Services {
         end: e.end?.dateTime ?? e.end?.date ?? '',
       }))
       .filter((e) => e.start && e.end && !containsCredential(e.title));
+  }
+  // Adds one reviewed event to the owner's main calendar. Nobody is invited and Google is told to
+  // send no notices. `id` is chosen by the caller once per proposal, so a second try after a lost
+  // answer cannot add the event twice: Google refuses a repeated id and PEA reads that as "added".
+  // Google may miss a repeated id, so that protection is likely, not certain. The mark is a label on
+  // the owner's copy of the event that any app with calendar access could also set: it says PEA
+  // added the event, and is not proof.
+  async addEvent(token, profile, draft, id) {
+    if (!eventId.test(id) || !['work', 'personal'].includes(profile))
+      throw new ServiceError('Event rejected.');
+    const query = new URLSearchParams({ sendUpdates: 'none', fields: 'id,status,htmlLink' });
+    let r;
+    try {
+      r = await this.call('calendar', '/calendar/v3/calendars/primary/events?' + query, {
+        token,
+        method: 'POST',
+        body: {
+          id,
+          summary: draft.title,
+          description: draft.details,
+          start: { dateTime: draft.start },
+          end: { dateTime: draft.end },
+          extendedProperties: { private: { peaCreated: '1', peaProfile: profile } },
+        },
+      });
+    } catch (error) {
+      if (error instanceof ServiceError && error.status === 409) return { id, link: null, already: true };
+      throw error;
+    }
+    if (r?.id !== id || r.status === 'cancelled')
+      throw new ServiceError('Google did not confirm the event. Check your calendar before trying again.');
+    return { id, link: eventLink(r.htmlLink), already: false };
   }
   async mail(token, profile) {
     const r = await this.call(

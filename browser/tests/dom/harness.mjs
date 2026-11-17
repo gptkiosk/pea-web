@@ -339,7 +339,8 @@ class Page {
   }
   // Answers requests whose address starts with `prefix` from the test itself, so the page can be
   // checked against another service's answers without contacting it. `answer(url)` returns
-  // { status, body } and the body is sent as JSON.
+  // { status, body } and the body is sent as JSON, or { type, text } to send other text as it is.
+  // What the page sent is kept in `intercepted`, with the request's own body in `sent`.
   async route(prefix, answer) {
     this.routes.push({ prefix, answer });
     await this.send('Fetch.enable', { patterns: this.routes.map((r) => ({ urlPattern: r.prefix + '*' })) });
@@ -347,17 +348,30 @@ class Page {
   async answerPaused({ requestId, request }) {
     const route = this.routes.find((r) => request.url.startsWith(r.prefix));
     if (!route) return this.send('Fetch.continueRequest', { requestId });
-    this.intercepted.push({ url: request.url, method: request.method, headers: request.headers });
-    const { status = 200, body = {} } = route.answer(request.url) ?? { status: 404 };
+    this.intercepted.push({
+      url: request.url,
+      method: request.method,
+      headers: request.headers,
+      sent: request.postData ?? '',
+    });
+    const {
+      status = 200,
+      body = {},
+      type = 'application/json',
+      text = JSON.stringify(body),
+    } = route.answer(request.url, request) ?? { status: 404 };
     return this.send('Fetch.fulfillRequest', {
       requestId,
       responseCode: status,
       responseHeaders: [
-        { name: 'Content-Type', value: 'application/json' },
+        { name: 'Content-Type', value: type },
         { name: 'Access-Control-Allow-Origin', value: '*' },
+        // A request with a sign-in header is asked about first; the stand-in allows it.
+        { name: 'Access-Control-Allow-Headers', value: 'authorization, content-type' },
+        { name: 'Access-Control-Allow-Methods', value: 'GET, POST, PATCH, DELETE' },
         { name: 'Cache-Control', value: 'no-store' },
       ],
-      body: Buffer.from(JSON.stringify(body)).toString('base64'),
+      body: Buffer.from(text).toString('base64'),
     });
   }
   // Presses a real key, as a keyboard would. `text` is what the key types, if anything.

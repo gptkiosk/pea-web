@@ -38,7 +38,7 @@ import { installHome } from './home-ui.mjs';
 import { installCanon } from './canon-ui.mjs';
 import { installDays } from './days-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
-import { labelledPEA, madeByPEA } from './connections.mjs';
+import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
 import { claimsDocument, docProposals } from './documents.mjs';
 import {
@@ -75,6 +75,10 @@ const chats = {},
   consumed = new Set(),
   emailReady = new Set(),
   calendarReady = new Map(),
+  // Events added to the owner's Google calendar from a reply, and the id each proposal uses so a
+  // second try cannot add it twice.
+  calendarAdded = new Map(),
+  eventIds = new Map(),
   // What happened to each approved to-do proposal, shown in place of its button.
   todoDone = new Map(),
   // The outcome of each approved document proposal: a sentence, and a download link when it became a file.
@@ -346,6 +350,21 @@ function proposalButton(m, surface) {
   }
   const event = proposals.get(m.id);
   if (event?.kind === 'calendar-proposal' && !m.incomplete && event.profile === profile) {
+    if (calendarAdded.has(m.id)) {
+      const receipt = document.createElement('small'),
+        link = calendarAdded.get(m.id).link;
+      receipt.className = 'event-receipt';
+      receipt.append('Added to your Google calendar');
+      if (link) {
+        const open = document.createElement('a');
+        open.href = link;
+        open.target = '_blank';
+        open.rel = 'noopener noreferrer';
+        open.textContent = 'Open in Google Calendar';
+        receipt.append(' · ', open);
+      }
+      return receipt;
+    }
     if (calendarReady.has(m.id)) {
       const link = document.createElement('a');
       link.className = 'text-button';
@@ -364,11 +383,13 @@ function proposalButton(m, surface) {
       }
       reviewingStory = true;
       const who = profile,
-        d = event.draft;
+        d = event.draft,
+        // With calendar changes connected the event goes straight in; otherwise it is a file.
+        account = live.eventAccount();
       try {
         const approved = await live.review(
-          'Review calendar event',
-          `Profile: ${who}\n\n${d.title}\nStart: ${new Date(d.start).toString()}\nEnd: ${new Date(d.end).toString()}\n\nUTC start: ${d.start}\nUTC end: ${d.end}\n\n${d.details || 'No notes'}\n\nApproval reveals a download link. You choose whether to import it into your calendar. PEA does not create an event or invite anyone.`,
+          account ? 'Add this event to your calendar?' : 'Review calendar event',
+          `Profile: ${who}\n\n${d.title}\nStart: ${new Date(d.start).toString()}\nEnd: ${new Date(d.end).toString()}\n\nUTC start: ${d.start}\nUTC end: ${d.end}\n\n${d.details || 'No notes'}\n\n${account ? `Approval adds this event to the main Google calendar of ${account}. Nobody is invited and Google is asked to send no notices. Your calendar’s own default reminder may apply. To move or remove it afterwards, use your calendar app.` : 'Approval reveals a download link. You choose whether to import it into your calendar. PEA does not create an event or invite anyone.'}`,
         );
         if (!approved) return;
         if (
@@ -377,6 +398,23 @@ function proposalButton(m, surface) {
           proposals.get(m.id) !== event
         )
           throw new Error('The conversation or profile changed. Review the event again.');
+        if (account) {
+          if (live.eventAccount() !== account)
+            throw new Error('Your Google connection changed. Review the event again.');
+          if (!eventIds.has(m.id)) eventIds.set(m.id, newEventId());
+          const added = await live.addEvent(d, eventIds.get(m.id));
+          // A failure has already been explained; trying again is safe because the id is the same.
+          if (!added) return;
+          calendarAdded.set(m.id, added);
+          notice(
+            added.already
+              ? 'This event was already in your calendar from an earlier try. Nothing was added twice.'
+              : 'Event added to your Google calendar. Nobody was invited.',
+          );
+          renderChat();
+          renderCollaboration();
+          return;
+        }
         const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
         calendarReady.set(
           m.id,
@@ -1058,7 +1096,7 @@ live = installConnections({
         '\n\nPEA did not create a document from this reply. Review and approve a proposal before anything is written.';
     if (complete && warnsOfUnconfirmedCalendar(reply.text))
       reply.text +=
-        '\n\nPEA did not schedule an event from this reply. Review and import an event file yourself.';
+        '\n\nPEA did not schedule an event from this reply. Nothing is added until you review and approve a proposal.';
     if (complete && !changes.length && claimsTodoChange(reply.text))
       reply.text +=
         '\n\nPEA did not change your to-do list. Review and approve a proposal before anything changes.';
@@ -1285,6 +1323,8 @@ memory = installMemory({
     consumed.clear();
     emailReady.clear();
     calendarReady.clear();
+    calendarAdded.clear();
+    eventIds.clear();
     todoDone.clear();
     docDone.clear();
     openReady.clear();
