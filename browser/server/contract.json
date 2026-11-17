@@ -39,6 +39,8 @@
     "research-ui.mjs",
     "research.mjs",
     "shared-config.mjs",
+    "speech-ui.mjs",
+    "speech.mjs",
     "styles.css",
     "taskboard.mjs",
     "todos-ui.mjs",

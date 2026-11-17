@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.48] - 2026-11-16
+
+### Added
+
+- Read aloud with an ElevenLabs or Fish Audio voice. Under Connections → Voice providers, choose the provider, paste your own key, load your voices (or type a voice ID) and pick one. It needs your PEA gateway connected, because the words go from this tab to your gateway and from there to the provider. The first read-aloud with a voice shows a review: who gets the words, the provider's listed price as a dated quote, the 3,000-character limit and what the provider keeps. After you approve, later read-alouds in that tab and profile go without asking. Your key stays in the tab's memory only; a reload asks for it again. If the provider fails, PEA says why and reads nothing; it never switches to another voice on its own. A reply longer than 3,000 characters is not sent whole; choose the short version or the device voice.
+
+### Fixed
+
+- Choosing how to read a long reply could do nothing if the choice was opened again very quickly after being closed.
+
 ## [0.1.0-dev.47] - 2026-11-16
 
 ### Added

@@ -1,5 +1,6 @@
 import { ServiceError, consumeStream } from './connections.mjs';
 import { readFailure } from './research.mjs';
+import { speechFailure, speechLimits } from './speech.mjs';
 // Same-origin gateway only: no arbitrary URL proxy, credential forwarding or cloud fallback.
 export class LocalModel {
   constructor(origin = globalThis.location?.origin, transport = globalThis.fetch.bind(globalThis)) {
@@ -18,7 +19,14 @@ export class LocalModel {
   }
   async request(path, key, { body, signal, anyStatus = false } = {}) {
     if (
-      !['/v1/models', '/v1/chat/completions', '/v1/reminders', '/v1/read'].includes(path) ||
+      ![
+        '/v1/models',
+        '/v1/chat/completions',
+        '/v1/reminders',
+        '/v1/read',
+        '/v1/speak',
+        '/v1/voices',
+      ].includes(path) ||
       typeof key !== 'string' ||
       !/^[A-Za-z0-9_-]{32,128}$/.test(key)
     )
@@ -87,6 +95,42 @@ export class LocalModel {
     if (r.ok && answer?.outcome === 'redirect' && answer.url === url && typeof answer.location === 'string')
       return { outcome: 'redirect', location: answer.location };
     throw new ServiceError(readFailure(r.ok ? 0 : r.status, answer?.status));
+  }
+  // Asks this server for the voices a provider key can use. `providerKey` goes only to this server.
+  async voices(key, provider, providerKey) {
+    const r = await this.request('/v1/voices', key, {
+      body: { provider, key: providerKey },
+      signal: AbortSignal.timeout(70000),
+      anyStatus: true,
+    });
+    let answer = null;
+    try {
+      answer = JSON.parse((await r.text()).slice(0, 2000000));
+    } catch {
+      // Handled as a failure below.
+    }
+    if (r.ok && Array.isArray(answer?.voices)) return answer;
+    throw new ServiceError(speechFailure(provider, r.ok ? 0 : r.status, answer?.reason));
+  }
+  // Asks this server to speak reviewed text with a provider voice. Resolves with the sound.
+  async speak(key, { provider, key: providerKey, voice, text }, signal) {
+    const r = await this.request('/v1/speak', key, {
+      body: { provider, key: providerKey, voice, text },
+      signal: signal ?? AbortSignal.timeout(70000),
+      anyStatus: true,
+    });
+    if (r.ok && (r.headers.get('Content-Type') ?? '').split(';')[0] === 'audio/mpeg') {
+      const data = await r.arrayBuffer();
+      if (data.byteLength > 0 && data.byteLength <= speechLimits.audio) return data;
+      throw new ServiceError(speechFailure(provider, 0));
+    }
+    let answer = null;
+    try {
+      answer = JSON.parse((await r.text()).slice(0, 2000));
+    } catch {
+      // Handled as a failure below.
+    }
+    throw new ServiceError(speechFailure(provider, r.ok ? 0 : r.status, answer?.reason));
   }
   async catalogue(key) {
     const r = await this.request('/v1/models', key),

@@ -23,6 +23,31 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Voice providers, part 2: settings and read-aloud — 2026-11-16
+
+**Branch `feature/voice-read-aloud`, development identity `0.1.0-dev.48`.** Owner's choices as in part 1: through the gateway, one spending review per tab, on failure say why and stay silent.
+
+- `browser/speech.mjs` (pure): `speechLimits` (3,000 characters, counted as code points like the gateway), `speechProviders` (name, dated price quote, what the provider keeps, key advice), `validSpeechKey`, `validVoiceId`, `speechChoice` (what is saved: provider, voice id, name; never a key), `voiceRows`, `speechText` (refuses over-long text; never cuts it), `speechFailure(provider, status, reason)`, `describeSpeechReview`.
+- `browser/speech-ui.mjs`: `installSpeech({ voices, speak, localKey, profile, review, notice })` returns `{ render, read(text), stop(), chosen() }`. Key in a variable only; choice in `localStorage` `pea-provider-voice-v1`. Approval is per profile, provider and voice, for the tab; changing provider, key or voice clears it. Changing provider clears the key. Playback is Web Audio (`decodeAudioData`), so the page's content rules did not change. `#provider-voice-note` carries `data-state` `idle`, `asking` or `playing`.
+- `browser/local-model.mjs`: `voices(key, provider, providerKey)` and `speak(key, { provider, key, voice, text }, signal)`; the two paths were added to its fixed list.
+- `browser/app.mjs`: `stopVoices()` (device speech and provider speech) is used wherever speech was cancelled; `playReply` hands the text to `speech.read` when a provider is chosen, and never to the device voice afterwards; the long-reply choice no longer loses its selection to a late close report. `browser/index.html`: the Voice providers group. Assets now 48.
+- Tests: 8 unit tests in `browser/tests/speech.test.mjs`; 4 browser tests in `browser/tests/dom/speech.test.mjs` using `startStack(..., { voices })`, which starts a stand-in provider (`startFakeVoices`, `shortSound`) and passes `--speech-test-port` to whichever gateway is under test. The test browser now starts with sound allowed without a click. Checked by removal: skipping the review, falling back to the device voice on failure, and keeping the key across providers each fail tests.
+
+- Test setup: `startGateway` in `browser/tests/dom/harness.mjs` now tries again on another port, up to three times, when a gateway does not start, and the error carries the gateway's own last words. Test files run side by side and could be handed the same free port; that failed the Swift job on main once (run for `9e8965c`, re-run afterwards) and three local runs on 2026-11-16. The cause is inferred from the symptom, not observed directly.
+- Test setup: the same start check now reads the page it fetches to the end. `index.html` passed 64 KB in this change (65,431 to 67,115 bytes), and an unread answer of that size made every browser test file fail on CI's Node 22.23.4 with an internal `assert(!this.paused)`; it did not reproduce on Node 22.22.3 locally. The gateway's output is captured in a file in the run's temporary folder.
+
+Known gaps:
+
+- No real key and no real provider sound. The stand-in returns a short WAV labelled `audio/mpeg`; real MP3 from either provider has not been played through this path.
+- Sound starts only when the whole answer has arrived. Speed and pitch settings for the device voice do not apply to a provider voice.
+- If the browser holds sound back (no click on the page yet), PEA says so after the request, which may already have been billed.
+- Prices in the review are a dated quote typed into `speech.mjs`; they will go stale and need the provider's page read again before any change.
+- The voice choice is one per browser, not per profile; the approval is per profile.
+- One voice request at a time across the whole gateway; Fish Audio lists only the key's own voices.
+- The voice-led conversation screens use Read aloud after a reply, so they follow the same path; this was not exercised with a provider voice in tests.
+
+Next action: deck projects, per the parity sequence, or an acceptance try of provider voices and the calendar steps with real test accounts.
+
 ## Voice providers, part 1: speech in both gateways — 2026-11-16
 
 **Branch `feature/voice-transports`, development identity `0.1.0-dev.47`.** Owner's choices: both providers go through the owner's gateway; one spending review per tab; on failure say why and stay silent (no change of voice). This pull request is the gateway half only. Nothing in the browser calls it yet. The iPhone source was not read.
@@ -44,7 +69,7 @@ Known gaps:
 - The model per provider is fixed in the rules file. One voice request at a time for the whole gateway.
 - Audio is buffered whole, not streamed, so a long reply starts speaking only when all of it has arrived.
 
-Next action: part 2 in the browser: key and voice settings (tab memory only), the per-tab spending review, read-aloud through `/v1/speak` played with Web Audio, the "say why, stay silent" failure path, and browser tests with the gateway's stand-in.
+Next action: done in the section above.
 
 ## Changing and removing PEA's own events — 2026-11-16
 

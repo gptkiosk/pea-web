@@ -3,7 +3,16 @@
 // account or microphone, and every token is created for one run and deleted afterwards.
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -172,6 +181,59 @@ export async function startFakeSite(answer) {
   };
 }
 
+// Stand-in voice providers, reached only through the gateway's test option. `answer(request)`
+// gets { method, path, headers, body } and returns { status, type, data }; every request is kept.
+// `shortSound` is a fifth of a second of silence a browser can play.
+export function shortSound() {
+  const samples = 1600,
+    wav = Buffer.alloc(44 + samples * 2);
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(36 + samples * 2, 4);
+  wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24);
+  wav.writeUInt32LE(16000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(samples * 2, 40);
+  return wav;
+}
+export async function startFakeVoices(answer) {
+  const requests = [];
+  const server = createServer((request, response) => {
+    const parts = [];
+    request.on('data', (chunk) => parts.push(chunk));
+    request.on('end', () => {
+      const seen = {
+        method: request.method,
+        path: request.url,
+        headers: request.headers,
+        body: Buffer.concat(parts).toString('utf8'),
+      };
+      requests.push(seen);
+      const plan = answer(seen) ?? { status: 404, type: 'application/json', data: '{}' };
+      response.writeHead(plan.status ?? 200, {
+        'Content-Type': plan.type ?? 'audio/mpeg',
+        Connection: 'close',
+      });
+      response.end(plan.data ?? '');
+    });
+  });
+  const port = await listen(server);
+  return {
+    port,
+    requests,
+    close: () =>
+      new Promise((resolve) => {
+        server.close(resolve);
+        server.closeAllConnections();
+      }),
+  };
+}
+
 // Which gateway serves the app under test. PEA_GATEWAY=swift runs the Mac app's gateway (built
 // beforehand with `swift build --package-path mac`, or named by PEA_GATEWAY_BINARY), so the whole
 // browser suite checks it serves the app exactly as the Python one does.
@@ -181,12 +243,30 @@ const swiftGateway =
   fileURLToPath(new URL('../../../mac/.build/debug/pea-gateway', import.meta.url));
 
 // The real gateway, started the way an owner starts it, with a token made for this run only.
+// Test files run side by side, and each asks the system for a free port before its gateway binds
+// it, so now and then two want the same one and the later gateway cannot start. That is a fault of
+// the test setup, not of the gateway: it is tried again on another port, and a gateway that still
+// does not start fails the test with its own words.
 export async function startGateway(upstreamPort, reader = []) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await startGatewayOnce(upstreamPort, reader);
+    } catch (error) {
+      if (attempt >= 3 || !String(error.message).startsWith('The gateway did not start.')) throw error;
+      console.error(`Gateway start tried again (${attempt}): ${error.message}`);
+    }
+  }
+}
+async function startGatewayOnce(upstreamPort, reader) {
   const folder = mkdtempSync(join(tmpdir(), 'pea-dom-'));
   const config = join(folder, 'config');
   const port = await freePort();
   const upstream = `http://127.0.0.1:${upstreamPort}`;
   let token, child;
+  // What the gateway says as it starts or fails goes to a file, for the error below. It never
+  // prints its token.
+  const heard = join(folder, 'gateway-output.txt'),
+    said = openSync(heard, 'w', 0o600);
   if (gatewayKind === 'swift') {
     if (!existsSync(swiftGateway))
       throw new Error(
@@ -212,7 +292,7 @@ export async function startGateway(upstreamPort, reader = []) {
           join(folder, 'reminders.json'),
           ...reader,
         ],
-        { stdio: ['ignore', 'pipe', 'pipe'] },
+        { stdio: ['ignore', said, said] },
       ),
     );
   } else {
@@ -230,21 +310,36 @@ export async function startGateway(upstreamPort, reader = []) {
     child = track(
       spawn('python3', [...command, '--upstream', upstream, ...reader], {
         cwd: serverFolder,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['ignore', said, said],
       }),
     );
   }
+  closeSync(said);
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; ; attempt++) {
     try {
       // A connection that is accepted but never answered must not stall the whole run.
-      if ((await fetch(origin + '/', { signal: AbortSignal.timeout(1500) })).ok) break;
+      // The answer is read to its end. Left unread, a page over 64 KB stalls the connection and
+      // some versions of Node then fail the whole test file with an internal assertion.
+      const answer = await fetch(origin + '/', { signal: AbortSignal.timeout(1500) });
+      await answer.arrayBuffer();
+      if (answer.ok) break;
     } catch {
       // Not listening yet.
     }
     if (attempt > 100 || child.exitCode !== null) {
+      const exited = child.exitCode;
       child.kill();
-      throw new Error('The gateway did not start.');
+      let lastWords = 'it said nothing';
+      try {
+        lastWords = readFileSync(heard, 'utf8').slice(-300).trim() || lastWords;
+      } catch {
+        // Nothing was written.
+      }
+      remove(folder);
+      throw new Error(
+        `The gateway did not start. ${exited === null ? 'It was not answering' : 'It exited with ' + exited} on port ${port}: ${lastWords}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
@@ -432,6 +527,8 @@ export async function launchBrowser() {
     '--remote-debugging-port=0',
     '--user-data-dir=' + profile,
     '--no-first-run',
+    // A test's click is not a person's, so sound would otherwise be held back and never play.
+    '--autoplay-policy=no-user-gesture-required',
     '--no-default-browser-check',
     '--disable-gpu',
     '--disable-background-networking',
@@ -552,7 +649,7 @@ export async function launchBrowser() {
 }
 
 // The whole synthetic stack for one test file: model, gateway and browser, stopped together.
-export async function startStack(reply, { site = null } = {}) {
+export async function startStack(reply, { site = null, voices = null } = {}) {
   const parts = {};
   const close = async () => {
     // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
@@ -561,6 +658,7 @@ export async function startStack(reply, { site = null } = {}) {
       parts.gateway?.close(),
       parts.model?.close(),
       parts.site?.close(),
+      parts.voices?.close(),
     ]);
   };
   // Starting must finish well inside a test hook's own time limit. If it does not, everything
@@ -578,6 +676,13 @@ export async function startStack(reply, { site = null } = {}) {
       for (const name of site.names ?? []) reader.push('--reader-test-site', `${name}=${parts.site.port}`);
       for (const [name, addresses] of Object.entries(site.resolve ?? {}))
         reader.push('--reader-test-resolve', `${name}=${addresses}`);
+    }
+    // `voices` answers for both voice providers in place of the real ones.
+    if (voices) {
+      parts.voices = await startFakeVoices(voices);
+      if (abandoned) return;
+      for (const provider of ['elevenlabs', 'fish'])
+        reader.push('--speech-test-port', `${provider}=${parts.voices.port}`);
     }
     parts.gateway = await startGateway(parts.model.port, reader);
     if (abandoned) return;
