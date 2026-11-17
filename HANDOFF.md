@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Second release candidate prepared — 2026-11-17
+
+**Branch `release/0.1.0-rc.2`, version `0.1.0-rc.2`, channel `prerelease`.** Cut so the owner can try the Update button on their installed copy, which was restarted that day with the update options (signed releases, including pre-releases). Version and changelog were chosen by the assistant, as the owner instructed.
+
+- `browser/release.json` and `browser/CHANGELOG.md`: `0.1.0-rc.2`, summarising the three additions since `0.1.0-rc.1`.
+- `.github/workflows/checks.yml` and `README.md`: the browser-level tests run with `--test-concurrency=4`. On 2026-11-17 the `web` job on main failed once with "Chrome did not start" in one test file and passed on re-run; about 27 test files each start a browser. With a limit of 6 the suite ran clean locally on both gateways.
+
+Steps after merge: tag `v0.1.0-rc.2`; `releases.py build`; sign the manifest through the owner's `ssh-agent` (the owner unlocks the key; the assistant never has the passphrase); verify against `browser/server/allowed_signers`; confirm with the owner; publish the GitHub pre-release; then return main to `0.1.0-rc.2.dev.1` on the development channel.
+
 ## Update button in the app — 2026-11-17
 
 **Branch `feature/update-button`, development identity `0.1.0-rc.1.dev.3`.** Second of the two additions the owner asked for. It reverses an earlier choice ("one command first", so that the gateway could not install anything): the owner has now asked for the button in so many words, and chose signed releases as the channel for their own copy.
