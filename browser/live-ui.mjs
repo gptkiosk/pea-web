@@ -26,6 +26,7 @@ import {
 } from './connections.mjs';
 import { parseConfiguration } from './shared-config.mjs';
 import { LocalModel } from './local-model.mjs';
+import { forgetChoices, loadChoices, profileChoices, saveChoices } from './preferences.mjs';
 const $ = (id) => document.getElementById(id);
 const calendarScope = 'https://www.googleapis.com/auth/calendar.events.readonly',
   // See and change events on calendars the owner owns: the narrowest permission Google offers that
@@ -46,6 +47,8 @@ export function installConnections(hooks) {
     previewURL = null,
     generatedURL = null;
   const p = () => hooks.profile();
+  // Choices remembered on this browser. Keys and tokens are never part of them.
+  let choices = loadChoices();
   const state = () => {
     const profile = p();
     if (!sessions.has(profile))
@@ -54,23 +57,16 @@ export function installConnections(hooks) {
         localModels: [],
         localKey: '',
         key: '',
-        role: 'collaboration',
-        chat: '',
-        collaboration: '',
-        coding: '',
         image: '',
+        ...profileChoices(choices.profiles[profile]),
         google: null,
         workspace: null,
         roots: [],
         github: null,
         // The document PEA last wrote for this profile in this tab: its text, and its Drive file if one was made.
         currentDoc: null,
+        // Agreeing that a provider may retain or train on data is asked again in every tab.
         allowData: false,
-        shareIntro: false,
-        shareCalendar: false,
-        shareMail: false,
-        shareTodos: false,
-        sharePeaFiles: true,
         calendar: [],
         // The coming events PEA added for this profile, each with the short ref a model is given.
         ownEvents: [],
@@ -81,6 +77,19 @@ export function installConnections(hooks) {
       });
     return sessions.get(profile);
   };
+  // Writes down the choices of every profile used in this tab, and the Google boxes. Called after
+  // each change of a choice; what it saves is the fixed list in preferences.mjs and nothing else.
+  function remember() {
+    for (const [name, s] of sessions) choices.profiles[name] = profileChoices(s);
+    choices.google = {
+      client: $('google-client').value.trim(),
+      calendar: $('google-calendar-access').checked,
+      write: $('google-calendar-write').checked,
+      mail: $('google-mail-access').checked,
+    };
+    saveChoices(choices);
+    choices = loadChoices();
+  }
   function note(s) {
     $('connection-note').textContent = s;
     hooks.notice(s);
@@ -139,7 +148,7 @@ export function installConnections(hooks) {
       select.value = s[key];
     }
     $('image-model').value = s.image;
-    $('github-repo').value = s.github?.repo ?? '';
+    $('github-repo').value = s.github?.repo ?? s.githubRepo;
     $('allow-data').checked = s.allowData;
     $('share-calendar').checked = s.shareCalendar;
     $('share-mail').checked = s.shareMail;
@@ -1122,6 +1131,7 @@ export function installConnections(hooks) {
     $(id).onchange = () => {
       state()[field] = $(id).value;
       state().approvals.clear();
+      remember();
       render();
     };
   $('allow-data').onchange = () => {
@@ -1131,6 +1141,7 @@ export function installConnections(hooks) {
   $('share-intro').onchange = () => {
     state().shareIntro = $('share-intro').checked;
     state().approvals.clear();
+    remember();
   };
   for (const [id, field] of [
     ['share-calendar', 'shareCalendar'],
@@ -1141,12 +1152,14 @@ export function installConnections(hooks) {
     $(id).onchange = () => {
       state()[field] = $(id).checked;
       state().approvals.clear();
+      remember();
       if (field === 'sharePeaFiles' && !state().sharePeaFiles && currentAttachment?.peaAuto)
         currentAttachment = null;
     };
   $('today-refresh').onclick = () => run(refreshToday);
   $('greenhouse-role').onchange = () => {
     state().role = $('greenhouse-role').value;
+    remember();
     render();
   };
   $('request-stop').onclick = stop;
@@ -1162,6 +1175,18 @@ export function installConnections(hooks) {
       );
       note('Image catalogue loaded. No generation requested.');
     });
+  // The Google boxes are the same for every profile; they are remembered as they are changed.
+  $('google-client').value = choices.google.client;
+  $('google-calendar-access').checked = choices.google.calendar;
+  $('google-calendar-write').checked = choices.google.write;
+  $('google-mail-access').checked = choices.google.mail;
+  for (const id of ['google-client', 'google-calendar-access', 'google-calendar-write', 'google-mail-access'])
+    $(id).addEventListener('change', remember);
+  $('choices-forget').onclick = () => {
+    forgetChoices();
+    choices = loadChoices();
+    note('Forgot the choices remembered on this browser. What is set in this tab stays until you reload.');
+  };
   $('google-connect').onclick = () => run(googleConnect);
   $('google-forget').onclick = () => {
     stop();
@@ -1250,7 +1275,11 @@ export function installConnections(hooks) {
       $('github-token').value = '';
       busy(true);
       const g = await githubInspect(repo, token);
-      if (who === p()) state().github = g;
+      if (who === p()) {
+        state().github = g;
+        state().githubRepo = g.repo;
+        remember();
+      }
       note(
         'Verified ' + g.repo + ' · ' + (g.private ? 'private' : 'PUBLIC') + '. Token kept in this tab only.',
       );
