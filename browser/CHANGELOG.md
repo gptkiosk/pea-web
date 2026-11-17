@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.1] - 2026-11-17
+
+First release candidate, and the first release signed with the project's release key. It is a pre-release: every feature below passed the automated checks, but none has yet been accepted against real accounts, provider keys or a real model. Use it to try PEA Web, not to rely on it.
+
+### Added
+
+- Everything in the development builds up to `0.1.0-dev.54`, listed below. In short: Chat and Greenhouse with your own models, the encrypted library and board, to-dos and reminders, reviewed documents, email drafts and calendar events (added to Google Calendar when you allow it), weather, headlines and the summary on Today, one public page read at a time, her history and days, provider voices for reading aloud, deck projects, a backup that moves one profile, remembered choices in Connections, and an update command for an installed copy.
+
+### Changed
+
+- The channel is `prerelease`. Development continues after this as `0.1.0-rc.1.dev.N`.
+
 ## [0.1.0-dev.54] - 2026-11-17
 
 ### Added
