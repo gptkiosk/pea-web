@@ -23,6 +23,29 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Voice providers, part 1: speech in both gateways — 2026-11-16
+
+**Branch `feature/voice-transports`, development identity `0.1.0-dev.47`.** Owner's choices: both providers go through the owner's gateway; one spending review per tab; on failure say why and stay silent (no change of voice). This pull request is the gateway half only. Nothing in the browser calls it yet. The iPhone source was not read.
+
+Why the gateway: checked on 2026-11-16 with unauthenticated preflight requests, ElevenLabs answers browsers from any origin, and Fish Audio's `/v1/tts` answers a preflight with 404, so a page cannot call it. The owner chose one design for both.
+
+- `browser/server/contract.json` `speech`: paths `/v1/speak` (`provider, key, voice, text`) and `/v1/voices` (`provider, key`); 3,000 characters of text; key and voice patterns; 6 MB of audio, 2 MB of list, 100 voices, 60 seconds, one request at a time; providers `elevenlabs` (`api.elevenlabs.io`, model `eleven_flash_v2_5`) and `fish` (`api.fish.audio`, model `s2.1-pro`) with their fixed paths and key header.
+- `browser/server/gateway.py`: `validate_speech`, `speech_voices`, `Gateway.speech_call` (HTTPS with the default certificate checks, one clock for the whole request), `SpeechRefusal`; answers audio as `audio/mpeg` or `{voices: [{id, name}]}`; a provider failure is 502 with `reason` `key`, `credit`, `busy`, `voice` or `failed`; 429 when one is already running. `--speech-test-port PROVIDER=PORT` for tests only.
+- `mac/Sources/PEAGatewayCore/Speech.swift` (`SpeechRules`: `validate`, `outbound`, `voicesIn`, `reason`) and `Gateway.swift` (`Client.speak`, `Gateway.outbound`, `speechTestPorts`). The session's challenge handler now lets the system check a server's certificate and still refuses every request for credentials. `pea-gateway` takes `--speech-test-port`.
+- Tests: 6 new conformance tests in `browser/server/conformance/run.py` with a stand-in `Voices` server (33 tests; both gateways pass); 1 Python unit test; 3 Swift unit tests (20 in `RulesTests`).
+- Checked once by hand, not in any suite: each gateway asked each real provider for voices and speech with a made-up key, and all eight answers were the plain "rejected this key" refusal. That exercises the real HTTPS path and nothing else.
+
+Known gaps:
+
+- No real key has been used, so real audio has never come back through either gateway. The request bodies follow the providers' references as read on 2026-11-16 (ElevenLabs convert and voices; Fish Audio text-to-speech and model list). Neither reference states the audio content type; the gateways accept `audio/mpeg`, `audio/mp3` and `application/octet-stream`.
+- Fish Audio's list shows only the key's own voices (`self=true`); a public voice needs its id typed in. The reference does not say outright that `reference_id` is the model's `_id`.
+- Prices as listed that day, for the review text in part 2: ElevenLabs Flash $0.04 per 1,000 characters; Fish Audio `s2.1-pro` $15 per million UTF-8 bytes. Neither provider's pages read said whether API text is used for training; ElevenLabs keeps history unless an enterprise zero-retention mode is used.
+- ElevenLabs' reference says not to expose a key in client-side code. Here the key is the owner's own, typed into their own tab and sent to their own gateway; part 2 should recommend a key limited to text-to-speech with a credit limit, which ElevenLabs documents.
+- The model per provider is fixed in the rules file. One voice request at a time for the whole gateway.
+- Audio is buffered whole, not streamed, so a long reply starts speaking only when all of it has arrived.
+
+Next action: part 2 in the browser: key and voice settings (tab memory only), the per-tab spending review, read-aloud through `/v1/speak` played with Web Audio, the "say why, stay silent" failure path, and browser tests with the gateway's stand-in.
+
 ## Changing and removing PEA's own events — 2026-11-16
 
 **Branch `feature/calendar-own-changes`, development identity `0.1.0-dev.46`.** Second of the two calendar pull requests. The iPhone source was not read.

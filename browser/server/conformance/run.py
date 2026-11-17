@@ -32,6 +32,7 @@ BROWSER = SERVER.parent
 CONTRACT = json.loads((SERVER / 'contract.json').read_text())
 LIMITS = CONTRACT['limits']
 READER = CONTRACT['reader']
+SPEECH = CONTRACT['speech']
 TOKEN = secrets.token_urlsafe(32)
 
 
@@ -182,6 +183,99 @@ class Site(BaseHTTPRequestHandler):
         self.send(404, 'text/plain', b'no such synthetic page')
 
 
+class Voices(BaseHTTPRequestHandler):
+    """Synthetic voice providers, reached only through the gateway's test stand-in. The voice named
+    in a request (or the key, when listing) chooses how the stand-in misbehaves."""
+    protocol_version = 'HTTP/1.1'
+    seen = []
+    release = threading.Event()
+    AUDIO = b'ID3SYNTHETIC-MP3-' + bytes(range(256)) * 4
+    DETAIL = b'{"detail":"SYNTHETIC PROVIDER DETAIL quota for user owner@example.invalid"}'
+
+    def log_message(self, *_args):
+        pass
+
+    def send(self, status, kind, body, extra=()):
+        self.send_response(status)
+        if kind:
+            self.send_header('Content-Type', kind)
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Connection', 'close')
+        for name, value in extra:
+            self.send_header(name, value)
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except OSError:
+            pass
+
+    def misbehave(self, how):
+        """True when the request was answered here."""
+        if how.startswith('fail0'):
+            self.send(int(how[5:8]), 'application/json', self.DETAIL)
+        elif how == 'redirect1':
+            self.send(302, None, b'', [('Location', '/elsewhere')])
+        elif how == 'wrongtype':
+            self.send(200, 'text/html', b'<html>SYNTHETIC PROVIDER DETAIL</html>')
+        elif how == 'toolarge1':
+            self.send(200, 'audio/mpeg', b'x' * (SPEECH['audioBytes'] + 1))
+        elif how == 'biglist01':
+            self.send(200, 'application/json', b'{"voices":[' + b' ' * SPEECH['listBytes'] + b']}')
+        elif how == 'gzipped01':
+            self.send(200, 'audio/mpeg', self.AUDIO, [('Content-Encoding', 'gzip')])
+        elif how == 'emptybody':
+            self.send(200, 'audio/mpeg', b'')
+        elif how == 'notjson01':
+            self.send(200, 'application/json', b'SYNTHETIC PROVIDER DETAIL')
+        elif how == 'slowslow1':
+            self.release.wait(20)
+            self.send(200, 'audio/mpeg', self.AUDIO)
+        elif how == 'chunked01':
+            self.send_response(200); self.send_header('Content-Type', 'audio/mpeg; codecs=mp3'); self.send_header('Transfer-Encoding', 'chunked')
+            self.send_header('Connection', 'close'); self.end_headers()
+            for piece in (self.AUDIO[:7], self.AUDIO[7:]):
+                self.wfile.write(b'%x\r\n' % len(piece) + piece + b'\r\n')
+            self.wfile.write(b'0\r\n\r\n')
+        elif how == 'octets001':
+            self.send(200, 'application/octet-stream', self.AUDIO)
+        else:
+            return False
+        return True
+
+    def do_GET(self):
+        headers = {k.lower(): v for k, v in self.headers.items()}
+        type(self).seen.append(('GET', self.path, headers, b''))
+        key = (headers.get('xi-api-key') or headers.get('authorization', '')).removeprefix('Bearer ')
+        if self.misbehave(key[:9]):
+            return
+        if self.path == '/v2/voices?page_size=100':
+            rows = [{'voice_id': 'voiceAAAA1111', 'name': '  Synthetic\tAda  ', 'category': 'premade', 'preview_url': 'https://evil.example/x.mp3'},
+                    {'voice_id': 'bad id!', 'name': 'Dropped'}, {'voice_id': 'voiceBBBB2222', 'name': 7}, 'text',
+                    {'voice_id': 'voiceCCCC3333', 'name': 'N' * 200}, {'voice_id': 'voiceDDDD4444', 'name': '  '}]
+            rows += [{'voice_id': 'many%08d' % i, 'name': 'Voice %d' % i} for i in range(150)]
+            return self.send(200, 'application/json; charset=utf-8', json.dumps({'voices': rows, 'has_more': True}).encode())
+        if self.path == '/model?self=true&page_size=100':
+            rows = [{'_id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'title': 'Synthetic Bo', 'type': 'tts'},
+                    {'_id': 'b1b2c3d4e5f60718293a4b5c6d7e8f90', 'title': 'A singing model', 'type': 'svc'},
+                    {'_id': '../../wallet', 'title': 'Dropped', 'type': 'tts'}]
+            return self.send(200, 'application/json', json.dumps({'total': 3, 'items': rows}).encode())
+        self.send(404, 'application/json', self.DETAIL)
+
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
+        headers = {k.lower(): v for k, v in self.headers.items()}
+        type(self).seen.append(('POST', self.path, headers, body))
+        eleven = re.fullmatch(r'/v1/text-to-speech/([A-Za-z0-9]+)\?output_format=mp3_44100_128', self.path)
+        try:
+            voice = eleven.group(1) if eleven else json.loads(body)['reference_id'] if self.path == '/v1/tts' else None
+        except (ValueError, KeyError):
+            voice = None
+        if voice is None:
+            return self.send(404, 'application/json', self.DETAIL)
+        if not self.misbehave(voice):
+            self.send(200, 'audio/mpeg', self.AUDIO)
+
+
 def free_port():
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 0))
@@ -203,12 +297,18 @@ class Conformance(unittest.TestCase):
         cls.site = ThreadingHTTPServer(('127.0.0.1', 0), Site)
         cls.site.daemon_threads = True
         threading.Thread(target=cls.site.serve_forever, daemon=True).start()
+        cls.voices = ThreadingHTTPServer(('127.0.0.1', 0), Voices)
+        cls.voices.daemon_threads = True
+        threading.Thread(target=cls.voices.serve_forever, daemon=True).start()
         cls.closed_port = free_port()
         cls.port = free_port()
         command = json.loads(os.environ.get('PEA_GATEWAY_COMMAND') or json.dumps([sys.executable, str(SERVER / 'gateway.py')]))
         cls.process = subprocess.Popen(
             [*command, '--port', str(cls.port), '--upstream', f'http://127.0.0.1:{cls.upstream.server_port}',
              '--token-file', str(token_file), *(['--root', str(BROWSER)] if os.environ.get('PEA_GATEWAY_COMMAND') else []),
+             # Stand-ins for the voice providers.
+             '--speech-test-port', f'elevenlabs={cls.voices.server_port}',
+             '--speech-test-port', f'fish={cls.voices.server_port}',
              # Stand-ins for public sites. A real name can never be given a local address this way.
              '--reader-test-site', f'site.pea-conformance.example={cls.site.server_port}',
              '--reader-test-site', f'other.pea-conformance.example={cls.site.server_port}',
@@ -250,6 +350,7 @@ class Conformance(unittest.TestCase):
         cls.process.stderr.close()
         cls.upstream.shutdown(); cls.upstream.server_close()
         cls.site.shutdown(); cls.site.server_close()
+        cls.voices.shutdown(); cls.voices.server_close()
         cls.folder.cleanup()
 
     def setUp(self):
@@ -257,6 +358,8 @@ class Conformance(unittest.TestCase):
         Upstream.seen.clear()
         Upstream.release.clear()
         Site.seen.clear()
+        Voices.seen.clear()
+        Voices.release.clear()
 
     # --- helpers -------------------------------------------------------------------------
     def call(self, method, path, body=None, headers=None, token=None, timeout=10):
@@ -723,6 +826,136 @@ class Conformance(unittest.TestCase):
         for other in (READER['path'] + '/', READER['path'] + '/x', '/' + READER['path'], '/api/read', '/v1/fetch', '/v1/proxy'):
             self.assertIn(self.call('POST', other, token=TOKEN, body=url)[0], (401, 404), other)
         self.assertEqual(Site.seen, [], 'nothing was read')
+
+    # --- speech -------------------------------------------------------------------------------
+
+    KEY = 'sk_SYNTHETICsynthetic0123456789'
+
+    def speak(self, timeout=30, **fields):
+        body = {'provider': 'elevenlabs', 'key': self.KEY, 'voice': 'voiceAAAA1111', 'text': 'Hello, synthetic world.', **fields}
+        status, headers, data = self.call('POST', SPEECH['path'], token=TOKEN, body=body, timeout=timeout)
+        self.assert_contract_headers(headers, 'speech ' + str(status))
+        return status, headers, data
+
+    def voices_of(self, provider, key=None):
+        status, headers, data = self.call('POST', SPEECH['voicesPath'], token=TOKEN, body={'provider': provider, 'key': key or self.KEY}, timeout=30)
+        self.assert_contract_headers(headers, 'voices ' + str(status))
+        return status, json.loads(data)
+
+    def test_speech_sends_one_fixed_request_with_the_owners_key_and_returns_only_audio(self):
+        status, headers, data = self.speak(text='Zo\u00eb said \u201chello\u201d \U0001F331\nSecond line.')
+        self.assertEqual((status, headers.get('content-type'), data), (200, SPEECH['audioType'], Voices.AUDIO))
+        self.assertEqual(len(Voices.seen), 1, 'one request to the provider')
+        method, path, sent, body = Voices.seen[0]
+        self.assertEqual((method, path), ('POST', '/v1/text-to-speech/voiceAAAA1111?output_format=mp3_44100_128'))
+        self.assertEqual(sent.get('xi-api-key'), self.KEY)
+        self.assertEqual(sent.get('user-agent'), SPEECH['userAgent'])
+        self.assertEqual(sent.get('content-type'), 'application/json')
+        for private in ('authorization', 'cookie', 'origin', 'referer'):
+            self.assertNotIn(private, sent, 'nothing of the owner\u2019s gateway session is passed on')
+        self.assertNotIn(TOKEN, json.dumps(sent) + body.decode())
+        self.assertEqual(json.loads(body), {'text': 'Zo\u00eb said \u201chello\u201d \U0001F331\nSecond line.',
+                                            'model_id': SPEECH['providers']['elevenlabs']['model'], 'apply_text_normalization': 'on'})
+
+        Voices.seen.clear()
+        status, headers, data = self.speak(provider='fish', voice='a1b2c3d4e5f60718293a4b5c6d7e8f90')
+        self.assertEqual((status, headers.get('content-type'), data), (200, SPEECH['audioType'], Voices.AUDIO))
+        method, path, sent, body = Voices.seen[0]
+        self.assertEqual((method, path), ('POST', '/v1/tts'))
+        self.assertEqual(sent.get('authorization'), 'Bearer ' + self.KEY)
+        self.assertEqual(sent.get('model'), SPEECH['providers']['fish']['model'])
+        self.assertNotIn('xi-api-key', sent)
+        self.assertEqual(json.loads(body), {'text': 'Hello, synthetic world.', 'reference_id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'format': 'mp3'})
+
+        for voice in ('chunked01', 'octets001'):
+            status, headers, data = self.speak(voice=voice)
+            self.assertEqual((status, headers.get('content-type'), data), (200, SPEECH['audioType'], Voices.AUDIO), voice)
+        longest = '\U0001F331' * SPEECH['textCharacters']
+        self.assertEqual(self.speak(text=longest)[0], 200, 'the limit counts characters, not bytes or UTF-16 units')
+
+    def test_voices_are_listed_as_ids_and_names_only(self):
+        status, answer = self.voices_of('elevenlabs')
+        self.assertEqual(status, 200)
+        self.assertEqual(set(answer), {'voices'})
+        self.assertEqual(answer['voices'][:2], [{'id': 'voiceAAAA1111', 'name': 'Synthetic Ada'}, {'id': 'voiceCCCC3333', 'name': 'N' * SPEECH['nameCharacters']}])
+        self.assertEqual(len(answer['voices']), SPEECH['voices'], 'the list is bounded')
+        self.assertTrue(all(set(v) == {'id', 'name'} and re.fullmatch(SPEECH['voicePattern'], v['id']) for v in answer['voices']))
+        method, path, sent, _ = Voices.seen[0]
+        self.assertEqual((method, path, sent.get('xi-api-key')), ('GET', '/v2/voices?page_size=100', self.KEY))
+        Voices.seen.clear()
+        status, answer = self.voices_of('fish')
+        self.assertEqual((status, answer), (200, {'voices': [{'id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'name': 'Synthetic Bo'}]}))
+        method, path, sent, _ = Voices.seen[0]
+        self.assertEqual((method, path, sent.get('authorization')), ('GET', '/model?self=true&page_size=100', 'Bearer ' + self.KEY))
+
+    def test_every_malformed_speech_request_is_refused_before_any_provider(self):
+        good = {'provider': 'elevenlabs', 'key': self.KEY, 'voice': 'voiceAAAA1111', 'text': 'Hello.'}
+        bad = [[], 'text', None, {}, {**good, 'model': 'x'}, {**good, 'url': 'https://evil.example/'}, {**good, 'host': 'evil.example'},
+               {k: v for k, v in good.items() if k != 'voice'}]
+        bad += [{**good, 'provider': p} for p in ('', 'openai', 'ELEVENLABS', 'elevenlabs ', 'api.elevenlabs.io', 7, None, ['elevenlabs'])]
+        bad += [{**good, 'key': k} for k in ('', 'short', 'k' * 201, self.KEY + ' x', self.KEY + '\r\nX-Injected: 1', self.KEY + '\n', 'Bearer ' + self.KEY, 7, None)]
+        bad += [{**good, 'voice': v} for v in ('', 'short', 'v' * 65, '../../v1/user', 'voiceAAAA1111/stream', 'voiceAAAA1111?x=1', 'voice AAAA1111',
+                                                'voiceAAAA1111\r\n', 'voice%2F..%2Fuser', 7, None)]
+        bad += [{**good, 'text': t} for t in ('', '   \n', 'a' * (SPEECH['textCharacters'] + 1), 'bell \u0007', 'nul \u0000', 'del \u007f', 7, None, ['Hello.'])]
+        for body in bad:
+            status, _, data = self.call('POST', SPEECH['path'], token=TOKEN, body=body)
+            self.assertEqual((status, json.loads(data)), (400, {'error': 'Invalid speech request.'}), repr(body)[:80])
+        for body in ({}, {'provider': 'elevenlabs'}, {'provider': 'fish', 'key': self.KEY, 'voice': 'voiceAAAA1111'}, {'provider': 'other', 'key': self.KEY},
+                     {'provider': 'elevenlabs', 'key': 'short'}, {'provider': 'elevenlabs', 'key': self.KEY, 'page_size': 5}):
+            status, _, data = self.call('POST', SPEECH['voicesPath'], token=TOKEN, body=body)
+            self.assertEqual((status, json.loads(data)), (400, {'error': 'Invalid speech request.'}), repr(body)[:80])
+        self.assertEqual(Voices.seen, [], 'nothing reached a provider')
+
+    def test_a_provider_failure_is_reported_by_kind_and_none_of_its_words_are_passed_on(self):
+        expected = {'fail0401': 'key', 'fail0403': 'key', 'fail0402': 'credit', 'fail0429': 'busy', 'fail0400': 'voice', 'fail0404': 'voice',
+                    'fail0422': 'voice', 'fail0500': 'failed', 'fail0503': 'failed', 'fail0204': 'failed', 'redirect1': 'failed', 'wrongtype': 'failed',
+                    'toolarge1': 'failed', 'gzipped01': 'failed', 'emptybody': 'failed'}
+        for voice, reason in expected.items():
+            for provider in ('elevenlabs', 'fish'):
+                Voices.seen.clear()
+                status, _, data = self.speak(provider=provider, voice=voice)
+                answer = json.loads(data)
+                self.assertEqual((status, set(answer), answer.get('reason')), (502, {'error', 'reason'}, reason), provider + ' ' + voice)
+                self.assertNotIn(b'SYNTHETIC', data, 'the provider\u2019s words stay out')
+                self.assertNotIn(self.KEY.encode(), data)
+                self.assertEqual(len(Voices.seen), 1, voice + ': one try, no retry and nothing followed')
+        for key, reason in (('fail0401' + 'k' * 12, 'key'), ('fail0429' + 'k' * 12, 'busy'), ('notjson01' + 'k' * 12, 'failed'), ('biglist01' + 'k' * 12, 'failed'),
+                            ('wrongtype' + 'k' * 12, 'failed'), ('redirect1' + 'k' * 12, 'failed')):
+            status, answer = self.voices_of('elevenlabs', key)
+            self.assertEqual((status, set(answer), answer.get('reason')), (502, {'error', 'reason'}, reason), key[:9])
+            self.assertNotIn('SYNTHETIC', json.dumps(answer))
+        self.assertEqual(self.speak()[0], 200, 'and speech is free again afterwards')
+
+    def test_one_voice_request_runs_at_a_time(self):
+        results = []
+        slow = threading.Thread(target=lambda: results.append(self.speak(voice='slowslow1')[0]))
+        slow.start()
+        deadline = time.monotonic() + 10
+        while not Voices.seen and time.monotonic() < deadline:
+            time.sleep(0.02)
+        try:
+            status, _, data = self.speak()
+            self.assertEqual((status, set(json.loads(data))), (429, {'error'}))
+            self.assertEqual(self.voices_of('elevenlabs')[0], 429, 'listing shares the one slot')
+            self.assertEqual(len(Voices.seen), 1)
+        finally:
+            Voices.release.set()
+            slow.join(30)
+        self.assertEqual(results, [200])
+        self.assertEqual(self.speak()[0], 200)
+
+    def test_speech_needs_the_token_and_is_not_a_way_around_the_other_checks(self):
+        good = {'provider': 'elevenlabs', 'key': self.KEY, 'voice': 'voiceAAAA1111', 'text': 'Hello.'}
+        for path, body in ((SPEECH['path'], good), (SPEECH['voicesPath'], {'provider': 'elevenlabs', 'key': self.KEY})):
+            self.assertEqual(self.call('POST', path, body=body)[0], 401)
+            self.assertEqual(self.call('POST', path, token=self.KEY, body=body)[0], 401, 'a provider key is not the connection token')
+            self.assertEqual(self.call('POST', path + '?token=' + TOKEN, body=body)[0], 401)
+            self.assertEqual(self.call('POST', path, token=TOKEN, body=body, headers={'Origin': 'https://evil.example'})[0], 403)
+            self.assertEqual(self.call('POST', path, token=TOKEN, body=body, headers={'Host': 'evil.example'})[0], 403)
+            self.assertIn(self.call('GET', path, token=TOKEN)[0], (404, 405))
+            for other in (path + '/', path + '/x', '/' + path, '/api' + path[3:]):
+                self.assertIn(self.call('POST', other, token=TOKEN, body=body)[0], (401, 404), other)
+        self.assertEqual(Voices.seen, [], 'nothing reached a provider')
 
     def test_no_other_route_method_or_proxying_exists(self):
         self.assertEqual(self.call('GET', '/v1/other', token=TOKEN)[0], 404)
