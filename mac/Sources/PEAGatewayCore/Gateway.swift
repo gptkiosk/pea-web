@@ -2,8 +2,9 @@ import Foundation
 import Network
 
 /// PEA's local gateway: serves the listed web files and passes text chat to the owner's own model
-/// server on this Mac. It listens on 127.0.0.1 only, keeps no logs of requests or conversations, and
-/// has no route that reaches anything except that one loopback address.
+/// server on this Mac. It listens on 127.0.0.1 only and keeps no logs of requests or conversations.
+/// Beyond that one loopback address it reaches only what the rules file names: one public page the
+/// owner approved (Reader.swift) and the two voice providers (Speech.swift).
 ///
 /// Everything runs on one serial queue, so no state here is shared between threads.
 public final class Gateway: NSObject, URLSessionDataDelegate {
@@ -18,6 +19,8 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         /// given fixed addresses in place of a DNS answer. The app never sets either.
         public var readerTestSites = [String: UInt16]()
         public var readerTestResolve = [String: [String]]()
+        /// Tests only: voice providers reached at a plain HTTP port on this Mac instead. The app never sets it.
+        public var speechTestPorts = [String: UInt16]()
 
         public init(port: UInt16, token: String, upstream: String, root: URL, reminders: ReminderSink? = nil) {
             self.port = port
@@ -39,6 +42,8 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
     let readerTestSites: [String: UInt16]
     let readerTestResolve: [String: [String]]
     var pageReads = 0
+    let speechTestPorts: [String: UInt16]
+    var speechRequests = 0
     let queue = DispatchQueue(label: "pea.gateway")
 
     private var listener: NWListener?
@@ -65,6 +70,7 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         reminders = options.reminders
         readerTestSites = options.readerTestSites
         readerTestResolve = options.readerTestResolve
+        speechTestPorts = options.speechTestPorts
         hosts = Set(["127.0.0.1", "localhost", "[::1]"].map { $0 + ":" + String(options.port) })
         origins = Set(hosts.map { "http://" + $0 })
         super.init()
@@ -184,6 +190,17 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         return call
     }
 
+    /// One request to a voice provider, built from the rules file. It shares the session, so a
+    /// redirect is never followed and no cookie, cache or stored credential is used.
+    func outbound(_ request: URLRequest) -> UpstreamCall {
+        let call = UpstreamCall()
+        let task = session.dataTask(with: request)
+        call.task = task
+        calls[task.taskIdentifier] = call
+        task.resume()
+        return call
+    }
+
     public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                            newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         completionHandler(nil)  // a redirect is never followed; it is treated as a failed answer
@@ -205,7 +222,12 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
 
     public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                            completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        completionHandler(.cancelAuthenticationChallenge, nil)  // the gateway has no credentials to offer
+        // A provider's certificate is checked the system's usual way. Anything else is a request for
+        // credentials, and the gateway has none to offer.
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            return completionHandler(.performDefaultHandling, nil)
+        }
+        completionHandler(.cancelAuthenticationChallenge, nil)
     }
 }
 
@@ -223,6 +245,8 @@ final class Client {
     private var closed = false
     private var holdsModelSlot = false
     private var pageRead: PageRead?
+    private var holdsSpeechSlot = false
+    private var speechLimit: DispatchWorkItem?
     private var call: Gateway.UpstreamCall?
 
     private var contract: Contract { gateway.contract }
@@ -278,6 +302,7 @@ final class Client {
         call = nil
         releaseModelSlot()
         endPageRead()
+        endSpeech()
         connection.stateUpdateHandler = nil
         gateway.clientClosed(self)
     }
@@ -326,7 +351,9 @@ final class Client {
             route(head!)
         } else if buffer.count - bodyStart >= bodyLength {
             let body = buffer.subdata(in: buffer.startIndex + bodyStart..<buffer.startIndex + bodyStart + bodyLength)
-            if head?.target == contract.remindersPath { remind(body) } else if head?.target == contract.reader.path { read(body) } else { chat(body) }
+            if head?.target == contract.remindersPath { remind(body) } else if head?.target == contract.reader.path { read(body) }
+            else if head?.target == contract.speech.path || head?.target == contract.speech.voicesPath { speak(body, listing: head?.target == contract.speech.voicesPath) }
+            else { chat(body) }
         }
     }
 
@@ -370,14 +397,15 @@ final class Client {
         case "POST":
             guard allowed(head, needsToken: true) else { return }
             let forReminders = head.target == contract.remindersPath, forReader = head.target == contract.reader.path
-            guard forReminders || forReader || head.target == "/v1/chat/completions" else {
-                return reply(404, error: "Only model listing, text chat, reminders and the page reader are exposed.")
+            let forSpeech = head.target == contract.speech.path || head.target == contract.speech.voicesPath
+            guard forReminders || forReader || forSpeech || head.target == "/v1/chat/completions" else {
+                return reply(404, error: "Only model listing, text chat, reminders, the page reader and speech are exposed.")
             }
             let type = head.headers["content-type"].map { String($0.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)[0]) }
             guard type == "application/json", head.headers["transfer-encoding"] == nil, let text = head.headers["content-length"],
                   (1...7).contains(text.count), text.allSatisfy({ ("0"..."9").contains($0) }), let length = Int(text),
                   length > 0, length <= contract.requestBytes else {
-                return reply(400, error: forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
+                return reply(400, error: forSpeech ? "Invalid speech request." : forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
             }
             bodyLength = length
             advance()
@@ -463,6 +491,73 @@ final class Client {
         pageRead = reading
         watchForDisconnect()
         reading.start()
+    }
+
+    /// Speaks text the owner reviewed, or lists a key's voices, with one request to the named provider.
+    /// The key lives only in this request; nothing the provider says is passed on except audio or voice names.
+    private func speak(_ raw: Data, listing: Bool) {
+        let rules = contract.speech
+        guard let parsed = try? JSON.parse(raw), let request = try? rules.validate(parsed, listing: listing),
+              let out = rules.outbound(request, listing: listing, testPort: gateway.speechTestPorts[request.provider]) else {
+            return reply(400, error: "Invalid speech request.")
+        }
+        guard gateway.speechRequests < rules.concurrent else { return reply(429, error: "A voice request is already running. No automatic retry.") }
+        gateway.speechRequests += 1
+        holdsSpeechSlot = true
+        deadline?.cancel()
+        idle?.cancel()
+        answered = true  // nothing more is read from the browser; the answer comes when the provider has answered
+        let limit = listing ? rules.listBytes : rules.audioBytes
+        var status = 0, acceptable = false, tooLarge = false
+        var data = Data()
+        let call = gateway.outbound(out)
+        self.call = call
+        watchForDisconnect()
+        func refuse(_ reason: String) {
+            endSpeech()
+            let body = JSONObject([("error", .string(SpeechRules.refusals[reason] ?? "")), ("reason", .string(reason))])
+            send(code: 502, body: JSON.serialize(.object(body)), type: "application/json")
+        }
+        // One clock for the whole request, however slowly the provider answers.
+        speechLimit = after(rules.seconds) { refuse("failed") }
+        call.onResponse = { response in
+            status = response.statusCode
+            let type = (response.value(forHTTPHeaderField: "Content-Type") ?? "").split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+                .first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+            let encoding = (response.value(forHTTPHeaderField: "Content-Encoding") ?? "identity").trimmingCharacters(in: .whitespaces).lowercased()
+            acceptable = encoding == "identity" && (listing ? type == "application/json" : rules.upstreamAudioTypes.contains(type))
+            return status == 200 && acceptable
+        }
+        call.onData = { chunk in
+            data.append(chunk)
+            if data.count > limit {
+                tooLarge = true
+                call.task?.cancel()
+            }
+        }
+        call.onEnd = { error in
+            self.call = nil
+            guard !self.closed, self.holdsSpeechSlot else { return }
+            if status != 200 { return refuse(status == 0 ? "failed" : SpeechRules.reason(status: status)) }
+            guard acceptable, !tooLarge, error == nil, !data.isEmpty else { return refuse("failed") }
+            if listing {
+                guard let voices = rules.voicesIn(provider: request.provider, data: data) else { return refuse("failed") }
+                self.endSpeech()
+                return self.send(code: 200, body: JSON.serialize(.object(voices)), type: "application/json")
+            }
+            self.endSpeech()
+            self.send(code: 200, body: data, type: rules.audioType)
+        }
+    }
+
+    private func endSpeech() {
+        guard holdsSpeechSlot else { return }
+        holdsSpeechSlot = false
+        speechLimit?.cancel()
+        speechLimit = nil
+        call?.cancel()
+        call = nil
+        gateway.speechRequests -= 1
     }
 
     private func endPageRead() {

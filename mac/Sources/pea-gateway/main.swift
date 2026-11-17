@@ -34,12 +34,20 @@ var values = ["--port": "18770", "--upstream": "http://127.0.0.1:11434"]
 var arguments = Array(CommandLine.arguments.dropFirst())
 var testSites = [String: UInt16]()
 var testResolve = [String: [String]]()
+var speechPorts = [String: UInt16]()
 while !arguments.isEmpty {
     let name = arguments.removeFirst()
-    guard ["--port", "--upstream", "--token-file", "--root", "--reminders-file", "--reader-test-site", "--reader-test-resolve"].contains(name), !arguments.isEmpty else {
+    guard ["--port", "--upstream", "--token-file", "--root", "--reminders-file", "--reader-test-site", "--reader-test-resolve", "--speech-test-port"].contains(name), !arguments.isEmpty else {
         fail("Usage: pea-gateway --root BROWSER_DIR --token-file PATH [--port N] [--upstream http://127.0.0.1:PORT]")
     }
     let value = arguments.removeFirst()
+    // Stand-ins for the voice providers, for tests only: PROVIDER=PORT.
+    if name == "--speech-test-port" {
+        let parts = value.split(separator: "=", maxSplits: 1).map(String.init)
+        guard parts.count == 2, ["elevenlabs", "fish"].contains(parts[0]), let port = UInt16(parts[1]) else { fail("A speech test port names a provider and a port.") }
+        speechPorts[parts[0]] = port
+        continue
+    }
     // Stand-ins for public sites, for tests only: NAME.example=PORT and NAME.example=ADDRESS[,ADDRESS].
     if name.hasPrefix("--reader-test-") {
         let parts = value.split(separator: "=", maxSplits: 1).map(String.init)
@@ -57,6 +65,9 @@ while !arguments.isEmpty {
 if !testSites.isEmpty || !testResolve.isEmpty {
     FileHandle.standardError.write(Data("TEST MODE: the page reader has stand-in sites. Never use these options outside tests.\n".utf8))
 }
+if !speechPorts.isEmpty {
+    FileHandle.standardError.write(Data("TEST MODE: voice providers have stand-ins. Never use this option outside tests.\n".utf8))
+}
 guard let rootPath = values["--root"], let tokenFile = values["--token-file"] else { fail("Both --root and --token-file are required.") }
 guard let port = UInt16(values["--port"]!), port >= 1 else { fail("Choose a valid port.") }
 
@@ -70,6 +81,7 @@ do {
                                   reminders: values["--reminders-file"].map { FileReminders(path: $0) })
     options.readerTestSites = testSites
     options.readerTestResolve = testResolve
+    options.speechTestPorts = speechPorts
     let gateway = try Gateway(options)
     gateway.start { error in
         if let error { fail("PEA could not start on port \(port): \(error.localizedDescription)") }

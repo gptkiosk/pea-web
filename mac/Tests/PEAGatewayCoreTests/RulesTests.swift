@@ -129,6 +129,65 @@ final class RulesTests: XCTestCase {
         }
     }
 
+    // MARK: Speech
+
+    func testASpeechRequestNamesAKnownProviderAndCannotSteerTheRequest() throws {
+        let speech = contract.speech
+        let key = String(repeating: "k", count: 32), voice = String(repeating: "a", count: 32)
+        func body(_ changes: [String: String] = [:], drop: String? = nil) -> String {
+            var fields = ["provider": "\"fish\"", "key": "\"\(key)\"", "voice": "\"\(voice)\"", "text": "\"Hello.\""]
+            for (name, value) in changes { fields[name] = value }
+            if let drop { fields[drop] = nil }
+            return "{" + fields.map { "\"\($0.key)\":\($0.value)" }.sorted().joined(separator: ",") + "}"
+        }
+        XCTAssertEqual(try speech.validate(parse(body()), listing: false), SpeechRules.Request(provider: "fish", key: key, voice: voice, text: "Hello."))
+        XCTAssertEqual(try speech.validate(parse("{\"provider\":\"elevenlabs\",\"key\":\"\(key)\"}"), listing: true).voice, "")
+        let longest = String(repeating: "🌱", count: speech.textCharacters)
+        XCTAssertNoThrow(try speech.validate(parse(body(["text": "\"\(longest)\""])), listing: false), "the limit counts characters")
+        for bad in [body(["voice": "\"../x\""]), body(["voice": "\"a/b12345678\""]), body(["key": "\"\(key)\\r\\nX: 1\""]), body(["key": "\"short\""]),
+                    body(["provider": "\"api.fish.audio\""]), body(["provider": "7"]), body(["text": "\" \""]), body(["text": "\"bell \\u0007\""]),
+                    body(["text": "\"\(longest)x\""]), body(["text": "7"]), body(["extra": "1"]), body(drop: "voice"), "[]", "\"x\""] {
+            XCTAssertThrowsError(try speech.validate(parse(bad), listing: false), String(bad.prefix(70)))
+        }
+        XCTAssertThrowsError(try speech.validate(parse(body()), listing: true), "listing takes only a provider and a key")
+    }
+
+    func testTheRequestToAProviderIsBuiltOnlyFromTheRules() throws {
+        let speech = contract.speech
+        let ask = SpeechRules.Request(provider: "elevenlabs", key: String(repeating: "k", count: 32), voice: "voiceAAAA1111", text: "Hello.")
+        let out = try XCTUnwrap(speech.outbound(ask, listing: false, testPort: nil))
+        XCTAssertEqual(out.url?.absoluteString, "https://api.elevenlabs.io/v1/text-to-speech/voiceAAAA1111?output_format=mp3_44100_128")
+        XCTAssertEqual(out.httpMethod, "POST")
+        XCTAssertEqual(out.value(forHTTPHeaderField: "xi-api-key"), ask.key)
+        XCTAssertNil(out.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertEqual(try parse(String(decoding: try XCTUnwrap(out.httpBody), as: UTF8.self)),
+                       .object(JSONObject([("text", .string("Hello.")), ("model_id", .string("eleven_flash_v2_5")), ("apply_text_normalization", .string("on"))])))
+        let fish = SpeechRules.Request(provider: "fish", key: ask.key, voice: String(repeating: "a", count: 32), text: "")
+        let list = try XCTUnwrap(speech.outbound(fish, listing: true, testPort: nil))
+        XCTAssertEqual(list.url?.absoluteString, "https://api.fish.audio/model?self=true&page_size=100")
+        XCTAssertEqual(list.httpMethod, "GET")
+        XCTAssertEqual(list.value(forHTTPHeaderField: "Authorization"), "Bearer " + ask.key)
+        XCTAssertNil(list.httpBody)
+        XCTAssertEqual(try XCTUnwrap(speech.outbound(fish, listing: true, testPort: 4567)).url?.host, "127.0.0.1", "a stand-in is used only when a test names its port")
+        XCTAssertNil(speech.outbound(SpeechRules.Request(provider: "other", key: ask.key, voice: "", text: ""), listing: true, testPort: nil))
+    }
+
+    func testVoicesAreReducedToIdsAndNames() throws {
+        let speech = contract.speech
+        let answer = "{\"items\":[{\"_id\":\"\(String(repeating: "a", count: 32))\",\"title\":\" Bo\\n \",\"type\":\"tts\",\"author\":{\"x\":1}},{\"_id\":\"\(String(repeating: "b", count: 32))\",\"title\":\"Song\",\"type\":\"svc\"},{\"_id\":\"../x\",\"title\":\"No\"},7]}"
+        XCTAssertEqual(speech.voicesIn(provider: "fish", data: Data(answer.utf8)),
+                       JSONObject([("voices", .array([.object(JSONObject([("id", .string(String(repeating: "a", count: 32))), ("name", .string("Bo"))]))]))]))
+        for junk in ["not json", "{\"voices\":[]}", "{\"items\":{}}", "[]"] {
+            XCTAssertNil(speech.voicesIn(provider: "fish", data: Data(junk.utf8)), junk)
+        }
+        XCTAssertEqual(SpeechRules.reason(status: 401), "key")
+        XCTAssertEqual(SpeechRules.reason(status: 402), "credit")
+        XCTAssertEqual(SpeechRules.reason(status: 429), "busy")
+        XCTAssertEqual(SpeechRules.reason(status: 422), "voice")
+        XCTAssertEqual(SpeechRules.reason(status: 500), "failed")
+        XCTAssertEqual(Set(["key", "credit", "busy", "voice", "failed"]), Set(SpeechRules.refusals.keys))
+    }
+
     // MARK: Page reader
 
     func testOnlyANamedPublicHTTPSAddressCanBeRead() throws {

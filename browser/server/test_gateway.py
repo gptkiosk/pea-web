@@ -144,11 +144,36 @@ class GatewayChecks(unittest.TestCase):
         self.assertEqual(self.call('/browser/server/gateway.py', token='')[0], 404)
         self.assertEqual(self.call('/browser/docs/MEMORY.md', token='')[0], 404)
 
+    def test_speech_rules_name_two_fixed_providers_and_bounded_requests(self):
+        speech = g.SPEECH
+        self.assertEqual(set(speech['providers']), {'elevenlabs', 'fish'})
+        self.assertEqual({p['host'] for p in speech['providers'].values()}, {'api.elevenlabs.io', 'api.fish.audio'})
+        for rules in speech['providers'].values():
+            self.assertEqual(set(rules), {'host', 'speak', 'list', 'keyHeader', 'keyPrefix', 'model'})
+            self.assertTrue(rules['speak'].startswith('/') and rules['list'].startswith('/'))
+        self.assertTrue(speech['path'].startswith('/v1/') and speech['voicesPath'].startswith('/v1/'), 'so both need the token')
+        good = {'provider': 'fish', 'key': 'k' * 32, 'voice': 'a' * 32, 'text': 'Hello.'}
+        self.assertEqual(g.validate_speech(dict(good)), good)
+        self.assertEqual(g.validate_speech({'provider': 'fish', 'key': 'k' * 32}, listing=True), {'provider': 'fish', 'key': 'k' * 32})
+        for bad in ({**good, 'voice': '../x'}, {**good, 'key': 'k' * 32 + '\r\nX: 1'}, {**good, 'provider': 'api.fish.audio'}, {**good, 'text': ' '},
+                    {**good, 'text': 'x' * (speech['textCharacters'] + 1)}, {**good, 'text': 'lone \ud800'}, {**good, 'extra': 1}, good | {'text': 7}):
+            with self.assertRaises(ValueError, msg=repr(bad)[:60]):
+                g.validate_speech(bad)
+        with self.assertRaises(ValueError):
+            g.validate_speech(good, listing=True)
+        listed = g.speech_voices('fish', json.dumps({'items': [{'_id': 'a' * 32, 'title': ' Bo\n ', 'type': 'tts'}, {'_id': 'b' * 32, 'title': 'Song', 'type': 'svc'}, 7]}).encode())
+        self.assertEqual(listed, {'voices': [{'id': 'a' * 32, 'name': 'Bo'}]})
+        for junk in (b'not json', b'{"voices":[]}', b'{"items":{}}', b'[]'):
+            with self.assertRaises(g.SpeechRefusal):
+                g.speech_voices('fish', junk)
+        self.assertEqual(set(g.SPEECH_REASONS.values()) | {'failed'}, set(g.SPEECH_REFUSALS))
+
     def test_every_rule_comes_from_the_shared_contract(self):
         contract = json.loads(Path(g.__file__).with_name('contract.json').read_text())
         self.assertEqual(contract['version'], 1)
-        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders', 'reader'})
+        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders', 'reader', 'speech'})
         self.assertEqual(g.READER, contract['reader'])
+        self.assertEqual(g.SPEECH, contract['speech'])
         self.assertEqual(g.REMINDERS, contract['reminders'])
         self.assertEqual(set(contract['reminders']), {'about', 'path', 'fields', 'items', 'idPattern', 'titleCharacters', 'dueMax'})
         self.assertTrue(contract['reminders']['path'].startswith('/v1/'), 'so it needs the token like the model routes')

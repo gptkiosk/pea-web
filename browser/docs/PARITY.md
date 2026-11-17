@@ -36,7 +36,7 @@ How to read the status columns:
 | Story board | Built, with model proposals (`pea-story`) | Built | Web-only block name |
 | GitHub draft pull request and image specialist | Built | Built | None known |
 | Model configuration export and import | Built | Built | Same portable format |
-| Voice | Built with browser speech | Built with native speech and Walk mode | Fish Audio and ElevenLabs on Web: not yet, 0.2. No locked-screen voice in a browser |
+| Voice | Built with browser speech. Gateways can speak with ElevenLabs or Fish Audio using the owner's key; the app does not use it yet | Built with native speech and Walk mode | Fish Audio and ElevenLabs read-aloud in the app: next. No locked-screen voice in a browser |
 | Conversation history and reviewed memories | Built, encrypted on this browser | Built, encrypted archive | Archives are not interchangeable yet |
 | Moving interview answers between apps (profile file) | Built: export and import, web to web | Not yet | The file format is now a shared contract with fixtures ([CONTRACTS.md](CONTRACTS.md#the-profile-file)); the iPhone app has to adopt it in its own change before a file can go either way |
 | Encrypted backup and restore | Built, Web-only files | Built, one file per profile in the PEA folder | iPhone-readable backup on Web: not yet, after 0.2 |

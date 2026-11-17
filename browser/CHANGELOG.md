@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.47] - 2026-11-16
+
+### Added
+
+- Groundwork for ElevenLabs and Fish Audio voices: both PEA gateways (the local server and the Mac app) can now turn text into speech with your own provider key, and list that key's voices. Nothing in the app uses this yet; the voice settings and read-aloud come in the next change. The gateway contacts only the two providers' own addresses, keeps no key, and passes on none of the provider's own words.
+
 ## [0.1.0-dev.46] - 2026-11-16
 
 ### Added

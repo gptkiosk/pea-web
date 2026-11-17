@@ -191,6 +191,67 @@ class PinnedConnection(http.client.HTTPSConnection):
             raise
 
 
+SPEECH = CONTRACT['speech']
+SPEECH_KEY = re.compile(SPEECH['keyPattern'] + r'\Z')
+SPEECH_VOICE = re.compile(SPEECH['voicePattern'] + r'\Z')
+# What the owner's page is told when a provider does not give audio. The provider's own words are never passed on.
+SPEECH_REFUSALS = {
+    'key': 'The voice provider rejected this key.',
+    'credit': 'The voice provider says this key has no credit for this.',
+    'busy': 'The voice provider is busy or rate limiting this key. No automatic retry.',
+    'voice': 'The voice provider did not accept this voice or text.',
+    'failed': 'The voice provider could not be reached or failed. No retry and no other voice.',
+}
+SPEECH_REASONS = {401: 'key', 403: 'key', 402: 'credit', 429: 'busy', 400: 'voice', 404: 'voice', 422: 'voice'}
+
+
+class SpeechRefusal(Exception):
+    def __init__(self, reason):
+        self.reason = reason
+
+
+def validate_speech(raw, listing=False):
+    """Checks a request to speak, or to list voices. Returns it unchanged or raises ValueError."""
+    if not isinstance(raw, dict) or set(raw) != set(SPEECH['voicesFields' if listing else 'fields']):
+        raise ValueError()
+    if not isinstance(raw['provider'], str) or raw['provider'] not in SPEECH['providers']:
+        raise ValueError()
+    if not isinstance(raw['key'], str) or not SPEECH_KEY.fullmatch(raw['key']):
+        raise ValueError()
+    if listing:
+        return raw
+    text = raw['text']
+    if not isinstance(raw['voice'], str) or not SPEECH_VOICE.fullmatch(raw['voice']):
+        raise ValueError()
+    if not isinstance(text, str) or not text.strip() or len(text) > SPEECH['textCharacters']:
+        raise ValueError()
+    if any((ord(c) < 32 and c not in '\n\t') or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in text):
+        raise ValueError()
+    return raw
+
+
+def speech_voices(provider, data):
+    """The voices in a provider's answer, as [{id, name}]. Anything not shaped like a voice is dropped."""
+    try:
+        answer = strict_json(data)
+        rows = answer['voices' if provider == 'elevenlabs' else 'items']
+    except (ValueError, TypeError, KeyError, RecursionError):
+        raise SpeechRefusal('failed') from None
+    if not isinstance(rows, list):
+        raise SpeechRefusal('failed')
+    voices = []
+    for row in rows:
+        if not isinstance(row, dict) or (provider == 'fish' and row.get('type', 'tts') != 'tts'):
+            continue
+        identity, name = (row.get('voice_id'), row.get('name')) if provider == 'elevenlabs' else (row.get('_id'), row.get('title'))
+        if not isinstance(identity, str) or not SPEECH_VOICE.fullmatch(identity) or not isinstance(name, str):
+            continue
+        name = ''.join(' ' if ord(c) < 32 or ord(c) == 127 else c for c in name).strip()[:SPEECH['nameCharacters']].strip()
+        if name and len(voices) < SPEECH['voices']:
+            voices.append({'id': identity, 'name': name})
+    return {'voices': voices}
+
+
 def validate_read(raw):
     if not isinstance(raw, dict) or set(raw) != set(READER['fields']):
         raise ValueError('One address is required.')
@@ -202,13 +263,15 @@ class Gateway(ThreadingHTTPServer):
     # Connections waiting to be accepted. One page load asks for about twenty files at once; the library default
     # of five refused part of that burst, a module failed to load and the app never started.
     request_queue_size = LIMITS['acceptBacklog']
-    def __init__(self, address, *, token, upstream, public_origin=None, reader_test_sites=None, reader_test_resolve=None):
+    def __init__(self, address, *, token, upstream, public_origin=None, reader_test_sites=None, reader_test_resolve=None, speech_test_ports=None):
         super().__init__(address, Handler)
         # Stand-ins for public sites, for tests only: a name served in plain HTTP from a port on this
         # machine, and a name given fixed addresses in place of a DNS answer. Never set by local.py.
         self.reader_test_sites = dict(reader_test_sites or {})
         self.reader_test_resolve = dict(reader_test_resolve or {})
         self.reader_lock = threading.BoundedSemaphore(READER['concurrent'])
+        self.speech_test_ports = dict(speech_test_ports or {})
+        self.speech_lock = threading.BoundedSemaphore(SPEECH['concurrent'])
         self.client_slots = threading.BoundedSemaphore(CLIENT_SLOTS)
         self.token_digest = hashlib.sha256(token.encode()).digest()
         self.upstream = upstream_url(upstream)
@@ -340,6 +403,75 @@ class Gateway(ThreadingHTTPServer):
                 timer.cancel()
             connection.close()
 
+    def speech_call(self, request, listing=False):
+        """One request to a voice provider with the owner's key. Returns audio bytes, or the list of
+        voices. Raises SpeechRefusal with a reason; nothing the provider said is kept."""
+        provider = request['provider']
+        rules = SPEECH['providers'][provider]
+        headers = {rules['keyHeader']: rules['keyPrefix'] + request['key'], 'Accept-Encoding': 'identity', 'Connection': 'close',
+                   'User-Agent': SPEECH['userAgent']}
+        if listing:
+            method, path, body = 'GET', rules['list'], None
+            headers['Accept'] = 'application/json'
+        else:
+            method, path = 'POST', rules['speak'].replace('{voice}', request['voice'])
+            if provider == 'elevenlabs':
+                sent = {'text': request['text'], 'model_id': rules['model'], 'apply_text_normalization': 'on'}
+            else:
+                sent = {'text': request['text'], 'reference_id': request['voice'], 'format': 'mp3'}
+                headers['model'] = rules['model']
+            body = json.dumps(sent).encode()
+            headers['Content-Type'] = 'application/json'
+            headers['Accept'] = SPEECH['audioType']
+        limit = SPEECH['listBytes' if listing else 'audioBytes']
+        if provider in self.speech_test_ports:
+            connection = http.client.HTTPConnection('127.0.0.1', self.speech_test_ports[provider], timeout=SPEECH['seconds'])
+        else:
+            connection = http.client.HTTPSConnection(rules['host'], 443, timeout=SPEECH['seconds'], context=ssl.create_default_context())
+        expired = threading.Event()
+        timer = None
+        try:
+            connection.connect()
+            raw = connection.sock
+
+            def cut():
+                expired.set()
+                try:
+                    raw.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+            timer = threading.Timer(SPEECH['seconds'], cut)
+            timer.daemon = True
+            timer.start()
+            connection.request(method, path, body=body, headers=headers)
+            response = connection.getresponse()
+            if response.status != 200:
+                raise SpeechRefusal(SPEECH_REASONS.get(response.status, 'failed'))
+            kind = (response.getheader('Content-Type') or '').split(';', 1)[0].strip().lower()
+            if (response.getheader('Content-Encoding') or 'identity').strip().lower() != 'identity':
+                raise SpeechRefusal('failed')
+            if kind not in (('application/json',) if listing else SPEECH['upstreamAudioTypes']):
+                raise SpeechRefusal('failed')
+            data = b''
+            while True:
+                chunk = response.read1(65536)
+                if not chunk:
+                    break
+                data += chunk
+                if len(data) > limit:
+                    raise SpeechRefusal('failed')
+            if expired.is_set() or not data:
+                raise SpeechRefusal('failed')
+            return speech_voices(provider, data) if listing else data
+        except SpeechRefusal:
+            raise
+        except (OSError, ValueError, AttributeError, http.client.HTTPException):
+            raise SpeechRefusal('failed') from None
+        finally:
+            if timer:
+                timer.cancel()
+            connection.close()
+
     def upstream_call(self, method, path, body=None):
         connection = http.client.HTTPConnection(*self.upstream, timeout=LIMITS['upstreamTimeoutSeconds'])
         try:
@@ -454,20 +586,33 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.boundary(auth=True):
             return
-        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path']):
-            return self.reply(404, {'error': 'Only model listing, text chat, reminders and the page reader are exposed.'})
+        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path'], SPEECH['path'], SPEECH['voicesPath']):
+            return self.reply(404, {'error': 'Only model listing, text chat, reminders, the page reader and speech are exposed.'})
         reminders = self.path == REMINDERS['path']
         reading = self.path == READER['path']
+        speaking = self.path in (SPEECH['path'], SPEECH['voicesPath'])
+        listing = self.path == SPEECH['voicesPath']
         try:
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json' or self.headers.get('Transfer-Encoding'):
                 raise ValueError()
             length = int(self.headers.get('Content-Length', '0'))
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
-            body = (validate_reminders if reminders else validate_read if reading else validate_chat)(strict_json(self.rfile.read(length)))
+            parsed = strict_json(self.rfile.read(length))
+            body = validate_speech(parsed, listing) if speaking else (validate_reminders if reminders else validate_read if reading else validate_chat)(parsed)
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
-            return self.reply(400, {'error': 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+            return self.reply(400, {'error': 'Invalid speech request.' if speaking else 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+        if speaking:
+            if not self.server.speech_lock.acquire(blocking=False):
+                return self.reply(429, {'error': 'A voice request is already running. No automatic retry.'})
+            try:
+                answer = self.server.speech_call(body, listing)
+                return self.reply(200, answer) if listing else self.reply(200, answer, SPEECH['audioType'])
+            except SpeechRefusal as refusal:
+                return self.reply(502, {'error': SPEECH_REFUSALS[refusal.reason], 'reason': refusal.reason})
+            finally:
+                self.server.speech_lock.release()
         if reading:
             if not self.server.reader_lock.acquire(blocking=False):
                 return self.reply(429, {'error': 'The reader is busy. No automatic retry.'})
@@ -527,6 +672,8 @@ def main():
                         help='Tests only: serve this name to the page reader from plain HTTP on a port of this machine.')
     parser.add_argument('--reader-test-resolve', action='append', default=[], metavar='NAME.example=ADDRESS[,ADDRESS]',
                         help='Tests only: give this name these addresses in place of a DNS answer.')
+    parser.add_argument('--speech-test-port', action='append', default=[], metavar='PROVIDER=PORT',
+                        help='Tests only: reach this voice provider at plain HTTP on a port of this machine instead.')
     args = parser.parse_args()
     if args.create_token:
         p = Path(args.token_file).expanduser()
@@ -546,8 +693,16 @@ def main():
         into[name] = int(value) if into is sites else value.split(',')
     if sites or fixed:
         print('TEST MODE: the page reader has stand-in sites. Never use these options outside tests.', file=sys.stderr)
+    voices = {}
+    for entry in args.speech_test_port:
+        name, _, value = entry.partition('=')
+        if name not in SPEECH['providers'] or not value.isdigit():
+            parser.error('A speech test port names a provider and a port.')
+        voices[name] = int(value)
+    if voices:
+        print('TEST MODE: voice providers have stand-ins. Never use this option outside tests.', file=sys.stderr)
     server = Gateway(('127.0.0.1', args.port), token=token, upstream=args.upstream, public_origin=args.public_origin,
-                     reader_test_sites=sites, reader_test_resolve=fixed)
+                     reader_test_sites=sites, reader_test_resolve=fixed, speech_test_ports=voices)
     print(f'PEA customer-owned UI: http://127.0.0.1:{args.port}/browser/ · private VPN/TLS required for phone access')
     try:
         server.serve_forever()
