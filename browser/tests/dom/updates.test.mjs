@@ -1,0 +1,270 @@
+// Browser-level checks for updating the installed copy from Connections. The gateway's update
+// route is answered by the test, so nothing is installed; what is checked is that the page shows
+// the exact version, asks only after a review, sends only that commit, and reports the outcome.
+// Run with: node --test browser/tests/dom/updates.test.mjs
+import test, { after, before } from 'node:test';
+import assert from 'node:assert/strict';
+import { askModel, browserSkipReason, openConnectedPage, startStack } from './harness.mjs';
+
+const skip = browserSkipReason();
+const a = 'a'.repeat(40),
+  b = 'b'.repeat(40);
+let stack;
+before(
+  async () => {
+    if (skip) return;
+    stack = await startStack((said) =>
+      said.includes('update')
+        ? 'I will update PEA for you.\n```pea-update\n' +
+          JSON.stringify({ action: 'apply', commit: b }) +
+          '\n```\n'
+        : 'A plain synthetic reply.',
+    );
+  },
+  { timeout: 60000 },
+);
+after(() => stack?.close(), { timeout: 30000 });
+
+const words = (page, id) => page.evaluate(`document.querySelector(${JSON.stringify(id)}).textContent`);
+const hidden = (page, id) => page.evaluate(`document.querySelector(${JSON.stringify(id)}).hidden`);
+const noted = (page, pattern) =>
+  page.waitFor(
+    `new RegExp(${JSON.stringify(pattern.source)}).test(document.querySelector('#update-note').textContent)`,
+    'the note ' + pattern,
+  );
+const posts = (page) =>
+  page.intercepted
+    .filter((r) => r.url.endsWith('/v1/update') && r.method === 'POST')
+    .map((r) => JSON.parse(r.sent));
+// Opens the app with the gateway's update route answered by `answer(method, body)`, and reconnects
+// so the page asks it afresh.
+async function openWith(answer) {
+  const page = await openConnectedPage(stack);
+  await page.route(stack.gateway.origin + '/v1/update', (url, request) =>
+    answer(request.method, request.postData ? JSON.parse(request.postData) : null),
+  );
+  await page.click('#local-forget');
+  await page.fill('#local-token', stack.gateway.token);
+  await page.click('#local-connect');
+  await page.waitFor(
+    `/^This copy can update itself|not set up/.test(document.querySelector('#update-status').textContent) && [...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`,
+    'the update status',
+  );
+  return page;
+}
+const status = (over = {}) => ({
+  available: true,
+  channel: 'release',
+  prerelease: true,
+  installed: { version: '0.1.0-rc.1', commit: a },
+  operation: null,
+  ...over,
+});
+const found = (over = {}) => ({
+  installed: { version: '0.1.0-rc.1', commit: a },
+  channel: 'release',
+  signed: true,
+  upToDate: false,
+  withdrawn: null,
+  target: {
+    version: '0.1.0-rc.2',
+    commit: b,
+    tag: 'v0.1.0-rc.2',
+    ahead: 2,
+    notes: ['Synthetic change one', 'Synthetic change two'],
+  },
+  ...over,
+});
+
+test(
+  'a gateway that is not set up for updates offers nothing, and a model cannot start one',
+  { skip, timeout: 60000 },
+  async () => {
+    const page = await openConnectedPage(stack);
+    await page.waitFor(
+      `/not set up/.test(document.querySelector('#update-status').textContent)`,
+      'the real gateway’s answer',
+    );
+    assert.match(await words(page, '#update-status'), /Updating from the app is not set up for this PEA/);
+    assert.equal(await hidden(page, '#update-check'), true);
+    assert.equal(await hidden(page, '#update-apply'), true);
+    await page.close();
+
+    // With updating available, a reply that tries to start one is only hidden text.
+    const second = await openWith((method) =>
+      method === 'GET' ? { body: status() } : { status: 409, body: { error: 'x' } },
+    );
+    await askModel(stack, second, 'Please update yourself.');
+    assert.doesNotMatch(await second.text('#messages'), /pea-update|"commit"/);
+    assert.equal(
+      await second.evaluate(
+        `[...document.querySelectorAll('#messages button')].filter((x) => /update/i.test(x.textContent)).length`,
+      ),
+      0,
+      'no button to approve it',
+    );
+    assert.deepEqual(posts(second), [], 'nothing was asked of the update route');
+    await second.close();
+  },
+);
+
+test(
+  'an update is installed only after a review naming the exact version, and the outcome is reported',
+  { skip, timeout: 90000 },
+  async () => {
+    let applied = 0,
+      polls = 0;
+    const page = await openWith((method, body) => {
+      if (method === 'GET') {
+        if (!applied) return { body: status() };
+        polls++;
+        if (polls === 1) return { status: 502, body: {} }; // PEA is restarting
+        if (polls === 2)
+          return {
+            body: status({
+              operation: {
+                kind: 'apply',
+                outcome: 'started',
+                at: Math.floor(Date.now() / 1000),
+                target: b,
+                targetVersion: '0.1.0-rc.2',
+              },
+            }),
+          };
+        return {
+          body: status({
+            installed: { version: '0.1.0-rc.2', commit: b },
+            operation: {
+              kind: 'apply',
+              outcome: 'succeeded',
+              at: Math.floor(Date.now() / 1000),
+              target: b,
+              targetVersion: '0.1.0-rc.2',
+            },
+          }),
+        };
+      }
+      if (body.action === 'check') return { body: found() };
+      applied++;
+      return { status: 202, body: { started: true, commit: body.commit } };
+    });
+    assert.match(
+      await words(page, '#update-status'),
+      /follows signed releases, including pre-releases\. Installed: 0\.1\.0-rc\.1 \(aaaaaaaaaaaa\)/,
+    );
+    assert.equal(await hidden(page, '#update-apply'), true, 'nothing to install before looking');
+
+    await page.click('#update-check');
+    await page.waitFor(`!document.querySelector('#update-apply').hidden`, 'the offer');
+    assert.match(
+      await words(page, '#update-found'),
+      /Version 0\.1\.0-rc\.2 is available \(release v0\.1\.0-rc\.2\): a signed release, 2 changes ahead/,
+    );
+    assert.equal(await words(page, '#update-apply'), 'Update to 0.1.0-rc.2…');
+    assert.deepEqual(posts(page), [{ action: 'check' }]);
+
+    await page.click('#update-apply');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review');
+    assert.match(await page.text('#review-title'), /Update PEA to 0\.1\.0-rc\.2\?/);
+    const shown = await page.text('#review-body');
+    assert.match(
+      shown,
+      /Now: 0\.1\.0-rc\.1 \(aaaaaaaaaaaa\)\s+After: 0\.1\.0-rc\.2 \(bbbbbbbbbbbb\), release v0\.1\.0-rc\.2/,
+    );
+    assert.match(shown, /signed release\. Its manifest was checked against the release key/);
+    assert.match(shown, /Synthetic change one/);
+    assert.match(shown, /settings and connection token are not touched/);
+    await page.click('#review-cancel');
+    await noted(page, /Not updated\. Nothing was changed/);
+    assert.equal(applied, 0, 'cancel installs nothing');
+
+    await page.click('#update-apply');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review again');
+    await page.click('#review-approve');
+    await noted(page, /Updated to 0\.1\.0-rc\.2\. Reload this page to load the new version/);
+    assert.deepEqual(posts(page).at(-1), { action: 'apply', commit: b }, 'only the reviewed commit is named');
+    assert.equal(applied, 1);
+    assert.equal(await hidden(page, '#update-reload'), false);
+    assert.equal(await hidden(page, '#update-apply'), true, 'the same update is not offered again');
+    assert.equal(await page.evaluate(`document.querySelector('#update-note').dataset.level`), 'ok');
+    await page.close();
+  },
+);
+
+test(
+  'a failed or refused update says why, and an unsigned or withdrawn one is called that',
+  { skip, timeout: 90000 },
+  async () => {
+    let applied = 0,
+      refuse = false;
+    const at = () => Math.floor(Date.now() / 1000);
+    const page = await openWith((method, body) => {
+      if (method === 'GET')
+        return {
+          body: status({
+            channel: 'development',
+            prerelease: false,
+            operation: applied
+              ? {
+                  kind: 'apply',
+                  outcome: 'rolled back',
+                  at: at(),
+                  target: b,
+                  targetVersion: '0.1.0-rc.1.dev.9',
+                  message:
+                    'PEA did not come back reporting the new commit and version. The previous version (0.1.0-rc.1, aaaaaaaaaaaa) was put back.',
+                }
+              : null,
+          }),
+        };
+      if (body.action === 'check')
+        return {
+          body: found({
+            channel: 'development',
+            signed: false,
+            withdrawn: 'Breaks saved boards.',
+            target: { version: '0.1.0-rc.1.dev.9', commit: b, tag: null, ahead: 1, notes: [] },
+          }),
+        };
+      if (refuse)
+        return {
+          status: 409,
+          body: {
+            error: 'The update on offer changed after it was reviewed. Check again; nothing was changed.',
+          },
+        };
+      applied++;
+      return { status: 202, body: { started: true } };
+    });
+    assert.match(await words(page, '#update-status'), /development builds, which are not signed/);
+    await page.click('#update-check');
+    await page.waitFor(`!document.querySelector('#update-apply').hidden`, 'the offer');
+    assert.match(
+      await words(page, '#update-found'),
+      /withdrawn the version you are running: Breaks saved boards\. Version 0\.1\.0-rc\.1\.dev\.9 is available: an unsigned development build/,
+    );
+
+    refuse = true;
+    await page.click('#update-apply');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review');
+    assert.match(await page.text('#review-body'), /development build\.[\s\S]*No signature is checked/);
+    await page.click('#review-approve');
+    await noted(page, /changed after it was reviewed\. Check again; nothing was changed/);
+    assert.equal(await hidden(page, '#update-apply'), true, 'a stale offer is withdrawn from the page');
+    assert.equal(applied, 0);
+
+    refuse = false;
+    await page.click('#update-check');
+    await page.waitFor(`!document.querySelector('#update-apply').hidden`, 'the offer again');
+    await page.click('#update-apply');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review');
+    await page.click('#review-approve');
+    await noted(
+      page,
+      /did not go through\. PEA did not come back reporting the new commit and version\. The previous version .* was put back/,
+    );
+    assert.equal(await page.evaluate(`document.querySelector('#update-note').dataset.level`), 'warn');
+    assert.equal(await hidden(page, '#update-reload'), true, 'there is nothing new to reload into');
+    await page.close();
+  },
+);

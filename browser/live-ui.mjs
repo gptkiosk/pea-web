@@ -1373,6 +1373,7 @@ export function installConnections(hooks) {
     readPage: (key, url) => local.read(key, url),
     voices: (key, provider, providerKey) => local.voices(key, provider, providerKey),
     speak: (key, request, signal) => local.speak(key, request, signal),
+    update: (key, body) => local.update(key, body),
     macReminders: (key, list) => local.reminders(key, list),
     model(surface, role) {
       const s = state();

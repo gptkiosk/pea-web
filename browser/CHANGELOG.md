@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.1.dev.3] - 2026-11-17
+
+### Added
+
+- An Update button in the app. Under Connections → PEA updates, a copy whose operator has turned this on can update itself: **Check for updates** shows the exact version on offer, whether it is a signed release or an unsigned development build, and what changed; **Update to …** asks for your review and then installs exactly that version. PEA restarts, the page reconnects by itself and says what happened, and the previous version is put back if PEA does not come up healthy. Your conversations, saved data, settings and connection token are not touched. It is off unless PEA was started with the installed copy and its service named; otherwise the page says updating is not set up. Nothing in a request can choose where an update comes from, and your assistant cannot start one. PEA for Mac's own gateway always answers that it is not available.
+
 ## [0.1.0-rc.1.dev.2] - 2026-11-17
 
 ### Added

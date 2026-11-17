@@ -292,6 +292,69 @@ def last(state):
     return entry
 
 
+def last_record(state):
+    """The last update as the app may show it, or None. Only known fields, each bounded."""
+    try:
+        entry = json.loads((Path(state).expanduser() / 'last-update.json').read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(entry, dict) or not isinstance(entry.get('outcome'), str) or type(entry.get('at')) is not int:
+        return None
+    shown = {'kind': entry['kind'] if entry.get('kind') in ('apply', 'rollback') else 'apply', 'outcome': entry['outcome'][:60], 'at': entry['at']}
+    for name in ('previous', 'target'):
+        shown[name] = entry[name] if isinstance(entry.get(name), str) and COMMIT.fullmatch(entry[name]) else None
+    for name, most in (('previousVersion', 80), ('targetVersion', 80), ('message', 400)):
+        shown[name] = entry[name][:most] if isinstance(entry.get(name), str) else None
+    return shown
+
+
+def offer(checkout, *, channel, prerelease, state, official=None, read=download):
+    """What the app shows before an update: what is installed, and what this copy could move to."""
+    installed = inspect(checkout, official)
+    if channel == 'release':
+        target = find_release(installed, prerelease=prerelease, read=read, withdrawn=withdrawals(installed['checkout'], state))
+    else:
+        target = find_target(installed)
+    available = bool(target['ahead']) and not target.get('newer') and not target.get('back')
+    return {'installed': {'version': installed['version'], 'commit': installed['commit']}, 'channel': channel, 'signed': channel == 'release',
+            'upToDate': not available, 'withdrawn': target.get('withdrawn') or None,
+            'target': {'version': target['version'], 'commit': target['commit'], 'tag': target.get('tag'), 'ahead': target['ahead'],
+                       'notes': target['notes']} if available else None}
+
+
+def helper_plist(*, python, checkout, url, label, state, channel, prerelease, commit, path):
+    """The one-off launchd job that carries out an update the owner approved in the app. It is its
+    own job so that restarting PEA cannot stop it, and it removes itself when it is done."""
+    if not LABEL.fullmatch(label) or not COMMIT.fullmatch(commit) or not LOCAL.fullmatch(url) or channel not in ('development', 'release'):
+        raise Refusal('That update cannot be started.')
+    helper = label + '.update'
+    state = Path(state).expanduser()
+    arguments = [str(python), str(Path(checkout) / 'browser' / 'server' / 'update.py'), 'apply', '--checkout', str(checkout), '--url', url,
+                 '--launchd-label', label, '--state-dir', str(state), '--channel', channel, '--expect', commit, '--report',
+                 '--self-label', helper, '--confirm']
+    if prerelease:
+        arguments.append('--prerelease')
+    return helper, {'Label': helper, 'ProgramArguments': arguments, 'RunAtLoad': True, 'ProcessType': 'Background',
+                    'EnvironmentVariables': {'PATH': path},
+                    'StandardOutPath': str(state / 'update-helper.log'), 'StandardErrorPath': str(state / 'update-helper.log')}
+
+
+def start_helper(**settings):
+    """Hands an approved update to launchd. Returns once the helper job is loaded; it does the rest."""
+    import plistlib
+    helper, job = helper_plist(**settings)
+    state = Path(settings['state']).expanduser()
+    state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    plist = state / 'update-helper.plist'
+    fd = os.open(plist, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'wb') as stream:
+        plistlib.dump(job, stream)
+    domain = f'gui/{os.getuid()}'
+    subprocess.run(['launchctl', 'bootout', f'{domain}/{helper}'], capture_output=True, timeout=20)
+    if subprocess.run(['launchctl', 'bootstrap', domain, str(plist)], capture_output=True, timeout=20).returncode != 0:
+        raise Refusal('The update could not be started on this machine. Nothing was changed.')
+
+
 def move(installed, commit, version, *, url, restart, state, wait, kind):
     """Moves the checkout to `commit`, restarts, and puts the old commit back if PEA is not healthy on it."""
     checkout, before = installed['checkout'], installed['commit']
@@ -316,9 +379,12 @@ def move(installed, commit, version, *, url, restart, state, wait, kind):
         restored = healthy(url, before, installed['version'], wait)
     except Refusal:
         pass
-    record(state, {**entry, 'outcome': 'rolled back' if restored else 'rolled back, not confirmed healthy'})
-    raise Refusal(f'{why} The previous version ({installed["version"]}, {before[:12]}) was put back'
-                  + ('.' if restored else ', but PEA did not confirm it is running. Check the service.'))
+    message = (f'{why} The previous version ({installed["version"]}, {before[:12]}) was put back'
+               + ('.' if restored else ', but PEA did not confirm it is running. Check the service.'))
+    record(state, {**entry, 'outcome': 'rolled back' if restored else 'rolled back, not confirmed healthy', 'message': message})
+    refusal = Refusal(message)
+    refusal.recorded = True
+    raise refusal
 
 
 def main(argv=None):
@@ -333,6 +399,9 @@ def main(argv=None):
     parser.add_argument('--channel', choices=('development', 'release'), default='development',
                         help='development follows the official main branch, unsigned; release installs only a signed published release.')
     parser.add_argument('--prerelease', action='store_true', help='With --channel release: also consider signed pre-releases.')
+    parser.add_argument('--expect', help='Go ahead only if the update found is exactly this commit; the app passes what the owner reviewed.')
+    parser.add_argument('--report', action='store_true', help='Also record a refusal, so the app can show why nothing happened.')
+    parser.add_argument('--self-label', help='The one-off launchd job this run is, removed when it ends.')
     parser.add_argument('--allow-older', action='store_true',
                         help='With --channel release: if the installed release was withdrawn and nothing newer is published, go back to the newest release that was not.')
     args = parser.parse_args(argv)
@@ -377,6 +446,8 @@ def main(argv=None):
             if args.command == 'check':
                 print('Nothing was changed. Run apply with --launchd-label and --confirm to install it.')
                 return 0
+        if args.expect and target['commit'] != args.expect:
+            raise Refusal('The update on offer changed after it was reviewed. Check again; nothing was changed.')
         if not args.launchd_label:
             raise Refusal('Name the service to restart with --launchd-label. Nothing was changed.')
         restart = launchd_restart(args.launchd_label)
@@ -389,7 +460,13 @@ def main(argv=None):
         return 0
     except Refusal as refusal:
         print(f'PEA update: {refusal}', file=sys.stderr)
+        if args.report and args.command == 'apply' and not getattr(refusal, 'recorded', False):
+            record(args.state_dir, {'kind': 'apply', 'outcome': 'refused', 'message': str(refusal), 'at': int(time.time())})
         return 1
+    finally:
+        # A one-off helper job takes itself out of launchd as its last act.
+        if args.self_label and LABEL.fullmatch(args.self_label):
+            subprocess.run(['launchctl', 'bootout', f'gui/{os.getuid()}/{args.self_label}'], capture_output=True, timeout=20)
 
 
 if __name__ == '__main__':

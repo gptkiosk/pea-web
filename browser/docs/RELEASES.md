@@ -93,7 +93,23 @@ python3 browser/server/update.py rollback --launchd-label YOUR.LAUNCHD.LABEL --c
 
 What stays: everything outside the checkout. Browser storage belongs to the address PEA is served at, so the library, board, to-dos, remembered choices and other saved data are untouched as long as the address stays the same. The connection token and configuration folder are not read or changed. Keys held only in a tab are entered again after you reload, as always. The command runs no data migration and no script from the repository other than itself.
 
-Nothing runs it for you. There is no timer, the web app has no route to it, and a model cannot start it.
+Nothing runs it by itself. There is no timer and a model cannot start it. The web app can ask for it only on a copy whose operator turned that on, as described next.
+
+## Updating from the app
+
+A PEA that runs from a git checkout under launchd can offer the same update from Connections → **PEA updates**. It is off unless the gateway is started with both of these, on `local.py start` or `gateway.py`:
+
+```sh
+--update-checkout /path/to/the/installed/checkout --update-launchd-label YOUR.LAUNCHD.LABEL
+```
+
+`--update-channel release` (the default) offers signed published releases only; add `--update-prerelease` to include signed pre-releases. `--update-channel development` follows the official main branch, unsigned, and the page says so.
+
+What the page can do is narrow on purpose. It can ask whether updating is available and how the last update went, ask the gateway to look for an update, and ask it to install one commit: exactly the commit the gateway itself just offered. The checkout, the service, the channel and the source of the update are fixed when the gateway starts and cannot be named in a request. The owner approves a review that shows the installed version, the new version and commit, whether it is signed, and what changed. Every request needs the connection token and passes the same origin checks as the rest of the gateway. A model has no action that reaches this route, and a reply that pretends to is only hidden text.
+
+When an update is approved, the gateway starts a one-off launchd job of its own (the service's label with `.update` added) and answers at once. That job runs `update.py apply` for exactly the approved commit, with the same refusals, restart, health check and rollback as the command line, and then removes itself. It is a separate job because restarting PEA stops anything PEA started directly. The page loses contact for a moment, keeps asking, and reports the recorded outcome: updated, refused with the reason, or put back. The job's log and the record are in `~/.config/pea/updates`, private to you.
+
+Not done from the page: going back to an earlier release when yours was withdrawn (use the command with `--allow-older`), and `rollback`. PEA for Mac is not installed this way; its gateway always answers that updating is not available.
 
 ## Rollback and interrupted switches
 
@@ -126,7 +142,7 @@ The footer offers a themed suggestion/bug form. **Prepare draft** shows the exac
 
 The Updates panel also offers **Compare with main**: an explicit read-only GitHub check shows whether the running commit matches the public `main` branch. A different commit is not proof of ancestry, a release, or an update that can be installed safely. The check sends no chats or credentials; GitHub receives normal network metadata. No source checkout, package, service or customer data is changed.
 
-Release checks are also explicit: the browser contacts only the configured public GitHub latest-release endpoint, without product credentials or chats. GitHub still receives normal network metadata. Release text is displayed as plain text; the app never executes it, downloads code or changes the installed version. A published stable release must exist before this check can offer an update; source publication alone is not an installer release.
+Release checks are also explicit: the browser contacts only the configured public GitHub latest-release endpoint, without product credentials or chats. GitHub still receives normal network metadata. Release text is displayed as plain text; this check never executes it, downloads code or changes the installed version. Installing is a separate, operator-enabled step: see [Updating from the app](#updating-from-the-app). A published stable release must exist before this check can offer an update; source publication alone is not an installer release.
 
 ## Independent policy contract
 

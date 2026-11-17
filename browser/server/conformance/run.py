@@ -33,6 +33,7 @@ CONTRACT = json.loads((SERVER / 'contract.json').read_text())
 LIMITS = CONTRACT['limits']
 READER = CONTRACT['reader']
 SPEECH = CONTRACT['speech']
+UPDATES = CONTRACT['updates']
 TOKEN = secrets.token_urlsafe(32)
 
 
@@ -956,6 +957,35 @@ class Conformance(unittest.TestCase):
             for other in (path + '/', path + '/x', '/' + path, '/api' + path[3:]):
                 self.assertIn(self.call('POST', other, token=TOKEN, body=body)[0], (401, 404), other)
         self.assertEqual(Voices.seen, [], 'nothing reached a provider')
+
+    # --- updating the installed copy ---------------------------------------------------------
+
+    def test_a_gateway_not_set_up_for_updates_can_be_asked_and_does_nothing(self):
+        status, headers, body = self.call('GET', UPDATES['path'], token=TOKEN)
+        self.assert_contract_headers(headers, 'update status')
+        self.assertEqual((status, json.loads(body)), (200, {'available': False}), 'updating is off unless the operator turned it on at start')
+        for good in ({'action': 'check'}, {'action': 'apply', 'commit': 'a' * 40}):
+            status, headers, body = self.call('POST', UPDATES['path'], token=TOKEN, body=good)
+            self.assert_contract_headers(headers, 'update refusal')
+            self.assertEqual((status, json.loads(body)), (409, {'error': UPDATES['unavailable']}), str(good))
+        bad = [[], 'text', {}, {'action': 'install'}, {'action': 'check', 'commit': 'a' * 40}, {'action': 'apply'}, {'action': 'apply', 'commit': 'main'},
+               {'action': 'apply', 'commit': 'A' * 40}, {'action': 'apply', 'commit': 'a' * 39}, {'action': 'apply', 'commit': 'a' * 40, 'channel': 'development'},
+               {'action': 'apply', 'commit': 'a' * 40, 'checkout': '/tmp/x'}, {'action': 'apply', 'commit': 'a' * 40, 'url': 'https://evil.example/'},
+               {'action': 'rollback'}, {'action': ['check']}, {'action': 'check', 'label': 'x'}]
+        for body in bad:
+            status, _, data = self.call('POST', UPDATES['path'], token=TOKEN, body=body)
+            self.assertEqual((status, json.loads(data)), (400, {'error': 'Invalid update request.'}), repr(body)[:80])
+
+    def test_updates_need_the_token_and_the_same_origin_checks(self):
+        check = {'action': 'check'}
+        self.assertEqual(self.call('GET', UPDATES['path'])[0], 401)
+        self.assertEqual(self.call('GET', UPDATES['path'] + '?token=' + TOKEN)[0], 401)
+        self.assertEqual(self.call('POST', UPDATES['path'], body=check)[0], 401)
+        self.assertEqual(self.call('POST', UPDATES['path'], token='x' * 43, body=check)[0], 401)
+        self.assertEqual(self.call('POST', UPDATES['path'], token=TOKEN, body=check, headers={'Origin': 'https://evil.example'})[0], 403)
+        self.assertEqual(self.call('GET', UPDATES['path'], token=TOKEN, headers={'Host': 'evil.example'})[0], 403)
+        for other in (UPDATES['path'] + '/', UPDATES['path'] + '/apply', '/api/update', '/v1/updates', '/v1/install'):
+            self.assertIn(self.call('POST', other, token=TOKEN, body=check)[0], (401, 404), other)
 
     def test_no_other_route_method_or_proxying_exists(self):
         self.assertEqual(self.call('GET', '/v1/other', token=TOKEN)[0], 404)

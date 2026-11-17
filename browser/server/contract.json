@@ -50,6 +50,8 @@
     "taskboard.mjs",
     "todos-ui.mjs",
     "todos.mjs",
+    "updates-ui.mjs",
+    "updates.mjs",
     "voice.mjs",
     "weather-ui.mjs",
     "weather.mjs",
@@ -226,5 +228,12 @@
         "model": "s2.1-pro"
       }
     }
+  },
+  "updates": {
+    "about": "GET path says whether this gateway can update its own installed copy and what happened last time. POST path {\"action\":\"check\"} looks for an update; POST path {\"action\":\"apply\",\"commit\"} installs exactly the commit the owner reviewed. Only a gateway its operator started with an installed checkout and service named can do either; any other answers that it is not available. Nothing in a request chooses the checkout, the channel, the service or the source of the update.",
+    "path": "/v1/update",
+    "actions": ["check", "apply"],
+    "commitPattern": "[a-f0-9]{40}",
+    "unavailable": "Updating from the app is not set up for this PEA."
   }
 }

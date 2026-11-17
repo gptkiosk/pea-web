@@ -410,5 +410,120 @@ class SignedChannelChecks(unittest.TestCase):
             update.published(self.REPO, lambda url, limit: b'not json')
 
 
+class GatewayUpdateChecks(unittest.TestCase):
+    """The gateway's own update route, turned on for a throwaway checkout, with the helper replaced."""
+
+    def setUp(self):
+        import gateway
+        self.gateway = gateway
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name).resolve()
+        self.official, self.installed, self.state = root / 'official', root / 'installed', root / 'state'
+        self.official.mkdir()
+        run(self.official, 'init', '-q', '-b', 'main')
+        (self.official / 'browser' / 'server').mkdir(parents=True)
+        (self.official / 'browser' / 'server' / 'update.py').write_text('# stands in for the update command\n')
+        self.first = release(self.official, '0.1.0-dev.1')
+        subprocess.run(['git', 'clone', '-q', str(self.official), str(self.installed)], check=True, capture_output=True, env=ENV)
+        self.second = release(self.official, '0.1.0-dev.2')
+        self.started = []
+        settings = gateway.update_settings(self.installed, 'synthetic.pea.service', 'development', False, self.state,
+                                           official=str(self.official), start=lambda **given: self.started.append(given))
+        self.server = gateway.Gateway(('127.0.0.1', 0), token='t' * 43, upstream='http://127.0.0.1:9', update=settings)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.plain = gateway.Gateway(('127.0.0.1', 0), token='t' * 43, upstream='http://127.0.0.1:9')
+        threading.Thread(target=self.plain.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        for server in (self.server, self.plain):
+            server.shutdown(); server.server_close()
+        self.tmp.cleanup()
+
+    def call(self, method, body=None, server=None, token='t' * 43):
+        import http.client
+        server = server or self.server
+        connection = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=30)
+        try:
+            headers = {'Authorization': 'Bearer ' + token}
+            if body is not None:
+                headers['Content-Type'] = 'application/json'
+            connection.request(method, '/v1/update', body=json.dumps(body) if body is not None else None, headers=headers)
+            answer = connection.getresponse()
+            return answer.status, json.loads(answer.read())
+        finally:
+            connection.close()
+
+    def test_status_and_check_say_what_is_installed_and_what_is_on_offer(self):
+        status, answer = self.call('GET')
+        self.assertEqual((status, answer), (200, {'available': True, 'channel': 'development', 'prerelease': False,
+                                                  'installed': {'version': '0.1.0-dev.1', 'commit': self.first}, 'operation': None}))
+        status, found = self.call('POST', {'action': 'check'})
+        self.assertEqual(status, 200)
+        self.assertEqual(found, {'installed': {'version': '0.1.0-dev.1', 'commit': self.first}, 'channel': 'development', 'signed': False,
+                                 'upToDate': False, 'withdrawn': None,
+                                 'target': {'version': '0.1.0-dev.2', 'commit': self.second, 'tag': None, 'ahead': 1, 'notes': ['Synthetic release 0.1.0-dev.2']}})
+        self.assertEqual(run(self.installed, 'rev-parse', 'HEAD'), self.first, 'looking changes nothing')
+        self.assertEqual(self.started, [])
+        self.assertEqual(self.call('GET', server=self.plain), (200, {'available': False}))
+        self.assertEqual(self.call('POST', {'action': 'check'}, server=self.plain)[0], 409)
+        self.assertEqual(self.call('GET', token='x' * 43)[0], 401)
+
+    def test_apply_starts_the_helper_only_for_exactly_the_commit_on_offer(self):
+        status, answer = self.call('POST', {'action': 'apply', 'commit': self.first})
+        self.assertEqual(status, 409, 'the installed commit is not an update')
+        self.assertIn('changed after it was reviewed', answer['error'])
+        self.assertEqual(self.call('POST', {'action': 'apply', 'commit': 'f' * 40})[0], 409)
+        self.assertEqual(self.started, [], 'nothing was started for a commit that is not on offer')
+        status, answer = self.call('POST', {'action': 'apply', 'commit': self.second})
+        self.assertEqual((status, answer), (202, {'started': True, 'commit': self.second}))
+        self.assertEqual(len(self.started), 1)
+        given = self.started[0]
+        self.assertEqual((given['checkout'], given['label'], given['channel'], given['commit'], given['state']),
+                         (self.installed, 'synthetic.pea.service', 'development', self.second, self.state))
+        self.assertEqual(given['url'], f'http://127.0.0.1:{self.server.server_port}', 'the health check asks this gateway, on this machine')
+        self.assertEqual(run(self.installed, 'rev-parse', 'HEAD'), self.first, 'the gateway itself moves nothing')
+
+    def test_a_copy_that_cannot_be_updated_says_why_and_starts_nothing(self):
+        (self.installed / 'browser' / 'index.html').write_text('<p>edited by hand</p>')
+        status, answer = self.call('POST', {'action': 'check'})
+        self.assertEqual(status, 409)
+        self.assertIn('changes to tracked files', answer['error'])
+        self.assertEqual(self.call('POST', {'action': 'apply', 'commit': self.second})[0], 409)
+        self.assertEqual(self.started, [])
+        self.assertEqual(self.call('GET')[1]['installed'], None, 'and the status does not pretend to know what is installed')
+
+    def test_the_helper_job_is_built_only_from_the_operators_settings(self):
+        helper, job = update.helper_plist(python='/usr/bin/python3', checkout=self.installed, url='http://127.0.0.1:18770', label='synthetic.pea.service',
+                                          state=self.state, channel='release', prerelease=True, commit=self.second, path='/usr/bin:/bin')
+        self.assertEqual(helper, 'synthetic.pea.service.update')
+        self.assertEqual(job['Label'], helper)
+        self.assertEqual(job['ProgramArguments'][:3], ['/usr/bin/python3', str(self.installed / 'browser' / 'server' / 'update.py'), 'apply'])
+        arguments = job['ProgramArguments']
+        for flag, value in (('--checkout', str(self.installed)), ('--launchd-label', 'synthetic.pea.service'), ('--channel', 'release'),
+                            ('--expect', self.second), ('--self-label', helper), ('--url', 'http://127.0.0.1:18770')):
+            self.assertEqual(arguments[arguments.index(flag) + 1], value, flag)
+        self.assertTrue({'--confirm', '--report', '--prerelease'} <= set(arguments))
+        self.assertNotIn('--allow-older', arguments)
+        for bad in ({'label': 'bad label; rm'}, {'commit': 'main'}, {'url': 'https://example.invalid'}, {'channel': 'nightly'}):
+            settings = dict(python='/usr/bin/python3', checkout=self.installed, url='http://127.0.0.1:18770', label='synthetic.pea.service',
+                            state=self.state, channel='release', prerelease=False, commit=self.second, path='/usr/bin')
+            with self.assertRaises(update.Refusal, msg=str(bad)):
+                update.helper_plist(**{**settings, **bad})
+        with self.assertRaises(ValueError):
+            self.gateway.update_settings(self.tmp.name, 'synthetic.pea.service')
+        with self.assertRaises(ValueError):
+            self.gateway.update_settings(self.installed, 'bad label')
+
+    def test_a_refused_or_finished_update_is_shown_with_bounded_known_fields_only(self):
+        self.assertIsNone(update.last_record(self.state))
+        update.record(self.state, {'kind': 'apply', 'outcome': 'refused', 'message': 'x' * 900, 'at': 5, 'token': 'SECRET', 'previous': '../x'})
+        shown = update.last_record(self.state)
+        self.assertEqual(set(shown), {'kind', 'outcome', 'at', 'previous', 'target', 'previousVersion', 'targetVersion', 'message'})
+        self.assertEqual((shown['outcome'], len(shown['message']), shown['previous']), ('refused', 400, None))
+        self.assertEqual(self.call('GET')[1]['operation'], shown)
+        (self.state / 'last-update.json').write_text('not json')
+        self.assertIsNone(update.last_record(self.state))
+
+
 if __name__ == '__main__':
     unittest.main()

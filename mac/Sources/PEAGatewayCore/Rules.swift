@@ -34,6 +34,10 @@ public struct Contract {
     public let buildInfoSeconds: Double
     public let reader: ReaderRules
     public let speech: SpeechRules
+    /// Updating the installed copy from the app. This gateway serves an app bundle, so it only ever says it is not available.
+    public let updatesPath: String
+    public let updatesUnavailable: String
+    let updateCommit: NSRegularExpression
     public let remindersPath: String
     public let reminderFields: Set<String>
     public let reminderItems: Int
@@ -127,6 +131,15 @@ public struct Contract {
         reminderID = expression
         reader = try ReaderRules(root["reader"])
         speech = try SpeechRules(root["speech"])
+        guard case .object(let updates)? = root["updates"], let updatesPath = updates["path"]?.string, updatesPath.hasPrefix("/v1/"),
+              case .array(let actions)? = updates["actions"], actions.compactMap({ $0.string }) == ["check", "apply"],
+              let unavailable = updates["unavailable"]?.string, !unavailable.isEmpty,
+              let commit = updates["commitPattern"]?.string, let commitExpression = try? NSRegularExpression(pattern: "\\A(?:" + commit + ")\\z") else {
+            throw GatewayError("The rules file has no update rules.")
+        }
+        self.updatesPath = updatesPath
+        updatesUnavailable = unavailable
+        updateCommit = commitExpression
     }
 
     static func matches(_ expression: NSRegularExpression, _ text: String) -> Bool {
@@ -136,6 +149,14 @@ public struct Contract {
 
     public func isModelID(_ text: String) -> Bool { Contract.matches(modelID, text) }
     public func isToken(_ text: String) -> Bool { Contract.matches(token, text) }
+
+    /// Whether a body is a well-formed request to look for an update or to install one named commit.
+    public func isUpdateRequest(_ raw: JSONValue) -> Bool {
+        guard case .object(let body) = raw, let action = body["action"]?.string else { return false }
+        if action == "check" { return body.keys == ["action"] }
+        guard action == "apply", body.keys.count == 2, let commit = body["commit"]?.string else { return false }
+        return Contract.matches(updateCommit, commit)
+    }
 
     /// Checks a chat request and returns exactly what may be sent to the model server.
     /// Anything unexpected refuses the whole request; nothing is repaired or dropped.

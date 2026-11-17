@@ -252,6 +252,33 @@ def speech_voices(provider, data):
     return {'voices': voices}
 
 
+UPDATES = CONTRACT['updates']
+UPDATE_COMMIT = re.compile(UPDATES['commitPattern'] + r'\Z')
+
+
+def validate_update(raw):
+    """A request to look for an update, or to install exactly one commit. Nothing else can be asked."""
+    if not isinstance(raw, dict) or raw.get('action') not in UPDATES['actions']:
+        raise ValueError()
+    if raw['action'] == 'check' and set(raw) == {'action'}:
+        return raw
+    if raw['action'] == 'apply' and set(raw) == {'action', 'commit'} and isinstance(raw['commit'], str) and UPDATE_COMMIT.fullmatch(raw['commit']):
+        return raw
+    raise ValueError()
+
+
+def update_settings(checkout, label, channel='development', prerelease=False, state=None, **tests):
+    """What an operator sets at start to let this gateway update its own installed copy. Without it
+    the gateway cannot update anything. `tests` carries stand-ins and is never set from a command line."""
+    checkout = Path(checkout).expanduser().resolve()
+    if not (checkout / 'browser' / 'server' / 'update.py').is_file():
+        raise ValueError('The update checkout is not a PEA Web checkout with the update command.')
+    if not isinstance(label, str) or not re.fullmatch(r'[A-Za-z0-9._-]{1,100}', label) or channel not in ('development', 'release'):
+        raise ValueError('Name the launchd job and a channel of development or release.')
+    return {'checkout': checkout, 'label': label, 'channel': channel, 'prerelease': bool(prerelease),
+            'state': Path(state).expanduser() if state else Path.home() / '.config' / 'pea' / 'updates', **tests}
+
+
 def validate_read(raw):
     if not isinstance(raw, dict) or set(raw) != set(READER['fields']):
         raise ValueError('One address is required.')
@@ -263,7 +290,7 @@ class Gateway(ThreadingHTTPServer):
     # Connections waiting to be accepted. One page load asks for about twenty files at once; the library default
     # of five refused part of that burst, a module failed to load and the app never started.
     request_queue_size = LIMITS['acceptBacklog']
-    def __init__(self, address, *, token, upstream, public_origin=None, reader_test_sites=None, reader_test_resolve=None, speech_test_ports=None):
+    def __init__(self, address, *, token, upstream, public_origin=None, reader_test_sites=None, reader_test_resolve=None, speech_test_ports=None, update=None):
         super().__init__(address, Handler)
         # Stand-ins for public sites, for tests only: a name served in plain HTTP from a port on this
         # machine, and a name given fixed addresses in place of a DNS answer. Never set by local.py.
@@ -272,6 +299,9 @@ class Gateway(ThreadingHTTPServer):
         self.reader_lock = threading.BoundedSemaphore(READER['concurrent'])
         self.speech_test_ports = dict(speech_test_ports or {})
         self.speech_lock = threading.BoundedSemaphore(SPEECH['concurrent'])
+        # None unless the operator named an installed checkout and its service at start.
+        self.update = update
+        self.update_lock = threading.Lock()
         self.client_slots = threading.BoundedSemaphore(CLIENT_SLOTS)
         self.token_digest = hashlib.sha256(token.encode()).digest()
         self.upstream = upstream_url(upstream)
@@ -472,6 +502,46 @@ class Gateway(ThreadingHTTPServer):
                 timer.cancel()
             connection.close()
 
+    def update_status(self):
+        """Whether this gateway can update its own copy, what is installed and how the last update went."""
+        if not self.update:
+            return {'available': False}
+        import update as updater
+        settings = self.update
+        try:
+            installed = updater.inspect(settings['checkout'], settings.get('official'))
+            installed = {'version': installed['version'], 'commit': installed['commit']}
+        except updater.Refusal:
+            installed = None
+        return {'available': True, 'channel': settings['channel'], 'prerelease': settings['prerelease'], 'installed': installed,
+                'operation': updater.last_record(settings['state'])}
+
+    def update_request(self, request):
+        """Looks for an update, or hands exactly the reviewed commit to a helper that installs it.
+        Returns (status, answer). The request names nothing but that commit."""
+        if not self.update:
+            return 409, {'error': UPDATES['unavailable']}
+        import update as updater
+        settings = self.update
+        if not self.update_lock.acquire(blocking=False):
+            return 429, {'error': 'An update check is already running. No automatic retry.'}
+        try:
+            found = updater.offer(settings['checkout'], channel=settings['channel'], prerelease=settings['prerelease'], state=settings['state'],
+                                  official=settings.get('official'), **({'read': settings['read']} if 'read' in settings else {}))
+            if request['action'] == 'check':
+                return 200, found
+            if found['upToDate'] or found['target']['commit'] != request['commit']:
+                return 409, {'error': 'The update on offer changed after it was reviewed. Check again; nothing was changed.'}
+            settings.get('start', updater.start_helper)(
+                python=sys.executable, checkout=settings['checkout'], url=f'http://127.0.0.1:{self.server_port}', label=settings['label'],
+                state=settings['state'], channel=settings['channel'], prerelease=settings['prerelease'], commit=request['commit'],
+                path=os.environ.get('PATH', '/usr/bin:/bin:/usr/sbin:/sbin'))
+            return 202, {'started': True, 'commit': request['commit']}
+        except updater.Refusal as refusal:
+            return 409, {'error': str(refusal)}
+        finally:
+            self.update_lock.release()
+
     def upstream_call(self, method, path, body=None):
         connection = http.client.HTTPConnection(*self.upstream, timeout=LIMITS['upstreamTimeoutSeconds'])
         try:
@@ -553,6 +623,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(503, {'error': 'Build identity unavailable.'})
         if self.path == REMINDERS['path']:
             return self.reply(200, {'available': False})
+        if self.path == UPDATES['path']:
+            return self.reply(200, self.server.update_status())
         if self.path == '/v1/models':
             if not self.server.model_lock.acquire(blocking=False):
                 return self.reply(429, {'error': 'Local model busy. No automatic retry.'})
@@ -586,12 +658,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.boundary(auth=True):
             return
-        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path'], SPEECH['path'], SPEECH['voicesPath']):
-            return self.reply(404, {'error': 'Only model listing, text chat, reminders, the page reader and speech are exposed.'})
+        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path'], SPEECH['path'], SPEECH['voicesPath'], UPDATES['path']):
+            return self.reply(404, {'error': 'Only model listing, text chat, reminders, the page reader, speech and updates are exposed.'})
         reminders = self.path == REMINDERS['path']
         reading = self.path == READER['path']
         speaking = self.path in (SPEECH['path'], SPEECH['voicesPath'])
         listing = self.path == SPEECH['voicesPath']
+        updating = self.path == UPDATES['path']
         try:
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json' or self.headers.get('Transfer-Encoding'):
                 raise ValueError()
@@ -599,10 +672,12 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
             parsed = strict_json(self.rfile.read(length))
-            body = validate_speech(parsed, listing) if speaking else (validate_reminders if reminders else validate_read if reading else validate_chat)(parsed)
+            body = validate_update(parsed) if updating else validate_speech(parsed, listing) if speaking else (validate_reminders if reminders else validate_read if reading else validate_chat)(parsed)
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
-            return self.reply(400, {'error': 'Invalid speech request.' if speaking else 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+            return self.reply(400, {'error': 'Invalid update request.' if updating else 'Invalid speech request.' if speaking else 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+        if updating:
+            return self.reply(*self.server.update_request(body))
         if speaking:
             if not self.server.speech_lock.acquire(blocking=False):
                 return self.reply(429, {'error': 'A voice request is already running. No automatic retry.'})
@@ -672,6 +747,10 @@ def main():
                         help='Tests only: serve this name to the page reader from plain HTTP on a port of this machine.')
     parser.add_argument('--reader-test-resolve', action='append', default=[], metavar='NAME.example=ADDRESS[,ADDRESS]',
                         help='Tests only: give this name these addresses in place of a DNS answer.')
+    parser.add_argument('--update-checkout', help='Let the app update this installed git checkout of the official repository. Needs --update-launchd-label.')
+    parser.add_argument('--update-launchd-label', help='The launchd job of this user that runs this gateway; an update restarts it.')
+    parser.add_argument('--update-channel', choices=('development', 'release'), default='release', help='release: signed published releases only. development: the main branch, unsigned.')
+    parser.add_argument('--update-prerelease', action='store_true', help='With the release channel: also offer signed pre-releases.')
     parser.add_argument('--speech-test-port', action='append', default=[], metavar='PROVIDER=PORT',
                         help='Tests only: reach this voice provider at plain HTTP on a port of this machine instead.')
     args = parser.parse_args()
@@ -701,8 +780,16 @@ def main():
         voices[name] = int(value)
     if voices:
         print('TEST MODE: voice providers have stand-ins. Never use this option outside tests.', file=sys.stderr)
+    if bool(args.update_checkout) != bool(args.update_launchd_label):
+        parser.error('Give both --update-checkout and --update-launchd-label, or neither.')
+    update = None
+    if args.update_checkout:
+        try:
+            update = update_settings(args.update_checkout, args.update_launchd_label, args.update_channel, args.update_prerelease)
+        except ValueError as error:
+            parser.error(str(error))
     server = Gateway(('127.0.0.1', args.port), token=token, upstream=args.upstream, public_origin=args.public_origin,
-                     reader_test_sites=sites, reader_test_resolve=fixed, speech_test_ports=voices)
+                     reader_test_sites=sites, reader_test_resolve=fixed, speech_test_ports=voices, update=update)
     print(f'PEA customer-owned UI: http://127.0.0.1:{args.port}/browser/ · private VPN/TLS required for phone access')
     try:
         server.serve_forever()
