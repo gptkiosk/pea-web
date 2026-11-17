@@ -220,6 +220,8 @@ test('calendar file escapes injected properties and folds long UTF-8 lines', () 
   assert(file.includes('Garden\\, herbs\\;'));
   for (const line of file.split('\r\n')) assert(Buffer.byteLength(line, 'utf8') <= 75);
   assert.match(calendarGuidance, /manual import/);
+  assert.match(calendarGuidance, /only their approval adds it/);
+  assert.match(calendarGuidance, /nobody is invited/);
   assert(warnsOfUnconfirmedCalendar('I scheduled the meeting.'));
   assert(!warnsOfUnconfirmedCalendar('Please review the proposed event.'));
 });

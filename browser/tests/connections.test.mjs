@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Services, containsCredential, safeName, validCode, validRepo } from '../connections.mjs';
+import {
+  Services,
+  ServiceError,
+  containsCredential,
+  eventId,
+  eventLink,
+  newEventId,
+  safeName,
+  validCode,
+  validRepo,
+} from '../connections.mjs';
 const json = (r) =>
   new Response(JSON.stringify(r), { status: 200, headers: { 'Content-Type': 'application/json' } });
 test('credentials are header-only, omitted on redirects, and constrained to fixed service paths', async () => {
@@ -176,6 +186,91 @@ test('calendar reads a bounded primary-calendar window without external attendee
   assert.equal(calls[0].url.pathname, '/calendar/v3/calendars/primary/events');
   assert.equal(calls[0].url.searchParams.get('maxResults'), '10');
   assert.equal(calls[0].options.method, 'GET');
+});
+const draft = {
+  title: 'Synthetic event',
+  start: '2031-01-02T15:00:00Z',
+  end: '2031-01-02T16:00:00Z',
+  details: 'Synthetic notes',
+};
+test('an approved event is added to the main calendar only, with no guests and no notices', async () => {
+  const calls = [];
+  const id = newEventId('00000000-1111-2222-3333-444444444444');
+  assert.match(id, eventId);
+  const s = new Services(async (url, options) => {
+    calls.push({ url: new URL(url), options });
+    return json({ id, status: 'confirmed', htmlLink: 'https://www.google.com/calendar/event?eid=abc' });
+  });
+  const added = await s.addEvent('synthetic', 'personal', draft, id);
+  assert.deepEqual(added, { id, link: 'https://www.google.com/calendar/event?eid=abc', already: false });
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url.origin + calls[0].url.pathname,
+    'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+  );
+  assert.equal(calls[0].url.searchParams.get('sendUpdates'), 'none');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer synthetic');
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    id,
+    summary: 'Synthetic event',
+    description: 'Synthetic notes',
+    start: { dateTime: '2031-01-02T15:00:00Z' },
+    end: { dateTime: '2031-01-02T16:00:00Z' },
+    extendedProperties: { private: { peaCreated: '1', peaProfile: 'personal' } },
+  });
+});
+test('a second try with the same event id is read as already added, and other failures stay failures', async () => {
+  const id = newEventId();
+  let status = 409;
+  const s = new Services(async () => new Response('{"error":"raw provider words"}', { status }));
+  assert.deepEqual(await s.addEvent('synthetic', 'work', draft, id), { id, link: null, already: true });
+  for (status of [401, 403, 404, 429, 500]) {
+    const error = await s.addEvent('synthetic', 'work', draft, id).catch((e) => e);
+    assert(error instanceof ServiceError);
+    assert.equal(error.status, status);
+    assert.doesNotMatch(error.message, /raw provider words/);
+  }
+});
+test('an event is refused before sending for a bad id or profile, and an odd answer is not a receipt', async () => {
+  let calls = 0;
+  const id = newEventId();
+  let answer = { id: 'peasomeoneelses', status: 'confirmed' };
+  const s = new Services(async () => (calls++, json(answer)));
+  for (const bad of [
+    '',
+    'abc',
+    'PEA' + 'a'.repeat(20),
+    'pea-with-dash',
+    'peaxyz' + 'w'.repeat(10),
+    'a'.repeat(65),
+  ])
+    await assert.rejects(() => s.addEvent('synthetic', 'work', draft, bad), /Event rejected/);
+  await assert.rejects(() => s.addEvent('synthetic', 'blended', draft, id), /Event rejected/);
+  assert.equal(calls, 0);
+  await assert.rejects(() => s.addEvent('synthetic', 'work', draft, id), /did not confirm/);
+  answer = { id, status: 'cancelled' };
+  await assert.rejects(() => s.addEvent('synthetic', 'work', draft, id), /did not confirm/);
+  answer = { id, status: 'confirmed', htmlLink: 'https://evil.example/calendar' };
+  assert.equal((await s.addEvent('synthetic', 'work', draft, id)).link, null);
+});
+test('only links to Google’s own calendar pages are shown', () => {
+  assert.equal(
+    eventLink('https://www.google.com/calendar/event?eid=a'),
+    'https://www.google.com/calendar/event?eid=a',
+  );
+  assert.equal(eventLink('https://calendar.google.com/calendar/r'), 'https://calendar.google.com/calendar/r');
+  for (const bad of [
+    'http://www.google.com/calendar/event',
+    'https://www.google.com.evil.example/calendar',
+    'https://user@www.google.com/calendar',
+    'javascript:alert(1)',
+    'https://www.google.com/' + 'a'.repeat(600),
+    '',
+    null,
+    undefined,
+  ])
+    assert.equal(eventLink(bad), null, String(bad).slice(0, 40));
 });
 test('mail preview requests only metadata for at most three safe IDs and excludes credential-like contents', async () => {
   const calls = [];

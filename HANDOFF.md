@@ -23,6 +23,27 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Adding approved events to Google Calendar — 2026-11-16
+
+**Branch `feature/calendar-direct`, development identity `0.1.0-dev.45`.** Owner's choices: PEA may add events, and later change or delete only events it added itself; the wider Google permission is a separate opt-in box. This is the first of two pull requests: add only. The iPhone source was not read.
+
+- `browser/connections.mjs`: `eventId`, `newEventId()` (`pea` + 32 hex, valid base32hex), `eventLink()` (only `https://www.google.com` or `https://calendar.google.com`), `Services.addEvent(token, profile, draft, id)` (POST `/calendar/v3/calendars/primary/events?sendUpdates=none&fields=id,status,htmlLink`; body `id, summary, description, start.dateTime, end.dateTime, extendedProperties.private { peaCreated, peaProfile }`; 409 returns `{ already: true }`; an answer with another id or `cancelled` is refused). `call()` now puts the HTTP status, and nothing else, on the `ServiceError`.
+- `browser/live-ui.mjs`: `calendarWriteScope`; `#google-calendar-write` asks for it in place of the read-only scope; `s.google.calendarWrite` is set only from the scopes Google actually granted; `eventAccount()` (account email or null) and `addEvent(draft, id)` (through `run`, then refreshes Today).
+- `browser/app.mjs` `proposalButton`: with `eventAccount()` the review is "Add this event to your calendar?" and names the account; after approval it re-checks profile, conversation, proposal and account, then adds. `eventIds` keeps one id per reply; `calendarAdded` turns the button into a receipt. Both are cleared with the other proposals and are not restored after reload. Without the permission the file flow is unchanged.
+- `browser/actions.mjs` `calendarGuidance` and the "did not schedule" correction were reworded. `browser/index.html`: the new box and its explanation.
+- Tests: 4 unit tests in `browser/tests/connections.test.mjs`; 4 browser tests in `browser/tests/dom/calendar.test.mjs` against a stand-in Google (sign-in script, account, folder list, calendar) answered by the test. `harness.mjs` routes can now answer with other text, see the request, and allow a sign-in header. Checked by removal: ignoring the granted scopes fails test 3; a new id per try fails test 2.
+
+Known gaps:
+
+- Never run against a real Google account. Read on 2026-11-16 from Google's Calendar API reference (events insert, events list, the Events resource, the errors guide and the scopes page): `calendar.events.owned` authorizes both insert and list; a caller-chosen id is base32hex, 5 to 1024 characters; a repeated id answers 409 `duplicate`, though Google says it cannot guarantee every collision is caught at creation; a `dateTime` with an offset needs no `timeZone`.
+- `extendedProperties.private` is private to the owner's copy of the event, not to this Google client (unlike Drive's `appProperties`). Another app with calendar access could set PEA's mark. The second pull request must treat it as a label and still show the owner the exact event before any change.
+- Add only. No change or delete, guests, recurrence, all-day events, time zone names (instants are UTC) or other calendars.
+- With the permission granted there is no way to get the file instead.
+- Google's token allows seeing, changing and deleting events on every calendar the account owns for up to an hour; PEA's own code limits itself to adding to the main one.
+- The box is not remembered per profile; it is read when the owner presses Connect.
+
+Next action: second pull request, change and delete limited to events carrying PEA's private mark (needs the `/events/{id}` route, a list of PEA's own upcoming events for the model, and reviewed `pea-calendar` change and delete operations).
+
 ## Her days — 2026-11-16
 
 **Branch `feature/her-days`, development identity `0.1.0-dev.44`.** Owner's choices: both a model-written week and notes from Chat; notes are kept with a notice, not approved one by one. The iPhone source was not read.

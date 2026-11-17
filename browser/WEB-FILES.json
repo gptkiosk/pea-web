@@ -66,6 +66,7 @@
   "tests/commands.test.mjs",
   "tests/connections.test.mjs",
   "tests/contracts.test.mjs",
+  "tests/dom/calendar.test.mjs",
   "tests/dom/canon.test.mjs",
   "tests/dom/commands.test.mjs",
   "tests/dom/days.test.mjs",
