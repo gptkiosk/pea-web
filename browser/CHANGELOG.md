@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.50] - 2026-11-16
+
+### Added
+
+- Groundwork for a backup any PEA app can read: a documented, versioned format for one encrypted file per profile, holding interview answers, reviewed memories, to-dos, her history and days, and deck projects, with test files other apps can check themselves against. Nothing in the app writes or reads it yet; the buttons come in the next change. Keys, tokens, permissions, sharing switches and chats never travel in it.
+
 ## [0.1.0-dev.49] - 2026-11-16
 
 ### Added

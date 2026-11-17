@@ -5,6 +5,7 @@ The two apps are separate codebases that never read each other's files. What kee
 - Fixtures: [`tests/fixtures/ActionFixtures.json`](../tests/fixtures/ActionFixtures.json), version 1. Every vector is a whole synthetic model reply and what the parser must return. `tests/contracts.test.mjs` checks them against this app.
 - Policy fixtures for profile sharing and Drive ancestry are separate: `tests/fixtures/PolicyFixtures.json`.
 - Fixtures for the encrypted profile file: [`tests/fixtures/ProfileFixtures.json`](../tests/fixtures/ProfileFixtures.json), version 1, checked by `tests/profile-contract.test.mjs`. See [The profile file](#the-profile-file).
+- Fixtures for the encrypted backup file: [`tests/fixtures/BackupFixtures.json`](../tests/fixtures/BackupFixtures.json), version 1, checked by `tests/backup-contract.test.mjs`. See [The backup file](#the-backup-file).
 - Feature status on each side: [PARITY.md](PARITY.md).
 
 Vectors marked `web_only` describe behavior that is deliberately different in a browser. They are listed under each block below.
@@ -164,6 +165,37 @@ Lengths are counted in UTF-16 units, as a browser counts them, so most emoji cou
 The fixtures hold six files that must open, with the answers each must give, and eighteen that must be refused, each with its reason. All were sealed with the synthetic passphrase in the fixture file and fixed salts, for tests only.
 
 Differences: none yet, because only the web implements it. Whether the iPhone app's interview holds the same sixteen answers under these names is for its own change to establish; a difference there is a change to this contract first.
+
+## The backup file
+
+One file carries one profile from one PEA app to another: its interview answers, reviewed memories, to-dos, the character's history cards and day lines, and deck projects. PEA Web's rules for it are in `backup.mjs`; its buttons are not built yet. The iPhone app does not write or read it; this section is what it would follow, and its own existing backup file is a different thing that this page does not describe. Never in the file: chats, files, provider or service keys, connection tokens, permissions, sharing switches, local ids, or anything of the other profile.
+
+**Outside.** One JSON object with exactly four fields, at most 1,200,000 characters in all: `format` (`pea-backup-v1`), `salt` (16 random bytes), `iv` (12 random bytes) and `data` (the sealed contents followed by the 16-byte tag). The last three are standard base64 with `=` padding. Use a fresh random salt and `iv` for every file.
+
+**Sealing.** As for the profile file: the passphrase is 12 to 256 UTF-16 units, used as UTF-8 bytes with no trimming or normalization; the key is PBKDF2 with HMAC-SHA-256, 600,000 rounds, 32 bytes; the contents are sealed with AES-256-GCM, with the format name as the additional authenticated data. A backup cannot be relabelled as a profile file or the reverse.
+
+**Inside.** UTF-8 JSON of at most 800,000 bytes: one object with exactly these eight fields. Every list is present even when empty.
+
+| Field | Value |
+| --- | --- |
+| `profile` | `personal` or `work` |
+| `made` | when the file was written, whole milliseconds since 1970 |
+| `introduction` | all sixteen interview answers, with the names and limits of the profile file; a blank answer is an empty string |
+| `memories` | at most 150 of `{text, quote, created, expires}`. `text` is the fact and `quote` the owner's own words it came from, each 1 to 600 units and not blank; `expires` is `null` or a time after `created` |
+| `todos` | at most 200 of `{title, due, remind, done, created, completed}`. `title` is 1 to 120 units on one line; `due` and `completed` are a time or `null`; a reminder needs a due time; only a done item has a finish time |
+| `history` | at most 40 cards of `{topic, tags, text}`: a topic of at most 60 units, one to five lower-case tags, and 12 to 420 units of text with no web address |
+| `days` | at most 40 lines of `{day, text, from}`: `day` is `YYYY-MM-DD`, `from` is `week` or `chat`, and `text` is one plain sentence of at most 220 units |
+| `decks` | at most 12 projects of `{title, brief, slides}`, each with 3 to 10 slides of `{title, purpose, bullets, notes}` and at most five points a slide |
+
+A Work file's `history` and `days` are empty: the character belongs to the Personal profile. Times are whole numbers. Text that looks like a credential anywhere refuses the whole file, as does any missing or extra field at any level.
+
+**Reading.** An app refuses the whole file, changes nothing and gives one plain message, without saying which check failed, for a wrong passphrase, an altered byte, an unknown format, or contents that break any rule above.
+
+**Combining.** The web only adds. It shows the owner every item that would be added and applies nothing until they approve. Nothing already there is changed or removed. Two items are the same thing when these match, ignoring case and outer spaces: a memory's `text`; a to-do's `title`; a card's `topic`; a line's `day` and `text`; a deck's `title`. When the same thing differs between the file and the device, the device's stays and the difference is listed. An interview answer is filled in only where the device's is blank. A memory that has expired, a line outside the days the app keeps, or a line for a day that already has three is left out and counted, as is anything there is no room for. How an app stores a memory's source is its own business; the web will keep each brought-in quote as the owner's words in a conversation marked as brought in from a backup.
+
+The fixtures hold five files that must open, with the contents each must give, and thirty-six that must be refused, each with its reason. All were sealed with the synthetic passphrase in the fixture file and fixed salts, for tests only.
+
+Differences: none yet, because only the web implements it, and only its rules. Whether the iPhone app holds the same sections under these names and limits is for its own change to establish; a difference there is a change to this contract first.
 
 ## Changing a contract
 
