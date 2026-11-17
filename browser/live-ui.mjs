@@ -1,4 +1,10 @@
-import { storyGuidance, emailGuidance, calendarGuidance, navigationGuidance } from './actions.mjs';
+import {
+  storyGuidance,
+  emailGuidance,
+  calendarGuidance,
+  calendarEditGuidance,
+  navigationGuidance,
+} from './actions.mjs';
 import { presenceAt } from './presence.mjs';
 import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
 import { openGuidance } from './handoff.mjs';
@@ -66,6 +72,8 @@ export function installConnections(hooks) {
         shareTodos: false,
         sharePeaFiles: true,
         calendar: [],
+        // The coming events PEA added for this profile, each with the short ref a model is given.
+        ownEvents: [],
         mail: [],
         scheduleAt: 0,
         approvals: new Set(),
@@ -313,10 +321,14 @@ export function installConnections(hooks) {
       currentAttachment?.profile === who
         ? currentAttachment.content.slice(0, currentAttachment.peaAuto ? 2000 : 4000)
         : '';
+    // Events PEA added go with the calendar snapshot, under the same switch, so the owner can ask
+    // to move or cancel one. Only the ref, title and times are sent.
+    const shownOwn = sharedOwnEvents().map(({ ref, title, start, end }) => ({ ref, title, start, end }));
     const sources =
       s.scheduleAt && Date.now() - s.scheduleAt < 900000
         ? JSON.stringify({
             calendar: s.shareCalendar ? s.calendar.filter((e) => e.profile === who).slice(0, 4) : [],
+            ...(shownOwn.length ? { ownEvents: shownOwn } : {}),
             mail: s.shareMail ? s.mail.filter((e) => e.profile === who).slice(0, 3) : [],
           })
         : '';
@@ -360,6 +372,9 @@ export function installConnections(hooks) {
       }) +
       '\n' +
       calendarGuidance +
+      (shownOwn.length && s.scheduleAt && Date.now() - s.scheduleAt < 900000
+        ? '\n' + calendarEditGuidance
+        : '') +
       '\n' +
       navigationGuidance +
       '\n' +
@@ -393,6 +408,8 @@ export function installConnections(hooks) {
       canon?.stamp ?? '',
       // Like the to-do list, her days are shared under a setting: a new line does not ask again.
       days ? (days.notes ? 'days+notes' : 'days') : '',
+      // The first message that carries PEA's own events asks again; later changes to them do not.
+      shownOwn.length > 0,
     ]);
     if (!s.approvals.has(fingerprint)) {
       const ok = await review(
@@ -583,6 +600,19 @@ export function installConnections(hooks) {
     }
     return s.google;
   }
+  // What a model may be told of PEA's own events right now, and so what a ref can mean.
+  function sharedOwnEvents() {
+    const s = state(),
+      g = s.google;
+    return s.shareCalendar &&
+      g &&
+      g.expires > Date.now() &&
+      g.calendarWrite &&
+      s.scheduleAt &&
+      Date.now() - s.scheduleAt < 900000
+      ? s.ownEvents.slice(0, 8)
+      : [];
+  }
   async function refreshToday() {
     const s = state(),
       g = googleSession(),
@@ -590,8 +620,13 @@ export function installConnections(hooks) {
     const responses = await Promise.allSettled([
       g.calendar ? service.calendar(g.token, who) : Promise.resolve([]),
       g.mail ? service.mail(g.token, who) : Promise.resolve([]),
+      g.calendarWrite ? service.ownEvents(g.token, who) : Promise.resolve([]),
     ]);
     if (who !== p()) return;
+    s.ownEvents = (responses[2].status === 'fulfilled' ? responses[2].value : []).map((e, i) => ({
+      ...e,
+      ref: 'e' + (i + 1),
+    }));
     s.calendar = responses[0].status === 'fulfilled' ? responses[0].value : [];
     s.mail = responses[1].status === 'fulfilled' ? responses[1].value : [];
     s.scheduleAt = Date.now();
@@ -1135,6 +1170,7 @@ export function installConnections(hooks) {
     s.workspace = null;
     s.roots = [];
     s.calendar = [];
+    s.ownEvents = [];
     s.mail = [];
     s.scheduleAt = 0;
     hooks.setSchedule([], [], false, false);
@@ -1259,6 +1295,36 @@ export function installConnections(hooks) {
         // The Upcoming card should show it; a failed refresh does not undo the event.
         if (who === p()) await refreshToday().catch(() => {});
         return added;
+      });
+    },
+    // The event a ref meant in the list the model was last given, or null.
+    ownEvent: (ref) => sharedOwnEvents().find((e) => e.ref === ref) ?? null,
+    // The event as it is in the calendar now, for the owner to review. Null if PEA may not touch it.
+    currentOwnEvent(id) {
+      const who = p();
+      return run(async () => {
+        const g = googleSession();
+        if (!g.calendarWrite) throw new ServiceError('Calendar changes are not connected for this profile.');
+        return service.ownEventNow(g.token, who, id);
+      });
+    },
+    // Carries out a reviewed change or removal on exactly the version the owner saw.
+    editEvent(event, edit) {
+      const who = p();
+      return run(async () => {
+        const g = googleSession();
+        if (!g.calendarWrite) throw new ServiceError('Calendar changes are not connected for this profile.');
+        const now = await service.ownEventNow(g.token, who, event.id);
+        if (now.etag !== event.etag)
+          throw new ServiceError(
+            'The event changed after you reviewed it. Nothing was changed. Review it again.',
+          );
+        const done =
+          edit.op === 'delete'
+            ? await service.deleteEvent(g.token, who, now)
+            : await service.changeEvent(g.token, who, now, edit);
+        if (who === p()) await refreshToday().catch(() => {});
+        return done;
       });
     },
     currentDocument: () => state().currentDoc?.draft ?? null,
