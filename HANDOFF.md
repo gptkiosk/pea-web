@@ -23,6 +23,26 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Her days — 2026-11-16
+
+**Branch `feature/her-days`, development identity `0.1.0-dev.44`.** Owner's choices: both a model-written week and notes from Chat; notes are kept with a notice, not approved one by one. The iPhone source was not read.
+
+- `browser/days.mjs` (pure): `dayLimits`; `dayKey`, `dayName` (local calendar days); `weekDays`, `weekPrompt`, `weekRequest`, `parseWeek` (one clean line per asked-for day, at least 3); `noteGuidance`, `dayNote(raw, now)` (exactly one `pea-life` block, the only PEA block in the reply, fields `op,text,when`, when yesterday/today/tomorrow); `addNote` (3 a day, no repeats), `addWeek` (replaces written lines for its days, keeps Chat notes), `pruneEntries` (14 back, 7 ahead, 40 lines), `validSavedDays`, `daysContext` (3 days either side, about 1,500 characters), `describeWeekRequest`, `describeWeek`.
+- `browser/days-ui.mjs`: `installDays(...)` returns `{ render, pick(), noteFrom(raw), count() }`. Storage `localStorage` `pea-days-v1` = `{ notes, entries: [{ day, text, from }] }`, Personal only. Turning notes on has its own review.
+- `browser/live-ui.mjs` `chat`: `hooks.days()` only on Chat with `shareIntro`; context and, when notes are on, `noteGuidance` are appended to the system message. The fingerprint holds only whether days and notes are shared, so a new line does not ask again; the review shows the current lines.
+- `browser/app.mjs` `finishReply`: `days.noteFrom(raw)` runs only when `offer` is true (complete and not written with a page shared) on Chat. `browser/canon-ui.mjs` exposes `cards()`. `browser/index.html`: `#days-section`. Assets now 46.
+- Tests: 10 unit tests in `browser/tests/days.test.mjs`; 5 browser tests in `browser/tests/dom/days.test.mjs` (nothing without home, Personal and approval; one request with none of the owner's other answers; unsafe lines and unasked days dropped; second review; delete and reload; notes off by default and reviewed when turned on; a note is kept with a notice and hidden from the reply; it returns marked as fiction without a new review; repeats, unsafe notes and notes beside another action are not kept; nothing with sharing off, with a page shared, or in Work).
+
+Known gaps:
+
+- No real model has written a week or a note through this. Whether models use the `pea-life` block sensibly is untested.
+- Notes are the model's words kept without per-note approval, by the owner's choice; the checks are on shape and content, not truth or taste. A note cannot be tied to what the reply's visible text said.
+- A note is honoured whenever notes are on, even if that request did not carry the guidance (for example sharing was just turned off).
+- English weekday names; days follow the browser's local date. No timeline view beyond the list.
+- Lines are outside the encrypted library and are not cleared by locking it.
+
+Next action: direct calendar changes, per the parity sequence, or try her history and her days with a real model first.
+
 ## Her history cards — 2026-11-16
 
 **Branch `feature/her-history`, development identity `0.1.0-dev.43`.** Design follows the owner's written description of the iPhone behavior (the model writes the cards in one owner-triggered request; about 26 cards, 8 on the place and 18 invented; 0 to 2 cards per chat message). The iPhone source and its notes file were not read; the prompt and rules here are this repository's own.

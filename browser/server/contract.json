@@ -14,6 +14,8 @@
     "commands-ui.mjs",
     "commands.mjs",
     "connections.mjs",
+    "days-ui.mjs",
+    "days.mjs",
     "documents.mjs",
     "dragdrop-ui.mjs",
     "dragdrop.mjs",
