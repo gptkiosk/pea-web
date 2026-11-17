@@ -3364,3 +3364,44 @@ kbd {
   max-height: 420px;
   overflow: auto;
 }
+
+/* Deck projects in Greenhouse */
+#decks-section {
+  margin-top: 18px;
+}
+.deck-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: grid;
+  gap: 6px;
+}
+.deck-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.deck-list li span {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.deck-slide {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin: 12px 0;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.deck-slide label {
+  display: grid;
+  gap: 4px;
+}
+.deck-slide input,
+.deck-slide textarea {
+  width: 100%;
+  box-sizing: border-box;
+}

@@ -23,6 +23,26 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Deck projects — 2026-11-16
+
+**Branch `feature/deck-projects`, development identity `0.1.0-dev.49`.** Owner's choices: I design it for Web (the iPhone's behavior was not described and its source was not read); a finished deck is a file to download, not Google Slides.
+
+- `browser/decks.mjs` (pure): `deckLimits` (12 projects a profile, 3 to 10 slides, title 90, brief 600, purpose 160, 5 points of 160, notes 500); `deckTitle`, `deckBrief`, `slideCount`; `outlinePrompt`, `outlineRequest`, `parseOutline(raw, count)` (rows of exactly `title,purpose`; at least 3); `slidesPrompt`, `slidesRequest`, `parseSlides(raw, outline)` (rows of exactly `n,bullets,notes`; every slide needs a point; titles always from the outline); `editedSlide` (the owner's edit, refused not cut); `validSavedDecks`, `deckWritten`; `deckHTML(deck)` (every word escaped, no script, its own `default-src 'none'` rule, a slide per screen and per printed page); `deckFileName`; the four `describe…` texts. `canon.mjs` now exports `objects`, the scanner both use.
+- `browser/decks-ui.mjs`: `installDecks({ profile, review, run, compose, isBusy })` returns `{ render }`. Storage `localStorage` `pea-decks-v1`, one list holding both profiles' projects; only the current profile's are shown, none in Blended. Each model step is `compose` (reviewed) then a second review before keeping. The download link is a `data:` address rebuilt on each draw.
+- `browser/index.html`: `#decks-section` card in Greenhouse under the collaboration card. `browser/styles.css`: `.deck-list`, `.deck-slide`. `browser/app.mjs`: wiring and redraw on profile change. Assets now 50.
+- Tests: 7 unit tests in `browser/tests/decks.test.mjs`; 4 browser tests in `browser/tests/dom/decks.test.mjs`. Checked by removal: no escaping in the file fails a unit and a browser test; keeping the outline without its review fails all four browser tests; showing every profile's projects fails the profile test.
+
+Known gaps:
+
+- No real model has written an outline or slides. Whether models keep to the JSON shape and the "no invented figures" rule is untested; PEA checks shape and length, not truth.
+- Projects are outside the encrypted library, so Work deck text sits unencrypted in this browser's storage and is not cleared by locking the library. Moving them into the library is a possible follow-up.
+- The file is plain: one built-in look, no images, charts, themes or slide numbers in print. No Google Slides or PowerPoint file. Navigation is scrolling with snap, with no script.
+- Slides cannot be added or reordered, only renamed, rewritten or deleted. The model rewrites all slides at once, not one.
+- A reply cut off by the 3,500-token cap loses its last slides, and then nothing is kept; ten wordy slides could reach it.
+- English-only wording in the prompts and the file.
+
+Next action: iPhone-readable backup and reviewed synchronization, the last item in the parity sequence, or acceptance tries with real accounts, keys and a real model.
+
 ## Voice providers, part 2: settings and read-aloud — 2026-11-16
 
 **Branch `feature/voice-read-aloud`, development identity `0.1.0-dev.48`.** Owner's choices as in part 1: through the gateway, one spending review per tab, on failure say why and stay silent.
@@ -46,7 +66,7 @@ Known gaps:
 - One voice request at a time across the whole gateway; Fish Audio lists only the key's own voices.
 - The voice-led conversation screens use Read aloud after a reply, so they follow the same path; this was not exercised with a provider voice in tests.
 
-Next action: deck projects, per the parity sequence, or an acceptance try of provider voices and the calendar steps with real test accounts.
+Next action: done in the section above.
 
 ## Voice providers, part 1: speech in both gateways — 2026-11-16
 
