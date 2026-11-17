@@ -17,6 +17,7 @@ import stat
 import subprocess
 import tarfile
 import tempfile
+import time
 import uuid
 from build_identity import COMMIT, VERSION, build_identity, release_config
 
@@ -301,6 +302,51 @@ def verify_staged(root, release):
     return manifest
 
 
+NOTICE = 'withdrawn-releases'
+
+
+def read_notice(data):
+    """The publisher's list of withdrawn releases: {serial, withdrawn: {version: {reason, date}}}. Raises ValueError if it is anything else."""
+    value = json.loads(data)
+    if (not isinstance(value, dict) or set(value) != {'schema', 'product', 'kind', 'serial', 'withdrawn'} or value['schema'] != 1
+            or value['product'] != 'pea-web' or value['kind'] != NOTICE or type(value['serial']) is not int or not 0 <= value['serial'] <= 1_000_000
+            or not isinstance(value['withdrawn'], dict) or len(value['withdrawn']) > 200):
+        raise ValueError('Invalid list of withdrawn releases.')
+    for version, row in value['withdrawn'].items():
+        if (not isinstance(version, str) or not VERSION.fullmatch(version) or not isinstance(row, dict) or set(row) != {'reason', 'date'}
+                or not isinstance(row['reason'], str) or not 1 <= len(row['reason']) <= 200 or any(ord(c) < 32 or ord(c) == 127 for c in row['reason'])
+                or not isinstance(row['date'], str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', row['date'])):
+            raise ValueError('Invalid entry in the list of withdrawn releases.')
+    return value
+
+
+def verify_notice(notice, signature, signers):
+    """Checks the list of withdrawn releases against the trusted signer and returns it."""
+    data = regular(notice, 100000)
+    regular(signature, 20000)
+    regular(signers, 20000)
+    result = subprocess.run(['ssh-keygen', '-Y', 'verify', '-f', str(Path(signers).resolve()),
+                             '-I', 'pea-release', '-n', 'pea-release', '-s', str(Path(signature).resolve())],
+                            input=data, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    if result.returncode:
+        raise ValueError('The list of withdrawn releases is not signed by the trusted PEA signer.')
+    return read_notice(data)
+
+
+def withdraw(path, version, reason, today):
+    """Adds one version to the publisher's list and raises its serial. The file must then be signed again."""
+    path = Path(path)
+    current = read_notice(regular(path, 100000)) if path.exists() else {'schema': 1, 'product': 'pea-web', 'kind': NOTICE, 'serial': 0, 'withdrawn': {}}
+    if not VERSION.fullmatch(version) or version in current['withdrawn']:
+        raise ValueError('Name a version that is not already withdrawn.')
+    current['withdrawn'][version] = {'reason': ' '.join(reason.split()), 'date': today}
+    current['serial'] += 1
+    text = json.dumps(current, indent=2, sort_keys=True) + '\n'
+    read_notice(text)
+    path.write_text(text)
+    return current['serial']
+
+
 def version_key(version):
     """Sort key following semantic-version precedence: a release ranks above its own pre-releases."""
     core, _, pre = version.split('+', 1)[0].partition('-')
@@ -374,6 +420,9 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     p = sub.add_parser('identity'); p.add_argument('--source', type=Path, default=BROWSER); p.add_argument('--write', type=Path)
     p = sub.add_parser('build'); p.add_argument('--source', type=Path, default=BROWSER); p.add_argument('--output', type=Path, required=True); p.add_argument('--development', action='store_true')
+    p = sub.add_parser('withdraw', help='Publisher: add a version to the list of withdrawn releases. Sign the file again afterwards.')
+    p.add_argument('--file', type=Path, default=Path(__file__).with_name('withdrawn.json')); p.add_argument('--version', required=True)
+    p.add_argument('--reason', required=True, help='Why it must not be installed, up to 200 characters.')
     for command in ('init', 'stage', 'list', 'activate', 'rollback', 'recover', 'revoke'):
         p = sub.add_parser(command); p.add_argument('--root', type=Path, required=True)
         if command == 'init': p.add_argument('--allowed-signers', type=Path, required=True)
@@ -395,6 +444,10 @@ def main():
             else: print(json.dumps(value, sort_keys=True))
             return
         if args.command == 'build': print(build(args.source, args.output, args.development)); return
+        if args.command == 'withdraw':
+            serial = withdraw(args.file, args.version, args.reason, time.strftime('%Y-%m-%d'))
+            print(f'Listed {args.version} as withdrawn (serial {serial}). Sign {args.file} again with the release key; an unsigned list is refused.')
+            return
         with locked(args.root) as root:
             if args.command == 'init': initialize(root, args.allowed_signers)
             elif args.command == 'stage': print(stage(root, args.archive, args.manifest, args.signature))

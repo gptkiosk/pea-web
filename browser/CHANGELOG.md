@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.1.dev.2] - 2026-11-17
+
+### Added
+
+- A release can be withdrawn. The publisher keeps a signed list of versions that must not be installed. On the signed channel the update command never offers a withdrawn release, and it tells anyone already on one, with the publisher's reason. If nothing newer is published, `--allow-older` goes back to the newest release that was not withdrawn. The list must be signed by the release key, and one older than a list your machine has already seen is refused, so a withdrawal cannot be quietly taken back.
+
 ## [0.1.0-rc.1.dev.1] - 2026-11-17
 
 ### Added
