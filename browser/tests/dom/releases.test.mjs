@@ -59,7 +59,7 @@ test(
   'a development build is told when a release is available, and otherwise that it is ahead as expected',
   options,
   async () => {
-    let page = await pageFor({ latest: 'v9.0.0' });
+    let page = await pageFor({ build: { channel: 'development' }, latest: 'v9.0.0' });
     let result = await check(page);
     assert.equal(result.level, 'update');
     assert.match(result.text, /^Available: v9\.0\.0\./);
@@ -71,7 +71,7 @@ test(
     );
     await page.close();
 
-    page = await pageFor({ latest: 'v0.0.1' });
+    page = await pageFor({ build: { channel: 'development' }, latest: 'v0.0.1' });
     result = await check(page);
     assert.equal(result.level, 'info');
     assert.match(

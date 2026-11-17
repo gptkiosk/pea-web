@@ -23,6 +23,28 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## First release candidate prepared — 2026-11-17
+
+**Branch `release/0.1.0-rc.1`, version `0.1.0-rc.1`, channel `prerelease`.** The owner chose a pre-release for the first signed release, because nothing has been accepted against real accounts, keys or a model.
+
+- `browser/release.json`: version `0.1.0-rc.1`, channel `prerelease`. `browser/CHANGELOG.md`: a dated entry that says what a pre-release does and does not claim.
+- No code changed.
+
+Steps after this is merged, each needing the owner's go-ahead where it publishes something:
+
+1. Tag the merge commit `v0.1.0-rc.1` and push the tag (the builder requires the tag to be exactly the build commit).
+2. From a clean checkout of that commit: `python3 browser/server/releases.py build --output <folder outside the repository>`. It writes `pea-web-0.1.0-rc.1.tar.gz` and `pea-web-0.1.0-rc.1.manifest.json`.
+3. The owner signs the manifest on their machine: `ssh-keygen -Y sign -f <their private key> -n pea-release <folder>/pea-web-0.1.0-rc.1.manifest.json`, which writes `.manifest.json.sig`.
+4. Verify the signature here against `browser/server/allowed_signers` before anything is published.
+5. Publish a GitHub pre-release for the tag with the three files.
+6. Next change: development version `0.1.0-rc.1.dev.1` on the `development` channel, and a signed channel in `update.py`.
+
+Known gaps:
+
+- `0.1.0-rc.1` sorts above every `0.1.0-dev.N`, so later development builds are numbered `0.1.0-rc.1.dev.N`, which sorts between `rc.1` and `rc.2`.
+- Local runs of the whole browser suite on this Mac now fail one or two unrelated tests in some runs with "The browser did not answer" or a timeout, a different test each time (seen 2026-11-17 in three of five runs; CI passed). There are about 25 test files, each starting its own Chrome, run side by side. Limiting how many run at once (`node --test --test-concurrency=N`) is the likely remedy and has not been tried.
+- While `main` carries the `prerelease` channel (between this merge and step 6), an installed checkout following `main` reports itself as a pre-release build.
+
 ## Release signer published — 2026-11-17
 
 **Branch `feature/release-signer`, development identity `0.1.0-dev.54`.** The owner created a dedicated Ed25519 release key on their own machine and sent only the public line and its fingerprint. The private key was never seen here.
@@ -37,7 +59,7 @@ Known gaps:
 - `update.py` still follows the unsigned development channel.
 - If the key is ever replaced, the file, the fingerprint in the guide and the test constant change together in one reviewed pull request.
 
-Next action: decide the first release's version and channel with the owner (a stable `0.1.0` implies the acceptance run; a prerelease does not), build it with `releases.py build`, have the owner sign the manifest, publish the archive, manifest and signature on GitHub, then add a signed channel to `update.py`.
+Next action: the owner chose a pre-release; see the section above.
 
 ## Update command for an installed checkout — 2026-11-17
 
