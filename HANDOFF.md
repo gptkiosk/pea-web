@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Third release candidate prepared — 2026-11-17
+
+**Branch `release/0.1.0-rc.3`, version `0.1.0-rc.3`, channel `prerelease`.** Cut at the owner's request so the Versions window fix (#64) reaches their installed copy, which follows signed pre-releases. Version and changelog were chosen by the assistant.
+
+- `browser/release.json` and `browser/CHANGELOG.md` only. Since `0.1.0-rc.2`: #63 (test browser start retried) and #64 (Versions window).
+
+Steps after merge: tag `v0.1.0-rc.3`; `releases.py build`; sign the manifest through the owner's `ssh-agent` (the owner unlocks the key; the assistant never has the passphrase); verify against `browser/server/allowed_signers`; rehearse `releases.py init` and `stage`; confirm with the owner; publish the GitHub pre-release; download back and verify; then return main to `0.1.0-rc.3.dev.1` on the development channel.
+
+Known gaps: as in the sections below. No real update has yet been started from the Update button.
+
 ## Versions window: pre-releases and the way to the Update button — 2026-11-17
 
 **Branch `fix/versions-window-prereleases`, version `0.1.0-rc.2.dev.3`.** Found by the owner on their first try of the Update button with `0.1.0-rc.2` published: they opened Versions & updates, saw no button, and Check published releases answered "Unable to check releases".

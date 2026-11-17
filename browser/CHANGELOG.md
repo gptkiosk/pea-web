@@ -2,6 +2,22 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.3] - 2026-11-17
+
+Third release candidate. Like the first two, it is a pre-release: everything in it passed the automated checks, and none of it has yet been accepted against real accounts, provider keys or a real model. It corrects what the first try of the Update button turned up.
+
+### Fixed since 0.1.0-rc.2
+
+- **Versions & updates found no release while only release candidates were published.** It reported "Unable to check releases". A copy that is not on a stable version now looks at the newest published release of either kind and says when it is a pre-release.
+
+### Changed
+
+- **Versions & updates leads to the Update button.** A line under the check opens Connections with PEA updates showing.
+- The window's explanation says what is true: where the operator has turned it on, PEA's gateway installs a signed release after your review, and the page itself never downloads or runs program code.
+- The project's browser tests start a test browser again when it fails to come up on a slow test machine.
+
+The entries below give the detail for each development build.
+
 ## [0.1.0-rc.2.dev.3] - 2026-11-17
 
 ### Fixed

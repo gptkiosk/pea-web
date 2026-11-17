@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "0.1.0-rc.2.dev.3",
-  "channel": "development",
+  "version": "0.1.0-rc.3",
+  "channel": "prerelease",
   "product": "PEA",
   "organization": "Bamcio Ventures LLC",
   "repository": "gptkiosk/pea-web"
