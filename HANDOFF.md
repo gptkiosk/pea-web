@@ -23,6 +23,24 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Update command for an installed checkout — 2026-11-17
+
+**Branch `feature/update-command`, development identity `0.1.0-dev.53`.** Second half of the owner's request for updates that keep their setup. Owner's choices: one command first (no button in the app, so the gateway still cannot install anything); development updates now, signed releases once the owner has made the signing key.
+
+- `browser/server/update.py`: `check`, `apply`, `rollback`. `inspect` (top of a PEA Web checkout, `origin` is the official repository from its own `release.json`, no tracked changes), `find_target` (fetches `main`, refuses a diverged copy, lists up to 20 commit subjects), `healthy` (`/api/build-info` on loopback must give the exact commit and version with `modified` false), `launchd_restart` (`launchctl kickstart -k` on one loaded job of this user; refuses beforehand if not loaded), `move` (`git reset --keep`, restart, health check, put back and restart on failure), `record`/`last` (`~/.config/pea/updates/last-update.json`, mode 600 in a 700 folder). No arbitrary command is ever run: only `git` and `launchctl` with fixed arguments.
+- `browser/docs/RELEASES.md`: "Updating a checkout on the development channel".
+- Tests: 8 in `browser/server/test_update.py`, against throwaway repositories and a stand-in PEA on loopback, with the restart injected: refusals, finding the target, a kept update, a failed health check put back, a restart failure put back, a local change never overwritten, the health rule, and the command's own refusals. No network and no real service.
+
+Known gaps:
+
+- No signature is checked. That is the owner's stated interim choice; `update.py` says so each time. The signed path needs, in order: the owner creates a dedicated Ed25519 release key and commits its public half as the allowed signer; a first tagged release is built with `releases.py build`, signed by the owner and published on GitHub; then `update.py` gains a `stable` channel that takes the newest signed release, verifies the manifest signature and that the tag is the signed commit, and only then moves.
+- macOS launchd only. On another system the owner updates by hand.
+- Not run by CI against a real service, and until this change is merged it has not been run against the owner's installed copy.
+- If the new version changes a served-file list or server code, the restart covers it. There are no data migrations to run; a future change that needs one must not ship through this path unnoticed.
+- The operator's own label, folders and addresses are not in this repository and must stay out of it.
+
+Next action: run `check` and `apply` once against the owner's installed copy with their go-ahead, then walk the owner through creating the signing key.
+
 ## Remembered choices in Connections — 2026-11-17
 
 **Branch `feature/remember-choices`, development identity `0.1.0-dev.52`.** The owner asked for settings that remain across updates, "like done with MCD". Owner's choices: remember choices but never secrets; a one-command updater first (next pull request); development updates now and signed releases once the owner has made the signing key.
@@ -39,7 +57,7 @@ Known gaps:
 - Choices applied through "Review & apply choices…" (shared configuration) are saved only at the next change.
 - Forgetting removes the saved copy; a later change in the same tab saves that tab's choices again.
 
-Next action: the update command for an installed copy (development channel: the official repository's main branch by exact commit, with a health check and rollback), then the owner's signing key and the first signed release.
+Next action: done in the section above.
 
 ## Portable backup, part 2: Move this profile — 2026-11-16
 

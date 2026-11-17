@@ -45,6 +45,24 @@ Staging verifies the pinned signature, archive and per-file digests before extra
 
 Start the gateway from `current/browser/server/gateway.py` with your existing external token file and loopback-model arguments, following [self-hosting](SELF-HOSTING.md). The running gateway resolves its actual release directory at launch; changing the pointer does not hot-replace files under an old process. Verify `GET /api/build-info` and a synthetic connection check after deliberately restarting, then refresh the browser. Keep the same trusted HTTPS origin to retain access to origin-bound encrypted browser storage. Changing the URL is not a data migration. Keys held only in tab RAM need reconnecting after refresh.
 
+## Updating a checkout on the development channel
+
+An owner who runs PEA Web from a git checkout of the official repository, kept running by a launchd job, can update it with one command. It is separate from the signed-release manager above and less strict: it trusts the official repository over HTTPS and names an exact commit, and it checks no signature. Use it to follow development; use signed releases when they exist and you want that assurance.
+
+```sh
+python3 browser/server/update.py check
+python3 browser/server/update.py apply --launchd-label YOUR.LAUNCHD.LABEL --confirm
+python3 browser/server/update.py rollback --launchd-label YOUR.LAUNCHD.LABEL --confirm
+```
+
+`--checkout` names the installed checkout when the command is run from another copy, and `--url` says where PEA answers on this machine (default `http://127.0.0.1:18770`).
+
+`check` changes nothing. `apply` refuses, and says why, when the folder is not the top of a PEA Web checkout; its `origin` is not the official repository named in its own `release.json` (forks and other remotes are never updated this way); a tracked file has been changed; the installed copy has commits the official main branch does not; the launchd job is not loaded; or PEA is not currently running the installed version at `--url`. Otherwise it moves the checkout to the newest commit of the official main branch, restarts the job, and waits for `/api/build-info` to report exactly that commit and version on an unmodified copy. If that does not happen, the previous commit is put back and restarted, and the command says so. A record of the last update is kept in `~/.config/pea/updates` (private to you) so `rollback` can return to the version before it.
+
+What stays: everything outside the checkout. Browser storage belongs to the address PEA is served at, so the library, board, to-dos, remembered choices and other saved data are untouched as long as the address stays the same. The connection token and configuration folder are not read or changed. Keys held only in a tab are entered again after you reload, as always. The command runs no data migration and no script from the repository other than itself.
+
+Nothing runs it for you. There is no timer, the web app has no route to it, and a model cannot start it.
+
 ## Rollback and interrupted switches
 
 ```sh

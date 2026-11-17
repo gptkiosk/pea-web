@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.53] - 2026-11-17
+
+### Added
+
+- An update command for a PEA Web installed as a git checkout of the official repository. `check` shows what is installed and what is available. `apply` moves the copy to the newest commit of the official main branch, restarts the service, and keeps the update only if PEA comes back reporting exactly that commit and version; otherwise the previous version is put back. `rollback` returns to the version before the last update. A person runs it; nothing updates on a timer, and the web app and models cannot reach it. Your browser data, connection token and remembered choices are not touched. This is a development channel with no signature check; signed releases remain the stricter path.
+
 ## [0.1.0-dev.52] - 2026-11-17
 
 ### Added
