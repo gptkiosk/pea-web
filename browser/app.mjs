@@ -42,6 +42,7 @@ import { installDays } from './days-ui.mjs';
 import { installSpeech } from './speech-ui.mjs';
 import { installDecks } from './decks-ui.mjs';
 import { installBackup } from './backup-ui.mjs';
+import { installUpdates } from './updates-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -82,7 +83,8 @@ let live,
   days,
   speech,
   decks,
-  portable;
+  portable,
+  updates;
 // Ends reading aloud, whichever voice is doing it.
 function stopVoices() {
   globalThis.speechSynthesis?.cancel();
@@ -1110,7 +1112,10 @@ window.addEventListener('pagehide', () => {
 });
 live = installConnections({
   todoGuidance: (shared) => todos?.guidance(shared) ?? '',
-  localChanged: () => todos?.connectionChanged(),
+  localChanged: () => {
+    todos?.connectionChanged();
+    void updates?.refresh();
+  },
   profile: () => profile,
   surface: () => (activeTab === 'greenhouse' ? 'greenhouse' : 'chat'),
   history,
@@ -1463,6 +1468,13 @@ decks = installDecks({
   review: live.review,
   run: live.run,
   compose: live.compose,
+  isBusy: live.isBusy,
+});
+// Updating the installed copy, when its operator has turned that on. Reviewed, never by a model.
+updates = installUpdates({
+  localKey: () => live.localKey(),
+  ask: (key, body) => live.update(key, body),
+  review: live.review,
   isBusy: live.isBusy,
 });
 // One encrypted file that carries the profile in view to another PEA; bringing one in only adds.

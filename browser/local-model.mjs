@@ -26,6 +26,7 @@ export class LocalModel {
         '/v1/read',
         '/v1/speak',
         '/v1/voices',
+        '/v1/update',
       ].includes(path) ||
       typeof key !== 'string' ||
       !/^[A-Za-z0-9_-]{32,128}$/.test(key)
@@ -131,6 +132,22 @@ export class LocalModel {
       // Handled as a failure below.
     }
     throw new ServiceError(speechFailure(provider, r.ok ? 0 : r.status, answer?.reason));
+  }
+  // Asks this server about updating its own installed copy: with no body, whether it can and how
+  // the last update went; otherwise to look for one or to install one exact commit.
+  async update(key, body) {
+    const r = await this.request('/v1/update', key, {
+      body,
+      signal: AbortSignal.timeout(body ? 90000 : 8000),
+      anyStatus: true,
+    });
+    let answer = null;
+    try {
+      answer = JSON.parse((await r.text()).slice(0, 20000));
+    } catch {
+      // Left as null; the caller treats that as no usable answer.
+    }
+    return { status: r.status, body: answer };
   }
   async catalogue(key) {
     const r = await this.request('/v1/models', key),

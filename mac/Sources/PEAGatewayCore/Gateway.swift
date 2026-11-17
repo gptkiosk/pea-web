@@ -353,6 +353,11 @@ final class Client {
             let body = buffer.subdata(in: buffer.startIndex + bodyStart..<buffer.startIndex + bodyStart + bodyLength)
             if head?.target == contract.remindersPath { remind(body) } else if head?.target == contract.reader.path { read(body) }
             else if head?.target == contract.speech.path || head?.target == contract.speech.voicesPath { speak(body, listing: head?.target == contract.speech.voicesPath) }
+            else if head?.target == contract.updatesPath {
+                // Checked the same way as any gateway would, then answered that it is not available here.
+                guard let parsed = try? JSON.parse(body), contract.isUpdateRequest(parsed) else { return reply(400, error: "Invalid update request.") }
+                reply(409, error: contract.updatesUnavailable)
+            }
             else { chat(body) }
         }
     }
@@ -391,6 +396,9 @@ final class Client {
                 listModels()
             case contract.remindersPath:
                 reply(200, body: JSON.serialize(.object(JSONObject([("available", .bool(gateway.reminders?.available == true))]))))
+            case contract.updatesPath:
+                // This gateway runs from an app bundle, which is not updated this way.
+                reply(200, body: JSON.serialize(.object(JSONObject([("available", .bool(false))]))))
             default:
                 file(head.target)
             }
@@ -398,14 +406,15 @@ final class Client {
             guard allowed(head, needsToken: true) else { return }
             let forReminders = head.target == contract.remindersPath, forReader = head.target == contract.reader.path
             let forSpeech = head.target == contract.speech.path || head.target == contract.speech.voicesPath
-            guard forReminders || forReader || forSpeech || head.target == "/v1/chat/completions" else {
-                return reply(404, error: "Only model listing, text chat, reminders, the page reader and speech are exposed.")
+            let forUpdate = head.target == contract.updatesPath
+            guard forReminders || forReader || forSpeech || forUpdate || head.target == "/v1/chat/completions" else {
+                return reply(404, error: "Only model listing, text chat, reminders, the page reader, speech and updates are exposed.")
             }
             let type = head.headers["content-type"].map { String($0.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)[0]) }
             guard type == "application/json", head.headers["transfer-encoding"] == nil, let text = head.headers["content-length"],
                   (1...7).contains(text.count), text.allSatisfy({ ("0"..."9").contains($0) }), let length = Int(text),
                   length > 0, length <= contract.requestBytes else {
-                return reply(400, error: forSpeech ? "Invalid speech request." : forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
+                return reply(400, error: forUpdate ? "Invalid update request." : forSpeech ? "Invalid speech request." : forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
             }
             bodyLength = length
             advance()

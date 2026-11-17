@@ -171,7 +171,8 @@ class GatewayChecks(unittest.TestCase):
     def test_every_rule_comes_from_the_shared_contract(self):
         contract = json.loads(Path(g.__file__).with_name('contract.json').read_text())
         self.assertEqual(contract['version'], 1)
-        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders', 'reader', 'speech'})
+        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders', 'reader', 'speech', 'updates'})
+        self.assertEqual(g.UPDATES, contract['updates'])
         self.assertEqual(g.READER, contract['reader'])
         self.assertEqual(g.SPEECH, contract['speech'])
         self.assertEqual(g.REMINDERS, contract['reminders'])

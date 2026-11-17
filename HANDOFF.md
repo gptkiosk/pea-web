@@ -23,6 +23,31 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Update button in the app — 2026-11-17
+
+**Branch `feature/update-button`, development identity `0.1.0-rc.1.dev.3`.** Second of the two additions the owner asked for. It reverses an earlier choice ("one command first", so that the gateway could not install anything): the owner has now asked for the button in so many words, and chose signed releases as the channel for their own copy.
+
+How this was squared with `AGENTS.md` ("no ... shell execution or unattended workers"): the route runs one fixed program with arguments fixed by the operator at start, never anything named in a request; a person approves each update; no model action reaches it; there is no timer. I did not edit `AGENTS.md`. If the owner wants the rule reworded to say this, that is their change.
+
+- `browser/server/contract.json` `updates`: `path` `/v1/update`, `actions`, `commitPattern`, `unavailable`. GET says `{available}` and, when available, channel, installed build and the last recorded operation. POST `{"action":"check"}` or `{"action":"apply","commit"}`; anything else is 400.
+- `browser/server/gateway.py`: `validate_update`, `update_settings`, `Gateway.update_status`, `Gateway.update_request`. Start flags `--update-checkout`, `--update-launchd-label`, `--update-channel` (default `release`), `--update-prerelease`; `local.py start` takes the same. `apply` re-runs the check and starts the helper only if the reviewed commit is still exactly what is on offer.
+- `browser/server/update.py`: `offer` (what the app shows), `last_record` (bounded known fields), `helper_plist` and `start_helper` (a one-off launchd job `<label>.update` running `update.py apply --expect <commit> --report --self-label …`), `--expect`, `--report`, `--self-label`. A refusal is recorded when `--report` is given, so the page can show it.
+- Why a separate launchd job: tested on this Mac on 2026-11-17 with throwaway jobs. A child started by the service with its own session died when the service was restarted with `launchctl kickstart -k`; a job bootstrapped on its own survived, and the restart took about nine seconds to return.
+- `mac/Sources/PEAGatewayCore`: `Contract.updatesPath`, `isUpdateRequest`; GET answers `{"available": false}`, a well-formed POST answers 409 with the contract's message, a malformed one 400.
+- Browser: `browser/updates.mjs` (pure: `updateStatus`, `updateOffer`, the four `describe…`), `browser/updates-ui.mjs` (`installUpdates`), `LocalModel.update`, `#updates-group` in Connections. Assets now 55.
+- Tests: 2 conformance tests (35; both gateways pass); 5 Python tests in `test_update.py` (`GatewayUpdateChecks`, with the helper start replaced and a local stand-in for the official repository); 3 unit tests in `browser/tests/updates.test.mjs`; 3 browser tests in `browser/tests/dom/updates.test.mjs` with the route answered by the test.
+
+Known gaps:
+
+- The whole path has not run for real: no real helper job has updated a real copy from the page. The owner's copy has to be restarted with the new flags first, and a newer signed release has to exist.
+- The gateway does not itself refuse an update while a model request is running; the page does. A request in flight from another tab would be cut off by the restart.
+- One connection token guards everything, so anyone holding it, including over the owner's private HTTPS address, can ask for an update. They can only get the update the operator's channel offers.
+- macOS launchd only. No rollback or `--allow-older` from the page.
+- Local test note: with `node --test --test-concurrency=6` the whole browser suite ran clean on this Mac on both gateways, where the default (one test browser per file, all at once) had been failing one or two unrelated tests in most runs. CI uses the default and passes.
+- The helper's Python, PATH and checkout are taken from the running gateway; a copy moved on disk while running would not update.
+
+Next action: with the owner's go-ahead, add the update flags to their installed copy's own start script (operator configuration, outside this repository), then cut `0.1.0-rc.2` and use the button on it.
+
 ## Withdrawing a release — 2026-11-17
 
 **Branch `feature/withdraw-release`, development identity `0.1.0-rc.1.dev.2`.** First of the two additions the owner asked for after the signed channel ("add these": an Update button in the app, and a way to withdraw a release). The button is the next pull request.
@@ -39,7 +64,7 @@ Known gaps:
 - The app's own "Check for updates" notice does not read the list; it still infers withdrawal from a version missing on GitHub.
 - A copy that has never seen a list accepts there being none. Only after it has seen one does a missing list stop it.
 
-Next action: the Update button in the app.
+Next action: done in the section above.
 
 ## First signed release published, and a signed update channel — 2026-11-17
 
