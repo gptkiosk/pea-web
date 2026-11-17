@@ -2,6 +2,22 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.2] - 2026-11-17
+
+Second release candidate. Like the first, it is a pre-release: everything in it passed the automated checks, and none of it has yet been accepted against real accounts, provider keys or a real model.
+
+### Added since 0.1.0-rc.1
+
+- **Updating to a signed release.** The update command can install only a published release whose manifest is signed by the release key your copy already trusts, and whose tag is exactly the signed commit.
+- **An Update button in the app.** On a copy whose operator has turned it on, Connections → PEA updates shows the exact version on offer and installs it after your review, with the previous version put back if PEA does not come up healthy.
+- **Withdrawing a release.** The publisher can list a release as withdrawn in a signed list; it is then never offered, and anyone already on it is told why.
+
+### Changed
+
+- The project's browser tests now run at most four at a time, because starting every test browser at once overloaded the test machine now and then.
+
+The entries below give the detail for each development build.
+
 ## [0.1.0-rc.1.dev.3] - 2026-11-17
 
 ### Added

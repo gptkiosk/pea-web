@@ -25,7 +25,7 @@ jobs:
       - name: Browser-level reviews (headless Chrome, synthetic model, real gateway)
         env:
           PEA_DOM_REQUIRED: "1"
-        run: node --test browser/tests/dom/*.test.mjs
+        run: node --test --test-concurrency=4 browser/tests/dom/*.test.mjs
       - name: Synthetic gateway and release checks
         run: python3 -m unittest discover -s browser/server -p 'test_*.py' -v
       - name: Gateway conformance (black box, synthetic model server)
@@ -58,4 +58,4 @@ jobs:
         env:
           PEA_DOM_REQUIRED: "1"
           PEA_GATEWAY: swift
-        run: node --test browser/tests/dom/*.test.mjs
+        run: node --test --test-concurrency=4 browser/tests/dom/*.test.mjs

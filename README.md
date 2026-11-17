@@ -65,7 +65,7 @@ No npm dependencies, provider secrets, Apple SDK or sibling checkout are needed.
 python3 tools/check_repository.py
 python3 browser/server/check_source.py
 node --test browser/tests/*.test.mjs
-node --test browser/tests/dom/*.test.mjs
+node --test --test-concurrency=4 browser/tests/dom/*.test.mjs
 python3 -m unittest discover -s browser/server -p 'test_*.py' -v
 python3 browser/server/conformance/run.py
 ```
