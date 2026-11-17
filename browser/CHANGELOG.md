@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.1.dev.1] - 2026-11-17
+
+### Added
+
+- A signed channel for the update command. `--channel release` installs only a published release whose manifest is signed by the release key your copy already trusts, and whose tag is exactly the commit that signature names. Only the small signed manifest is downloaded; the files come from the official repository at that exact commit. Pre-releases are considered only when you add `--prerelease`. A copy that is already newer than the newest release is left alone. The unsigned development channel remains the default and says each time that it checks no signature.
+
+### Changed
+
+- Development builds after the first release candidate are numbered `0.1.0-rc.1.dev.N`, so that every later build sorts after `0.1.0-rc.1` and before `0.1.0-rc.2`.
+
 ## [0.1.0-rc.1] - 2026-11-17
 
 First release candidate, and the first release signed with the project's release key. It is a pre-release: every feature below passed the automated checks, but none has yet been accepted against real accounts, provider keys or a real model. Use it to try PEA Web, not to rely on it.

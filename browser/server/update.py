@@ -10,9 +10,11 @@ branch, restarts the service, and checks that PEA came back reporting exactly th
 version. If it did not, the previous commit is put back and restarted. Nothing runs on a timer and
 nothing here is reachable from the web app or a model: a person runs it.
 
-This is the development channel: it trusts the official repository over HTTPS and names an exact
-commit, and it verifies no signature. Signed releases are a separate, stricter path (releases.py).
-Browser data, the connection token and every setting live outside the checkout and are not touched.
+There are two channels. `--channel release` installs only a published release whose manifest is
+signed by the key in this checkout's own browser/server/allowed_signers, and whose tag is exactly
+the commit that signature names. `--channel development` (the default) follows the official main
+branch by exact commit and checks no signature. Either way, browser data, the connection token and
+every setting live outside the checkout and are not touched.
 """
 import argparse
 import json
@@ -21,11 +23,13 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
 
-from build_identity import COMMIT, release_config
+from build_identity import COMMIT, VERSION, release_config
+import releases
 
 HERE = Path(__file__).resolve()
 LABEL = re.compile(r'[A-Za-z0-9._-]{1,100}\Z')
@@ -99,6 +103,95 @@ def find_target(installed):
     ahead = int(git(checkout, 'rev-list', '--count', f"{installed['commit']}..{target}"))
     notes = git(checkout, 'log', '--format=%s', '--max-count=20', f"{installed['commit']}..{target}").splitlines()
     return {'commit': target, 'version': identity_at(checkout, target), 'ahead': ahead, 'notes': [n[:160] for n in notes]}
+
+
+class OnlyGitHub(urllib.request.HTTPRedirectHandler):
+    """A download may be passed on only to GitHub's own file hosts, over HTTPS."""
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        if not re.fullmatch(r'https://[a-z0-9-]+\.githubusercontent\.com/[^\s]*', newurl):
+            raise urllib.error.HTTPError(newurl, code, 'Redirect refused.', headers, fp)
+        return super().redirect_request(request, fp, code, msg, headers, newurl)
+
+
+def download(url, limit):
+    """Reads at most `limit` bytes of a public GitHub address. Sends no credentials."""
+    if not re.fullmatch(r'https://(?:api\.github\.com|github\.com)/[A-Za-z0-9_.~/%?=&+-]{1,400}', url):
+        raise Refusal('That is not a GitHub address this command reads.')
+    opener = urllib.request.build_opener(OnlyGitHub())
+    request = urllib.request.Request(url, headers={'User-Agent': 'PEA-Web-Update', 'Accept': 'application/vnd.github+json' if 'api.github.com' in url else 'application/octet-stream'})
+    try:
+        with opener.open(request, timeout=20) as answer:
+            data = answer.read(limit + 1)
+    except (OSError, ValueError):
+        raise Refusal('GitHub could not be read. Nothing was changed.') from None
+    if len(data) > limit:
+        raise Refusal('GitHub sent more than expected. Nothing was changed.')
+    return data
+
+
+def published(repository, read=download):
+    """The releases GitHub lists for the official repository: [{tag, prerelease, manifest, signature}]."""
+    try:
+        rows = json.loads(read(f'https://api.github.com/repos/{repository}/releases?per_page=30', 2000000))
+    except ValueError:
+        raise Refusal('GitHub did not give a readable list of releases.') from None
+    found = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict) or row.get('draft') is not False or not isinstance(row.get('tag_name'), str):
+            continue
+        tag = row['tag_name']
+        if not tag.startswith('v') or not VERSION.fullmatch(tag[1:]):
+            continue
+        assets = {a.get('name'): a.get('browser_download_url') for a in row.get('assets', []) if isinstance(a, dict)}
+        stem = f'pea-web-{tag[1:]}.manifest.json'
+        prefix = f'https://github.com/{repository}/releases/download/{tag}/'
+        if assets.get(stem) == prefix + stem and assets.get(stem + '.sig') == prefix + stem + '.sig':
+            found.append({'tag': tag, 'prerelease': row.get('prerelease') is True, 'manifest': prefix + stem, 'signature': prefix + stem + '.sig'})
+    return found
+
+
+def find_release(installed, *, prerelease=False, read=download):
+    """The newest published release this copy may move to, proven by the signer this checkout trusts.
+
+    Only the signed manifest and its signature are downloaded, never the package: the files come
+    from git, at exactly the commit the signature names.
+    """
+    checkout = installed['checkout']
+    signers = checkout / 'browser' / 'server' / 'allowed_signers'
+    if not signers.is_file() or signers.is_symlink():
+        raise Refusal('This copy has no release signer to check against (browser/server/allowed_signers). It is too old for signed updates; update it once on the development channel.')
+    rows = [r for r in published(installed['repository'], read) if prerelease or not r['prerelease']]
+    if not rows:
+        raise Refusal('No published release is available' + ('.' if prerelease else '. Pre-releases are considered only with --prerelease.'))
+    newest = max(rows, key=lambda r: releases.version_key(r['tag'][1:]))
+    tag, version = newest['tag'], newest['tag'][1:]
+    with tempfile.TemporaryDirectory() as folder:
+        manifest, signature = Path(folder) / 'manifest.json', Path(folder) / 'manifest.json.sig'
+        manifest.write_bytes(read(newest['manifest'], 200000))
+        signature.write_bytes(read(newest['signature'], 20000))
+        try:
+            signed = releases.verify_signature(manifest, signature, signers)
+        except (ValueError, OSError, subprocess.SubprocessError):
+            raise Refusal(f'The release {tag} is not signed by the release key this copy trusts. Nothing was changed.') from None
+    if signed.get('version') != version or signed.get('channel') not in (('stable', 'prerelease') if prerelease else ('stable',)):
+        raise Refusal(f'The signed manifest of {tag} is for another version or channel. Nothing was changed.')
+    commit = signed['commit']
+    if commit == installed['commit']:
+        return {'commit': commit, 'version': version, 'tag': tag, 'ahead': 0, 'notes': []}
+    if releases.version_key(version) <= releases.version_key(installed['version']):
+        return {'commit': installed['commit'], 'version': installed['version'], 'tag': tag, 'ahead': 0, 'notes': [], 'newer': True}
+    # The tag must be exactly the commit that was signed. A tag that was moved afterwards is refused.
+    git(checkout, 'fetch', '--no-tags', 'origin', f'+refs/tags/{tag}:refs/pea-update/{tag}')
+    if git(checkout, 'rev-parse', f'refs/pea-update/{tag}^{{commit}}') != commit:
+        raise Refusal(f'The tag {tag} does not point at the commit its signature names. Nothing was changed.')
+    try:
+        git(checkout, 'merge-base', '--is-ancestor', installed['commit'], commit)
+    except Refusal:
+        raise Refusal(f'The installed copy is not an earlier point on the way to {tag}. It is not moved; sort that out by hand.') from None
+    if identity_at(checkout, commit) != version:
+        raise Refusal(f'The commit signed for {tag} carries another version. Nothing was changed.')
+    ahead = int(git(checkout, 'rev-list', '--count', f"{installed['commit']}..{commit}"))
+    return {'commit': commit, 'version': version, 'tag': tag, 'ahead': ahead, 'notes': []}
 
 
 def healthy(url, commit, version, wait=40.0, pause=0.5):
@@ -193,6 +286,9 @@ def main(argv=None):
     parser.add_argument('--state-dir', default=str(Path.home() / '.config' / 'pea' / 'updates'), help='Private folder for the record of the last update.')
     parser.add_argument('--wait', type=float, default=40.0, help='Seconds to wait for PEA to report the expected version.')
     parser.add_argument('--confirm', action='store_true', help='Required to change anything.')
+    parser.add_argument('--channel', choices=('development', 'release'), default='development',
+                        help='development follows the official main branch, unsigned; release installs only a signed published release.')
+    parser.add_argument('--prerelease', action='store_true', help='With --channel release: also consider signed pre-releases.')
     args = parser.parse_args(argv)
     try:
         if not LOCAL.fullmatch(args.url) or not 1 <= args.wait <= 300:
@@ -205,6 +301,19 @@ def main(argv=None):
                 raise Refusal('The installed copy is not the one the last update left, so going back is not safe to do automatically.')
             target = {'commit': entry['previous'], 'version': identity_at(installed['checkout'], entry['previous']), 'ahead': 0, 'notes': []}
             print(f"Going back to: {target['version']} ({target['commit'][:12]})")
+        elif args.channel == 'release':
+            target = find_release(installed, prerelease=args.prerelease)
+            if target.get('newer'):
+                print(f"The newest signed release is {target['tag']}, and this copy is already newer than it. Nothing to do.")
+                return 0
+            if not target['ahead']:
+                print(f"Already on the newest signed release, {target['tag']}. Nothing to do.")
+                return 0
+            print(f"Available: {target['version']} ({target['commit'][:12]}), release {target['tag']}, {target['ahead']} change{'s' if target['ahead'] != 1 else ''} ahead.")
+            print('Its manifest is signed by the release key this copy trusts, and the tag is exactly the signed commit.')
+            if args.command == 'check':
+                print('Nothing was changed. Run apply with --launchd-label and --confirm to install it.')
+                return 0
         else:
             target = find_target(installed)
             if not target['ahead']:
