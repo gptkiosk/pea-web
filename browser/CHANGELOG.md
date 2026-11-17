@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.2.dev.2] - 2026-11-17
+
+Nothing in the app changed.
+
+### Changed
+
+- The project's browser tests start a test browser again, up to three times, when it fails to come up, and open a blank page once more when the browser is slow to answer. A slow test machine had failed the checks on main twice with no fault in the app.
+
 ## [0.1.0-rc.2.dev.1] - 2026-11-17
 
 Development build after the second release candidate. Nothing in the app changed.
