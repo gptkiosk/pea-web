@@ -234,7 +234,21 @@ const swiftGateway =
   fileURLToPath(new URL('../../../mac/.build/debug/pea-gateway', import.meta.url));
 
 // The real gateway, started the way an owner starts it, with a token made for this run only.
+// Test files run side by side, and each asks the system for a free port before its gateway binds
+// it, so now and then two want the same one and the later gateway cannot start. That is a fault of
+// the test setup, not of the gateway: it is tried again on another port, and a gateway that still
+// does not start fails the test with its own words.
 export async function startGateway(upstreamPort, reader = []) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await startGatewayOnce(upstreamPort, reader);
+    } catch (error) {
+      if (attempt >= 3 || !String(error.message).startsWith('The gateway did not start.')) throw error;
+      console.error(`Gateway start tried again (${attempt}): ${error.message}`);
+    }
+  }
+}
+async function startGatewayOnce(upstreamPort, reader) {
   const folder = mkdtempSync(join(tmpdir(), 'pea-dom-'));
   const config = join(folder, 'config');
   const port = await freePort();
@@ -287,6 +301,10 @@ export async function startGateway(upstreamPort, reader = []) {
       }),
     );
   }
+  // What the gateway says as it starts or fails, for the error below. It never prints its token.
+  const said = [];
+  child.stderr?.on('data', (chunk) => said.push(String(chunk)));
+  child.stdout?.on('data', (chunk) => said.push(String(chunk)));
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; ; attempt++) {
     try {
@@ -296,8 +314,12 @@ export async function startGateway(upstreamPort, reader = []) {
       // Not listening yet.
     }
     if (attempt > 100 || child.exitCode !== null) {
+      const exited = child.exitCode;
       child.kill();
-      throw new Error('The gateway did not start.');
+      remove(folder);
+      throw new Error(
+        `The gateway did not start. ${exited === null ? 'It was not answering' : 'It exited with ' + exited} on port ${port}: ${said.join('').slice(-300).trim() || 'it said nothing'}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
