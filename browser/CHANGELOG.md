@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.2.dev.3] - 2026-11-17
+
+### Fixed
+
+- **Versions & updates found no release while only release candidates were published.** It asked GitHub for the "latest" release, which leaves pre-releases out, and reported "Unable to check releases". A copy that is not on a stable version now looks at the newest published release of either kind and says when it is a pre-release. A stable copy still looks only at stable releases.
+
+### Changed
+
+- **Versions & updates now leads to the Update button.** A line under the check opens Connections with PEA updates showing. Before, nothing in that window said where an update is installed.
+- The window's explanation no longer says the browser cannot install anything. It says what is true: where the operator has turned it on, PEA's gateway installs a signed release after your review, and the page itself never downloads or runs program code.
+- When GitHub cannot be reached the message says so, and no longer suggests there may be no release.
+
 ## [0.1.0-rc.2.dev.2] - 2026-11-17
 
 Nothing in the app changed.

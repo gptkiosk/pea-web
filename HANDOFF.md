@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Versions window: pre-releases and the way to the Update button — 2026-11-17
+
+**Branch `fix/versions-window-prereleases`, version `0.1.0-rc.2.dev.3`.** Found by the owner on their first try of the Update button with `0.1.0-rc.2` published: they opened Versions & updates, saw no button, and Check published releases answered "Unable to check releases".
+
+- Cause 1: `browser/release-ui.mjs` asked GitHub for `releases/latest`, which answers 404 while a repository has only pre-releases. Cause 2: the Update button is under Connections → PEA updates, and nothing in the Versions window said so; its text still said the browser cannot install anything.
+- `browser/releases.mjs`: `newestRelease(rows, repository)` picks the newest version from GitHub's release list, skipping drafts, tags that are not versions and rows whose page is not that tag's page in this repository. `releaseStanding` takes `prerelease` and has wording for a pre-release that is newer, the same, or older than this build.
+- `browser/release-ui.mjs`: a build whose channel is not `stable` asks for `releases?per_page=10` and uses `newestRelease`; a stable build is unchanged. `#release-update-open` closes the window and opens Connections with `#updates-group` open and in view.
+- `browser/index.html`: the new line and button, and corrected explanation text.
+- Tests: `browser/tests/releases.test.mjs` (1 new, 277 unit in all); `browser/tests/dom/releases.test.mjs` (5 new, 9 in the file).
+
+Known gaps: the Versions window still only reports; it does not itself offer the update or know whether the operator turned updates on. Reaching PEA updates from the Connections guide still takes "View all settings". A real update from the button has still not been run. The owner's installed copy does not have this fix until it is updated to a release that contains it.
+
+Next action: the owner's try of Connections → PEA updates on `0.1.0-rc.2`; then a release that carries this fix.
+
 ## Test browser start is retried — 2026-11-17
 
 **Branch `fix/retry-test-browser-start`, version `0.1.0-rc.2.dev.2`.** Test setup only; no app or gateway source changed.

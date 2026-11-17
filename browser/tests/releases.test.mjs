@@ -150,3 +150,70 @@ test('the release check says plainly whether this build is behind, current, ahea
   assert.throws(() => releaseStanding({ installed: 'not-a-version', channel: 'stable', latest: 'v1.0.0' }));
   assert.throws(() => releaseStanding({ installed: '1.0.0', channel: 'stable', latest: 'latest' }));
 });
+
+test('the newest published release is found among pre-releases, and only real release pages count', async () => {
+  const { newestRelease, releaseStanding } = await import('../releases.mjs');
+  const repo = 'owner/project';
+  const row = (tag, more = {}) => ({
+    tag_name: tag,
+    draft: false,
+    prerelease: /-/.test(tag),
+    html_url: `https://github.com/${repo}/releases/tag/${tag}`,
+    body: 'notes ' + tag,
+    ...more,
+  });
+  assert.deepEqual(newestRelease([row('v0.1.0-rc.1'), row('v0.1.0-rc.2')], repo), {
+    tag: 'v0.1.0-rc.2',
+    prerelease: true,
+    url: `https://github.com/${repo}/releases/tag/v0.1.0-rc.2`,
+    notes: 'notes v0.1.0-rc.2',
+  });
+  // A stable version outranks its own release candidates, whatever the order of the list.
+  assert.equal(newestRelease([row('v0.1.0-rc.2'), row('v0.1.0'), row('v0.1.0-rc.1')], repo).tag, 'v0.1.0');
+  assert.equal(newestRelease([row('v0.1.0')], repo).prerelease, false);
+  for (const bad of [
+    row('v9.0.0', { draft: true }),
+    row('v9.0.0', { draft: undefined }),
+    row('v9.0.0', { html_url: 'https://github.com/other/project/releases/tag/v9.0.0' }),
+    row('v9.0.0', { html_url: `https://github.com/${repo}/releases/tag/v9.0.0?x=1` }),
+    row('latest'),
+    row('9.0.0'),
+    { tag_name: 9 },
+    null,
+    'v9.0.0',
+  ])
+    assert.equal(newestRelease([bad, row('v0.1.0-rc.1')], repo).tag, 'v0.1.0-rc.1');
+  assert.equal(newestRelease([], repo), null);
+  assert.equal(newestRelease({ tag_name: 'v1.0.0' }, repo), null);
+  assert.equal(newestRelease([row('v1.0.0')], 'not a repository'), null);
+  assert.equal(newestRelease([row('v1.0.0', { body: 7 })], repo).notes, '');
+
+  const offered = releaseStanding({
+    installed: '0.1.0-rc.1.dev.3',
+    channel: 'development',
+    latest: 'v0.1.0-rc.2',
+    prerelease: true,
+  });
+  assert.equal(offered.level, 'update');
+  assert.match(offered.text, /^Available: v0\.1\.0-rc\.2, a pre-release/);
+  assert.match(offered.text, /No installation has started/);
+  const same = releaseStanding({
+    installed: '0.1.0-rc.2',
+    channel: 'prerelease',
+    latest: 'v0.1.0-rc.2',
+    prerelease: true,
+  });
+  assert.equal(same.level, 'info');
+  assert.match(same.text, /No stable version has been published yet; nothing was changed/);
+  const ahead = releaseStanding({
+    installed: '0.1.0-rc.2.dev.2',
+    channel: 'development',
+    latest: 'v0.1.0-rc.2',
+    prerelease: true,
+  });
+  assert.equal(ahead.level, 'info');
+  assert.match(
+    ahead.text,
+    /is ahead of the newest published release, v0\.1\.0-rc\.2, a pre-release\. Nothing was changed/,
+  );
+});
