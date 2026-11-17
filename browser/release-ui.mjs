@@ -4,6 +4,7 @@ import {
   suggestionDraft,
   issueURL,
   compareMain,
+  newestRelease,
   releaseStanding,
 } from './releases.mjs';
 const $ = (id) => document.getElementById(id);
@@ -84,12 +85,26 @@ export async function installReleaseUI() {
     $('release-check').disabled = true;
     note('Checking the configured public upstream. No keys or chats are sent.');
     try {
-      const row = await boundedJSON(`https://api.github.com/repos/${info.repository}/releases/latest`);
-      if (row.draft || row.prerelease || !/^v[0-9A-Za-z.+-]{1,80}$/.test(row.tag_name))
-        throw new Error('No eligible stable release returned.');
+      // A stable build is compared with the latest stable release only. Any other build is
+      // compared with the newest release of either kind, because GitHub's "latest" leaves
+      // pre-releases out and would report nothing while only release candidates exist.
+      let row;
+      if (info.channel === 'stable') {
+        row = await boundedJSON(`https://api.github.com/repos/${info.repository}/releases/latest`);
+        if (row.draft || row.prerelease || !/^v[0-9A-Za-z.+-]{1,80}$/.test(row.tag_name))
+          throw new Error('No eligible stable release returned.');
+        if (row.html_url !== `https://github.com/${info.repository}/releases/tag/${row.tag_name}`)
+          throw new Error('Unexpected release destination.');
+      } else {
+        const newest = newestRelease(
+          await boundedJSON(`https://api.github.com/repos/${info.repository}/releases?per_page=10`),
+          info.repository,
+        );
+        if (!newest) throw new Error('This upstream has not published a release yet. Nothing was changed.');
+        row = { tag_name: newest.tag, prerelease: newest.prerelease, body: newest.notes };
+      }
       const expected = `https://github.com/${info.repository}/releases/tag/${row.tag_name}`;
-      if (row.html_url !== expected) throw new Error('Unexpected release destination.');
-      $('release-notes').textContent = String(row.body ?? 'No release notes.').slice(0, 50000);
+      $('release-notes').textContent = String(row.body || 'No release notes.').slice(0, 50000);
       link('release-upstream', expected);
       // A stable build also checks that its own version is still published. A missing one may
       // have been withdrawn.
@@ -118,18 +133,29 @@ export async function installReleaseUI() {
         channel: info.channel,
         latest: row.tag_name,
         installedPublished,
+        prerelease: row.prerelease === true,
       });
       $('release-note').dataset.level = standing.level;
       note(standing.text);
     } catch (error) {
       note(
         error.message === 'Release information is unavailable.'
-          ? 'Unable to check releases. GitHub may be rate limited or this upstream has no release. Nothing was changed.'
+          ? 'Unable to check releases. GitHub could not be reached or is limiting requests; try again later. Nothing was changed.'
           : error.message,
       );
     } finally {
       $('release-check').disabled = false;
     }
+  };
+  // The way from this window to where an update is installed, so nobody has to know that the
+  // button lives under Connections.
+  $('release-update-open').onclick = () => {
+    $('release-dialog').close();
+    // The same control the guided setup uses to open every setting at once.
+    $('collab-config').click();
+    const group = $('updates-group');
+    group.open = true;
+    group.scrollIntoView({ block: 'start' });
   };
   $('main-check').onclick = async () => {
     if (!info?.repository) return;

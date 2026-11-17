@@ -36,13 +36,57 @@ export function newerVersion(candidate, current) {
   }
   return false;
 }
+// The newest published release in GitHub's list of releases for `repository`, pre-releases
+// included, or null when none is usable. GitHub's "latest release" answer leaves pre-releases out,
+// so a project that has only published release candidates looks as if it had published nothing.
+// A row counts only if it is not a draft, its tag is a version, and its page is that tag's page
+// in this repository.
+export function newestRelease(rows, repository) {
+  if (!Array.isArray(rows) || !validRepository(repository)) return null;
+  let best = null;
+  for (const row of rows.slice(0, 30)) {
+    if (!row || typeof row !== 'object' || row.draft !== false) continue;
+    if (typeof row.tag_name !== 'string' || !/^v[0-9A-Za-z.+-]{1,80}$/.test(row.tag_name)) continue;
+    if (!versionParts(row.tag_name)) continue;
+    if (row.html_url !== `https://github.com/${repository}/releases/tag/${row.tag_name}`) continue;
+    if (best && !newerVersion(row.tag_name, best.tag)) continue;
+    best = {
+      tag: row.tag_name,
+      prerelease: row.prerelease === true,
+      url: row.html_url,
+      notes: typeof row.body === 'string' ? row.body : '',
+    };
+  }
+  return best;
+}
 // What to tell the owner after comparing this build with the published releases. Nothing is ever
 // installed from here. `installedPublished` is true or false when a stable build's own version
 // was looked up, and null when it was not or could not be.
-export function releaseStanding({ installed, channel, latest, installedPublished = null }) {
+// `prerelease` says the newest published release is a release candidate, not a stable version.
+export function releaseStanding({
+  installed,
+  channel,
+  latest,
+  installedPublished = null,
+  prerelease = false,
+}) {
   if (!versionParts(installed) || !versionParts(latest))
     throw new Error('No eligible stable release returned.');
   const shown = latest.startsWith('v') ? latest : 'v' + latest;
+  if (prerelease) {
+    if (newerVersion(latest, installed))
+      return {
+        level: 'update',
+        text: `Available: ${shown}, a pre-release for trying out. Read its notes first. Where the person who runs this PEA has turned it on, Connections → PEA updates installs it after your review; otherwise use the update command. No installation has started.`,
+      };
+    return {
+      level: 'info',
+      text:
+        installed.replace(/^v/, '') === shown.slice(1)
+          ? `This copy is the newest published release, ${shown}, a pre-release. No stable version has been published yet; nothing was changed.`
+          : `This ${channel} build (${installed}) is ahead of the newest published release, ${shown}, a pre-release. Nothing was changed.`,
+    };
+  }
   if (channel === 'stable' && installedPublished === false)
     return {
       level: 'warning',
@@ -51,7 +95,7 @@ export function releaseStanding({ installed, channel, latest, installedPublished
   if (newerVersion(latest, installed))
     return {
       level: 'update',
-      text: `Available: ${shown}. Review notes, download the signed package, then stage and activate locally when ready. No installation has started.`,
+      text: `Available: ${shown}. Read its notes first. Where the person who runs this PEA has turned it on, Connections → PEA updates installs it after your review; otherwise download the signed package, then stage and activate it locally. No installation has started.`,
     };
   if (newerVersion(installed, latest))
     return channel === 'stable'
