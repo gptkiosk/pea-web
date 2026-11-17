@@ -23,6 +23,24 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Portable backup, part 1: the format — 2026-11-16
+
+**Branch `feature/portable-backup`, development identity `0.1.0-dev.50`.** Owner's choices: Web defines the shared format (the iPhone's own backup format is not available to read); one file per profile carrying interview answers and memories, to-dos, her history and days, and deck projects; combining adds what is missing and never changes or removes; the file is downloaded and chosen by hand. This pull request is the rules, the test files and the contract page only. Nothing in the app calls it yet.
+
+- `browser/backup.mjs` (pure): `backupFormat` (`pea-backup-v1`), `backupLimits`; `validBackup(content)` (exactly eight fields; each item is checked by the app's own rule for its saved copy: `validIntroduction`, `validTodo`, `validSavedCanon`, `validSavedDays`, `validSavedDecks`); `gatherBackup({...})` (app shapes to the travelling shape, one profile, no ids); `sealBytes`, `sealBackup`, `openBackup` (PBKDF2-SHA-256 600,000 rounds, AES-256-GCM, format name authenticated; one refusal message for every fault); `planRestore(current, incoming, { now, memoryRoom })` (additions only, with `same`, `differ`, `noRoom`, `skipped` per section); `describeBackup`, `describeRestore`.
+- `browser/tests/fixtures/BackupFixtures.json`, version 1: 5 accepted and 36 refused files. It was produced by a script kept outside the repository, from `backup.mjs` with fixed salts; the vectors therefore prove the reader agrees with the writer, not that an independent implementation agrees with either.
+- `browser/docs/CONTRACTS.md`: "The backup file". `browser/tests/fixtures/README.md` updated.
+- Tests: 3 contract tests in `browser/tests/backup-contract.test.mjs`, 4 unit tests in `browser/tests/backup.test.mjs`.
+
+Known gaps:
+
+- No buttons. Part 2 must gather from, and add to, five stores: the encrypted library (answers and memories, which needs the library unlocked and a conversation to hold brought-in quotes, because a saved memory must cite a saved message), the to-do store, and the three `localStorage` stores for cards, lines and decks.
+- The iPhone app has not seen this format. Nothing here is "iPhone-readable" until its own change adopts it; until then the file moves a profile between browsers only.
+- No second implementation has checked the fixtures. No file in the PEA Drive folder, no automatic sync, no merge beyond adding.
+- A brought-in memory keeps its expiry from the other device; an expired one is left out.
+
+Next action: part 2, the Back up and Bring in buttons with their reviews, and browser tests that move a profile from one browser context to another.
+
 ## Deck projects — 2026-11-16
 
 **Branch `feature/deck-projects`, development identity `0.1.0-dev.49`.** Owner's choices: I design it for Web (the iPhone's behavior was not described and its source was not read); a finished deck is a file to download, not Google Slides.
@@ -41,7 +59,7 @@ Known gaps:
 - A reply cut off by the 3,500-token cap loses its last slides, and then nothing is kept; ten wordy slides could reach it.
 - English-only wording in the prompts and the file.
 
-Next action: iPhone-readable backup and reviewed synchronization, the last item in the parity sequence, or acceptance tries with real accounts, keys and a real model.
+Next action: started in the section above.
 
 ## Voice providers, part 2: settings and read-aloud — 2026-11-16
 
