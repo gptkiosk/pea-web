@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.49] - 2026-11-16
+
+### Added
+
+- Deck projects, in Greenhouse. Give a deck a title, say what it is for and choose 3 to 10 slides. Your Chat model writes an outline in one request that you review first, and you read the outline before it is kept. A second reviewed request writes the points and speaker notes for each slide, which you also read before they are kept. You can rename, rewrite or delete any slide yourself. When every slide has a point, **Download the deck** gives one file that opens in any browser, moves a slide at a time and prints to a PDF, with speaker notes on screen and left out of print. Only the title, your brief and the outline are sent to your model. Work and Personal each keep up to 12 projects in this browser, without encryption. Nothing is created in Google or any other account.
+
 ## [0.1.0-dev.48] - 2026-11-16
 
 ### Added

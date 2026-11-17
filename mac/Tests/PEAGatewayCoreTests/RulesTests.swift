@@ -320,7 +320,7 @@ final class RulesTests: XCTestCase {
     }
 
     func testTheContractListsOnlyOrdinaryFileNamesAndIsComplete() throws {
-        XCTAssertEqual(contract.assets.count, 48)
+        XCTAssertEqual(contract.assets.count, 50)
         XCTAssertTrue(contract.assets.contains("app.mjs"))
         XCTAssertEqual(contract.headers.map(\.name).first, "Cache-Control")
         XCTAssertTrue(contract.headers.contains { $0.name == "Content-Security-Policy" && $0.value.contains("default-src") })

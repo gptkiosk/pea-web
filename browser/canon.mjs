@@ -62,7 +62,7 @@ export const historyRequest = 'Write the cards now, as the JSON array only.';
 
 // The complete objects at the top level of the first JSON array in a reply. A reply cut short
 // still gives the cards that arrived whole.
-function objects(raw) {
+export function objects(raw) {
   const start = raw.indexOf('[');
   if (start < 0) return [];
   const found = [];

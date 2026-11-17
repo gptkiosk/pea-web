@@ -16,6 +16,8 @@
     "connections.mjs",
     "days-ui.mjs",
     "days.mjs",
+    "decks-ui.mjs",
+    "decks.mjs",
     "documents.mjs",
     "dragdrop-ui.mjs",
     "dragdrop.mjs",

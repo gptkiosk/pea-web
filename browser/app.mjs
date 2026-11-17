@@ -40,6 +40,7 @@ import { installHome } from './home-ui.mjs';
 import { installCanon } from './canon-ui.mjs';
 import { installDays } from './days-ui.mjs';
 import { installSpeech } from './speech-ui.mjs';
+import { installDecks } from './decks-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -67,7 +68,7 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory, todos, research, weather, headlines, home, canon, days, speech;
+let live, board, voice, memory, todos, research, weather, headlines, home, canon, days, speech, decks;
 // Ends reading aloud, whichever voice is doing it.
 function stopVoices() {
   globalThis.speechSynthesis?.cancel();
@@ -942,6 +943,7 @@ $('profile').onchange = () => {
   board.profileChanged();
   canon?.render();
   days?.render();
+  decks?.render();
   todos.profileChanged();
   research.profileChanged();
   memory.profileChanged();
@@ -1438,6 +1440,14 @@ canon = installCanon({
   isBusy: live.isBusy,
   key: live.localKey,
   read: live.readPage,
+});
+// Deck projects in Greenhouse: an outline, then slides, each from one reviewed request.
+decks = installDecks({
+  profile: () => profile,
+  review: live.review,
+  run: live.run,
+  compose: live.compose,
+  isBusy: live.isBusy,
 });
 // Provider voices for reading aloud, through the owner's gateway with the owner's key.
 speech = installSpeech({
