@@ -39,6 +39,7 @@ import { installHeadlines } from './feeds-ui.mjs';
 import { installHome } from './home-ui.mjs';
 import { installCanon } from './canon-ui.mjs';
 import { installDays } from './days-ui.mjs';
+import { installSpeech } from './speech-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -66,7 +67,12 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory, todos, research, weather, headlines, home, canon, days;
+let live, board, voice, memory, todos, research, weather, headlines, home, canon, days, speech;
+// Ends reading aloud, whichever voice is doing it.
+function stopVoices() {
+  globalThis.speechSynthesis?.cancel();
+  speech?.stop();
+}
 // Replies written while a web page was shared, and proposals to read a page that were carried out.
 const sourcedReplies = new Set(),
   readDone = new Set();
@@ -218,7 +224,7 @@ function notice(message) {
 function stopSpeaking() {
   if ($('speech-length')?.open) $('speech-length').close();
   voice?.stop();
-  globalThis.speechSynthesis?.cancel();
+  stopVoices();
 }
 // Going to a workspace. On a wide screen it may already be on screen beside another one.
 function tab(next) {
@@ -909,7 +915,7 @@ for (const b of document.querySelectorAll('[data-prompt]'))
 $('profile').onchange = () => {
   if ($('speech-length').open) $('speech-length').close();
   voice?.stop();
-  globalThis.speechSynthesis?.cancel();
+  stopVoices();
   profile = $('profile').value;
   notice('');
   for (const id of [
@@ -1022,7 +1028,7 @@ async function submit(surface) {
 $('chat-stop').onclick = () => {
   if ($('speech-length').open) $('speech-length').close();
   voice?.stop();
-  globalThis.speechSynthesis?.cancel();
+  stopVoices();
   $('request-stop').click();
 };
 $('composer').onsubmit = (e) => {
@@ -1322,7 +1328,7 @@ for (const [button, route, group, input] of [
             ? 'Connect Google workspace'
             : route === 'github'
               ? 'Connect GitHub'
-              : 'Voice provider availability';
+              : 'Choose a provider voice';
     $('guided-description').textContent =
       route === 'router'
         ? 'Enter your OpenRouter API key, load the available models, then choose your Chat model below. Review costs and data terms before you send a message.'
@@ -1332,7 +1338,7 @@ for (const [button, route, group, input] of [
             ? 'Choose optional previews, enter your Web OAuth client ID, and review Google’s requested access before connecting. PEA enforces the selected folder boundary in the app.'
             : route === 'github'
               ? 'Choose a repository and create a fine-grained token limited to it. PEA can prepare a reviewed draft pull request; it does not merge it.'
-              : 'Fish Audio and ElevenLabs will need their own voice integrations before keys can be used in PEA Web.';
+              : 'Reading aloud can use your own ElevenLabs or Fish Audio key through your PEA gateway. Connect the gateway under Local model first. Each read-aloud is billed by the provider, and you review that before the first one.';
     $(group).open = true;
     requestAnimationFrame(() => {
       (input ? $(input) : $(group).querySelector('summary')).focus({ preventScroll: true });
@@ -1415,7 +1421,7 @@ memory = installMemory({
     openReady.clear();
     live.forgetDocument();
     voice?.stop();
-    globalThis.speechSynthesis?.cancel();
+    stopVoices();
     for (const key of Object.keys(chats)) delete chats[key];
     for (const id of ['thought', 'collab-thought']) $(id).value = '';
     renderChat();
@@ -1432,6 +1438,15 @@ canon = installCanon({
   isBusy: live.isBusy,
   key: live.localKey,
   read: live.readPage,
+});
+// Provider voices for reading aloud, through the owner's gateway with the owner's key.
+speech = installSpeech({
+  voices: live.voices,
+  speak: live.speak,
+  localKey: live.localKey,
+  profile: () => profile,
+  review: live.review,
+  notice,
 });
 // Her days: dated lines about the character's own life. Kept in this browser, Personal only.
 days = installDays({
@@ -1518,7 +1533,7 @@ $('device-voice-preview').onclick = () => {
     return;
   }
   voice.stop();
-  speechSynthesis.cancel();
+  stopVoices();
   speechSynthesis.speak(configureSpeech(new SpeechSynthesisUtterance('Hello! Ready when you are.')));
 };
 globalThis.speechSynthesis?.addEventListener?.('voiceschanged', updateVoiceControls);
@@ -1627,7 +1642,7 @@ for (const field of document.querySelectorAll(
 }
 $('interview').addEventListener('close', () => {
   if (voiceTarget?.startsWith('bio-')) voice.stop();
-  globalThis.speechSynthesis?.cancel();
+  stopVoices();
 });
 for (const id of ['interview-back', 'interview-next', 'interview-save'])
   $(id).addEventListener('click', () => {
@@ -1729,11 +1744,18 @@ function playReply(selection, short = false) {
     return;
   }
   const text = short ? selection.excerpt : (selection.spoken ?? selection.text);
+  if (speech?.chosen()) {
+    void speech.read(text);
+    return;
+  }
   const utterance = configureSpeech(new SpeechSynthesisUtterance(text), presenceAt(memory.presence()));
   globalThis.speechSynthesis.speak(utterance);
   notice('Reading with your browser/device voice. Stop ends playback.');
 }
 $('speech-length').addEventListener('close', () => {
+  // Closing is reported a moment later. If the choice has been opened again by then, that late
+  // report belongs to the previous time and must not empty this one.
+  if ($('speech-length').open) return;
   pendingSpeech = null;
   $('speech-excerpt').textContent = '';
 });
@@ -1760,11 +1782,12 @@ for (const [id, surface] of [
       notice('There is no completed reply to read yet.');
       return;
     }
-    if (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) {
+    // A chosen provider voice is used on its own terms; it is never swapped for the device voice.
+    if (!speech?.chosen() && (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance)) {
       notice('Device speech is unavailable in this browser.');
       return;
     }
-    globalThis.speechSynthesis.cancel();
+    stopVoices();
     // Copy boxes are never read aloud; only the prose around them is.
     const spoken = spokenReply(reply.text);
     if (!spoken) {
@@ -1785,7 +1808,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if ($('speech-length').open) $('speech-length').close();
     voice.stop();
-    globalThis.speechSynthesis?.cancel();
+    stopVoices();
   }
 });
 window.addEventListener('pagehide', () => voice.stop());

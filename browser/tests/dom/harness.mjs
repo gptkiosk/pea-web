@@ -172,6 +172,59 @@ export async function startFakeSite(answer) {
   };
 }
 
+// Stand-in voice providers, reached only through the gateway's test option. `answer(request)`
+// gets { method, path, headers, body } and returns { status, type, data }; every request is kept.
+// `shortSound` is a fifth of a second of silence a browser can play.
+export function shortSound() {
+  const samples = 1600,
+    wav = Buffer.alloc(44 + samples * 2);
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(36 + samples * 2, 4);
+  wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24);
+  wav.writeUInt32LE(16000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(samples * 2, 40);
+  return wav;
+}
+export async function startFakeVoices(answer) {
+  const requests = [];
+  const server = createServer((request, response) => {
+    const parts = [];
+    request.on('data', (chunk) => parts.push(chunk));
+    request.on('end', () => {
+      const seen = {
+        method: request.method,
+        path: request.url,
+        headers: request.headers,
+        body: Buffer.concat(parts).toString('utf8'),
+      };
+      requests.push(seen);
+      const plan = answer(seen) ?? { status: 404, type: 'application/json', data: '{}' };
+      response.writeHead(plan.status ?? 200, {
+        'Content-Type': plan.type ?? 'audio/mpeg',
+        Connection: 'close',
+      });
+      response.end(plan.data ?? '');
+    });
+  });
+  const port = await listen(server);
+  return {
+    port,
+    requests,
+    close: () =>
+      new Promise((resolve) => {
+        server.close(resolve);
+        server.closeAllConnections();
+      }),
+  };
+}
+
 // Which gateway serves the app under test. PEA_GATEWAY=swift runs the Mac app's gateway (built
 // beforehand with `swift build --package-path mac`, or named by PEA_GATEWAY_BINARY), so the whole
 // browser suite checks it serves the app exactly as the Python one does.
@@ -432,6 +485,8 @@ export async function launchBrowser() {
     '--remote-debugging-port=0',
     '--user-data-dir=' + profile,
     '--no-first-run',
+    // A test's click is not a person's, so sound would otherwise be held back and never play.
+    '--autoplay-policy=no-user-gesture-required',
     '--no-default-browser-check',
     '--disable-gpu',
     '--disable-background-networking',
@@ -552,7 +607,7 @@ export async function launchBrowser() {
 }
 
 // The whole synthetic stack for one test file: model, gateway and browser, stopped together.
-export async function startStack(reply, { site = null } = {}) {
+export async function startStack(reply, { site = null, voices = null } = {}) {
   const parts = {};
   const close = async () => {
     // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
@@ -561,6 +616,7 @@ export async function startStack(reply, { site = null } = {}) {
       parts.gateway?.close(),
       parts.model?.close(),
       parts.site?.close(),
+      parts.voices?.close(),
     ]);
   };
   // Starting must finish well inside a test hook's own time limit. If it does not, everything
@@ -578,6 +634,13 @@ export async function startStack(reply, { site = null } = {}) {
       for (const name of site.names ?? []) reader.push('--reader-test-site', `${name}=${parts.site.port}`);
       for (const [name, addresses] of Object.entries(site.resolve ?? {}))
         reader.push('--reader-test-resolve', `${name}=${addresses}`);
+    }
+    // `voices` answers for both voice providers in place of the real ones.
+    if (voices) {
+      parts.voices = await startFakeVoices(voices);
+      if (abandoned) return;
+      for (const provider of ['elevenlabs', 'fish'])
+        reader.push('--speech-test-port', `${provider}=${parts.voices.port}`);
     }
     parts.gateway = await startGateway(parts.model.port, reader);
     if (abandoned) return;
