@@ -520,7 +520,22 @@ class Page {
   }
 }
 
+// A loaded test machine now and then fails to bring a browser up in time. That is a failure of the
+// test setup, not of the app: it is tried again with a fresh profile, and a browser that still does
+// not start fails the test with its own words.
+const browserStartFailures = ['Chrome did not start', 'Chrome exited', 'Could not reach Chrome'];
 export async function launchBrowser() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await launchBrowserOnce();
+    } catch (error) {
+      const message = String(error.message);
+      if (attempt >= 3 || !browserStartFailures.some((start) => message.startsWith(start))) throw error;
+      console.error(`Browser start tried again (${attempt}): ${message}`);
+    }
+  }
+}
+async function launchBrowserOnce() {
   const profile = mkdtempSync(join(tmpdir(), 'pea-chrome-'));
   const flags = [
     '--headless=new',
@@ -553,7 +568,10 @@ export async function launchBrowser() {
         resolve(match[1]);
       }
     });
-    child.once('exit', () => reject(new Error('Chrome exited: ' + log.slice(-400))));
+    child.once('exit', () => {
+      clearTimeout(timer);
+      reject(new Error('Chrome exited: ' + log.slice(-400)));
+    });
   }).catch(async (error) => {
     await stop(child);
     remove(profile);
@@ -565,6 +583,7 @@ export async function launchBrowser() {
     socket.onerror = () => reject(new Error('Could not reach Chrome.'));
   }).catch(async (error) => {
     await stop(child);
+    remove(profile);
     throw error;
   });
   // If the browser goes away, every waiting command fails at once instead of waiting forever.
@@ -621,7 +640,18 @@ export async function launchBrowser() {
     // Each page gets its own storage, so one test cannot see another's saved data.
     // `beside` opens another tab that shares that page's storage, as a second tab of the same
     // browser would.
+    // Opening a blank page is setup too: if the browser is slow to answer, it is tried once more
+    // before any test step has run. Nothing of the app has loaded yet, so a retry hides nothing.
     async newPage(beside = null) {
+      try {
+        return await browser.openPage(beside);
+      } catch (error) {
+        if (!String(error.message).startsWith('The browser did not answer')) throw error;
+        console.error(`Page setup tried again: ${error.message}`);
+        return browser.openPage(beside);
+      }
+    },
+    async openPage(beside) {
       const { browserContextId } = beside
         ? { browserContextId: beside.contextId }
         : await browser.send('Target.createBrowserContext');

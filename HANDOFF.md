@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Test browser start is retried — 2026-11-17
+
+**Branch `fix/retry-test-browser-start`, version `0.1.0-rc.2.dev.2`.** Test setup only; no app or gateway source changed.
+
+- Cause: on 2026-11-17 the checks on main failed after #62 with no code fault. `web`: 43 of 109 browser-level tests failed with "Chrome did not start". `mac`: 3 failed with "The browser did not answer" on `Target.createBrowserContext` and `Page.enable`. Both passed unchanged on a re-run. The limit of four test files at a time, added in `0.1.0-rc.2`, had not prevented it.
+- `browser/tests/dom/harness.mjs`: `launchBrowser` tries up to three times when the browser does not start, exits early or cannot be reached, each time with a fresh profile; `newPage` tries opening a blank page once more when the browser does not answer. Both retries happen before any app page loads. The start timer is now cleared when the browser exits, and a failed connection removes its profile folder.
+- `browser/tests/dom/harness.test.mjs` (2 tests): a stand-in browser program that fails twice is started a third time and works; one that never starts fails after exactly three tries with its own words.
+
+Known gaps: the retry of a slow blank page has no test of its own. Whether this ends the failures on hosted runners can only be seen over later runs. A command that times out after an app page has loaded is not retried, on purpose.
+
+Next action: unchanged from the section below.
+
 ## Second release candidate published — 2026-11-17
 
 **Branch `chore/back-to-development-rc.2.dev.1`, version `0.1.0-rc.2.dev.1`, channel `development`.**

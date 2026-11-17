@@ -88,6 +88,7 @@
   "tests/dom/headlines.test.mjs",
   "tests/dom/handoff.test.mjs",
   "tests/dom/harness.mjs",
+  "tests/dom/harness.test.mjs",
   "tests/dom/home.test.mjs",
   "tests/dom/honesty.test.mjs",
   "tests/dom/mac-reminders.test.mjs",
