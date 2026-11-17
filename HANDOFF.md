@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Second release candidate published — 2026-11-17
+
+**Branch `chore/back-to-development-rc.2.dev.1`, version `0.1.0-rc.2.dev.1`, channel `development`.**
+
+- `0.1.0-rc.2` was merged (#61), tagged `v0.1.0-rc.2` on commit `250e9972396e00c3bd508c1f0f9f90b4fc341c82`, built with `releases.py build`, signed by the assistant through the owner's unlocked `ssh-agent`, verified against `browser/server/allowed_signers`, rehearsed with `releases.py init` and `stage`, and published as a GitHub pre-release after the owner confirmed. The published files were downloaded back and verified.
+- SHA-256: archive `15c86a3c5db7517adca3575a38866def1b0f5f3f35ad45ef1f8525cfd42b9f2c`, manifest `ed1cf2ed0de4d61dfd459f115ab821b607f31d8423cf9a1d1031f4a156fb1be6`.
+- `update.py check` on the release channel with pre-releases reported `0.1.0-rc.2` as available with a trusted signature and matching tag. Nothing was installed by that check.
+- This change only returns `browser/release.json` and `browser/CHANGELOG.md` to development numbering.
+
+Known gaps: no real update has yet been started from the Update button; no release has been withdrawn for real; nothing is accepted against a real model, account or provider key.
+
+Next action: the owner presses Check for updates and Update on a copy that follows signed pre-releases, and reports what happened.
+
 ## Second release candidate prepared — 2026-11-17
 
 **Branch `release/0.1.0-rc.2`, version `0.1.0-rc.2`, channel `prerelease`.** Cut so the owner can try the Update button on their installed copy, which was restarted that day with the update options (signed releases, including pre-releases). Version and changelog were chosen by the assistant, as the owner instructed.
