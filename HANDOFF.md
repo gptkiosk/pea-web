@@ -23,6 +23,24 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Withdrawing a release — 2026-11-17
+
+**Branch `feature/withdraw-release`, development identity `0.1.0-rc.1.dev.2`.** First of the two additions the owner asked for after the signed channel ("add these": an Update button in the app, and a way to withdraw a release). The button is the next pull request.
+
+- `browser/server/releases.py`: `read_notice`, `verify_notice`, `withdraw` and the `withdraw` command. The list is `browser/server/withdrawn.json` (`schema, product, kind: "withdrawn-releases", serial, withdrawn: {version: {reason, date}}`) with `withdrawn.json.sig`, same key and namespace as a release manifest. A manifest cannot pass as a list or a list as a manifest: each has fields the other check requires.
+- `browser/server/update.py`: `withdrawals(checkout, state)` fetches main, reads both files from `refs/remotes/origin/main`, verifies with the checkout's own `allowed_signers`, and keeps the highest serial seen in `<state>/withdrawn-serial`. `find_release` drops withdrawn versions, reports a withdrawn installed version, and with `--allow-older` returns the newest good release behind it (`back`). The ancestry check runs in whichever direction applies.
+- No list exists yet in this repository, which means nothing is withdrawn.
+- Tests: 3 more in `test_update.py` (18): a withdrawn release never offered and its users told, going back only on request; unsigned, wrongly signed, wound-back and vanished lists refused; a manifest and a list not interchangeable.
+
+Known gaps:
+
+- Never used for real: no release has been withdrawn.
+- The development channel ignores the list.
+- The app's own "Check for updates" notice does not read the list; it still infers withdrawal from a version missing on GitHub.
+- A copy that has never seen a list accepts there being none. Only after it has seen one does a missing list stop it.
+
+Next action: the Update button in the app.
+
 ## First signed release published, and a signed update channel — 2026-11-17
 
 **Branch `feature/signed-update-channel`, development identity `0.1.0-rc.1.dev.1`.**

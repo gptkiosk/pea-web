@@ -60,6 +60,23 @@ A copy already on the newest release, or already newer than it (a development bu
 
 The trust anchor is the signer file in your own checkout. If the project ever changes its release key, replace that file by hand from a source you trust before using this channel; the command will not accept a new key on the say-so of a release.
 
+## Withdrawing a release
+
+A release that must not be installed is withdrawn by the publisher, in the open:
+
+```sh
+python3 browser/server/releases.py withdraw --version X.Y.Z --reason "Short reason"
+ssh-keygen -Y sign -f /secure/location/pea-web-release-key -n pea-release browser/server/withdrawn.json
+```
+
+The first command adds the version to `browser/server/withdrawn.json` and raises the list's serial number; the second signs the list, replacing `withdrawn.json.sig`. Both files are then merged to the official main branch through a reviewed pull request. The release's page on GitHub should also say it was withdrawn; its files can stay for the record.
+
+On the signed channel, `update.py` reads that list from the official main branch each time and verifies it with the signer file in your own checkout. A withdrawn release is never offered. If you are on one, `check` and `apply` say so with the publisher's reason, and offer the next good release as usual. If nothing newer is published, add `--allow-older` to go back to the newest release that was not withdrawn; an older program may refuse data saved by a newer one, so make backups first.
+
+The list cannot be forged or wound back unnoticed: an unsigned list, one signed by another key, one with a lower serial number than your machine has already seen, or a list that has disappeared after your machine saw one, each stops the signed channel with an explanation and changes nothing. The development channel does not consult the list.
+
+This is separate from `releases.py revoke` below, which is your own note on your own machine for a staged package.
+
 ## Updating a checkout on the development channel
 
 An owner who runs PEA Web from a git checkout of the official repository, kept running by a launchd job, can update it with one command. It is separate from the signed-release manager above and less strict: it trusts the official repository over HTTPS and names an exact commit, and it checks no signature. Use it to follow development; use signed releases when they exist and you want that assurance.

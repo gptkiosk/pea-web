@@ -13,6 +13,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import releases
 import update
 from build_identity import build_identity
 
@@ -309,6 +310,92 @@ class SignedChannelChecks(unittest.TestCase):
         run(self.installed, 'commit', '-q', '-am', 'Remove the signer')
         with self.assertRaisesRegex(update.Refusal, 'no release signer to check against'):
             self.find()
+
+    def notice(self, version, reason='Synthetic fault.', signer='signer', sign=True):
+        """The publisher lists a version as withdrawn on the official main branch."""
+        path = self.official / 'browser' / 'server' / 'withdrawn.json'
+        serial = releases.withdraw(path, version, reason, '2026-11-17')
+        signature = Path(str(path) + '.sig')
+        signature.unlink(missing_ok=True)
+        if sign:
+            subprocess.run(['ssh-keygen', '-Y', 'sign', '-f', str(self.keys / signer), '-n', 'pea-release', str(path)], check=True, capture_output=True)
+        run(self.official, 'add', '-A'); run(self.official, 'commit', '-q', '-m', f'Withdraw {version}')
+        return serial
+
+    def test_a_withdrawn_release_is_never_offered_and_its_users_are_told(self):
+        state = Path(self.tmp.name) / 'state'
+        self.assertEqual(update.withdrawals(self.installed, state), {}, 'no list yet means nothing is withdrawn')
+        second = release(self.official, '0.2.0', channel='stable')
+        third = release(self.official, '0.3.0', channel='stable')
+        self.publish('0.2.0', second)
+        self.publish('0.3.0', third)
+        self.assertEqual(self.notice('0.3.0', 'Breaks  saved\tboards.'), 1)
+        listed = update.withdrawals(self.installed, state)
+        self.assertEqual(listed, {'0.3.0': 'Breaks saved boards.'})
+        self.assertEqual((state / 'withdrawn-serial').read_text(), '1')
+        target = self.find(withdrawn=listed)
+        self.assertEqual((target['tag'], target['commit']), ('v0.2.0', second), 'the newest release that was not withdrawn')
+        # A copy already on the withdrawn release is told, and goes back only when asked to.
+        run(self.installed, 'fetch', '-q', 'origin', 'main'); run(self.installed, 'reset', '-q', '--keep', third)
+        stuck = self.find(withdrawn=listed)
+        self.assertEqual((stuck.get('newer'), stuck['withdrawn'], stuck['commit']), (True, 'Breaks saved boards.', third))
+        back = self.find(withdrawn=listed, allow_older=True)
+        self.assertEqual((back['commit'], back['back'], back['ahead'], back['withdrawn']), (second, True, 1, 'Breaks saved boards.'))
+        # A newer good release is simply offered, with the warning.
+        fourth = release(self.official, '0.4.0', channel='stable')
+        self.publish('0.4.0', fourth)
+        forward = self.find(withdrawn=listed)
+        self.assertEqual((forward['commit'], forward.get('back'), forward['withdrawn']), (fourth, False, 'Breaks saved boards.'))
+        self.listed[:] = [row for row in self.listed if row['tag_name'] == 'v0.3.0']
+        with self.assertRaisesRegex(update.Refusal, 'No published release is available.*withdrawn by the publisher: Breaks saved boards'):
+            self.find(withdrawn=listed)
+
+    def test_the_withdrawal_list_must_be_signed_and_can_never_go_backwards(self):
+        state = Path(self.tmp.name) / 'state'
+        self.notice('0.9.0', signer='stranger')
+        with self.assertRaisesRegex(update.Refusal, 'not signed by the release key this copy trusts'):
+            update.withdrawals(self.installed, state)
+        self.notice('0.9.1', sign=False)
+        with self.assertRaisesRegex(update.Refusal, 'not signed by the release key'):
+            update.withdrawals(self.installed, state)
+        self.assertFalse((state / 'withdrawn-serial').exists(), 'an unverified list is not remembered')
+        self.notice('0.9.2')
+        self.assertEqual(sorted(update.withdrawals(self.installed, state)), ['0.9.0', '0.9.1', '0.9.2'])
+        self.assertEqual((state / 'withdrawn-serial').read_text(), '3')
+        # The publisher's repository is wound back to an earlier, validly signed list.
+        earlier = run(self.official, 'rev-parse', 'HEAD~1')
+        good = run(self.official, 'rev-parse', 'HEAD')
+        run(self.official, 'reset', '-q', '--hard', earlier)
+        (self.official / 'browser' / 'server' / 'withdrawn.json').write_text(json.dumps(
+            {'schema': 1, 'product': 'pea-web', 'kind': 'withdrawn-releases', 'serial': 1, 'withdrawn': {}}))
+        subprocess.run(['ssh-keygen', '-Y', 'sign', '-f', str(self.keys / 'signer'), '-n', 'pea-release',
+                        str(self.official / 'browser' / 'server' / 'withdrawn.json')], check=True, capture_output=True)
+        run(self.official, 'add', '-A'); run(self.official, 'commit', '-q', '-m', 'An older list')
+        with self.assertRaisesRegex(update.Refusal, 'older than one this machine has already seen'):
+            update.withdrawals(self.installed, state)
+        run(self.official, 'rm', '-q', 'browser/server/withdrawn.json', 'browser/server/withdrawn.json.sig'); run(self.official, 'commit', '-q', '-m', 'No list')
+        with self.assertRaisesRegex(update.Refusal, 'is no longer published'):
+            update.withdrawals(self.installed, state)
+        self.assertTrue(good)
+
+    def test_a_signed_release_manifest_cannot_pass_as_a_withdrawal_list_or_the_reverse(self):
+        for bad in ({'schema': 1, 'product': 'pea-web', 'kind': 'withdrawn-releases', 'serial': 1, 'withdrawn': {'not a version': {'reason': 'x', 'date': '2026-11-17'}}},
+                    {'schema': 1, 'product': 'pea-web', 'kind': 'withdrawn-releases', 'serial': -1, 'withdrawn': {}},
+                    {'schema': 1, 'product': 'pea-web', 'kind': 'withdrawn-releases', 'serial': 1, 'withdrawn': {'1.0.0': {'reason': 'x'}}},
+                    {'schema': 1, 'product': 'pea-web', 'kind': 'release', 'serial': 1, 'withdrawn': {}},
+                    {'schema': 1, 'product': 'pea-web', 'version': '1.0.0', 'commit': 'a' * 40, 'channel': 'stable', 'files': {}}, []):
+            with self.assertRaises(ValueError, msg=str(bad)[:60]):
+                releases.read_notice(json.dumps(bad))
+        path = Path(self.tmp.name) / 'list.json'
+        self.assertEqual(releases.withdraw(path, '1.0.0', 'First.', '2026-11-17'), 1)
+        self.assertEqual(releases.withdraw(path, '1.0.1', 'Second.', '2026-11-18'), 2)
+        with self.assertRaisesRegex(ValueError, 'not already withdrawn'):
+            releases.withdraw(path, '1.0.0', 'Again.', '2026-11-19')
+        with self.assertRaises(ValueError):
+            releases.withdraw(path, 'one', 'Bad version.', '2026-11-19')
+        subprocess.run(['ssh-keygen', '-Y', 'sign', '-f', str(self.keys / 'signer'), '-n', 'pea-release', str(path)], check=True, capture_output=True)
+        with self.assertRaises(ValueError):
+            releases.verify_signature(path, Path(str(path) + '.sig'), self.official / 'browser' / 'server' / 'allowed_signers')
 
     def test_only_github_addresses_are_read_and_release_rows_must_be_exact(self):
         for url in ('http://github.com/a/b', 'https://example.invalid/x', 'https://github.com.evil.example/a', 'https://api.github.com/../x y'):

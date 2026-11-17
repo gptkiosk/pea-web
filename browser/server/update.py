@@ -150,7 +150,7 @@ def published(repository, read=download):
     return found
 
 
-def find_release(installed, *, prerelease=False, read=download):
+def find_release(installed, *, prerelease=False, read=download, withdrawn=None, allow_older=False):
     """The newest published release this copy may move to, proven by the signer this checkout trusts.
 
     Only the signed manifest and its signature are downloaded, never the package: the files come
@@ -160,9 +160,12 @@ def find_release(installed, *, prerelease=False, read=download):
     signers = checkout / 'browser' / 'server' / 'allowed_signers'
     if not signers.is_file() or signers.is_symlink():
         raise Refusal('This copy has no release signer to check against (browser/server/allowed_signers). It is too old for signed updates; update it once on the development channel.')
-    rows = [r for r in published(installed['repository'], read) if prerelease or not r['prerelease']]
+    withdrawn = withdrawn or {}
+    mine = withdrawn.get(installed['version'])
+    rows = [r for r in published(installed['repository'], read) if (prerelease or not r['prerelease']) and r['tag'][1:] not in withdrawn]
     if not rows:
-        raise Refusal('No published release is available' + ('.' if prerelease else '. Pre-releases are considered only with --prerelease.'))
+        raise Refusal('No published release is available' + ('.' if prerelease else '. Pre-releases are considered only with --prerelease.')
+                      + (f" The installed release was withdrawn by the publisher: {mine}" if mine else ''))
     newest = max(rows, key=lambda r: releases.version_key(r['tag'][1:]))
     tag, version = newest['tag'], newest['tag'][1:]
     with tempfile.TemporaryDirectory() as folder:
@@ -178,20 +181,61 @@ def find_release(installed, *, prerelease=False, read=download):
     commit = signed['commit']
     if commit == installed['commit']:
         return {'commit': commit, 'version': version, 'tag': tag, 'ahead': 0, 'notes': []}
-    if releases.version_key(version) <= releases.version_key(installed['version']):
-        return {'commit': installed['commit'], 'version': installed['version'], 'tag': tag, 'ahead': 0, 'notes': [], 'newer': True}
+    older = releases.version_key(version) <= releases.version_key(installed['version'])
+    if older and not (mine and allow_older):
+        return {'commit': installed['commit'], 'version': installed['version'], 'tag': tag, 'ahead': 0, 'notes': [], 'newer': True, 'withdrawn': mine}
     # The tag must be exactly the commit that was signed. A tag that was moved afterwards is refused.
     git(checkout, 'fetch', '--no-tags', 'origin', f'+refs/tags/{tag}:refs/pea-update/{tag}')
     if git(checkout, 'rev-parse', f'refs/pea-update/{tag}^{{commit}}') != commit:
         raise Refusal(f'The tag {tag} does not point at the commit its signature names. Nothing was changed.')
+    # Forward only, except when leaving a withdrawn release for the newest good one before it.
+    first, second = (commit, installed['commit']) if older else (installed['commit'], commit)
     try:
-        git(checkout, 'merge-base', '--is-ancestor', installed['commit'], commit)
+        git(checkout, 'merge-base', '--is-ancestor', first, second)
     except Refusal:
-        raise Refusal(f'The installed copy is not an earlier point on the way to {tag}. It is not moved; sort that out by hand.') from None
+        raise Refusal(f'The installed copy and {tag} are not on the same line of history. It is not moved; sort that out by hand.') from None
     if identity_at(checkout, commit) != version:
         raise Refusal(f'The commit signed for {tag} carries another version. Nothing was changed.')
-    ahead = int(git(checkout, 'rev-list', '--count', f"{installed['commit']}..{commit}"))
-    return {'commit': commit, 'version': version, 'tag': tag, 'ahead': ahead, 'notes': []}
+    ahead = int(git(checkout, 'rev-list', '--count', f'{first}..{second}'))
+    return {'commit': commit, 'version': version, 'tag': tag, 'ahead': ahead, 'notes': [], 'back': older, 'withdrawn': mine}
+
+
+def withdrawals(checkout, state):
+    """The publisher's signed list of releases that must not be installed: {version: reason}.
+
+    It is read from the official main branch and must be signed by the key this checkout trusts.
+    Its serial number only goes up; a list older than one this machine has already seen, or one
+    that has gone missing, is refused, so a withdrawal cannot be quietly taken back.
+    """
+    checkout, state = Path(checkout), Path(state).expanduser()
+    git(checkout, 'fetch', '--no-tags', 'origin', '+refs/heads/main:refs/remotes/origin/main')
+    mark = state / 'withdrawn-serial'
+    try:
+        seen = int(mark.read_text())
+    except (OSError, ValueError):
+        seen = 0
+    parts = []
+    for name in ('withdrawn.json', 'withdrawn.json.sig'):
+        done = subprocess.run(['git', '-C', str(checkout), 'show', f'refs/remotes/origin/main:browser/server/{name}'], capture_output=True, timeout=30)
+        parts.append(done.stdout if done.returncode == 0 else None)
+    if parts[0] is None:
+        if seen:
+            raise Refusal('The list of withdrawn releases this machine has seen before is no longer published. Nothing was changed; ask the publisher.')
+        return {}
+    with tempfile.TemporaryDirectory() as folder:
+        notice, signature = Path(folder) / 'withdrawn.json', Path(folder) / 'withdrawn.json.sig'
+        notice.write_bytes(parts[0])
+        signature.write_bytes(parts[1] or b'')
+        try:
+            value = releases.verify_notice(notice, signature, checkout / 'browser' / 'server' / 'allowed_signers')
+        except (ValueError, OSError, subprocess.SubprocessError):
+            raise Refusal('The list of withdrawn releases is not signed by the release key this copy trusts. Nothing was changed.') from None
+    if value['serial'] < seen:
+        raise Refusal('The list of withdrawn releases is older than one this machine has already seen. Nothing was changed.')
+    if value['serial'] > seen:
+        state.mkdir(mode=0o700, parents=True, exist_ok=True)
+        mark.write_text(str(value['serial']))
+    return {version: row['reason'] for version, row in value['withdrawn'].items()}
 
 
 def healthy(url, commit, version, wait=40.0, pause=0.5):
@@ -289,6 +333,8 @@ def main(argv=None):
     parser.add_argument('--channel', choices=('development', 'release'), default='development',
                         help='development follows the official main branch, unsigned; release installs only a signed published release.')
     parser.add_argument('--prerelease', action='store_true', help='With --channel release: also consider signed pre-releases.')
+    parser.add_argument('--allow-older', action='store_true',
+                        help='With --channel release: if the installed release was withdrawn and nothing newer is published, go back to the newest release that was not.')
     args = parser.parse_args(argv)
     try:
         if not LOCAL.fullmatch(args.url) or not 1 <= args.wait <= 300:
@@ -302,14 +348,19 @@ def main(argv=None):
             target = {'commit': entry['previous'], 'version': identity_at(installed['checkout'], entry['previous']), 'ahead': 0, 'notes': []}
             print(f"Going back to: {target['version']} ({target['commit'][:12]})")
         elif args.channel == 'release':
-            target = find_release(installed, prerelease=args.prerelease)
+            target = find_release(installed, prerelease=args.prerelease, withdrawn=withdrawals(installed['checkout'], args.state_dir), allow_older=args.allow_older)
+            if target.get('withdrawn'):
+                print(f"WITHDRAWN: the publisher has withdrawn the installed release {installed['version']}: {target['withdrawn']}")
             if target.get('newer'):
+                if target.get('withdrawn'):
+                    print(f"Nothing newer is published. The newest release that was not withdrawn is {target['tag']}; add --allow-older to go back to it. An older program may refuse data saved by a newer one, so make backups first.")
+                    return 1
                 print(f"The newest signed release is {target['tag']}, and this copy is already newer than it. Nothing to do.")
                 return 0
             if not target['ahead']:
                 print(f"Already on the newest signed release, {target['tag']}. Nothing to do.")
                 return 0
-            print(f"Available: {target['version']} ({target['commit'][:12]}), release {target['tag']}, {target['ahead']} change{'s' if target['ahead'] != 1 else ''} ahead.")
+            print(f"Available: {target['version']} ({target['commit'][:12]}), release {target['tag']}, {target['ahead']} change{'s' if target['ahead'] != 1 else ''} {'back' if target.get('back') else 'ahead'}.")
             print('Its manifest is signed by the release key this copy trusts, and the tag is exactly the signed commit.')
             if args.command == 'check':
                 print('Nothing was changed. Run apply with --launchd-label and --confirm to install it.')
