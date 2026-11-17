@@ -41,6 +41,7 @@ import { installCanon } from './canon-ui.mjs';
 import { installDays } from './days-ui.mjs';
 import { installSpeech } from './speech-ui.mjs';
 import { installDecks } from './decks-ui.mjs';
+import { installBackup } from './backup-ui.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -68,7 +69,20 @@ let profile = 'personal',
   lastConversationSurface = 'chat',
   selected = null,
   imageURL = null;
-let live, board, voice, memory, todos, research, weather, headlines, home, canon, days, speech, decks;
+let live,
+  board,
+  voice,
+  memory,
+  todos,
+  research,
+  weather,
+  headlines,
+  home,
+  canon,
+  days,
+  speech,
+  decks,
+  portable;
 // Ends reading aloud, whichever voice is doing it.
 function stopVoices() {
   globalThis.speechSynthesis?.cancel();
@@ -944,6 +958,8 @@ $('profile').onchange = () => {
   canon?.render();
   days?.render();
   decks?.render();
+  portable?.profileChanged();
+  portable?.render();
   todos.profileChanged();
   research.profileChanged();
   memory.profileChanged();
@@ -1448,6 +1464,18 @@ decks = installDecks({
   run: live.run,
   compose: live.compose,
   isBusy: live.isBusy,
+});
+// One encrypted file that carries the profile in view to another PEA; bringing one in only adds.
+portable = installBackup({
+  profile: () => profile,
+  review: live.review,
+  isBusy: live.isBusy,
+  notice,
+  memory: () => memory,
+  todos: () => todos,
+  canon: () => canon,
+  days: () => days,
+  decks: () => decks,
 });
 // Provider voices for reading aloud, through the owner's gateway with the owner's key.
 speech = installSpeech({

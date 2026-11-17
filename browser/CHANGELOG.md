@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.51] - 2026-11-16
+
+### Added
+
+- Move a profile in one encrypted file. In Past chats & memory, **Move this profile** writes a backup of the profile in view (interview answers, memories, to-dos, her history and days, and deck projects) sealed with a passphrase you choose, and brings such a file in. Before anything is written you see what the file will hold. Before anything is brought in you see every item that would be added. Bringing in only adds what is missing: nothing already here is changed or removed, and where the file and this browser differ, yours is kept and the difference is listed. Chats, files, keys, tokens, permissions and sharing switches never travel. A file belongs to one profile and is refused in the other. The iPhone app cannot read this file yet.
+
 ## [0.1.0-dev.50] - 2026-11-16
 
 ### Added

@@ -210,5 +210,23 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     count: () => saved.cards.length,
     // For other parts of her story, such as her days: the kept cards, in Personal only.
     cards: () => (personal() ? saved.cards : []),
+    // Cards from a reviewed backup, added under new local ids. Gives how many were added.
+    bringIn(cards) {
+      if (!personal() || !cards.length) return 0;
+      const used = new Set(saved.cards.map((c) => c.id));
+      let n = 1;
+      const added = cards.map((c) => {
+        while (used.has('card-' + n)) n++;
+        used.add('card-' + n);
+        return { id: 'card-' + n, ...c };
+      });
+      const next = validSavedCanon({ made: saved.made || Date.now(), cards: [...saved.cards, ...added] });
+      if (next.cards.length !== saved.cards.length + added.length)
+        throw new Error('These cards do not fit her history. Nothing was added.');
+      saved = next;
+      store();
+      render();
+      return added.length;
+    },
   };
 }

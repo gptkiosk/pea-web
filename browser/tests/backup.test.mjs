@@ -242,3 +242,77 @@ test('a file for the other profile is refused, and the description names what is
     /cannot be put in a backup/,
   );
 });
+
+import { bringInMemories, broughtInTitle, emptyLibrary, validLibrary } from '../memory.mjs';
+test('brought-in memories cite the owner’s quoted words in a conversation named for what it is', () => {
+  const items = [
+    { text: 'Prefers tea.', quote: 'I always pick tea', created: 5, expires: null },
+    { text: 'Visits Porto.', quote: 'we go to Porto in spring', created: 6, expires: 9e12 },
+  ];
+  const first = bringInMemories(emptyLibrary(), 'personal', items, 1000);
+  assert.equal(validLibrary(first), true);
+  assert.equal(first.threads.length, 1);
+  assert.deepEqual(
+    [
+      first.threads[0].title,
+      first.threads[0].profile,
+      first.threads[0].messages.map((m) => [m.role, m.text]),
+    ],
+    [
+      broughtInTitle,
+      'personal',
+      [
+        ['user', 'I always pick tea'],
+        ['user', 'we go to Porto in spring'],
+      ],
+    ],
+  );
+  assert.deepEqual(
+    first.memories.map((m) => [m.profile, m.text, m.source.quote, m.expires]),
+    [
+      ['personal', 'Prefers tea.', 'I always pick tea', null],
+      ['personal', 'Visits Porto.', 'we go to Porto in spring', 9e12],
+    ],
+  );
+  // A second file reuses the same conversation, and another profile gets its own.
+  const second = bringInMemories(
+    first,
+    'personal',
+    [{ text: 'Third.', quote: 'a third thing', created: 7, expires: null }],
+    2000,
+  );
+  assert.equal(second.threads.length, 1);
+  assert.equal(second.threads[0].messages.length, 3);
+  const work = bringInMemories(
+    second,
+    'work',
+    [{ text: 'Work fact.', quote: 'at work', created: 8, expires: null }],
+    3000,
+  );
+  assert.deepEqual(
+    work.threads.map((t) => t.profile),
+    ['personal', 'work'],
+  );
+  assert.equal(emptyLibrary().memories.length, 0, 'the library passed in is not changed');
+  // A full library refuses the whole addition.
+  const full = emptyLibrary();
+  full.threads = Array.from({ length: 40 }, (_, i) => ({
+    id: 'thread-' + String(i).padStart(6, '0'),
+    profile: 'personal',
+    surface: 'chat',
+    title: 'T' + i,
+    updated: 1,
+    messages: [
+      {
+        id: 'message-' + String(i).padStart(6, '0'),
+        role: 'user',
+        text: 'x',
+        at: 1,
+        incomplete: false,
+        preview: false,
+      },
+    ],
+  }));
+  assert.throws(() => bringInMemories(full, 'personal', items, 1000), /library holds 40 conversations/);
+  assert.throws(() => bringInMemories(emptyLibrary(), 'blended', items, 1000), /Choose Work or Personal/);
+});
