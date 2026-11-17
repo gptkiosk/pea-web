@@ -23,6 +23,22 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Release signer published — 2026-11-17
+
+**Branch `feature/release-signer`, development identity `0.1.0-dev.54`.** The owner created a dedicated Ed25519 release key on their own machine and sent only the public line and its fingerprint. The private key was never seen here.
+
+- `browser/server/allowed_signers`: one line, `pea-release namespaces="pea-release" ssh-ed25519 …`. Fingerprint `SHA256:4r7cfvtmy7paakJoPFEqAtxI6EP6Huol+A13TVV43J8`, recomputed here from the public key and matching what the owner sent.
+- `browser/docs/RELEASES.md`, `README.md`, `PARITY.md`, `DEPENDENCIES.md`: say the signer exists and no signed release is published.
+- Tests: 2 in `browser/server/test_releases.py` (`PublishedSigner`): the file names exactly one Ed25519 key whose fingerprint is the documented one, and a signature by any other key is refused against it.
+
+Known gaps:
+
+- No signed release exists. The fingerprint is published only in this repository; the owner should also state it somewhere independent.
+- `update.py` still follows the unsigned development channel.
+- If the key is ever replaced, the file, the fingerprint in the guide and the test constant change together in one reviewed pull request.
+
+Next action: decide the first release's version and channel with the owner (a stable `0.1.0` implies the acceptance run; a prerelease does not), build it with `releases.py build`, have the owner sign the manifest, publish the archive, manifest and signature on GitHub, then add a signed channel to `update.py`.
+
 ## Update command for an installed checkout — 2026-11-17
 
 **Branch `feature/update-command`, development identity `0.1.0-dev.53`.** Second half of the owner's request for updates that keep their setup. Owner's choices: one command first (no button in the app, so the gateway still cannot install anything); development updates now, signed releases once the owner has made the signing key.
@@ -39,7 +55,7 @@ Known gaps:
 - If the new version changes a served-file list or server code, the restart covers it. There are no data migrations to run; a future change that needs one must not ship through this path unnoticed.
 - The operator's own label, folders and addresses are not in this repository and must stay out of it.
 
-Next action: run `check` and `apply` once against the owner's installed copy with their go-ahead, then walk the owner through creating the signing key.
+Next action: done; see the section above.
 
 ## Remembered choices in Connections — 2026-11-17
 

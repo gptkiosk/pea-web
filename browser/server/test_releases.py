@@ -236,4 +236,34 @@ class ReleaseChecks(unittest.TestCase):
             with r.locked(link): pass
 
 
+class PublishedSigner(unittest.TestCase):
+    """The one public key this repository names as the release signer."""
+    SIGNERS = Path(r.__file__).with_name('allowed_signers')
+    FINGERPRINT = 'SHA256:4r7cfvtmy7paakJoPFEqAtxI6EP6Huol+A13TVV43J8'
+
+    def test_the_signer_file_names_one_dedicated_key_with_the_documented_fingerprint(self):
+        import base64
+        lines = [line for line in self.SIGNERS.read_text().splitlines() if line.strip() and not line.startswith('#')]
+        self.assertEqual(len(lines), 1, 'exactly one signer')
+        who, scope, kind, key = lines[0].split(' ')
+        self.assertEqual((who, scope, kind), ('pea-release', 'namespaces="pea-release"', 'ssh-ed25519'))
+        blob = base64.b64decode(key, validate=True)
+        self.assertEqual(len(blob), 51, 'an Ed25519 public key and nothing else')
+        self.assertEqual('SHA256:' + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip('='), self.FINGERPRINT)
+        docs = (Path(r.__file__).resolve().parents[1] / 'docs' / 'RELEASES.md').read_text()
+        self.assertIn(self.FINGERPRINT, docs, 'the fingerprint people check is the one in the guide')
+        self.assertNotIn('PRIVATE KEY', self.SIGNERS.read_text())
+
+    @unittest.skipUnless(shutil.which('ssh-keygen'), 'OpenSSH required')
+    def test_another_key_cannot_sign_as_the_published_signer(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            manifest = base / 'manifest.json'
+            manifest.write_text('{"schema": 1}')
+            command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(base / 'someone_else'))
+            command('ssh-keygen', '-Y', 'sign', '-f', str(base / 'someone_else'), '-n', 'pea-release', str(manifest))
+            with self.assertRaisesRegex(ValueError, 'did not match'):
+                r.verify_signature(manifest, base / 'manifest.json.sig', self.SIGNERS)
+
+
 if __name__ == '__main__': unittest.main()
