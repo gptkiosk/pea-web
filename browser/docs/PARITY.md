@@ -57,7 +57,7 @@ How to read the status columns:
 | Command palette and keyboard shortcuts | Never active while a review is open |
 | Drag and drop of files and messages | A drop never sends, saves or approves |
 | Works on Android and other browsers | Over HTTPS to the owner's own gateway |
-| Local package with signed releases | Production signing key not yet created |
+| Local package with signed releases | Signing key created 2026-11-17; no signed release published yet |
 | Mac launcher app (menu bar and Dock) | Development build only, unsigned; opens PEA in the normal browser. See `mac/README.md` in the repository |
 
 ## Not built on either side

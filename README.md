@@ -53,7 +53,7 @@ For iPhone/Android/VPN access, use your own valid HTTPS reverse proxy and exact 
 - Reviewed story board, optional encrypted browser-local story persistence, safe source/diagram/image views, and optional GitHub draft-PR delivery.
 - Searchable profile-bound conversations, structured interview and reviewed sourced memories, with optional passphrase-encrypted browser-local saving. Keys and grants remain tab-only. [Memory and recovery guide](browser/docs/MEMORY.md). Automatic device sync and richer native document tools remain unfinished.
 - Browser dictation may use an online browser/OS service; locked-screen microphone/AirPods reliability is not promised. Native iPhone is the primary Walk target.
-- Explicit version/changelog/feedback controls and a tested signed-package/rollback manager. No production release signer, finished dependency bundle or signed public installer is supplied yet. Never trust a signing key merely because it accompanies an archive.
+- Explicit version/changelog/feedback controls and a tested signed-package/rollback manager. The release signer's public key is in `browser/server/allowed_signers` (fingerprint in the releases guide); no signed release, finished dependency bundle or signed public installer is published yet. Never trust a signing key merely because it accompanies an archive.
 
 [Detailed feature guide](browser/README.md) · [Parity and roadmap](browser/docs/PARITY.md) · [Changelog](browser/CHANGELOG.md) · [Release/rollback guide](browser/docs/RELEASES.md) · [Security](SECURITY.md).
 

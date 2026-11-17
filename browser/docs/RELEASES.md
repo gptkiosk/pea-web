@@ -1,6 +1,6 @@
 # Versions, feedback and reversible program updates
 
-PEA Web is a separate open-source product. Its repository, package versions, changelog, release signing and Linux web/server checks are independent of the private iOS app. This public web repository uses Apache 2.0 and its own upstream. A production signer, dependency bundle and signed installer release are not configured. The separately distributed native product is outside this repository and its license.
+PEA Web is a separate open-source product. Its repository, package versions, changelog, release signing and Linux web/server checks are independent of the private iOS app. This public web repository uses Apache 2.0 and its own upstream. A release signer exists (see below); a dependency bundle and a signed installer release are not published yet. The separately distributed native product is outside this repository and its license.
 
 ## Build identity and release discipline
 
@@ -25,7 +25,7 @@ Use a dedicated PEA Web Ed25519 signing key, held separately from source and CI.
 ssh-keygen -Y sign -f /secure/location/pea-web-release-key -n pea-release /tmp/pea-release/pea-web-VERSION.manifest.json
 ```
 
-Ship the archive, manifest and detached `.sig`. Users obtain and check the public signing-key fingerprint through an independent trusted channel before installation; a key downloaded beside an untrusted archive cannot establish trust. The public `allowed_signers` entry has the form `pea-release namespaces="pea-release" ssh-ed25519 PUBLIC_KEY`. No production public key is supplied yet. The initial installer/source is itself a trust bootstrap and must also come from a verified source.
+Ship the archive, manifest and detached `.sig`. Users obtain and check the public signing-key fingerprint through an independent trusted channel before installation; a key downloaded beside an untrusted archive cannot establish trust. The public `allowed_signers` entry has the form `pea-release namespaces="pea-release" ssh-ed25519 PUBLIC_KEY`. The project's release signer was created on 2026-11-17 and its public half is [`browser/server/allowed_signers`](../server/allowed_signers). Its fingerprint is `SHA256:4r7cfvtmy7paakJoPFEqAtxI6EP6Huol+A13TVV43J8`; check it with `ssh-keygen -lf` on the key in that file. The private key is held by the publisher, outside this repository and CI. A fingerprint read from the same place as the file proves only that the two agree: before trusting a release, compare it with a copy the publisher gives through another channel. No signed release has been published yet. The initial installer/source is itself a trust bootstrap and must also come from a verified source.
 
 ## Install, inspect, activate, verify
 

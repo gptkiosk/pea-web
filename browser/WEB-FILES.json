@@ -53,6 +53,7 @@
   "releases.mjs",
   "research-ui.mjs",
   "research.mjs",
+  "server/allowed_signers",
   "server/build_identity.py",
   "server/check_source.py",
   "server/conformance/run.py",

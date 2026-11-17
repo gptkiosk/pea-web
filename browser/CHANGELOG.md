@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.54] - 2026-11-17
+
+### Added
+
+- The public key of PEA Web's release signer, and its fingerprint in the releases guide, so a future signed release can be checked. The private key is held by the publisher and is not in this repository. No signed release has been published yet.
+
 ## [0.1.0-dev.53] - 2026-11-17
 
 ### Added
