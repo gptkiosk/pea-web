@@ -23,6 +23,27 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Changing and removing PEA's own events — 2026-11-16
+
+**Branch `feature/calendar-own-changes`, development identity `0.1.0-dev.46`.** Second of the two calendar pull requests. The iPhone source was not read.
+
+- `browser/connections.mjs`: the calendar route also allows `/events/{id}` for ids matching `eventId`; `call()` takes `match` (sent as `If-Match`) and returns nothing for an answer with no content; `ownEvent(e, profile)` (the rule for what PEA may touch), `Services.ownEvents` (list by `privateExtendedProperty` for mark and profile, 90 days, 12 at most), `ownEventNow` (fetch one, refuse if not PEA's), `changeEvent` (PATCH title and times, `If-Match`, 412 and 404/410 explained), `deleteEvent` (DELETE, `If-Match`, 410 counts as removed).
+- `browser/actions.mjs`: `calendarEdits(raw)` (one `pea-calendar` block, `calendar_change` with exactly `ref,title,start,end` or `calendar_delete` with exactly `ref`; ref is `e1` to `e99`), `calendarEditGuidance`, `claimsCalendarEdit`.
+- `browser/live-ui.mjs`: `s.ownEvents` filled by `refreshToday` with refs in order; `sharedOwnEvents()` (shared calendar switch on, permission granted, snapshot under 15 minutes old, 8 at most) is both what the model is sent and what a ref can mean; the guidance is added only then; the first message carrying them asks for the sharing review again. `ownEvent(ref)`, `currentOwnEvent(id)`, `editEvent(event, edit)` (fetches again, compares the version, then changes or deletes).
+- `browser/app.mjs`: `finishReply` keeps an edit only if its ref resolves, storing the event id at that moment; proposal kind `calendar-edit`; review titles "Change this event in your calendar?" and "Remove this event from your calendar?"; `calendarEdited` receipts; correction for claimed changes.
+- Tests: 7 more unit tests (5 in `connections.test.mjs`, 2 in `actions.test.mjs`); 4 more browser tests in `browser/tests/dom/calendar.test.mjs`, where the stand-in Google now filters by mark, serves one event, and honours `If-Match`. Checked by removal: allowing guests fails tests 5 and 7; honouring refs without sharing fails test 8; dropping the version check and `If-Match` fails tests 5, 6 and 7. The removal test found that an answer with no content crashed `call()`; fixed.
+
+Known gaps:
+
+- Never run against a real Google account. Read on 2026-11-16 from Google's reference: patch, delete and get accept `calendar.events.owned` and (patch, delete) `sendUpdates=none`; delete answers with an empty body and 410 if already deleted; `privateExtendedProperty` may repeat and all must match; the versions guide describes `If-Match` with 412 for update and delete but does not name patch, which is why PEA also compares the version itself just before sending.
+- Between that last comparison and Google acting there is still a moment in which an edit elsewhere could land if Google ignored `If-Match` on patch.
+- The mark is a label, not proof (see the section below). An event another app marked would be offered, and the owner's review is the safeguard.
+- Notes cannot be changed. Events with guests, repeating or all-day events are refused. A removal cannot be undone from PEA.
+- Refs are positions in the list at the last refresh; they are resolved when the reply finishes. Events more than 90 days ahead, or beyond the first eight, cannot be named.
+- English-only detection of "I moved/cancelled…" claims.
+
+Next action: additional voice transports, per the parity sequence, or an acceptance try of the calendar steps with a test Google account.
+
 ## Adding approved events to Google Calendar — 2026-11-16
 
 **Branch `feature/calendar-direct`, development identity `0.1.0-dev.45`.** Owner's choices: PEA may add events, and later change or delete only events it added itself; the wider Google permission is a separate opt-in box. This is the first of two pull requests: add only. The iPhone source was not read.
@@ -42,7 +63,7 @@ Known gaps:
 - Google's token allows seeing, changing and deleting events on every calendar the account owns for up to an hour; PEA's own code limits itself to adding to the main one.
 - The box is not remembered per profile; it is read when the owner presses Connect.
 
-Next action: second pull request, change and delete limited to events carrying PEA's private mark (needs the `/events/{id}` route, a list of PEA's own upcoming events for the model, and reviewed `pea-calendar` change and delete operations).
+Next action: done in the section above.
 
 ## Her days — 2026-11-16
 

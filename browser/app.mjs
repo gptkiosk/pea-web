@@ -7,6 +7,8 @@ import {
   emailDraftLink,
   documentProposals,
   calendarProposals,
+  calendarEdits,
+  claimsCalendarEdit,
   calendarFile,
   warnsOfUnconfirmedCalendar,
   warnsOfUnconfirmedStory,
@@ -79,6 +81,8 @@ const chats = {},
   // second try cannot add it twice.
   calendarAdded = new Map(),
   eventIds = new Map(),
+  // Replies whose reviewed change or removal of an event was carried out: 'changed' or 'deleted'.
+  calendarEdited = new Map(),
   // What happened to each approved to-do proposal, shown in place of its button.
   todoDone = new Map(),
   // The outcome of each approved document proposal: a sentence, and a download link when it became a file.
@@ -345,6 +349,72 @@ function proposalButton(m, surface) {
       )
         return;
       tab(nav.tab);
+    };
+    return b;
+  }
+  if (calendarEdited.has(m.id)) {
+    const receipt = document.createElement('small');
+    receipt.className = 'event-receipt';
+    receipt.textContent =
+      calendarEdited.get(m.id) === 'deleted'
+        ? 'Event removed from your Google calendar'
+        : 'Event changed in your Google calendar';
+    return receipt;
+  }
+  const editing = proposals.get(m.id);
+  if (editing?.kind === 'calendar-edit' && !m.incomplete && editing.profile === profile) {
+    const b = document.createElement('button'),
+      removing = editing.edit.op === 'delete';
+    b.className = 'text-button';
+    b.textContent = (removing ? 'Review event removal: ' : 'Review event change: ') + editing.target.title;
+    b.onclick = async () => {
+      if (reviewingStory || live.isBusy()) {
+        notice('Finish the current request first.');
+        return;
+      }
+      reviewingStory = true;
+      const who = profile,
+        account = live.eventAccount(),
+        when = (e) =>
+          `Start: ${new Date(e.start).toString()}\nEnd: ${new Date(e.end).toString()}\nUTC start: ${e.start}\nUTC end: ${e.end}`;
+      try {
+        if (!account)
+          throw new Error(
+            'Calendar changes are not connected for this profile. Connect them in Connections → Google, or use your calendar app.',
+          );
+        // What the owner reviews is the event as it is now, not what the model was told earlier.
+        const now = await live.currentOwnEvent(editing.target.id);
+        if (!now) return;
+        const approved = await live.review(
+          removing ? 'Remove this event from your calendar?' : 'Change this event in your calendar?',
+          `Profile: ${who}\nGoogle calendar of ${account}\n\n${removing ? 'Event to remove' : 'Now'}:\n${now.title}\n${when(now)}${removing ? '' : `\n\nAfter approval:\n${editing.edit.title}\n${when(editing.edit)}`}\n\n${removing ? 'Approval deletes this event from your main calendar. PEA cannot bring it back.' : 'Approval changes the title and times of this event. Its notes stay as they are.'} This is an event PEA added, with no guests; Google is asked to send no notices. Nothing happens if the event has changed since this review opened.`,
+        );
+        if (!approved) return;
+        if (
+          who !== profile ||
+          !history(surface, who).some((x) => x.id === m.id) ||
+          proposals.get(m.id) !== editing
+        )
+          throw new Error('The conversation or profile changed. Review the event again.');
+        if (live.eventAccount() !== account)
+          throw new Error('Your Google connection changed. Review the event again.');
+        const done = await live.editEvent(now, editing.edit);
+        if (!done) return;
+        calendarEdited.set(m.id, removing ? 'deleted' : 'changed');
+        notice(
+          removing
+            ? done.already
+              ? 'That event was already gone from your calendar.'
+              : 'Event removed from your Google calendar.'
+            : 'Event changed in your Google calendar. Nobody was notified.',
+        );
+        renderChat();
+        renderCollaboration();
+      } catch (error) {
+        notice(error.message || 'Could not change the event.');
+      } finally {
+        reviewingStory = false;
+      }
     };
     return b;
   }
@@ -1075,6 +1145,10 @@ live = installConnections({
       emails = offer ? emailProposals(raw) : [],
       docs = offer ? documentProposals(raw) : [],
       events = offer ? calendarProposals(raw) : [],
+      // A change or removal counts only if its ref names an event the model was actually given.
+      edits = (offer ? calendarEdits(raw) : [])
+        .map((edit) => ({ edit, target: live.ownEvent(edit.ref) }))
+        .filter((x) => x.target),
       navs = offer ? navigationProposals(raw) : [],
       changes = offer ? todoProposals(raw) : [],
       written = offer ? docProposals(raw, live.currentDocument()) : [],
@@ -1097,6 +1171,9 @@ live = installConnections({
     if (complete && warnsOfUnconfirmedCalendar(reply.text))
       reply.text +=
         '\n\nPEA did not schedule an event from this reply. Nothing is added until you review and approve a proposal.';
+    if (complete && claimsCalendarEdit(reply.text))
+      reply.text +=
+        '\n\nPEA did not change or remove an event from this reply. Nothing changes until you review and approve a proposal.';
     if (complete && !changes.length && claimsTodoChange(reply.text))
       reply.text +=
         '\n\nPEA did not change your to-do list. Review and approve a proposal before anything changes.';
@@ -1121,6 +1198,13 @@ live = installConnections({
       proposals.set(reply.id, { profile, kind: 'document-proposal', draft: docs[0] });
     else if (events.length === 1 && !items.length && !emails.length && !docs.length)
       proposals.set(reply.id, { profile, kind: 'calendar-proposal', draft: events[0] });
+    else if (edits.length === 1 && !items.length && !emails.length && !docs.length && !events.length)
+      proposals.set(reply.id, {
+        profile,
+        kind: 'calendar-edit',
+        edit: edits[0].edit,
+        target: { id: edits[0].target.id, title: edits[0].target.title },
+      });
     else if (navs.length === 1 && !items.length && !emails.length && !docs.length && !events.length)
       proposals.set(reply.id, { profile, kind: 'navigation', tab: navs[0].tab });
     else if (
@@ -1324,6 +1408,7 @@ memory = installMemory({
     emailReady.clear();
     calendarReady.clear();
     calendarAdded.clear();
+    calendarEdited.clear();
     eventIds.clear();
     todoDone.clear();
     docDone.clear();

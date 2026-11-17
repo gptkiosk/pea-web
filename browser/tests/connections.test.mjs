@@ -7,6 +7,7 @@ import {
   eventId,
   eventLink,
   newEventId,
+  ownEvent,
   safeName,
   validCode,
   validRepo,
@@ -271,6 +272,131 @@ test('only links to Google’s own calendar pages are shown', () => {
     undefined,
   ])
     assert.equal(eventLink(bad), null, String(bad).slice(0, 40));
+});
+const mine = (over = {}) => ({
+  id: 'pea0123456789abcdef0123456789abcdef',
+  status: 'confirmed',
+  etag: '"v1"',
+  summary: 'Synthetic event',
+  start: { dateTime: '2031-01-02T10:00:00-05:00' },
+  end: { dateTime: '2031-01-02T11:00:00-05:00' },
+  extendedProperties: { private: { peaCreated: '1', peaProfile: 'work' } },
+  ...over,
+});
+test('only a marked, timed, guest-free, non-repeating event with PEA’s kind of id counts as its own', () => {
+  assert.deepEqual(ownEvent(mine(), 'work'), {
+    id: mine().id,
+    etag: '"v1"',
+    title: 'Synthetic event',
+    start: '2031-01-02T15:00:00Z',
+    end: '2031-01-02T16:00:00Z',
+  });
+  for (const [why, event, profile = 'work'] of [
+    ['another profile', mine(), 'personal'],
+    ['no mark', mine({ extendedProperties: undefined })],
+    ['public mark only', mine({ extendedProperties: { shared: { peaCreated: '1', peaProfile: 'work' } } })],
+    ['someone else’s id', mine({ id: 'abcdefghij0123456789' })],
+    ['an id outside the route', mine({ id: 'pea/../../x' })],
+    ['cancelled', mine({ status: 'cancelled' })],
+    ['all-day', mine({ start: { date: '2031-01-02' } })],
+    ['guests', mine({ attendees: [{ email: 'guest@example.invalid' }] })],
+    ['one of a series', mine({ recurringEventId: 'peaseries00000' })],
+    ['repeating', mine({ recurrence: ['RRULE:FREQ=DAILY'] })],
+    ['no version', mine({ etag: undefined })],
+    ['a version that could split a header', mine({ etag: '"v1"\r\nX-Evil: 1' })],
+    ['a key in the title', mine({ summary: 'sk-or-v1-' + 'a'.repeat(30) })],
+    ['nothing', null],
+  ])
+    assert.equal(ownEvent(event, profile), null, why);
+});
+test('PEA’s own events are asked for by mark and profile, and unmarked answers are dropped', async () => {
+  const calls = [];
+  const s = new Services(async (url, options) => {
+    calls.push({ url: new URL(url), options });
+    return json({ items: [mine(), mine({ id: 'peaother00000000', extendedProperties: undefined })] });
+  });
+  const rows = await s.ownEvents('synthetic', 'work', Date.parse('2031-01-01T00:00:00Z'));
+  assert.deepEqual(
+    rows.map((e) => e.id),
+    [mine().id],
+  );
+  assert.deepEqual(calls[0].url.searchParams.getAll('privateExtendedProperty'), [
+    'peaCreated=1',
+    'peaProfile=work',
+  ]);
+  assert.equal(calls[0].options.method, 'GET');
+});
+test('a change is sent only for the reviewed version, touches only title and times, and tells nobody', async () => {
+  const calls = [];
+  let status = 200;
+  const s = new Services(async (url, options) => {
+    calls.push({ url: new URL(url), options });
+    return new Response(JSON.stringify({ id: mine().id, status: 'confirmed' }), { status });
+  });
+  const event = ownEvent(mine(), 'work'),
+    change = { title: 'Moved', start: '2031-01-03T15:00:00Z', end: '2031-01-03T16:00:00Z' };
+  assert.deepEqual(await s.changeEvent('synthetic', 'work', event, change), { id: event.id, link: null });
+  assert.equal(calls[0].url.pathname, '/calendar/v3/calendars/primary/events/' + event.id);
+  assert.equal(calls[0].url.searchParams.get('sendUpdates'), 'none');
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.equal(calls[0].options.headers['If-Match'], '"v1"');
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    summary: 'Moved',
+    start: { dateTime: '2031-01-03T15:00:00Z' },
+    end: { dateTime: '2031-01-03T16:00:00Z' },
+  });
+  status = 412;
+  await assert.rejects(() => s.changeEvent('synthetic', 'work', event, change), /changed after you reviewed/);
+  status = 410;
+  await assert.rejects(() => s.changeEvent('synthetic', 'work', event, change), /no longer in your calendar/);
+  const sent = calls.length;
+  for (const bad of [
+    { ...event, id: 'abcdefghij0123456789' },
+    { ...event, id: 'pea/../x' },
+    { ...event, etag: '' },
+    null,
+  ])
+    await assert.rejects(() => s.changeEvent('synthetic', 'work', bad, change), /Event rejected/);
+  assert.equal(calls.length, sent, 'nothing is sent for an event that is not PEA’s');
+});
+test('a removal is sent only for the reviewed version, and an event already gone counts as removed', async () => {
+  const calls = [];
+  let status = 204;
+  const s = new Services(async (url, options) => {
+    calls.push({ url: new URL(url), options });
+    return new Response(status === 204 ? null : '{"error":"raw"}', { status });
+  });
+  const event = ownEvent(mine(), 'work');
+  assert.deepEqual(await s.deleteEvent('synthetic', 'work', event), { id: event.id, already: false });
+  assert.equal(calls[0].options.method, 'DELETE');
+  assert.equal(calls[0].options.headers['If-Match'], '"v1"');
+  assert.equal(calls[0].options.body, undefined);
+  assert.equal(calls[0].url.searchParams.get('sendUpdates'), 'none');
+  status = 410;
+  assert.deepEqual(await s.deleteEvent('synthetic', 'work', event), { id: event.id, already: true });
+  status = 412;
+  await assert.rejects(() => s.deleteEvent('synthetic', 'work', event), /changed after you reviewed/);
+  const sent = calls.length;
+  await assert.rejects(
+    () => s.deleteEvent('synthetic', 'work', { ...event, id: 'abcdefghij0123456789' }),
+    /rejected/,
+  );
+  assert.equal(calls.length, sent);
+});
+test('the event shown for review is the calendar’s current one, and is refused if it is not PEA’s', async () => {
+  let answer = mine({ etag: '"v2"', summary: 'Renamed since' }),
+    status = 200;
+  const s = new Services(async () => new Response(JSON.stringify(answer), { status }));
+  assert.equal((await s.ownEventNow('synthetic', 'work', mine().id)).title, 'Renamed since');
+  answer = mine({ attendees: [{ email: 'guest@example.invalid' }] });
+  await assert.rejects(() => s.ownEventNow('synthetic', 'work', mine().id), /only events it added/);
+  answer = mine({ status: 'cancelled' });
+  await assert.rejects(() => s.ownEventNow('synthetic', 'work', mine().id), /no longer in your calendar/);
+  answer = mine({ id: 'peasomethingelse000' });
+  await assert.rejects(() => s.ownEventNow('synthetic', 'work', mine().id), /did not return this event/);
+  status = 404;
+  await assert.rejects(() => s.ownEventNow('synthetic', 'work', mine().id), /no longer in your calendar/);
+  await assert.rejects(() => s.ownEventNow('synthetic', 'work', 'Not-An-Id'), /rejected/);
 });
 test('mail preview requests only metadata for at most three safe IDs and excludes credential-like contents', async () => {
   const calls = [];

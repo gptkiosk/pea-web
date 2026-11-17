@@ -23,6 +23,47 @@ const proposal =
   }) +
   '\n```\n';
 
+// What the synthetic model answers to a request to change one of PEA's own events.
+const editBlock = (value) => 'Here you go.\n```pea-calendar\n' + JSON.stringify(value) + '\n```\n';
+const edits = {
+  move: editBlock({
+    op: 'calendar_change',
+    ref: 'e1',
+    title: 'Moved lunch',
+    start: '2031-02-03T18:00:00Z',
+    end: '2031-02-03T19:00:00Z',
+  }),
+  cancel: editBlock({ op: 'calendar_delete', ref: 'e1' }),
+  unlisted: editBlock({ op: 'calendar_delete', ref: 'e9' }),
+  boast: 'I’ve moved your meeting to Friday.',
+};
+// Events already in the stand-in calendar: one PEA added, one PEA's mark with a guest, one the
+// owner made. Only the first may ever be offered for a change.
+const seeded = (profile) => [
+  {
+    id: 'pea00000000000000000000000000000001',
+    summary: 'Synthetic lunch',
+    description: 'Synthetic notes to keep',
+    start: { dateTime: '2031-02-03T17:00:00Z' },
+    end: { dateTime: '2031-02-03T18:00:00Z' },
+    extendedProperties: { private: { peaCreated: '1', peaProfile: profile } },
+  },
+  {
+    id: 'pea00000000000000000000000000000002',
+    summary: 'Marked but shared',
+    start: { dateTime: '2031-02-04T17:00:00Z' },
+    end: { dateTime: '2031-02-04T18:00:00Z' },
+    attendees: [{ email: 'guest@example.invalid' }],
+    extendedProperties: { private: { peaCreated: '1', peaProfile: profile } },
+  },
+  {
+    id: 'ownermade0000000000000',
+    summary: 'Owner’s own dentist visit',
+    start: { dateTime: '2031-02-05T17:00:00Z' },
+    end: { dateTime: '2031-02-05T18:00:00Z' },
+  },
+];
+
 // The sign-in script the page loads. It grants what the page asked for, or what the test says the
 // owner left ticked on Google's own screen, and remembers what was asked.
 const fakeSignIn = `window.google = { accounts: { oauth2: { initTokenClient: (config) => ({
@@ -40,7 +81,10 @@ let stack;
 before(
   async () => {
     if (skip) return;
-    stack = await startStack((said) => (said.includes('event') ? proposal : 'A plain synthetic reply.'));
+    stack = await startStack((said) => {
+      const key = Object.keys(edits).find((word) => said.includes(word));
+      return key ? edits[key] : said.includes('event') ? proposal : 'A plain synthetic reply.';
+    });
   },
   { timeout: 60000 },
 );
@@ -57,18 +101,34 @@ async function openWithGoogle() {
     if (request.method === 'OPTIONS') return { status: 204, text: '' };
     if (at.pathname === '/oauth2/v3/userinfo') return { body: { email: 'owner@example.invalid' } };
     if (at.pathname === '/drive/v3/files') return { body: { files: [] } };
-    if (url.startsWith(events) && request.method === 'GET')
+    // One event by its id: read, change or delete, the last two only for the version named.
+    if (at.pathname.startsWith(new URL(events).pathname + '/')) {
+      const id = at.pathname.split('/').pop(),
+        found = calendar.added.find((e) => e.id === id),
+        version = Object.entries(request.headers).find(([k]) => k.toLowerCase() === 'if-match')?.[1];
+      if (!found) return { status: request.method === 'DELETE' ? 410 : 404, body: { error: 'gone' } };
+      if (request.method === 'GET') return { body: { status: 'confirmed', etag: '"v1"', ...found } };
+      if (version !== (found.etag ?? '"v1"')) return { status: 412, body: { error: 'precondition' } };
+      if (request.method === 'DELETE') {
+        calendar.added.splice(calendar.added.indexOf(found), 1);
+        return { status: 204, text: '' };
+      }
+      if (request.method === 'PATCH') {
+        Object.assign(found, JSON.parse(request.postData), { etag: '"v2"' });
+        return { body: { id, status: 'confirmed' } };
+      }
+    }
+    if (url.startsWith(events) && request.method === 'GET') {
+      // The list honours "only events carrying these private marks", as Google's does.
+      const marks = at.searchParams.getAll('privateExtendedProperty').map((m) => m.split('='));
       return {
         body: {
-          items: calendar.added.map((e) => ({
-            id: e.id,
-            status: 'confirmed',
-            summary: e.summary,
-            start: e.start,
-            end: e.end,
-          })),
+          items: calendar.added
+            .filter((e) => marks.every(([k, v]) => e.extendedProperties?.private?.[k] === v))
+            .map((e) => ({ status: 'confirmed', etag: '"v1"', ...e })),
         },
       };
+    }
     if (url.startsWith(events) && request.method === 'POST') {
       const sent = JSON.parse(request.postData);
       if (calendar.added.some((e) => e.id === sent.id)) return { status: 409, body: { error: 'duplicate' } };
@@ -274,3 +334,155 @@ test('forgetting Google access while the review is open adds nothing', { skip, t
   assert.equal(await receipt(page), '');
   await page.close();
 });
+
+// A page connected with calendar changes, the three seeded events in the calendar, and the
+// calendar snapshot shared with the model.
+async function openWithOwnEvents({ share = true } = {}) {
+  const { page, calendar } = await openWithGoogle();
+  calendar.added.push(...seeded(await page.evaluate(`document.querySelector('#profile').value`)));
+  await connectGoogle(page, { write: true });
+  if (share) await page.click('#share-calendar');
+  return { page, calendar };
+}
+const changes = (page, method) =>
+  page.intercepted.filter((r) => r.url.startsWith(events + '/') && r.method === method);
+const system = () => stack.model.requests.at(-1).messages[0].content;
+
+test(
+  'an event PEA added is changed only after review, only its title and times, and only that version',
+  { skip, timeout: 60000 },
+  async () => {
+    const { page, calendar } = await openWithOwnEvents();
+    await askModel(stack, page, 'Please move my lunch.');
+    assert.match(
+      system(),
+      /"ownEvents":\[\{"ref":"e1","title":"Synthetic lunch"/,
+      'PEA’s own event is listed with a ref',
+    );
+    assert.doesNotMatch(system(), /pea0000000000/, 'no real event id is sent to the model');
+    assert.doesNotMatch(system(), /"ref":"e2"/, 'the marked event with a guest is not offered');
+    assert.match(system(), /calendar_change/, 'the model is told how to propose a change');
+
+    await openReview(page, 'Review event change: Synthetic lunch');
+    assert.match(await page.text('#review-title'), /Change this event in your calendar\?/);
+    const shown = await page.text('#review-body');
+    assert.match(shown, /Google calendar of owner@example\.invalid/);
+    assert.match(shown, /Now:\s*Synthetic lunch[\s\S]*UTC start: 2031-02-03T17:00:00Z/);
+    assert.match(shown, /After approval:\s*Moved lunch[\s\S]*UTC start: 2031-02-03T18:00:00Z/);
+    assert.match(shown, /no notices/);
+    await page.click('#review-cancel');
+    await page.waitFor(`!document.querySelector('#review').open`);
+    assert.equal(changes(page, 'PATCH').length, 0, 'cancel changes nothing');
+
+    await openReview(page, 'Review event change: Synthetic lunch');
+    await page.click('#review-approve');
+    await page.waitFor(`document.querySelector('#messages .event-receipt')`, 'the receipt');
+    assert.match(await receipt(page), /Event changed in your Google calendar/);
+    const sent = changes(page, 'PATCH');
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].url, /\/events\/pea00000000000000000000000000000001\?/);
+    assert.equal(new URL(sent[0].url).searchParams.get('sendUpdates'), 'none');
+    assert.equal(sent[0].headers['If-Match'] ?? sent[0].headers['if-match'], '"v1"');
+    assert.deepEqual(JSON.parse(sent[0].sent), {
+      summary: 'Moved lunch',
+      start: { dateTime: '2031-02-03T18:00:00Z' },
+      end: { dateTime: '2031-02-03T19:00:00Z' },
+    });
+    assert.equal(calendar.added[0].description, 'Synthetic notes to keep', 'notes are untouched');
+    assert.equal(calendar.added[2].summary, 'Owner’s own dentist visit');
+    assert.equal(changes(page, 'DELETE').length, 0);
+    onlyStandIns(page);
+    await page.close();
+  },
+);
+
+test(
+  'an event PEA added is removed only after review, and the owner’s other events are never touched',
+  { skip, timeout: 60000 },
+  async () => {
+    const { page, calendar } = await openWithOwnEvents();
+    await askModel(stack, page, 'Please cancel my lunch.');
+    await openReview(page, 'Review event removal: Synthetic lunch');
+    assert.match(await page.text('#review-title'), /Remove this event from your calendar\?/);
+    assert.match(
+      await page.text('#review-body'),
+      /Event to remove:\s*Synthetic lunch[\s\S]*cannot bring it back/,
+    );
+    await page.click('#review-cancel');
+    await page.waitFor(`!document.querySelector('#review').open`);
+    assert.equal(calendar.added.length, 3, 'cancel removes nothing');
+
+    await openReview(page, 'Review event removal: Synthetic lunch');
+    await page.click('#review-approve');
+    await page.waitFor(`document.querySelector('#messages .event-receipt')`, 'the receipt');
+    assert.match(await receipt(page), /Event removed from your Google calendar/);
+    const sent = changes(page, 'DELETE');
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].url, /\/events\/pea00000000000000000000000000000001\?/);
+    assert.deepEqual(
+      calendar.added.map((e) => e.summary),
+      ['Marked but shared', 'Owner’s own dentist visit'],
+    );
+    assert.equal(changes(page, 'PATCH').length, 0);
+    await page.close();
+  },
+);
+
+test('an event that changed after the review opened is left alone', { skip, timeout: 60000 }, async () => {
+  const { page, calendar } = await openWithOwnEvents();
+  await askModel(stack, page, 'Please cancel my lunch.');
+  await openReview(page, 'Review event removal: Synthetic lunch');
+  // Someone edits the event in Google Calendar while the review is open.
+  calendar.added[0].etag = '"edited-elsewhere"';
+  await page.click('#review-approve');
+  await page.waitFor(`window.peaNotices.some((n) => /changed after you reviewed/.test(n))`, 'the refusal');
+  assert.equal(changes(page, 'DELETE').length, 0, 'nothing is sent for a version the owner did not see');
+  assert.equal(calendar.added.length, 3);
+  assert.equal(await receipt(page), '');
+
+  // A guest added meanwhile makes it no longer PEA's to change at all.
+  calendar.added[0].attendees = [{ email: 'guest@example.invalid' }];
+  await page.waitFor(`!document.querySelector('#profile').disabled`);
+  await page.clickText('Review event removal: Synthetic lunch');
+  await page.waitFor(`window.peaNotices.some((n) => /only events it added/.test(n))`, 'the refusal');
+  assert.equal(await page.evaluate(`document.querySelector('#review').open`), false, 'no review is offered');
+  assert.equal(calendar.added.length, 3);
+  await page.close();
+});
+
+test(
+  'nothing is offered for an event the model was not given, or when the calendar is not shared',
+  { skip, timeout: 60000 },
+  async () => {
+    const { page, calendar } = await openWithOwnEvents();
+    const offered = () =>
+      page.evaluate(
+        `[...document.querySelectorAll('#messages button')].filter((b) => /^Review event/.test(b.textContent)).length`,
+      );
+    await askModel(stack, page, 'Take out the unlisted one.');
+    assert.equal(await offered(), 0, 'a ref outside the list means nothing');
+    await askModel(stack, page, 'Give me a boast.');
+    assert.match(await page.text('#messages'), /PEA did not change or remove an event from this reply/);
+    await page.close();
+
+    // Calendar changes connected, but the calendar is not shared with the model.
+    const quiet = await openWithOwnEvents({ share: false });
+    await askModel(stack, quiet.page, 'Please cancel my lunch.');
+    assert.doesNotMatch(
+      system(),
+      /ownEvents|Synthetic lunch|calendar_change/,
+      'nothing about PEA’s events is sent',
+    );
+    assert.equal(
+      await quiet.page.evaluate(
+        `[...document.querySelectorAll('#messages button')].filter((b) => /^Review event/.test(b.textContent)).length`,
+      ),
+      0,
+      'a ref the model was never given is not honoured',
+    );
+    assert.equal(changes(quiet.page, 'DELETE').length + changes(quiet.page, 'PATCH').length, 0);
+    assert.equal(quiet.calendar.added.length, 3);
+    assert.equal(calendar.added.length, 3);
+    await quiet.page.close();
+  },
+);

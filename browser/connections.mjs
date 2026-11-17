@@ -13,6 +13,53 @@ export const driveScope = 'https://www.googleapis.com/auth/drive';
 // Google's rule for an event id the caller chooses: base32hex letters and digits.
 export const eventId = /^[a-v0-9]{5,64}$/;
 export const newEventId = (random = crypto.randomUUID()) => 'pea' + random.replace(/-/g, '');
+const instantOf = (value) => {
+  const at = typeof value === 'string' && value.length <= 40 ? Date.parse(value) : NaN;
+  return Number.isNaN(at) ? '' : new Date(at).toISOString().replace('.000Z', 'Z');
+};
+const ownFields =
+  'id,status,etag,summary,start,end,recurringEventId,recurrence,attendees/email,extendedProperties/private';
+// An event PEA may offer to change or delete: it carries PEA's mark for this profile and an id of
+// PEA's kind, has a set start and end, does not repeat and has no guests. Anything else is left to
+// the owner's calendar app. The mark is a label, so the owner still reviews the exact event.
+export function ownEvent(e, profile) {
+  const mark = e?.extendedProperties?.private,
+    start = instantOf(e?.start?.dateTime),
+    end = instantOf(e?.end?.dateTime),
+    title = String(e?.summary ?? '').slice(0, 120);
+  return e &&
+    typeof e.id === 'string' &&
+    eventId.test(e.id) &&
+    e.id.startsWith('pea') &&
+    e.status !== 'cancelled' &&
+    mark?.peaCreated === '1' &&
+    mark.peaProfile === profile &&
+    start &&
+    end &&
+    !e.attendees?.length &&
+    !e.recurringEventId &&
+    !e.recurrence?.length &&
+    typeof e.etag === 'string' &&
+    /^[\x21-\x7e]{1,200}$/.test(e.etag) &&
+    !containsCredential(title)
+    ? {
+        id: e.id,
+        etag: e.etag,
+        title: title.replace(/[\u0000-\u001f\u007f]/g, ' ') || 'Untitled',
+        start,
+        end,
+      }
+    : null;
+}
+// An event as `ownEvent` returns it: PEA's kind of id and a version mark safe to send as a header.
+const reviewed = (event) =>
+  typeof event?.id === 'string' &&
+  eventId.test(event.id) &&
+  event.id.startsWith('pea') &&
+  typeof event.etag === 'string' &&
+  /^[\x21-\x7e]{1,200}$/.test(event.etag);
+const goneNow = 'This event is no longer in your calendar. Nothing was changed.';
+const movedOn = 'The event changed after you reviewed it. Nothing was changed. Review it again.';
 // Only a link to Google's own calendar pages is shown to the owner.
 export function eventLink(value) {
   try {
@@ -91,7 +138,7 @@ export class Services {
   async call(
     service,
     path,
-    { token, method = 'GET', body, upload, signal, max = 1000000, raw = false } = {},
+    { token, method = 'GET', body, upload, signal, max = 1000000, raw = false, match } = {},
   ) {
     const hosts = {
       router: 'https://openrouter.ai',
@@ -103,7 +150,8 @@ export class Services {
       gmail: 'https://www.googleapis.com',
     };
     const routes = {
-      calendar: /^\/calendar\/v3\/calendars\/primary\/events$/,
+      // One event is addressed only by an id of the kind PEA itself chooses.
+      calendar: /^\/calendar\/v3\/calendars\/primary\/events(?:\/[a-v0-9]{5,64})?$/,
       gmail: /^\/gmail\/v1\/users\/me\/messages(?:\/[A-Fa-f0-9]{1,64})?$/,
       router:
         /^\/api\/v1\/(models|key|chat\/completions|images(?:\/models(?:\/[A-Za-z0-9_.:/-]{1,180}\/endpoints)?)?)$/,
@@ -134,6 +182,8 @@ export class Services {
           ? { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
           : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        // Only act if the item is still the version the owner reviewed.
+        ...(match ? { 'If-Match': match } : {}),
         ...(upload ? { 'Content-Type': upload.type } : body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: upload ? upload.data : body ? JSON.stringify(body) : undefined,
@@ -159,6 +209,8 @@ export class Services {
       throw failure;
     }
     if (raw === 'stream') return response;
+    // An answer with no content at all, as a deletion gives.
+    if (!response.body) return raw ? new Uint8Array(0) : null;
     let total = 0;
     const chunks = [];
     const reader = response.body.getReader();
@@ -456,6 +508,96 @@ export class Services {
     if (r?.id !== id || r.status === 'cancelled')
       throw new ServiceError('Google did not confirm the event. Check your calendar before trying again.');
     return { id, link: eventLink(r.htmlLink), already: false };
+  }
+  // The coming events PEA added for this profile, soonest first.
+  async ownEvents(token, profile, now = Date.now()) {
+    const query = new URLSearchParams({
+      timeMin: new Date(now).toISOString(),
+      timeMax: new Date(now + 90 * 86400000).toISOString(),
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: '25',
+      fields: `items(${ownFields})`,
+    });
+    query.append('privateExtendedProperty', 'peaCreated=1');
+    query.append('privateExtendedProperty', 'peaProfile=' + profile);
+    const r = await this.call('calendar', '/calendar/v3/calendars/primary/events?' + query, { token });
+    return (r.items ?? [])
+      .map((e) => ownEvent(e, profile))
+      .filter(Boolean)
+      .slice(0, 12);
+  }
+  // One event as it is in the calendar right now, or a refusal if PEA may not touch it.
+  async ownEventNow(token, profile, id) {
+    if (!eventId.test(id)) throw new ServiceError('Event rejected.');
+    let r;
+    try {
+      r = await this.call(
+        'calendar',
+        `/calendar/v3/calendars/primary/events/${id}?` + new URLSearchParams({ fields: ownFields }),
+        { token },
+      );
+    } catch (error) {
+      if (error instanceof ServiceError && [404, 410].includes(error.status)) throw new ServiceError(goneNow);
+      throw error;
+    }
+    if (r?.id !== id) throw new ServiceError('Google did not return this event. Nothing was changed.');
+    if (r.status === 'cancelled') throw new ServiceError(goneNow);
+    const event = ownEvent(r, profile);
+    if (!event)
+      throw new ServiceError(
+        'PEA can change only events it added for this profile that have no guests and do not repeat. Use your calendar app for this one.',
+      );
+    return event;
+  }
+  // Changes the title and times of the exact version the owner reviewed. Notes, guests and
+  // everything else are left as they are; Google is told to send no notices.
+  async changeEvent(token, profile, event, change) {
+    if (!reviewed(event) || !['work', 'personal'].includes(profile))
+      throw new ServiceError('Event rejected.');
+    let r;
+    try {
+      r = await this.call(
+        'calendar',
+        `/calendar/v3/calendars/primary/events/${event.id}?` +
+          new URLSearchParams({ sendUpdates: 'none', fields: 'id,status,htmlLink' }),
+        {
+          token,
+          method: 'PATCH',
+          match: event.etag,
+          body: {
+            summary: change.title,
+            start: { dateTime: change.start },
+            end: { dateTime: change.end },
+          },
+        },
+      );
+    } catch (error) {
+      if (error instanceof ServiceError && error.status === 412) throw new ServiceError(movedOn);
+      if (error instanceof ServiceError && [404, 410].includes(error.status)) throw new ServiceError(goneNow);
+      throw error;
+    }
+    if (r?.id !== event.id || r.status === 'cancelled')
+      throw new ServiceError('Google did not confirm the change. Check your calendar before trying again.');
+    return { id: event.id, link: eventLink(r.htmlLink) };
+  }
+  // Deletes the exact version the owner reviewed. An event already gone counts as deleted.
+  async deleteEvent(token, profile, event) {
+    if (!reviewed(event) || !['work', 'personal'].includes(profile))
+      throw new ServiceError('Event rejected.');
+    try {
+      await this.call(
+        'calendar',
+        `/calendar/v3/calendars/primary/events/${event.id}?` + new URLSearchParams({ sendUpdates: 'none' }),
+        { token, method: 'DELETE', match: event.etag, raw: true },
+      );
+    } catch (error) {
+      if (error instanceof ServiceError && error.status === 410) return { id: event.id, already: true };
+      if (error instanceof ServiceError && error.status === 412) throw new ServiceError(movedOn);
+      if (error instanceof ServiceError && error.status === 404) throw new ServiceError(goneNow);
+      throw error;
+    }
+    return { id: event.id, already: false };
   }
   async mail(token, profile) {
     const r = await this.call(

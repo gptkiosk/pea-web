@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.46] - 2026-11-16
+
+### Added
+
+- PEA can move, rename or remove an event it added to your Google calendar, after your review. This needs **Let PEA add events I approve** and **Include upcoming Calendar context**, so that your model is told which coming events PEA added (title and times only). The review shows the event as it is in your calendar at that moment and, for a change, what it will become. Only the title and times change; notes stay. Nothing happens if the event was edited elsewhere after the review opened. PEA never touches events you or others made, events with guests, or repeating events; for those, use your calendar app. A removal cannot be undone by PEA.
+- When a reply says it moved or cancelled an event itself, PEA adds a plain correction.
+
 ## [0.1.0-dev.45] - 2026-11-16
 
 ### Added

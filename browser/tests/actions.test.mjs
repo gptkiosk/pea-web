@@ -248,3 +248,58 @@ test('story scope and acceptance are bounded and require a strict single proposa
     assert.deepEqual(storyProposals(block(JSON.stringify({ ...d, ...patch }))), []);
   assert.equal(visibleReply('Review the story.\n' + block(JSON.stringify(d))).trim(), 'Review the story.');
 });
+
+import { calendarEdits, calendarEditGuidance, claimsCalendarEdit } from '../actions.mjs';
+const editBlock = (value) => 'Sure.\n```pea-calendar\n' + JSON.stringify(value) + '\n```\n';
+test('a calendar change or removal is one exact block naming a listed event', () => {
+  const change = {
+    op: 'calendar_change',
+    ref: 'e1',
+    title: 'Moved',
+    start: '2031-01-03T15:00:00Z',
+    end: '2031-01-03T16:00:00Z',
+  };
+  assert.deepEqual(calendarEdits(editBlock(change)), [
+    { op: 'change', ref: 'e1', title: 'Moved', start: '2031-01-03T15:00:00Z', end: '2031-01-03T16:00:00Z' },
+  ]);
+  assert.deepEqual(calendarEdits(editBlock({ op: 'calendar_delete', ref: 'e12' })), [
+    { op: 'delete', ref: 'e12' },
+  ]);
+  for (const [why, value] of [
+    ['a real event id in place of a ref', { op: 'calendar_delete', ref: 'pea0123456789abcdef' }],
+    ['ref zero', { op: 'calendar_delete', ref: 'e0' }],
+    ['an extra field', { op: 'calendar_delete', ref: 'e1', all: true }],
+    ['an event id field', { ...change, id: 'abc' }],
+    ['notes', { ...change, details: 'x' }],
+    ['guests', { ...change, attendees: ['guest@example.invalid'] }],
+    ['no title', { ...change, title: ' ' }],
+    ['a local time', { ...change, start: '2031-01-03T15:00:00' }],
+    ['end before start', { ...change, end: '2031-01-03T14:00:00Z' }],
+    ['over a week', { ...change, end: '2031-01-12T16:00:00Z' }],
+    ['a key in the title', { ...change, title: 'sk-or-v1-' + 'a'.repeat(30) }],
+    ['another operation', { ...change, op: 'calendar_move' }],
+    ['a list', [change]],
+  ])
+    assert.deepEqual(calendarEdits(editBlock(value)), [], why);
+  assert.deepEqual(calendarEdits(editBlock(change) + editBlock({ op: 'calendar_delete', ref: 'e1' })), []);
+  assert.deepEqual(calendarEdits(editBlock(change) + '```pea-story\n{}\n```'), [], 'no second action');
+  assert.deepEqual(calendarEdits('```pea-calendar\n{"op":"calendar_delete","ref":"e1"'), [], 'interrupted');
+  assert.deepEqual(calendarProposals(editBlock(change)), [], 'a change is never read as a new event');
+  assert.match(calendarEditGuidance, /No other event can be changed or removed/);
+  assert.match(calendarEditGuidance, /never claim/);
+});
+test('a reply that says it changed or removed an event itself is caught', () => {
+  for (const said of [
+    'I’ve moved your meeting to Friday.',
+    'I have cancelled the appointment.',
+    "I've just deleted that event.",
+    'I rescheduled the meeting for you.',
+  ])
+    assert.equal(claimsCalendarEdit(said), true, said);
+  for (const said of [
+    'Your meeting was cancelled by the organiser.',
+    'I can move that event if you approve.',
+    'I moved the paragraph up.',
+  ])
+    assert.equal(claimsCalendarEdit(said), false, said);
+});
