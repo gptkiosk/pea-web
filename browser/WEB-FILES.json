@@ -63,6 +63,8 @@
   "server/test_gateway.py",
   "server/test_local.py",
   "server/test_releases.py",
+  "server/test_update.py",
+  "server/update.py",
   "shared-config.mjs",
   "speech-ui.mjs",
   "speech.mjs",
