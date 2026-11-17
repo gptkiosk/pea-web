@@ -25,7 +25,7 @@ Use a dedicated PEA Web Ed25519 signing key, held separately from source and CI.
 ssh-keygen -Y sign -f /secure/location/pea-web-release-key -n pea-release /tmp/pea-release/pea-web-VERSION.manifest.json
 ```
 
-Ship the archive, manifest and detached `.sig`. Users obtain and check the public signing-key fingerprint through an independent trusted channel before installation; a key downloaded beside an untrusted archive cannot establish trust. The public `allowed_signers` entry has the form `pea-release namespaces="pea-release" ssh-ed25519 PUBLIC_KEY`. The project's release signer was created on 2026-11-17 and its public half is [`browser/server/allowed_signers`](../server/allowed_signers). Its fingerprint is `SHA256:4r7cfvtmy7paakJoPFEqAtxI6EP6Huol+A13TVV43J8`; check it with `ssh-keygen -lf` on the key in that file. The private key is held by the publisher, outside this repository and CI. A fingerprint read from the same place as the file proves only that the two agree: before trusting a release, compare it with a copy the publisher gives through another channel. No signed release has been published yet. The initial installer/source is itself a trust bootstrap and must also come from a verified source.
+Ship the archive, manifest and detached `.sig`. Users obtain and check the public signing-key fingerprint through an independent trusted channel before installation; a key downloaded beside an untrusted archive cannot establish trust. The public `allowed_signers` entry has the form `pea-release namespaces="pea-release" ssh-ed25519 PUBLIC_KEY`. The project's release signer was created on 2026-11-17 and its public half is [`browser/server/allowed_signers`](../server/allowed_signers). Its fingerprint is `SHA256:4r7cfvtmy7paakJoPFEqAtxI6EP6Huol+A13TVV43J8`; check it with `ssh-keygen -lf` on the key in that file. The private key is held by the publisher, outside this repository and CI. A fingerprint read from the same place as the file proves only that the two agree: before trusting a release, compare it with a copy the publisher gives through another channel. The first signed release is the pre-release `v0.1.0-rc.1`, published 2026-11-17. The initial installer/source is itself a trust bootstrap and must also come from a verified source.
 
 ## Install, inspect, activate, verify
 
@@ -45,6 +45,21 @@ Staging verifies the pinned signature, archive and per-file digests before extra
 
 Start the gateway from `current/browser/server/gateway.py` with your existing external token file and loopback-model arguments, following [self-hosting](SELF-HOSTING.md). The running gateway resolves its actual release directory at launch; changing the pointer does not hot-replace files under an old process. Verify `GET /api/build-info` and a synthetic connection check after deliberately restarting, then refresh the browser. Keep the same trusted HTTPS origin to retain access to origin-bound encrypted browser storage. Changing the URL is not a data migration. Keys held only in tab RAM need reconnecting after refresh.
 
+## Updating a checkout to a signed release
+
+The same command has a signed channel:
+
+```sh
+python3 browser/server/update.py check --channel release
+python3 browser/server/update.py apply --channel release --launchd-label YOUR.LAUNCHD.LABEL --confirm
+```
+
+It reads the official repository's public list of releases on GitHub, without credentials, and takes the newest one by version. Add `--prerelease` to consider pre-releases; without it only stable releases count. It downloads that release's signed manifest and signature, never the package, and verifies the signature with `browser/server/allowed_signers` in the checkout being updated. It then requires that the manifest is for that version and channel, that the tag is exactly the commit the signature names (a tag moved afterwards is refused), that the installed copy is an earlier point on the way to that commit, and that the commit carries that version. Only then does it move, restart and health-check as described below, with the same rollback.
+
+A copy already on the newest release, or already newer than it (a development build), is left alone. A copy with no `allowed_signers` file is too old for this channel and must be updated once another way.
+
+The trust anchor is the signer file in your own checkout. If the project ever changes its release key, replace that file by hand from a source you trust before using this channel; the command will not accept a new key on the say-so of a release.
+
 ## Updating a checkout on the development channel
 
 An owner who runs PEA Web from a git checkout of the official repository, kept running by a launchd job, can update it with one command. It is separate from the signed-release manager above and less strict: it trusts the official repository over HTTPS and names an exact commit, and it checks no signature. Use it to follow development; use signed releases when they exist and you want that assurance.
@@ -55,7 +70,7 @@ python3 browser/server/update.py apply --launchd-label YOUR.LAUNCHD.LABEL --conf
 python3 browser/server/update.py rollback --launchd-label YOUR.LAUNCHD.LABEL --confirm
 ```
 
-`--checkout` names the installed checkout when the command is run from another copy, and `--url` says where PEA answers on this machine (default `http://127.0.0.1:18770`).
+`--checkout` names the installed checkout when the command is run from another copy, and `--url` says where PEA answers on this machine (default `http://127.0.0.1:18770`). `check` fetches from the official repository to compare, and leaves your files as they are.
 
 `check` changes nothing. `apply` refuses, and says why, when the folder is not the top of a PEA Web checkout; its `origin` is not the official repository named in its own `release.json` (forks and other remotes are never updated this way); a tracked file has been changed; the installed copy has commits the official main branch does not; the launchd job is not loaded; or PEA is not currently running the installed version at `--url`. Otherwise it moves the checkout to the newest commit of the official main branch, restarts the job, and waits for `/api/build-info` to report exactly that commit and version on an unmodified copy. If that does not happen, the previous commit is put back and restarted, and the command says so. A record of the last update is kept in `~/.config/pea/updates` (private to you) so `rollback` can return to the version before it.
 

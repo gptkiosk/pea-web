@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -24,10 +25,10 @@ def run(folder, *args):
     return subprocess.run(['git', '-C', str(folder), *args], check=True, capture_output=True, text=True, env=ENV).stdout.strip()
 
 
-def release(folder, version):
+def release(folder, version, channel='development'):
     browser = Path(folder) / 'browser'
     browser.mkdir(exist_ok=True)
-    (browser / 'release.json').write_text(json.dumps({'schema': 1, 'version': version, 'channel': 'development', 'product': 'PEA',
+    (browser / 'release.json').write_text(json.dumps({'schema': 1, 'version': version, 'channel': channel, 'product': 'PEA',
                                                       'organization': 'Synthetic', 'repository': 'synthetic-owner/pea-web'}))
     (browser / 'index.html').write_text(f'<p>{version}</p>')
     run(folder, 'add', '-A')
@@ -191,6 +192,135 @@ class UpdateChecks(unittest.TestCase):
         (self.state / 'last-update.json').write_text(json.dumps({'previous': '../x', 'target': self.first}))
         with self.assertRaisesRegex(update.Refusal, 'not readable'):
             update.last(self.state)
+
+
+@unittest.skipUnless(shutil.which('ssh-keygen'), 'OpenSSH required')
+class SignedChannelChecks(unittest.TestCase):
+    """The release channel, with a key made for the test and a stand-in list of published releases."""
+    REPO = 'synthetic-owner/pea-web'
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name).resolve()
+        self.official, self.installed, self.keys = root / 'official', root / 'installed', root / 'keys'
+        self.official.mkdir(); self.keys.mkdir()
+        subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(self.keys / 'signer')], check=True, capture_output=True)
+        subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(self.keys / 'stranger')], check=True, capture_output=True)
+        run(self.official, 'init', '-q', '-b', 'main')
+        (self.official / 'browser' / 'server').mkdir(parents=True)
+        (self.official / 'browser' / 'server' / 'allowed_signers').write_text(
+            'pea-release namespaces="pea-release" ' + (self.keys / 'signer.pub').read_text())
+        self.first = release(self.official, '0.1.0-rc.1', channel='prerelease')
+        subprocess.run(['git', 'clone', '-q', str(self.official), str(self.installed)], check=True, capture_output=True, env=ENV)
+        self.files, self.listed = {}, []
+        self.installed_now = update.inspect(self.installed, official=str(self.official))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def publish(self, version, commit, *, channel='stable', prerelease=False, signer='signer', tag_at=None, manifest_version=None, draft=False):
+        tag = 'v' + version
+        run(self.official, 'tag', tag, tag_at or commit)
+        digest = 'a' * 64
+        manifest = json.dumps({'schema': 1, 'product': 'pea-web', 'dataSchema': 1, 'version': manifest_version or version, 'commit': commit, 'channel': channel,
+                               'archive': {'name': f'pea-web-{version}.tar.gz', 'size': 10, 'sha256': digest},
+                               'files': {name: {'size': 1, 'sha256': digest} for name in
+                                         ('browser/build-info.json', 'browser/server/gateway.py', 'browser/release.json', 'browser/WEB-FILES.json')}}).encode()
+        path = self.keys / f'{version}.manifest.json'
+        path.write_bytes(manifest)
+        subprocess.run(['ssh-keygen', '-Y', 'sign', '-f', str(self.keys / signer), '-n', 'pea-release', str(path)], check=True, capture_output=True)
+        base = f'https://github.com/{self.REPO}/releases/download/{tag}/pea-web-{version}.manifest.json'
+        self.files[base], self.files[base + '.sig'] = manifest, Path(str(path) + '.sig').read_bytes()
+        self.listed.append({'tag_name': tag, 'draft': draft, 'prerelease': prerelease,
+                            'assets': [{'name': f'pea-web-{version}.manifest.json', 'browser_download_url': base},
+                                       {'name': f'pea-web-{version}.manifest.json.sig', 'browser_download_url': base + '.sig'},
+                                       {'name': f'pea-web-{version}.tar.gz', 'browser_download_url': base.replace('.manifest.json', '.tar.gz')}]})
+
+    def read(self, url, limit):
+        if url == f'https://api.github.com/repos/{self.REPO}/releases?per_page=30':
+            return json.dumps(self.listed).encode()
+        self.asked = getattr(self, 'asked', []) + [url]
+        return self.files[url]
+
+    def find(self, **more):
+        return update.find_release(update.inspect(self.installed, official=str(self.official)), read=self.read, **more)
+
+    def test_the_newest_signed_release_is_chosen_and_only_its_manifest_is_downloaded(self):
+        second = release(self.official, '0.1.0', channel='stable')
+        third = release(self.official, '0.2.0', channel='stable')
+        self.publish('0.1.0', second)
+        self.publish('0.2.0', third)
+        target = self.find()
+        self.assertEqual((target['commit'], target['version'], target['tag'], target['ahead']), (third, '0.2.0', 'v0.2.0', 2))
+        self.assertTrue(all(url.endswith(('.manifest.json', '.manifest.json.sig')) for url in self.asked), 'the package itself is never downloaded')
+        self.assertEqual(run(self.installed, 'rev-parse', 'HEAD'), self.first, 'looking changes nothing')
+
+    def test_a_pre_release_is_considered_only_when_asked(self):
+        second = release(self.official, '0.2.0-rc.1', channel='prerelease')
+        self.publish('0.2.0-rc.1', second, channel='prerelease', prerelease=True)
+        with self.assertRaisesRegex(update.Refusal, 'Pre-releases are considered only with --prerelease'):
+            self.find()
+        self.assertEqual(self.find(prerelease=True)['commit'], second)
+        self.listed[0]['draft'] = True
+        with self.assertRaisesRegex(update.Refusal, 'No published release'):
+            self.find(prerelease=True)
+
+    def test_a_release_not_signed_by_the_trusted_key_is_refused(self):
+        second = release(self.official, '0.2.0', channel='stable')
+        self.publish('0.2.0', second, signer='stranger')
+        with self.assertRaisesRegex(update.Refusal, 'not signed by the release key this copy trusts'):
+            self.find()
+        # A good signature over other bytes is refused too.
+        self.listed.clear(); self.files.clear()
+        third = release(self.official, '0.3.0', channel='stable')
+        self.publish('0.3.0', third)
+        key = next(k for k in self.files if k.endswith('.manifest.json'))
+        self.files[key] = self.files[key].replace(third.encode(), self.first.encode())
+        with self.assertRaisesRegex(update.Refusal, 'not signed by the release key'):
+            self.find()
+
+    def test_a_moved_tag_or_a_mislabelled_manifest_is_refused(self):
+        second = release(self.official, '0.2.0', channel='stable')
+        third = release(self.official, '0.2.1', channel='stable')
+        self.publish('0.2.1', second, tag_at=third)
+        with self.assertRaisesRegex(update.Refusal, 'does not point at the commit its signature names'):
+            self.find()
+        self.listed.clear(); self.files.clear()
+        self.publish('0.3.0', third, manifest_version='0.2.1')
+        with self.assertRaisesRegex(update.Refusal, 'another version or channel'):
+            self.find()
+        self.listed.clear(); self.files.clear()
+        fourth = release(self.official, '0.4.0', channel='stable')
+        self.publish('0.5.0', fourth)
+        with self.assertRaisesRegex(update.Refusal, 'carries another version'):
+            self.find()
+
+    def test_a_copy_already_on_or_past_the_newest_release_is_left_alone(self):
+        self.publish('0.1.0-rc.1', self.first, channel='prerelease', prerelease=True)
+        self.assertEqual(self.find(prerelease=True)['ahead'], 0)
+        newer = release(self.official, '0.1.0-rc.1.dev.1')
+        run(self.installed, 'pull', '-q', '--ff-only')
+        self.assertEqual(run(self.installed, 'rev-parse', 'HEAD'), newer)
+        target = self.find(prerelease=True)
+        self.assertEqual((target.get('newer'), target['ahead']), (True, 0), 'a development build past the release is not moved back')
+
+    def test_a_copy_with_no_signer_file_cannot_use_the_release_channel(self):
+        (self.installed / 'browser' / 'server' / 'allowed_signers').unlink()
+        run(self.installed, 'commit', '-q', '-am', 'Remove the signer')
+        with self.assertRaisesRegex(update.Refusal, 'no release signer to check against'):
+            self.find()
+
+    def test_only_github_addresses_are_read_and_release_rows_must_be_exact(self):
+        for url in ('http://github.com/a/b', 'https://example.invalid/x', 'https://github.com.evil.example/a', 'https://api.github.com/../x y'):
+            with self.assertRaisesRegex(update.Refusal, 'not a GitHub address'):
+                update.download(url, 10)
+        rows = [{'tag_name': 'v1.0.0', 'draft': False, 'prerelease': False, 'assets': [
+                    {'name': 'pea-web-1.0.0.manifest.json', 'browser_download_url': 'https://evil.example/pea-web-1.0.0.manifest.json'},
+                    {'name': 'pea-web-1.0.0.manifest.json.sig', 'browser_download_url': f'https://github.com/{self.REPO}/releases/download/v1.0.0/pea-web-1.0.0.manifest.json.sig'}]},
+                {'tag_name': 'nightly', 'draft': False, 'assets': []}, 'text', {'tag_name': 'v1.0.1', 'draft': False, 'assets': []}]
+        self.assertEqual(update.published(self.REPO, lambda url, limit: json.dumps(rows).encode()), [], 'an asset served from elsewhere is not a release')
+        with self.assertRaisesRegex(update.Refusal, 'readable list'):
+            update.published(self.REPO, lambda url, limit: b'not json')
 
 
 if __name__ == '__main__':

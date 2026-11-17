@@ -23,6 +23,28 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## First signed release published, and a signed update channel — 2026-11-17
+
+**Branch `feature/signed-update-channel`, development identity `0.1.0-rc.1.dev.1`.**
+
+What happened to `0.1.0-rc.1`: merged as `878e96b`, tagged `v0.1.0-rc.1`, built with `releases.py build`, the manifest signed by the owner on their machine, verified here against `browser/server/allowed_signers`, and published as a GitHub pre-release with the archive, manifest and signature. The published files were downloaded back and verified, and staged into a scratch install root that trusts only the public key. Manifest SHA-256 `b5277ff4…36a1f5`, archive `70d73de1…1fb031`.
+
+The owner's instructions on 2026-11-17 for later releases: signing, versioning and the detailed changelog are the assistant's; publishing is confirmed with the owner first. Signing must go through the owner's `ssh-agent` with the key unlocked by the owner for a limited time; the passphrase and the private key file are never given to, typed by or read by the assistant. This replaces the earlier statement here that only the owner signs.
+
+- `browser/server/update.py`: `--channel release` and `--prerelease`. `download` (GitHub addresses only; a redirect only to `*.githubusercontent.com` over HTTPS; no credentials), `published` (non-draft releases whose manifest and signature assets are served from the release's own download address), `find_release` (newest by `releases.version_key`; verifies with the checkout's own `allowed_signers` through `releases.verify_signature`; manifest version and channel; tag fetched into `refs/pea-update/` and compared with the signed commit; ancestry; version at the commit). Then the existing `move`.
+- `browser/release.json`: `0.1.0-rc.1.dev.1`, channel `development`.
+- Tests: 7 more in `browser/server/test_update.py` (`SignedChannelChecks`) with a key made in the test and a stand-in release list: newest signed release chosen and only manifests downloaded; pre-release only on request; a stranger's signature and altered bytes refused; a moved tag, a mislabelled manifest and a wrong version at the commit refused; a copy on or past the newest release left alone; no signer file; only GitHub addresses read.
+- Checked once by hand against the real release, look only: without `--prerelease` it reported no stable release; with it, it found `v0.1.0-rc.1`, verified the signature and the tag, and reported one change ahead of the installed `0.1.0-dev.54`.
+
+Known gaps:
+
+- `apply --channel release` has not been run on a real installed copy.
+- The channel reads GitHub's release list without credentials, so it is subject to GitHub's public rate limits and to that list being what GitHub says it is; the signature and the tag check are what is trusted, not the list.
+- A release cannot be withdrawn through this channel yet: a signed release that should no longer be installed has to be deleted from GitHub.
+- An installed checkout keeps the fetched tag under `refs/pea-update/`.
+
+Next action: the owner's acceptance tries, then `0.1.0-rc.2` or `0.1.0` as they decide. For each release: bump `release.json`, write the changelog, merge, tag, build, sign through the agent, verify, confirm with the owner, publish.
+
 ## First release candidate prepared — 2026-11-17
 
 **Branch `release/0.1.0-rc.1`, version `0.1.0-rc.1`, channel `prerelease`.** The owner chose a pre-release for the first signed release, because nothing has been accepted against real accounts, keys or a model.

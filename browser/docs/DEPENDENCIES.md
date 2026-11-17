@@ -13,7 +13,7 @@ PEA Web is **work in progress**. The primary delivery and support target is an i
 | GitHub output | Optional customer repository and narrowly scoped token, reviewed draft PR | No developer token or repository write authority |
 | Phone/browser access | Your own valid HTTPS reverse proxy/private VPN and exact allowed origin | No; no hosted relay |
 | Source checks/tests | Node.js 20+, Python 3.11+, Git and OpenSSH signing support; loopback sockets | Synthetic tests only, no provider secrets |
-| Package signing/version manager | POSIX macOS/Linux, Python and OpenSSH `ssh-keygen -Y` | Program tooling only; the signer's public key is in the repository and no signed release is published yet |
+| Package signing/version manager | POSIX macOS/Linux, Python and OpenSSH `ssh-keygen -Y` | Program tooling only; the signer's public key is in the repository; one signed pre-release is published |
 | Native iPhone client | Separately distributed PEA app | No native source, Apple SDK or native tests needed here |
 
 Windows users can inspect the static source in a browser, but the POSIX package manager and supported local gateway setup target macOS/Linux. Native Windows packaging is not claimed. Hardware/electricity/provider usage and third-party terms remain the user's responsibility. Read [co-use](CO-USE.md) for the shared folder/model-server contracts and data that is not synced.
