@@ -23,6 +23,24 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Remembered choices in Connections — 2026-11-17
+
+**Branch `feature/remember-choices`, development identity `0.1.0-dev.52`.** The owner asked for settings that remain across updates, "like done with MCD". Owner's choices: remember choices but never secrets; a one-command updater first (next pull request); development updates now and signed releases once the owner has made the signing key.
+
+- `browser/preferences.mjs` (pure): the fixed list. Per profile (`personal`, `work`, `blended`): `chat`, `collaboration`, `coding` model ids, `role`, `shareIntro`, `shareCalendar`, `shareMail`, `shareTodos`, `sharePeaFiles`, `githubRepo`. For all profiles: `google.client` and the three Google boxes. `validChoices` rebuilds from that list, so nothing else can be written; anything that looks like a credential is dropped. Storage `localStorage` `pea-connections-v1`.
+- `browser/live-ui.mjs`: a profile's session starts from its remembered choices; `remember()` runs after each change of a listed choice; the Google inputs are filled at start; `#choices-forget`. `allowData` is deliberately not on the list and starts off in every tab. The image model is not remembered (its list is loaded separately).
+- Not changed: keys, tokens and the Google sign-in stay in tab memory; the sharing approval is still per tab, so the first message after a reload is reviewed.
+- Tests: 2 unit tests in `browser/tests/preferences.test.mjs`; 2 browser tests in `browser/tests/dom/preferences.test.mjs` (choices return after a reload and reconnect, the connection token is never saved, sharing is still reviewed, choices are per profile, forgetting works). Assets now 53.
+
+Known gaps:
+
+- The chosen PEA Drive folder is not remembered; it is chosen again after Google sign-in.
+- A remembered model that the provider no longer lists shows as not chosen, with no notice.
+- Choices applied through "Review & apply choices…" (shared configuration) are saved only at the next change.
+- Forgetting removes the saved copy; a later change in the same tab saves that tab's choices again.
+
+Next action: the update command for an installed copy (development channel: the official repository's main branch by exact commit, with a health check and rollback), then the owner's signing key and the first signed release.
+
 ## Portable backup, part 2: Move this profile — 2026-11-16
 
 **Branch `feature/backup-buttons`, development identity `0.1.0-dev.51`.** Owner's choices as in part 1.

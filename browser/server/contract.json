@@ -35,6 +35,7 @@
     "memory-ui.mjs",
     "memory.mjs",
     "policy.mjs",
+    "preferences.mjs",
     "presence.mjs",
     "profile-transfer.mjs",
     "release-ui.mjs",

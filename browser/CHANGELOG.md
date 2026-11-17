@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-dev.52] - 2026-11-17
+
+### Added
+
+- Connections remembers your choices on this browser, so a reload or an update no longer makes you set them again: the Chat and Greenhouse models, the Greenhouse role, the sharing switches, the Google client ID and its boxes, and the GitHub repository name, each per profile where it applies. After you reconnect, the models you chose before are selected by themselves. Keys, tokens and passwords are never saved and are entered again after a reload. The "may retain or train" box always starts off. The first message in a new tab still shows the sharing review. **Forget remembered choices** removes them.
+
 ## [0.1.0-dev.51] - 2026-11-16
 
 ### Added
