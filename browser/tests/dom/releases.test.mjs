@@ -304,7 +304,8 @@ test(
   'when PEA is updated under an open page, the page says so and offers a reload; nothing reloads by itself',
   options,
   async () => {
-    const build = { channel: 'development' };
+    // A gateway that reports no commit gives the page nothing to compare, so the build is given one.
+    const build = { channel: 'development', version: '9.9.9-dev.1', commit: 'b'.repeat(40) };
     const page = await pageFor({ build, latest: 'v0.0.1' });
     const notice = () => page.evaluate(`document.getElementById('release-stale-text').textContent`);
     await page.click('#releases-open');
@@ -323,9 +324,7 @@ test(
     await page.waitFor(`!document.getElementById('release-stale').hidden`, 'the notice');
     assert.match(
       await notice(),
-      new RegExp(
-        `now runs 9\\.9\\.9-dev\\.2 \\(ccccccc\\)\\. This page is still showing ${real.version.replaceAll('.', '\\.')} \\(${real.commit.slice(0, 7)}\\)`,
-      ),
+      /now runs 9\.9\.9-dev\.2 \(ccccccc\)\. This page is still showing 9\.9\.9-dev\.1 \(bbbbbbb\)/,
     );
     assert.equal(await shown(page, 'release-reload'), true);
     assert.equal(await page.text('#footer-reload'), 'Reload for v9.9.9-dev.2');
@@ -354,7 +353,7 @@ test(
 );
 
 test('coming back to the tab is enough to be told, without opening the window', options, async () => {
-  const build = { channel: 'development' };
+  const build = { channel: 'development', version: '9.9.9-dev.1', commit: 'b'.repeat(40) };
   const page = await pageFor({ build, latest: 'v0.0.1' });
   build.version = '9.9.9-dev.3';
   build.commit = 'd'.repeat(40);
@@ -365,3 +364,18 @@ test('coming back to the tab is enough to be told, without opening the window', 
   assert.equal(await page.evaluate(`document.getElementById('release-dialog').open`), false);
   await page.close();
 });
+
+test(
+  'a gateway that reports no commit gives nothing to compare, so no notice is shown',
+  options,
+  async () => {
+    const build = { channel: 'development', commit: null, modified: null };
+    const page = await pageFor({ build, latest: 'v0.0.1' });
+    build.version = '9.9.9-dev.4';
+    await page.click('#releases-open');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.equal(await shown(page, 'release-stale'), false);
+    assert.equal(await shown(page, 'footer-reload'), false);
+    await page.close();
+  },
+);

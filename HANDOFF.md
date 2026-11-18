@@ -30,7 +30,7 @@ Resume: branch from `main`, keep one bounded slice per pull request, stage named
 - `browser/releases.mjs`: `stalePage(loaded, running)` returns the wording when the commits differ, else null.
 - `browser/release-ui.mjs`: `look()` asks `/api/build-info` again (same origin, no token, validated with `publicBuild`) when the window opens, on window focus and when the tab becomes visible, at most once in 20 seconds unless the window was just opened. It shows `#release-stale` and `#footer-reload`; both buttons reload. An unreachable or invalid answer changes nothing.
 - `browser/index.html`, `browser/styles.css`: the notice and the footer button.
-- Tests: `browser/tests/releases.test.mjs` (1 new, 279 unit); `browser/tests/dom/releases.test.mjs` (2 new, 12 in the file). Browser DOM tests: 120.
+- Tests: `browser/tests/releases.test.mjs` (1 new, 279 unit); `browser/tests/dom/releases.test.mjs` (3 new, 13 in the file). Browser DOM tests: 121. The tests give the build a commit themselves, because the Swift test gateway reports none and a page with no commit has nothing to compare.
 
 Known gaps: a tab that stays in view and focused is not told until the window is opened; there is no timer. Other gaps as below.
 
