@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.3.dev.1] - 2026-11-17
+
+Development build after the third release candidate. Nothing in the app changed.
+
+### Changed
+
+- The version is back on development numbering now that `0.1.0-rc.3` is published.
+
+### Fixed
+
+- A project test of the backup file looked for the word "tea" in the encrypted text and once found those three letters there by chance. It now looks for phrases that encrypted text cannot contain.
+
 ## [0.1.0-rc.3] - 2026-11-17
 
 Third release candidate. Like the first two, it is a pre-release: everything in it passed the automated checks, and none of it has yet been accepted against real accounts, provider keys or a real model. It corrects what the first try of the Update button turned up.
