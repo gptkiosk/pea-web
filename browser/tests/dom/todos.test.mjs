@@ -42,7 +42,12 @@ const finishedTitles = (page) =>
   page.evaluate(
     `[...document.querySelectorAll('#todo-finished .todo-item label span')].map((s) => s.textContent)`,
   );
+// The list takes nothing until the board has finished starting, a moment after the page opens;
+// the field is disabled until then. Adding sooner is refused with a notice.
+const listReady = (page) =>
+  page.waitFor(`!document.getElementById('todo-title').disabled`, 'the to-do list to be ready');
 const addByHand = async (page, title) => {
+  await listReady(page);
   await page.fill('#todo-title', title);
   await page.evaluate(`document.getElementById('todo-add').requestSubmit()`);
 };

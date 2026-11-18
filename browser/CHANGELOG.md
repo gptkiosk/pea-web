@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.4] - 2026-11-18
+
+Nothing in the app changed.
+
+### Fixed
+
+- A project test added a to-do the instant the page opened, before the list was ready, and failed now and then on a slow test machine. It now waits for the list.
+
 ## [0.1.0-rc.4.dev.3] - 2026-11-18
 
 ### Added

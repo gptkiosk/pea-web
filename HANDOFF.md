@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## To-do test waits for the list — 2026-11-18
+
+**Branch `fix/todo-test-waits-for-add`, version `0.1.0-rc.4.dev.4`.** The `web` check on main failed once on the merge of #71 and passed on a re-run: `browser/tests/dom/todos.test.mjs` "the owner can add, check off, reopen and remove to-dos by hand" found an empty list.
+
+- Cause: the board starts locked and unlocks after an asynchronous read of storage (`browser/board-ui.mjs`); until then `#todo-title` is disabled and an add is refused with a notice. The test submitted the form straight after opening the page. `addByHand` now waits for the field to be enabled.
+- This is likely the same cause as the 2026-11-17 local failure in `backup.test.mjs` ("To-dos to add" with the board reported locked); that test was not changed and the link is not proven.
+
+Known gaps: `home.test.mjs` and `mac-reminders.test.mjs` add to-dos with their own helpers and have not failed; they were left as they are.
+
+Next action: none pending.
+
 ## A page says when it is out of date — 2026-11-18
 
 **Branch `stale-page-notice`, version `0.1.0-rc.4.dev.3`.** Found by the owner: after their copy was updated under an open tab, the version line showed the old build while "Update this copy" reported the new one, and nothing said to reload.
