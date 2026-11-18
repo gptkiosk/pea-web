@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.2] - 2026-11-18
+
+### Fixed
+
+- In Versions & updates, "Check for an update to install" was set in from the text above it. It now lines up.
+
 ## [0.1.0-rc.4.dev.1] - 2026-11-17
 
 Development build after the fourth release candidate. Nothing in the app changed.

@@ -150,6 +150,12 @@ test(
     await versions();
     assert.equal(await page.evaluate(`document.querySelector('#connections').open`), false);
     assert.equal(await seen('#update-check'), true, 'ready to check, back in the window');
+    assert.ok(
+      (await page.evaluate(
+        `Math.abs(document.querySelector('#update-check').getBoundingClientRect().left - document.querySelector('#update-status').getBoundingClientRect().left)`,
+      )) < 1,
+      'Check lines up with the text above it',
+    );
 
     // Closing Connections without connecting does not pull the window back later.
     await page.evaluate(`document.querySelector('#release-dialog').close()`);
