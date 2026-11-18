@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.1] - 2026-11-17
+
+Development build after the fourth release candidate. Nothing in the app changed.
+
+### Changed
+
+- The version is back on development numbering now that `0.1.0-rc.4` is published.
+
 ## [0.1.0-rc.4] - 2026-11-17
 
 Fourth release candidate. Like the first three, it is a pre-release: everything in it passed the automated checks, and none of it has yet been accepted against real accounts, provider keys or a real model. It puts updating where people look for it.

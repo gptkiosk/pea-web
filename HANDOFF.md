@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Fourth release candidate published — 2026-11-17
+
+**Branch `chore/dev-numbering-after-rc.4`, version `0.1.0-rc.4.dev.1`, channel `development`.**
+
+- `0.1.0-rc.4` was merged (#68), tagged `v0.1.0-rc.4` on commit `9833a3b52283432dc53f8044685960e6cf252ca6`, built, signed by the assistant through the owner's unlocked `ssh-agent`, verified against `browser/server/allowed_signers`, rehearsed with `releases.py init` and `stage`, and published as a GitHub pre-release after the owner confirmed. The published files were downloaded back and verified.
+- SHA-256: archive `58e16f7e9cc6109acfe430e68e4b1e3a9f8260559283a4c43d4627b7c09becff`, manifest `1205f1db1331e619ea99d98542abb2eb1a4165061caada03492ac9c85ef0015e`.
+- `update.py check` on the owner's installed copy (on `0.1.0-rc.3`) reports `0.1.0-rc.4` available, signed, 3 changes ahead. Nothing was installed.
+- `browser/release.json` and `browser/CHANGELOG.md` return to development numbering.
+
+Known gaps: no real update has yet been started from the Update button; this release is the first offered to a copy that has it. Other gaps as in the sections below.
+
+Next action: the owner updates from the button on `0.1.0-rc.3` (Connections → Local model to connect the token, then PEA updates → Check for updates) and reports what happens.
+
 ## Fourth release candidate prepared — 2026-11-17
 
 **Branch `release/0.1.0-rc.4`, version `0.1.0-rc.4`, channel `prerelease`.** Cut at the owner's request so the moved update buttons (#67) reach their installed copy, and so the Update button can install a real release for the first time. Version and changelog were chosen by the assistant.
