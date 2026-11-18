@@ -196,7 +196,13 @@ test(
       /2 interview answers, 2 memories, 2 to-dos, 2 history cards, 1 day line and 1 deck project/,
     );
     assert.match(out.shown, /Left out: chats, files, provider and service keys/);
-    assert.doesNotMatch(out.file, /Synthetic Sam|tea|Porto|milk/, 'the file is sealed');
+    // Each phrase has a space in it. The sealed text is base64, which has none, so a phrase can
+    // only be found if it was left unsealed. Single short words turned up in it by chance.
+    assert.doesNotMatch(
+      out.file,
+      /Synthetic Sam|Prefers tea|pick tea|visiting Porto|going to Porto|synthetic milk/,
+      'the file is sealed',
+    );
     assert.equal(
       await page.evaluate(
         `document.querySelector('#portable-download').download.startsWith('pea-backup-personal-')`,

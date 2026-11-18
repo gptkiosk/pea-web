@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Third release candidate published — 2026-11-17
+
+**Branch `fix/sealed-file-test-chance-match`, version `0.1.0-rc.3.dev.1`, channel `development`.**
+
+- `0.1.0-rc.3` was merged (#65), tagged `v0.1.0-rc.3` on commit `522e6f4320aed6df73da6f28801d483690401db4`, built, signed by the assistant through the owner's unlocked `ssh-agent`, verified against `browser/server/allowed_signers`, rehearsed with `releases.py init` and `stage`, and published as a GitHub pre-release after the owner confirmed. The published files were downloaded back and verified.
+- SHA-256: archive `2ccbfb72883ccedcb3b58a8281ea7dc3a4ec08bad098834a1bc4911a2d5c94fa`, manifest `b168c92e2fb50195e9a97b0c76a2d33b18a2230ee5e5b606c0495ee5e8b51e13`.
+- The `web` check on main failed once on the release commit and passed on a re-run. Cause: `browser/tests/dom/backup.test.mjs` asserted that the sealed file does not match `/Synthetic Sam|tea|Porto|milk/`, and the base64 of the ciphertext contained `tea` by chance (about a 1 in 140 chance per run for a three-letter word). The assertion now uses phrases with a space, which base64 cannot contain. The app sealed the file correctly.
+- `browser/release.json` and `browser/CHANGELOG.md` return to development numbering.
+
+Known gaps: no real update has yet been started from the Update button. On 2026-11-17 one local run of the browser-level tests on the Python gateway failed two other tests under load (`backup.test.mjs` "To-dos to add" with the board reported locked, and `canon.test.mjs` waiting for a review while the page was busy); both passed when run again and neither has been seen on CI. Their cause is not established.
+
+Next action: the owner tries Connections → PEA updates on their installed copy, which is offered `0.1.0-rc.3`.
+
 ## Third release candidate prepared — 2026-11-17
 
 **Branch `release/0.1.0-rc.3`, version `0.1.0-rc.3`, channel `prerelease`.** Cut at the owner's request so the Versions window fix (#64) reaches their installed copy, which follows signed pre-releases. Version and changelog were chosen by the assistant.
