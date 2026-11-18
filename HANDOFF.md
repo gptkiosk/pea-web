@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## A page says when it is out of date — 2026-11-18
+
+**Branch `stale-page-notice`, version `0.1.0-rc.4.dev.3`.** Found by the owner: after their copy was updated under an open tab, the version line showed the old build while "Update this copy" reported the new one, and nothing said to reload.
+
+- `browser/releases.mjs`: `stalePage(loaded, running)` returns the wording when the commits differ, else null.
+- `browser/release-ui.mjs`: `look()` asks `/api/build-info` again (same origin, no token, validated with `publicBuild`) when the window opens, on window focus and when the tab becomes visible, at most once in 20 seconds unless the window was just opened. It shows `#release-stale` and `#footer-reload`; both buttons reload. An unreachable or invalid answer changes nothing.
+- `browser/index.html`, `browser/styles.css`: the notice and the footer button.
+- Tests: `browser/tests/releases.test.mjs` (1 new, 279 unit); `browser/tests/dom/releases.test.mjs` (3 new, 13 in the file). Browser DOM tests: 121. The tests give the build a commit themselves, because the Swift test gateway reports none and a page with no commit has nothing to compare.
+
+Known gaps: a tab that stays in view and focused is not told until the window is opened; there is no timer. Other gaps as below.
+
+Next action: none pending.
+
 ## Update panel alignment, and the owner's copy follows main — 2026-11-18
 
 **Branch `fix/update-panel-alignment`, version `0.1.0-rc.4.dev.2`.**

@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.3] - 2026-11-18
+
+### Added
+
+- **A page says when it is out of date.** PEA can be updated while a page stays open, and the open page keeps showing the older version. Versions & updates now says which version PEA runs and which one the page is showing, with a Reload this page button, and the footer shows "Reload for v…". The page looks when the window opens and when you come back to the tab. Nothing reloads by itself.
+
 ## [0.1.0-rc.4.dev.2] - 2026-11-18
 
 ### Fixed

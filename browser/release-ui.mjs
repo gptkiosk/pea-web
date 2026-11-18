@@ -7,6 +7,7 @@ import {
   newestRelease,
   notesText,
   releaseStanding,
+  stalePage,
 } from './releases.mjs';
 const $ = (id) => document.getElementById(id);
 async function boundedJSON(url, max = 200000) {
@@ -66,11 +67,37 @@ export async function installReleaseUI() {
         'Public upstream and production signing are not configured yet. You can read this build’s changelog and prepare a suggestion draft.',
       );
   }
+  // PEA can be updated while this page stays open. Ask the gateway which build it runs now and,
+  // when that is not the build this page loaded, say so and offer a reload. Nothing reloads by
+  // itself. Asked when the window opens and when the tab comes back into view.
+  let serverConfig = null,
+    looked = 0;
+  async function look(force = false) {
+    if (!info?.serverCommit || (!force && Date.now() - looked < 20000)) return;
+    looked = Date.now();
+    let stale = null;
+    try {
+      const running = publicBuild({ ...serverConfig, ...(await boundedJSON('/api/build-info', 4096)) });
+      stale = stalePage({ version: info.version, commit: info.serverCommit }, running);
+    } catch {
+      return; // PEA is restarting or unreachable; what is shown stays as it is.
+    }
+    $('release-stale').hidden = $('footer-reload').hidden = !stale;
+    $('release-stale-text').textContent = stale?.text ?? '';
+    $('footer-reload').textContent = stale ? `Reload for v${stale.version}` : '';
+  }
+  $('release-reload').onclick = $('footer-reload').onclick = () => location.reload();
+  window.addEventListener('focus', () => void look());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void look();
+  });
   $('releases-open').onclick = () => {
     $('release-dialog').showModal();
+    void look(true);
   };
   $('changelog-open').onclick = async () => {
     $('release-dialog').showModal();
+    void look(true);
     try {
       const r = await fetch('CHANGELOG.md', { credentials: 'omit', redirect: 'error', cache: 'no-store' });
       if (!r.ok) throw new Error();
@@ -225,6 +252,7 @@ export async function installReleaseUI() {
       }
     }
     info = { ...publicBuild({ ...config, ...stamp }), serverCommit: serverLive ? stamp.commit : null };
+    serverConfig = config;
     render();
   } catch {
     note('Build identity unavailable; this is not a verified release.');

@@ -299,3 +299,83 @@ test(
     await page.close();
   },
 );
+
+test(
+  'when PEA is updated under an open page, the page says so and offers a reload; nothing reloads by itself',
+  options,
+  async () => {
+    // A gateway that reports no commit gives the page nothing to compare, so the build is given one.
+    const build = { channel: 'development', version: '9.9.9-dev.1', commit: 'b'.repeat(40) };
+    const page = await pageFor({ build, latest: 'v0.0.1' });
+    const notice = () => page.evaluate(`document.getElementById('release-stale-text').textContent`);
+    await page.click('#releases-open');
+    await page.waitFor(
+      `performance.getEntriesByType('resource').filter((r) => r.name.endsWith('/api/build-info')).length >= 2`,
+      'the second look at the build',
+    );
+    assert.equal(await shown(page, 'release-stale'), false, 'same build: no notice');
+    assert.equal(await shown(page, 'footer-reload'), false);
+
+    // PEA is updated while the page stays open.
+    build.version = '9.9.9-dev.2';
+    build.commit = 'c'.repeat(40);
+    await page.evaluate(`document.getElementById('release-dialog').close(); window.__stillHere = true`);
+    await page.click('#releases-open');
+    await page.waitFor(`!document.getElementById('release-stale').hidden`, 'the notice');
+    assert.match(
+      await notice(),
+      /now runs 9\.9\.9-dev\.2 \(ccccccc\)\. This page is still showing 9\.9\.9-dev\.1 \(bbbbbbb\)/,
+    );
+    assert.equal(await shown(page, 'release-reload'), true);
+    assert.equal(await page.text('#footer-reload'), 'Reload for v9.9.9-dev.2');
+    assert.equal(await page.evaluate(`window.__stillHere`), true, 'the page did not reload by itself');
+
+    // An answer that is not a build identity changes nothing.
+    build.version = 'not a version';
+    await page.evaluate(`document.getElementById('release-dialog').close()`);
+    await page.click('#releases-open');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.match(await notice(), /now runs 9\.9\.9-dev\.2/);
+
+    // Reloading loads the build PEA runs now, and the notice is gone.
+    build.version = '9.9.9-dev.2';
+    await page.click('#release-reload');
+    await page.waitFor(
+      `window.__stillHere === undefined && document.getElementById('release-check') && !document.getElementById('release-check').disabled`,
+      'the reloaded page',
+    );
+    assert.match(await page.text('#footer-build'), /^v9\.9\.9-dev\.2 .* web ccccccc/);
+    await page.click('#releases-open');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.equal(await shown(page, 'release-stale'), false);
+    await page.close();
+  },
+);
+
+test('coming back to the tab is enough to be told, without opening the window', options, async () => {
+  const build = { channel: 'development', version: '9.9.9-dev.1', commit: 'b'.repeat(40) };
+  const page = await pageFor({ build, latest: 'v0.0.1' });
+  build.version = '9.9.9-dev.3';
+  build.commit = 'd'.repeat(40);
+  await page.evaluate(`window.dispatchEvent(new Event('focus'))`);
+  await page.waitFor(`!document.getElementById('footer-reload').hidden`, 'the footer button');
+  assert.equal(await page.text('#footer-reload'), 'Reload for v9.9.9-dev.3');
+  assert.equal(await shown(page, 'footer-reload'), true);
+  assert.equal(await page.evaluate(`document.getElementById('release-dialog').open`), false);
+  await page.close();
+});
+
+test(
+  'a gateway that reports no commit gives nothing to compare, so no notice is shown',
+  options,
+  async () => {
+    const build = { channel: 'development', commit: null, modified: null };
+    const page = await pageFor({ build, latest: 'v0.0.1' });
+    build.version = '9.9.9-dev.4';
+    await page.click('#releases-open');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.equal(await shown(page, 'release-stale'), false);
+    assert.equal(await shown(page, 'footer-reload'), false);
+    await page.close();
+  },
+);
