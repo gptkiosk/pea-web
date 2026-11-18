@@ -1789,6 +1789,18 @@ main {
   border: 1px solid var(--line);
   border-radius: 12px;
 }
+.update-panel {
+  margin: 20px 0;
+  padding: 4px 18px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.update-panel h3 {
+  margin: 14px 0 6px;
+}
+.update-panel p:empty {
+  display: none;
+}
 .feedback-actions {
   display: flex;
   flex-wrap: wrap;

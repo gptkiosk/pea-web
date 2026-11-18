@@ -77,7 +77,7 @@ export function releaseStanding({
     if (newerVersion(latest, installed))
       return {
         level: 'update',
-        text: `Available: ${shown}, a pre-release for trying out. Read its notes first. Where the person who runs this PEA has turned it on, Connections → PEA updates installs it after your review; otherwise use the update command. No installation has started.`,
+        text: `Available: ${shown}, a pre-release for trying out. Read its notes first. Where the person who runs this PEA has turned it on, “Update this copy” below installs it after your review; otherwise use the update command. No installation has started.`,
       };
     return {
       level: 'info',
@@ -95,7 +95,7 @@ export function releaseStanding({
   if (newerVersion(latest, installed))
     return {
       level: 'update',
-      text: `Available: ${shown}. Read its notes first. Where the person who runs this PEA has turned it on, Connections → PEA updates installs it after your review; otherwise download the signed package, then stage and activate it locally. No installation has started.`,
+      text: `Available: ${shown}. Read its notes first. Where the person who runs this PEA has turned it on, “Update this copy” below installs it after your review; otherwise download the signed package, then stage and activate it locally. No installation has started.`,
     };
   if (newerVersion(installed, latest))
     return channel === 'stable'
@@ -164,4 +164,35 @@ export function compareMain(remote, current, modified) {
   if (remote !== current)
     return `Upstream main ${remote.slice(0, 7)} differs from this build ${current.slice(0, 7)}. This does not establish ancestry or release eligibility. Review the changelog and signed releases; no update was installed.`;
   return `Upstream main matches commit ${remote.slice(0, 7)}${modified === true ? ', but this build has local modifications' : modified === null ? ', but local integrity is unknown' : ''}. No update was installed.`;
+}
+
+// Release notes and the changelog are written in Markdown and shown here as plain text. This
+// takes the markup out so they read as sentences. A link keeps its words and loses its address;
+// the window's own link to the release page is where the real links are. The result is only
+// ever set as text, never as HTML.
+export function notesText(markdown) {
+  let fenced = false;
+  return String(markdown ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        fenced = !fenced;
+        return null;
+      }
+      if (fenced) return '    ' + line;
+      return line
+        .replace(/^(\s*)#{1,6}\s+/, '$1')
+        .replace(/^(\s*)[-*+]\s+/, '$1• ')
+        .replace(
+          /!?\[([^\]\n]*)\]\(([^)\s]*)\)/g,
+          (all, words, address) => words.replace(/`/g, '') || address,
+        )
+        .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '$2')
+        .replace(/`([^`\n]+)`/g, '$1');
+    })
+    .filter((line) => line !== null)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

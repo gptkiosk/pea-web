@@ -1,4 +1,4 @@
-// Browser-level checks for updating the installed copy from Connections. The gateway's update
+// Browser-level checks for updating the installed copy from the Versions & updates window. The gateway's update
 // route is answered by the test, so nothing is installed; what is checked is that the page shows
 // the exact version, asks only after a review, sends only that commit, and reports the outcome.
 // Run with: node --test browser/tests/dom/updates.test.mjs
@@ -105,6 +105,69 @@ test(
     );
     assert.deepEqual(posts(second), [], 'nothing was asked of the update route');
     await second.close();
+  },
+);
+
+test(
+  'the update buttons are in the Versions window, and connecting the token from there comes back to it',
+  { skip, timeout: 90000 },
+  async () => {
+    const page = await openWith((method, body) =>
+      method === 'GET' ? { body: status() } : body.action === 'check' ? { body: found() } : { status: 409 },
+    );
+    const seen = (id) =>
+      page.evaluate(
+        `(() => { const e = document.querySelector(${JSON.stringify(id)}); return !e.hidden && e.offsetParent !== null && document.querySelector('#release-dialog').contains(e); })()`,
+      );
+    const versions = () =>
+      page.waitFor(`document.querySelector('#release-dialog').open`, 'the versions window');
+    if (await page.evaluate(`document.querySelector('#connections').open`))
+      await page.evaluate(`document.querySelector('#connections').close()`);
+    await page.click('#releases-open');
+    await versions();
+    await page.waitFor(
+      `/^This copy can update itself/.test(document.querySelector('#update-status').textContent)`,
+      'the status, asked afresh when the window opens',
+    );
+    assert.equal(await seen('#update-check'), true, 'Check is in the window and visible');
+    assert.equal(await seen('#release-update-open'), false, 'nothing to connect');
+    await page.click('#update-check');
+    await page.waitFor(`!document.querySelector('#update-apply').hidden`, 'the offer');
+    assert.equal(await seen('#update-apply'), true, 'Update is in the window and visible');
+    assert.equal(await words(page, '#update-apply'), 'Update to 0.1.0-rc.2…');
+
+    // After a reload the token is gone. The window says so, and the trip to paste it ends back here.
+    await page.evaluate(`document.querySelector('#release-dialog').close()`);
+    await page.click('#local-forget');
+    await page.click('#releases-open');
+    await versions();
+    assert.equal(await seen('#release-update-open'), true);
+    assert.equal(await seen('#update-check'), false);
+    await page.click('#release-update-open');
+    await page.waitFor(`document.querySelector('#connections').open`, 'Connections');
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await versions();
+    assert.equal(await page.evaluate(`document.querySelector('#connections').open`), false);
+    assert.equal(await seen('#update-check'), true, 'ready to check, back in the window');
+
+    // Closing Connections without connecting does not pull the window back later.
+    await page.evaluate(`document.querySelector('#release-dialog').close()`);
+    await page.click('#local-forget');
+    await page.click('#releases-open');
+    await page.click('#release-update-open');
+    await page.waitFor(`document.querySelector('#connections').open`, 'Connections again');
+    await page.evaluate(`document.querySelector('#connections').close()`);
+    await page.click('#collab-config');
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await page.waitFor(
+      `/^This copy can update itself/.test(document.querySelector('#update-status').textContent)`,
+      'connected',
+    );
+    assert.equal(await page.evaluate(`document.querySelector('#release-dialog').open`), false);
+    assert.equal(await page.evaluate(`document.querySelector('#connections').open`), true);
+    await page.close();
   },
 );
 
