@@ -1798,6 +1798,15 @@ main {
 .update-panel h3 {
   margin: 14px 0 6px;
 }
+.stale-notice {
+  margin: 16px 0;
+  padding: 4px 18px 16px;
+  border: 1px solid var(--green);
+  border-radius: 12px;
+}
+.stale-notice[hidden] {
+  display: none;
+}
 .update-panel p:empty {
   display: none;
 }

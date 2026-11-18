@@ -230,3 +230,25 @@ test('release notes are shown as plain sentences, with the markup taken out', as
   assert.equal(notesText('<img src=x onerror=1>'), '<img src=x onerror=1>', 'left as text for textContent');
   assert.equal(notesText(null), '');
 });
+
+test('a page is told when its PEA now runs other code, and only then', async () => {
+  const { stalePage } = await import('../releases.mjs');
+  const a = 'a'.repeat(40),
+    b = 'b'.repeat(40);
+  const loaded = { version: '0.1.0-rc.4.dev.1', commit: a };
+  assert.equal(stalePage(loaded, { version: '0.1.0-rc.4.dev.1', commit: a }), null);
+  const stale = stalePage(loaded, { version: '0.1.0-rc.4.dev.2', commit: b });
+  assert.equal(stale.version, '0.1.0-rc.4.dev.2');
+  assert.match(
+    stale.text,
+    /now runs 0\.1\.0-rc\.4\.dev\.2 \(bbbbbbb\)\. This page is still showing 0\.1\.0-rc\.4\.dev\.1 \(aaaaaaa\)/,
+  );
+  assert.match(stale.text, /A reload clears keys and unsaved chats in this tab/);
+  for (const [x, y] of [
+    [null, loaded],
+    [loaded, null],
+    [{ version: '1.0.0', commit: null }, loaded],
+    [loaded, { version: '1.0.0', commit: null }],
+  ])
+    assert.equal(stalePage(x, y), null);
+});

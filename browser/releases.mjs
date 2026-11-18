@@ -125,6 +125,17 @@ export function publicBuild(value) {
     throw new Error('Invalid public build identity.');
   return value;
 }
+// The PEA a page came from can be updated while the page stays open. Given the build the page
+// loaded and the build that PEA reports now, this says so, or returns null when they are the same
+// or either is unknown.
+export function stalePage(loaded, running) {
+  if (!loaded?.commit || !running?.commit || loaded.commit === running.commit) return null;
+  const short = (build) => `${build.version} (${build.commit.slice(0, 7)})`;
+  return {
+    version: running.version,
+    text: `PEA at this address now runs ${short(running)}. This page is still showing ${short(loaded)}. Reload to see the current version. A reload clears keys and unsaved chats in this tab; saved conversations stay in the encrypted library.`,
+  };
+}
 export function suggestionDraft({ kind, title, description, version, commit }) {
   if (
     !['suggestion', 'bug'].includes(kind) ||
