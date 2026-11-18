@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Fourth release candidate prepared — 2026-11-17
+
+**Branch `release/0.1.0-rc.4`, version `0.1.0-rc.4`, channel `prerelease`.** Cut at the owner's request so the moved update buttons (#67) reach their installed copy, and so the Update button can install a real release for the first time. Version and changelog were chosen by the assistant.
+
+- `browser/release.json` and `browser/CHANGELOG.md` only. Since `0.1.0-rc.3`: #66 (sealed-file test) and #67 (update buttons in the Versions window).
+
+Steps after merge: tag `v0.1.0-rc.4`; `releases.py build`; sign the manifest through the owner's `ssh-agent` (the owner unlocks the key; the assistant never has the passphrase); verify against `browser/server/allowed_signers`; rehearse `releases.py init` and `stage`; confirm with the owner; publish the GitHub pre-release; download back and verify; then return main to `0.1.0-rc.4.dev.1` on the development channel.
+
+Known gaps: as in the sections below. The owner's installed copy is on `0.1.0-rc.3`, where the buttons are still under Connections → PEA updates; the first update from the button starts there.
+
+Next action: the steps above; then the owner updates from the button.
+
 ## Update buttons moved into the Versions window — 2026-11-17
 
 **Branch `updates-in-versions-window`, version `0.1.0-rc.3.dev.2`, channel `development`.** The owner, on `0.1.0-rc.3`, opened Versions & updates a second time looking for the Update button and reported "version shows but no button". Nothing was broken: no newer release existed, and the buttons were under Connections and hidden until the token (never saved) was connected in that tab. The installed gateway answered `available: true`.
