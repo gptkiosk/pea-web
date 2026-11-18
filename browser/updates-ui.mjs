@@ -175,6 +175,10 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
     $('local-token').focus();
   };
   $('connections').addEventListener('close', () => (returning = false));
+  // Opening Connections any other way is a fresh visit. A dialog's close event arrives a moment
+  // after it closes, so it alone would leave a reopened Connections still marked as the trip.
+  for (const id of ['connections-open', 'collab-config'])
+    $(id).addEventListener('click', () => (returning = false));
   $('updates-open-versions').onclick = () => {
     $('connections').close();
     $('releases-open').click();
