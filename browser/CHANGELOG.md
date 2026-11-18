@@ -2,6 +2,24 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4] - 2026-11-17
+
+Fourth release candidate. Like the first three, it is a pre-release: everything in it passed the automated checks, and none of it has yet been accepted against real accounts, provider keys or a real model. It puts updating where people look for it.
+
+### Changed since 0.1.0-rc.3
+
+- **Updating is in the Versions & updates window.** "Update this copy" sits under this copy's version, with Check for an update to install and the Update button. Before, they were under Connections → PEA updates.
+- **The window says what is missing.** When the server connection token is not connected (it is never saved, so that is the case after every reload), the window says so and offers Connect this PEA…. That opens Local model with the token field ready, and once you connect you are brought back to the Versions window.
+- Connections keeps a short "PEA updates" entry that opens the Versions window.
+- Release notes and the changelog are shown as plain sentences, without Markdown marks.
+
+### Fixed
+
+- In the Versions window, Compare with main ran into Review upstream releases with no space between them.
+- A project test of the backup file could fail by chance on the encrypted text.
+
+The entries below give the detail for each development build.
+
 ## [0.1.0-rc.3.dev.2] - 2026-11-17
 
 Development build. The update buttons move to where people look for them.
