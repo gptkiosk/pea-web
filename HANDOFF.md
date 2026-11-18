@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Update panel alignment, and the owner's copy follows main — 2026-11-18
+
+**Branch `fix/update-panel-alignment`, version `0.1.0-rc.4.dev.2`.**
+
+- `browser/styles.css`: `.dialog-body .primary + .text-button` adds a start margin, and it matched `#update-check` after the hidden `#release-update-open`, so the button sat in from the text. `#release-dialog .action-row > .text-button` now has no start margin; the row's gap does the spacing. `browser/tests/dom/updates.test.mjs` checks the button lines up with the status text.
+- Operator change, not in this repository: on 2026-11-17 the owner chose to have their installed copy follow the main branch (development builds, unsigned) and gave the assistant a standing go to update it after each merge. Releases are still cut and signed as before, but that copy no longer tests them.
+
+Known gaps: a real update started from the Update button has still not been run; on a copy that is updated after every merge the button rarely has anything to offer. Other gaps as below.
+
+Next action: none pending; next slice at the owner's request.
+
 ## Fourth release candidate published — 2026-11-17
 
 **Branch `chore/dev-numbering-after-rc.4`, version `0.1.0-rc.4.dev.1`, channel `development`.**

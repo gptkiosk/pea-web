@@ -1801,6 +1801,11 @@ main {
 .update-panel p:empty {
   display: none;
 }
+/* A row already spaces its buttons. Without this, a text button that follows a main button is
+   pushed in a second time, even when the main button is hidden. */
+#release-dialog .action-row > .text-button {
+  margin-inline-start: 0;
+}
 .feedback-actions {
   display: flex;
   flex-wrap: wrap;
