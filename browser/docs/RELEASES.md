@@ -97,7 +97,7 @@ Nothing runs it by itself. There is no timer and a model cannot start it. The we
 
 ## Updating from the app
 
-A PEA that runs from a git checkout under launchd can offer the same update from Connections → **PEA updates**. It is off unless the gateway is started with both of these, on `local.py start` or `gateway.py`:
+A PEA that runs from a git checkout under launchd can offer the same update from the **Versions & updates** window, under **Update this copy** (the buttons appear once the server connection token is connected under Local model). It is off unless the gateway is started with both of these, on `local.py start` or `gateway.py`:
 
 ```sh
 --update-checkout /path/to/the/installed/checkout --update-launchd-label YOUR.LAUNCHD.LABEL

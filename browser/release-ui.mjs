@@ -5,6 +5,7 @@ import {
   issueURL,
   compareMain,
   newestRelease,
+  notesText,
   releaseStanding,
 } from './releases.mjs';
 const $ = (id) => document.getElementById(id);
@@ -75,7 +76,7 @@ export async function installReleaseUI() {
       if (!r.ok) throw new Error();
       const text = await r.text();
       if (text.length > 100000) throw new Error();
-      $('release-notes').textContent = text;
+      $('release-notes').textContent = notesText(text);
     } catch {
       note('This build’s changelog could not be loaded.');
     }
@@ -104,7 +105,7 @@ export async function installReleaseUI() {
         row = { tag_name: newest.tag, prerelease: newest.prerelease, body: newest.notes };
       }
       const expected = `https://github.com/${info.repository}/releases/tag/${row.tag_name}`;
-      $('release-notes').textContent = String(row.body || 'No release notes.').slice(0, 50000);
+      $('release-notes').textContent = notesText(String(row.body || 'No release notes.').slice(0, 50000));
       link('release-upstream', expected);
       // A stable build also checks that its own version is still published. A missing one may
       // have been withdrawn.
@@ -146,16 +147,6 @@ export async function installReleaseUI() {
     } finally {
       $('release-check').disabled = false;
     }
-  };
-  // The way from this window to where an update is installed, so nobody has to know that the
-  // button lives under Connections.
-  $('release-update-open').onclick = () => {
-    $('release-dialog').close();
-    // The same control the guided setup uses to open every setting at once.
-    $('collab-config').click();
-    const group = $('updates-group');
-    group.open = true;
-    group.scrollIntoView({ block: 'start' });
   };
   $('main-check').onclick = async () => {
     if (!info?.repository) return;

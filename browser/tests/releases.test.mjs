@@ -217,3 +217,16 @@ test('the newest published release is found among pre-releases, and only real re
     /is ahead of the newest published release, v0\.1\.0-rc\.2, a pre-release\. Nothing was changed/,
   );
 });
+
+test('release notes are shown as plain sentences, with the markup taken out', async () => {
+  const { notesText } = await import('../releases.mjs');
+  assert.equal(
+    notesText(
+      '# Title\r\n\r\n**Bold start.** Then `code` and [a `link`](https://example.com/a_b).\n\n\n\n- one\n  * two\n\n```sh\nrun --flag \\\n  **kept** `as is`\n```\nAfter 2 * 3 * 4 and snake_case_name.',
+    ),
+    'Title\n\nBold start. Then code and a link.\n\n• one\n  • two\n\n    run --flag \\\n      **kept** `as is`\nAfter 2 * 3 * 4 and snake_case_name.',
+  );
+  assert.equal(notesText('[](https://example.com/x)'), 'https://example.com/x');
+  assert.equal(notesText('<img src=x onerror=1>'), '<img src=x onerror=1>', 'left as text for textContent');
+  assert.equal(notesText(null), '');
+});

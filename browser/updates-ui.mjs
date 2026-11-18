@@ -1,5 +1,5 @@
-// "PEA updates" in Connections: look for an update to the installed copy and, after a review that
-// names the exact version, ask PEA's own gateway to install it. The page chooses nothing about
+// "Update this copy" in the Versions & updates window: look for an update to the installed copy
+// and, after a review that names the exact version, ask PEA's own gateway to install it. The page chooses nothing about
 // where an update comes from, and a model has no way to reach any of this.
 import {
   describeOffer,
@@ -16,7 +16,9 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
   let status = { available: false },
     offer = null,
     working = false,
-    watching = 0;
+    watching = 0,
+    // Set while the person is away in Connections pasting the token, so they are brought back.
+    returning = false;
   const say = (text, level = '') => {
     $('update-note').textContent = text;
     $('update-note').dataset.level = level;
@@ -26,7 +28,8 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
     const key = localKey();
     $('update-status').textContent = key
       ? describeStatus(status)
-      : 'Connect your PEA gateway under Local model to see whether this copy can update itself.';
+      : 'To check for an update and install it from here, connect this PEA first: paste its server connection token under Local model. The token is never saved, so this is needed again after a reload.';
+    $('release-update-open').hidden = Boolean(key);
     $('update-check').hidden = !key || !status.available;
     $('update-check').disabled = working;
     const target = offer && !offer.upToDate ? offer.target : null;
@@ -54,6 +57,16 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
       if (outcome.done && outcome.level === 'warn') say(outcome.text, outcome.level);
     }
     render();
+    if (returning && key) {
+      returning = false;
+      if ($('connections').open) $('connections').close();
+      if (!$('release-dialog').open) $('release-dialog').showModal();
+    }
+  }
+  // The Versions window was opened: ask afresh, unless an update is under way.
+  function opened() {
+    if (working || watching) return render();
+    void refresh();
   }
   async function check() {
     if (working) return;
@@ -149,6 +162,28 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
   $('update-check').onclick = () => void check();
   $('update-apply').onclick = () => void apply();
   $('update-reload').onclick = () => location.reload();
+  // The token is entered in one place only, under Local model. Go there, and come back here
+  // once it is connected.
+  $('release-update-open').onclick = () => {
+    $('release-dialog').close();
+    // The same control the guided setup uses to open every setting at once.
+    $('collab-config').click();
+    returning = true;
+    const group = $('local-group');
+    group.open = true;
+    group.scrollIntoView({ block: 'start' });
+    $('local-token').focus();
+  };
+  $('connections').addEventListener('close', () => (returning = false));
+  // Opening Connections any other way is a fresh visit. A dialog's close event arrives a moment
+  // after it closes, so it alone would leave a reopened Connections still marked as the trip.
+  for (const id of ['connections-open', 'collab-config'])
+    $(id).addEventListener('click', () => (returning = false));
+  $('updates-open-versions').onclick = () => {
+    $('connections').close();
+    $('releases-open').click();
+  };
+  for (const id of ['releases-open', 'changelog-open']) $(id).addEventListener('click', opened);
   render();
   return { render, refresh };
 }

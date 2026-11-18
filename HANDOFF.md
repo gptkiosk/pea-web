@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Update buttons moved into the Versions window — 2026-11-17
+
+**Branch `updates-in-versions-window`, version `0.1.0-rc.3.dev.2`, channel `development`.** The owner, on `0.1.0-rc.3`, opened Versions & updates a second time looking for the Update button and reported "version shows but no button". Nothing was broken: no newer release existed, and the buttons were under Connections and hidden until the token (never saved) was connected in that tab. The installed gateway answered `available: true`.
+
+- `browser/index.html`: the update controls (`#updates-group`, now a section headed "Update this copy", with `#update-status`, `#update-check`, `#update-apply`, `#update-reload`, `#update-found`, `#update-note`) are inside `#release-dialog`. `#release-update-open` is now "Connect this PEA…", shown only without a token. The three buttons at the top are in an `action-row`. Connections has `#updates-pointer` with `#updates-open-versions` in place of the old group.
+- `browser/updates-ui.mjs`: owns the trip to Local model and back (`returning`, cleared when Connections closes); asks the gateway afresh when the window opens unless an update is under way. `browser/release-ui.mjs` no longer has the `#release-update-open` handler.
+- `browser/releases.mjs`: `notesText(markdown)` takes Markdown marks out for display as text; wording of the "Available" results names "Update this copy".
+- `browser/styles.css`: `.update-panel`. `browser/docs/RELEASES.md`: where the button is.
+- Tests: `browser/tests/releases.test.mjs` (1 new, 278 unit); `browser/tests/dom/releases.test.mjs` (one test replaced, 1 new, 10 in the file); `browser/tests/dom/updates.test.mjs` (1 new, 4 in the file). Browser DOM tests: 118.
+
+Known gaps: the window has two checks, "Check published releases" (the page asks GitHub) and "Check for an update to install" (the gateway looks); they are not merged into one. A real update from the button has still not been run. Earlier release notes and sections below still say Connections → PEA updates; that entry now leads to the window. The owner's installed copy does not have this until a release carries it.
+
+Next action: owner looks at the dev preview; then merge and, when wanted, `0.1.0-rc.4`.
+
 ## Third release candidate published — 2026-11-17
 
 **Branch `fix/sealed-file-test-chance-match`, version `0.1.0-rc.3.dev.1`, channel `development`.**

@@ -152,7 +152,7 @@ test(
     const result = await check(page);
     assert.equal(result.level, 'update');
     assert.match(result.text, /^Available: v0\.1\.0-rc\.2, a pre-release/);
-    assert.match(result.text, /Connections → PEA updates/);
+    assert.match(result.text, /“Update this copy” below installs it after your review/);
     assert.match(result.text, /No installation has started/);
     assert.equal(await page.text('#release-notes'), 'Notes for v0.1.0-rc.2');
     assert.equal(
@@ -222,31 +222,80 @@ test('a stable build still looks only at the latest stable release', options, as
   await page.close();
 });
 
+const shown = (page, id) =>
+  page.evaluate(
+    `(() => { const e = document.getElementById(${JSON.stringify(id)}); return !e.hidden && e.offsetParent !== null; })()`,
+  );
+
 test(
-  'the window leads to where an update is installed: Connections, with PEA updates open',
+  'without the token, the window says what is missing and leads to Local model; Connections points back',
   options,
   async () => {
     const page = await pageFor({ build: { channel: 'development' }, latest: 'v0.0.1' });
     await page.click('#releases-open');
     await page.waitFor(`document.getElementById('release-dialog').open`, 'the versions window');
+    const text = await page.evaluate(`document.getElementById('release-dialog').textContent`);
+    assert.match(text, /This page never downloads or runs program code itself/);
+    assert.match(text, /Update this copy/);
     assert.match(
-      await page.evaluate(`document.getElementById('release-dialog').textContent`),
-      /This page never downloads or runs program code itself/,
+      await page.text('#update-status'),
+      /connect this PEA first: paste its server connection token under Local model\. The token is never saved/,
     );
+    assert.equal(await shown(page, 'release-update-open'), true, 'the way to connect is offered');
+    assert.equal(await shown(page, 'update-check'), false);
+    assert.equal(await shown(page, 'update-apply'), false);
+
     await page.click('#release-update-open');
     await page.waitFor(
-      `document.getElementById('connections').open && document.getElementById('updates-group').open`,
-      'the update panel',
+      `document.getElementById('connections').open && document.getElementById('local-group').open`,
+      'Local model in Connections',
     );
     assert.equal(await page.evaluate(`document.getElementById('release-dialog').open`), false);
     assert.equal(await page.evaluate(`document.getElementById('setup-wizard').open`), false);
+    assert.equal(await page.evaluate(`document.activeElement.id`), 'local-token');
     assert.equal(
       await page.evaluate(
-        `(() => { const r = document.getElementById('updates-group').getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; })()`,
+        `(() => { const r = document.getElementById('local-group').getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; })()`,
       ),
       true,
-      'the panel is in view',
+      'the token field is in view',
     );
+
+    // The old place under Connections no longer holds the buttons; it leads to the window.
+    assert.equal(
+      await page.evaluate(
+        `document.getElementById('connections').contains(document.getElementById('update-check'))`,
+      ),
+      false,
+    );
+    await page.click('#updates-open-versions');
+    await page.waitFor(`document.getElementById('release-dialog').open`, 'the versions window again');
+    assert.equal(await page.evaluate(`document.getElementById('connections').open`), false);
+    await page.close();
+  },
+);
+
+test(
+  'the buttons in the window sit apart on one row, and notes read as plain sentences',
+  options,
+  async () => {
+    const body =
+      '**This is a pre-release.** Read [the guide](https://github.com/x/y/blob/v1/G.md).\n\n## Added\n\n- **One.** Uses `code`.\n\n```sh\nrun --this\n```\n';
+    const page = await pageFor({
+      build: { version: '0.1.0-rc.1', channel: 'prerelease' },
+      list: [{ ...candidate('v0.1.0-rc.2'), body }],
+    });
+    await page.click('#releases-open');
+    await check(page);
+    assert.equal(
+      await page.text('#release-notes'),
+      'This is a pre-release. Read the guide.\n\nAdded\n\n• One. Uses code.\n\n    run --this',
+    );
+    const gaps = await page.evaluate(
+      `(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const [a, b, c] = ['release-check', 'main-check', 'release-upstream'].map(r); return { ab: b.left - a.right, bc: c.left - b.right, row: Math.abs((b.top + b.bottom) / 2 - (c.top + c.bottom) / 2) }; })()`,
+    );
+    assert.ok(gaps.ab >= 12 && gaps.bc >= 12, 'a gap between the three: ' + JSON.stringify(gaps));
+    assert.ok(gaps.row < 4, 'on one line at this width');
     await page.close();
   },
 );
