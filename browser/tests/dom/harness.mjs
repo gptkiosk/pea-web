@@ -97,12 +97,13 @@ async function freePort() {
 // An OpenAI-compatible stand-in. `reply(lastOwnerMessage)` returns the whole assistant reply, or an
 // object to misbehave on purpose: { status } answers with that error, { text, cut: true } drops the
 // connection halfway through the reply, and { text, delay } waits that many milliseconds first.
-export async function startFakeModel(reply) {
+// `models` are the ids it lists.
+export async function startFakeModel(reply, models = ['synthetic-model']) {
   const requests = [];
   const server = createServer((request, response) => {
     if (request.method === 'GET' && request.url === '/v1/models') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ data: [{ id: 'synthetic-model' }] }));
+      response.end(JSON.stringify({ data: models.map((id) => ({ id })) }));
       return;
     }
     if (request.method === 'POST' && request.url === '/v1/chat/completions') {
@@ -679,7 +680,7 @@ async function launchBrowserOnce() {
 }
 
 // The whole synthetic stack for one test file: model, gateway and browser, stopped together.
-export async function startStack(reply, { site = null, voices = null } = {}) {
+export async function startStack(reply, { site = null, voices = null, models = undefined } = {}) {
   const parts = {};
   const close = async () => {
     // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
@@ -695,7 +696,7 @@ export async function startStack(reply, { site = null, voices = null } = {}) {
   // started so far is stopped here, because a hook that times out cannot clean up after itself.
   let abandoned = false;
   const start = (async () => {
-    parts.model = await startFakeModel(reply);
+    parts.model = await startFakeModel(reply, models);
     if (abandoned) return;
     // `site` is { names, resolve, answer }: names served by a stand-in site, and names given fixed
     // addresses in place of a DNS answer.

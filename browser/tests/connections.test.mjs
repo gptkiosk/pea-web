@@ -721,3 +721,21 @@ test('confirming existing files sets the private mark only after every file is c
     /1 to 25 files/,
   );
 });
+
+test('finding a model matches every typed word against its name and id, in any case and order', async () => {
+  const { matchModels } = await import('../connections.mjs');
+  const models = [
+    { id: 'nvidia/nemotron-nano-9b', name: 'NVIDIA: Nemotron Nano 9B' },
+    { id: 'nvidia/llama-3.1-nemotron-70b', name: 'NVIDIA: Llama 3.1 Nemotron 70B' },
+    { id: 'anthropic/claude-haiku', name: 'Anthropic: Claude Haiku' },
+    { id: 'local:qwen3', name: 'qwen3', local: true },
+  ];
+  const ids = (query) => matchModels(models, query).map((m) => m.id);
+  assert.deepEqual(ids('nemotron'), ['nvidia/nemotron-nano-9b', 'nvidia/llama-3.1-nemotron-70b']);
+  assert.deepEqual(ids('  HAIKU '), ['anthropic/claude-haiku']);
+  assert.deepEqual(ids('70b nemotron'), ['nvidia/llama-3.1-nemotron-70b']);
+  assert.deepEqual(ids('local'), ['local:qwen3']);
+  assert.deepEqual(ids('no-such-model'), []);
+  assert.equal(matchModels(models, '').length, 4);
+  assert.equal(matchModels(models, null).length, 4);
+});

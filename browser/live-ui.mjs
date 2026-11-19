@@ -23,6 +23,7 @@ import {
   validRepo,
   madeByPEA,
   labelledPEA,
+  matchModels,
 } from './connections.mjs';
 import { parseConfiguration } from './shared-config.mjs';
 import { LocalModel } from './local-model.mjs';
@@ -128,8 +129,27 @@ export function installConnections(hooks) {
   function modelID(s, surface) {
     return surface === 'chat' ? s.chat : s[s.role];
   }
+  // The one local model, when this server lists exactly one and Chat has none chosen.
+  function onlyLocalModel(s = state()) {
+    return s.localKey && !s.chat && s.localModels.length === 1 ? s.localModels[0] : null;
+  }
   function render() {
-    const s = state();
+    const s = state(),
+      all = [...s.localModels, ...s.models],
+      found = new Set(matchModels(all, $('model-filter').value));
+    // A short list needs no filter.
+    $('model-filter-row').hidden = all.length <= 8;
+    if (all.length <= 8) $('model-filter').value = '';
+    $('model-filter-count').textContent = $('model-filter').value.trim()
+      ? found.size
+        ? `${found.size} of ${all.length} models match`
+        : `No model matches. ${all.length} are loaded.`
+      : `${all.length} models loaded`;
+    const only = onlyLocalModel(s);
+    for (const button of document.querySelectorAll('.use-only-model')) {
+      button.hidden = !only;
+      button.textContent = only ? `Use ${only.name} for Chat` : '';
+    }
     for (const [id, key] of [
       ['chat-model', 'chat'],
       ['collaboration-model', 'collaboration'],
@@ -138,13 +158,16 @@ export function installConnections(hooks) {
       const select = $(id);
       select.replaceChildren(
         new Option(key === 'chat' ? 'Choose a Chat model' : 'Not configured', ''),
-        ...[...s.localModels, ...s.models].map(
-          (m) =>
-            new Option(
-              `${m.local ? 'Local · ' : 'OpenRouter · '}${m.name} ${m.prompt === 0 && m.completion === 0 && m.request === 0 ? '· free' : '· API billing'}`,
-              m.id,
-            ),
-        ),
+        // What is typed in "Find a model" narrows every list; a model already chosen always stays.
+        ...all
+          .filter((m) => found.has(m) || m.id === s[key])
+          .map(
+            (m) =>
+              new Option(
+                `${m.local ? 'Local · ' : 'OpenRouter · '}${m.name} ${m.prompt === 0 && m.completion === 0 && m.request === 0 ? '· free' : '· API billing'}`,
+                m.id,
+              ),
+          ),
       );
       select.value = s[key];
     }
@@ -1198,6 +1221,19 @@ export function installConnections(hooks) {
       state().approvals.clear();
       remember();
       render();
+    };
+  $('model-filter').oninput = () => render();
+  // One press chooses the only local model for Chat. It is the owner's press that chooses it: PEA
+  // never picks a model by itself, and nothing is sent to the model by choosing.
+  for (const button of document.querySelectorAll('.use-only-model'))
+    button.onclick = () => {
+      const only = onlyLocalModel();
+      if (!only) return;
+      state().chat = only.id;
+      state().approvals.clear();
+      remember();
+      render();
+      note(`${only.name} is now the Chat model. Nothing was sent to it.`);
     };
   $('allow-data').onchange = () => {
     state().allowData = $('allow-data').checked;

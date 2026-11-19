@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## One-press local model and "Find a model" — 2026-11-19
+
+**Branch `feature/model-picker-help`, version `0.1.0-rc.4.dev.10`.** The owner asked: "Add the one-click offer to use the only local model and I think a dynamic filter for the openrouter models is necessary since there are so many...  something than when typing nemotron shows all nemotron models or Haiku shows all haiku models." They also asked for "the method of exporting memory from the iOS app to the web app"; there is none (see `browser/docs/PROFILE-CONTINUITY.md`, design only), and that was answered in conversation, not built.
+
+- `browser/connections.mjs`: `matchModels(models, query)` (every typed word in the name, id or "local"/"openrouter"; at most eight words).
+- `browser/live-ui.mjs`: `render` filters the three model selects through `#model-filter`, always keeping each select's chosen model; the filter row is hidden with eight models or fewer; `onlyLocalModel` and the `.use-only-model` buttons, whose press does exactly what choosing in the Chat list does.
+- `browser/index.html`: `#model-filter-row`, `#model-filter`, `#model-filter-count`; two `.use-only-model` buttons (connection card, Local model settings).
+- `browser/tests/dom/harness.mjs`: `startStack(reply, { models })` lets the stand-in model list several ids.
+- Tests: 1 unit test in `browser/tests/connections.test.mjs`; `browser/tests/dom/model-filter.test.mjs` (1); the no-model test in `browser/tests/dom/chat-window.test.mjs` now covers the one-press offer, that nothing is sent, and that the choice survives a reload.
+
+Known gaps: the filter was exercised with twelve stand-in local models, not a real OpenRouter catalogue. The image model list is not filtered. No iPhone-to-Web profile transfer exists; it needs an agreed format and an export in the iPhone app, which is outside this repository.
+
+Next action: none pending.
+
 ## Chat window: locked layout, following conversation, laid-out replies — 2026-11-19
 
 **Branch `design/chat-window`, version `0.1.0-rc.4.dev.9`.** The owner reported two things. First: "I cannot chat with PEA web, even though it says it has local model configured." Their copy was connected and listed one local model, but no Chat model was chosen, and the card showed a blank. Second: "The navigation with all the scroll bars is a little wonky. I would like to lock these panels and have an autoscrolling chat window that follows the chat and formats the chat results as needed with code windows, copy icons and other chat niceties."

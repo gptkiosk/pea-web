@@ -128,6 +128,20 @@ export class ServiceError extends Error {
     this.name = 'ServiceError';
   }
 }
+// The models whose name or id contains every word typed, in any order and any case. Nothing typed
+// gives them all.
+export function matchModels(models, query) {
+  const words = String(query ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 8);
+  if (!words.length) return models;
+  return models.filter((m) => {
+    const text = `${m.name ?? ''} ${m.id ?? ''} ${m.local ? 'local' : 'openrouter'}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
+}
 // Normalize the decimal unit shift, rather than leaking binary multiplication noise into a price cap.
 export const perMillion = (value) => Number((value * 1e6).toPrecision(15));
 export class Services {

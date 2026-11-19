@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.10] - 2026-11-19
+
+### Added
+
+- **One press to use the only local model.** When your PEA server lists exactly one model and Chat has none chosen, the connection card and the Local model settings show "Use <model> for Chat". PEA still never chooses a model by itself, offers nothing when there are several, and sends nothing to the model when you choose.
+- **Find a model.** When more than eight models are loaded, a box above the model lists narrows all three as you type. Every word typed must appear in the model's name or id, in any order and any case: "nemotron" shows the Nemotron models, "haiku" the Haiku ones. A model already chosen always stays in its list. A line under the box says how many match.
+
 ## [0.1.0-rc.4.dev.9] - 2026-11-19
 
 ### Changed

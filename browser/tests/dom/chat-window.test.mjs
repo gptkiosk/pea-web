@@ -195,23 +195,57 @@ test('a phone keeps the ordinary scrolling page', options, async () => {
   await page.close();
 });
 
-test('connected without a Chat model, PEA says so instead of showing a blank', options, async () => {
-  const page = await stack.browser.newPage();
-  await page.goto(stack.gateway.origin + '/');
-  await page.waitFor(
-    `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
-    'the app to finish starting',
-  );
-  await page.fill('#local-token', stack.gateway.token);
-  await page.click('#local-connect');
-  await page.waitFor(
-    `[...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`,
-    'the local model list',
-  );
-  assert.equal(await page.text('#connection-status'), 'Connected · no Chat model chosen yet');
-  assert.equal(await page.text('#active-model'), 'Chat · choose a model in Set up');
-  await page.fill('#chat-model', 'local:synthetic-model');
-  await page.waitFor(`document.getElementById('connection-status').textContent === 'Local model connected'`);
-  assert.equal(await page.text('#active-model'), 'Chat · synthetic-model');
-  await page.close();
-});
+test(
+  'connected without a Chat model, PEA says so and offers the only local model in one press',
+  options,
+  async () => {
+    const page = await stack.browser.newPage();
+    const sent = stack.model.requests.length;
+    await page.goto(stack.gateway.origin + '/');
+    await page.waitFor(
+      `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
+      'the app to finish starting',
+    );
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await page.waitFor(
+      `[...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`,
+      'the local model list',
+    );
+    assert.equal(await page.text('#connection-status'), 'Connected · no Chat model chosen yet');
+    assert.equal(await page.text('#active-model'), 'Chat · choose a model in Set up');
+    // With exactly one local model, one press chooses it. Nothing is chosen or sent before that.
+    const offers = () =>
+      page.evaluate(
+        `[...document.querySelectorAll('.use-only-model')].map((b) => (b.hidden ? null : b.textContent))`,
+      );
+    assert.deepEqual(await offers(), ['Use synthetic-model for Chat', 'Use synthetic-model for Chat']);
+    assert.equal(await page.evaluate(`document.getElementById('chat-model').value`), '');
+    assert.equal(stack.model.requests.length, sent, 'no request was made by connecting');
+    await page.evaluate(`document.querySelector('.use-only-model').click()`);
+    await page.waitFor(
+      `document.getElementById('connection-status').textContent === 'Local model connected'`,
+    );
+    assert.equal(await page.text('#active-model'), 'Chat · synthetic-model');
+    assert.equal(await page.evaluate(`document.getElementById('chat-model').value`), 'local:synthetic-model');
+    assert.deepEqual(await offers(), [null, null], 'the offer goes once a model is chosen');
+    assert.equal(stack.model.requests.length, sent, 'choosing a model sends nothing to it');
+    // A short list has no filter box.
+    assert.equal(await page.evaluate(`document.getElementById('model-filter-row').hidden`), true);
+    // The choice is remembered like any other, and Chat works with it.
+    await page.goto(stack.gateway.origin + '/');
+    await page.waitFor(
+      `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
+      'the app to start again',
+    );
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await page.waitFor(
+      `document.getElementById('connection-status').textContent === 'Local model connected'`,
+    );
+    assert.deepEqual(await offers(), [null, null]);
+    await askModel(stack, page, 'Hello there.');
+    assert.match(await page.text('#messages'), /A plain synthetic reply\./);
+    await page.close();
+  },
+);

@@ -96,6 +96,7 @@
   "tests/dom/home.test.mjs",
   "tests/dom/honesty.test.mjs",
   "tests/dom/mac-reminders.test.mjs",
+  "tests/dom/model-filter.test.mjs",
   "tests/dom/preferences.test.mjs",
   "tests/dom/releases.test.mjs",
   "tests/dom/research.test.mjs",
