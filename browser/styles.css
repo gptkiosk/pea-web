@@ -1778,37 +1778,98 @@ main {
   color: var(--green);
 }
 .release-notes {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font:
-    12px/1.8 ui-monospace,
-    monospace;
+  font-size: 13px;
+  line-height: 1.6;
   max-height: 45vh;
   overflow: auto;
-  padding: 16px;
+  margin-top: 14px;
+  padding: 6px 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
+}
+.release-notes p,
+.release-notes ul {
+  margin: 10px 0;
+}
+.release-notes h4 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+}
+.release-notes ul {
+  padding-inline-start: 20px;
+}
+.release-notes li {
+  margin: 4px 0;
+}
+.release-notes pre {
+  margin: 10px 0;
+  white-space: pre-wrap;
+  font:
+    12px/1.6 ui-monospace,
+    monospace;
 }
 .update-panel {
-  margin: 20px 0;
-  padding: 4px 18px 12px;
+  margin: 4px 0 28px;
+  padding: 20px 22px 18px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 16px;
+}
+.update-panel .eyebrow {
+  margin-bottom: 6px;
+}
+.update-panel .release-version {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.2px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.update-panel #release-build {
+  margin: 4px 0 0;
+  font-size: 12px;
 }
 .update-panel h3 {
-  margin: 14px 0 6px;
+  margin: 20px 0 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.update-panel p {
+  margin: 6px 0;
+}
+.update-panel .action-row {
+  margin: 14px 0 4px;
+}
+#update-status {
+  color: var(--sub);
 }
 .stale-notice {
-  margin: 16px 0;
-  padding: 4px 18px 16px;
-  border: 1px solid var(--green);
+  margin: 16px 0 0;
+  padding: 14px 16px;
   border-radius: 12px;
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+}
+.stale-notice p {
+  margin: 0 0 12px;
 }
 .stale-notice[hidden] {
   display: none;
 }
-.update-panel p:empty {
+.update-panel p:empty,
+.release-section p:empty {
   display: none;
+}
+.release-section h3 {
+  margin: 0 0 6px;
+}
+.release-section + details {
+  margin-top: 22px;
+}
+#review-body.prose {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
 }
 /* A row already spaces its buttons. Without this, a text button that follows a main button is
    pushed in a second time, even when the main button is hidden. */

@@ -231,10 +231,31 @@ test(
     );
     assert.equal(await words(page, '#update-apply'), 'Update to 0.1.0-rc.2…');
     assert.deepEqual(posts(page), [{ action: 'check' }]);
+    // One main button in the window, first in its row, with checking again beside it.
+    assert.deepEqual(
+      JSON.parse(
+        await page.evaluate(
+          `JSON.stringify([...document.querySelectorAll('#release-dialog .primary')].filter((e) => !e.closest('[hidden]')).map((e) => e.id))`,
+        ),
+      ),
+      ['update-apply'],
+    );
+    assert.equal(await words(page, '#update-check'), 'Check again');
+    assert.ok(
+      await page.evaluate(
+        `Boolean(document.querySelector('#update-apply').compareDocumentPosition(document.querySelector('#update-check')) & Node.DOCUMENT_POSITION_FOLLOWING)`,
+      ),
+      'the update button comes first',
+    );
 
     await page.click('#update-apply');
     await page.waitFor(`document.querySelector('#review').open`, 'the review');
     assert.match(await page.text('#review-title'), /Update PEA to 0\.1\.0-rc\.2\?/);
+    assert.equal(
+      await page.evaluate(`document.querySelector('#review-body').classList.contains('prose')`),
+      true,
+      'the explanation is set in the reading typeface',
+    );
     const shown = await page.text('#review-body');
     assert.match(
       shown,

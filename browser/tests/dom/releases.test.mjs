@@ -287,9 +287,31 @@ test(
     });
     await page.click('#releases-open');
     await check(page);
+    // Notes are set out as a paragraph, a heading, a list and a code line, each put in as text.
+    assert.deepEqual(
+      JSON.parse(
+        await page.evaluate(
+          `JSON.stringify([...document.getElementById('release-notes').children].map((e) => [e.tagName, e.textContent]))`,
+        ),
+      ),
+      [
+        ['P', 'This is a pre-release. Read the guide.'],
+        ['H4', 'Added'],
+        ['UL', 'One. Uses code.'],
+        ['PRE', 'run --this'],
+      ],
+    );
     assert.equal(
-      await page.text('#release-notes'),
-      'This is a pre-release. Read the guide.\n\nAdded\n\n• One. Uses code.\n\n    run --this',
+      await page.evaluate(
+        `document.querySelectorAll('#release-notes a, #release-notes img, #release-notes script').length`,
+      ),
+      0,
+      'nothing in the notes becomes a link, picture or script',
+    );
+    assert.notEqual(
+      await page.evaluate(`getComputedStyle(document.querySelector('#release-notes p')).fontFamily`),
+      await page.evaluate(`getComputedStyle(document.querySelector('#release-notes pre')).fontFamily`),
+      'sentences are in the reading typeface, only code is fixed-width',
     );
     const gaps = await page.evaluate(
       `(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const [a, b, c] = ['release-check', 'main-check', 'release-upstream'].map(r); return { ab: b.left - a.right, bc: c.left - b.right, row: Math.abs((b.top + b.bottom) / 2 - (c.top + c.bottom) / 2) }; })()`,
@@ -315,6 +337,14 @@ test(
     );
     assert.equal(await shown(page, 'release-stale'), false, 'same build: no notice');
     assert.equal(await shown(page, 'footer-reload'), false);
+    // The window leads with this copy's version in plain words.
+    assert.equal(await page.text('#release-version'), 'v9.9.9-dev.1');
+    assert.match(await page.text('#release-build'), /^Development build · commit bbbbbbb( · |$)/);
+    // An update that has just landed offers its own reload while no notice is showing.
+    await page.evaluate(
+      `document.getElementById('update-reload').dataset.ready = '1'; document.dispatchEvent(new Event('pea-stale'))`,
+    );
+    assert.equal(await shown(page, 'update-reload'), true);
 
     // PEA is updated while the page stays open.
     build.version = '9.9.9-dev.2';
@@ -327,6 +357,7 @@ test(
       /now runs 9\.9\.9-dev\.2 \(ccccccc\)\. This page is still showing 9\.9\.9-dev\.1 \(bbbbbbb\)/,
     );
     assert.equal(await shown(page, 'release-reload'), true);
+    assert.equal(await shown(page, 'update-reload'), false, 'one reload button in the window, not two');
     assert.equal(await page.text('#footer-reload'), 'Reload for v9.9.9-dev.2');
     assert.equal(await page.evaluate(`window.__stillHere`), true, 'the page did not reload by itself');
 

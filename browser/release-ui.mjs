@@ -5,7 +5,8 @@ import {
   issueURL,
   compareMain,
   newestRelease,
-  notesText,
+  notesBlocks,
+  buildLine,
   releaseStanding,
   stalePage,
 } from './releases.mjs';
@@ -42,6 +43,26 @@ export async function installReleaseUI() {
   let info = null,
     download = null;
   const note = (text) => ($('release-note').textContent = text);
+  // Release notes and the changelog arrive as Markdown. Each piece is put in as text.
+  function showNotes(markdown) {
+    const out = [];
+    let list = null;
+    for (const block of notesBlocks(markdown)) {
+      if (block.kind === 'item') {
+        if (!list) out.push((list = document.createElement('ul')));
+        list.append(Object.assign(document.createElement('li'), { textContent: block.text }));
+        continue;
+      }
+      list = null;
+      out.push(
+        Object.assign(
+          document.createElement(block.kind === 'code' ? 'pre' : block.kind === 'heading' ? 'h4' : 'p'),
+          { textContent: block.text },
+        ),
+      );
+    }
+    $('release-notes').replaceChildren(...out);
+  }
   function link(id, url) {
     const a = $(id);
     a.href = url;
@@ -54,7 +75,8 @@ export async function installReleaseUI() {
       : info.product + ' · Personal Executive Assistant';
     $('footer-build').textContent =
       `v${info.version} · ${info.environment} · web ${commit} · api ${info.serverCommit?.slice(0, 7) ?? 'not connected'} · ${info.modified === true ? 'modified' : info.modified === null ? 'unverified source' : 'clean'}`;
-    $('release-build').textContent = $('footer-build').textContent;
+    $('release-version').textContent = 'v' + info.version;
+    $('release-build').textContent = buildLine(info);
     $('feedback-open-upstream').hidden = true;
     $('release-check').disabled = !validRepository(info.repository);
     $('main-check').disabled = !validRepository(info.repository);
@@ -85,7 +107,11 @@ export async function installReleaseUI() {
     $('release-stale').hidden = $('footer-reload').hidden = !stale;
     $('release-stale-text').textContent = stale?.text ?? '';
     $('footer-reload').textContent = stale ? `Reload for v${stale.version}` : '';
+    // The update panel keeps its own reload button out of the way while this notice offers one.
+    document.dispatchEvent(new Event('pea-stale'));
   }
+  // An update started from this page has just landed: look now, not at the next visit.
+  document.addEventListener('pea-updated', () => void look(true));
   $('release-reload').onclick = $('footer-reload').onclick = () => location.reload();
   window.addEventListener('focus', () => void look());
   document.addEventListener('visibilitychange', () => {
@@ -103,7 +129,7 @@ export async function installReleaseUI() {
       if (!r.ok) throw new Error();
       const text = await r.text();
       if (text.length > 100000) throw new Error();
-      $('release-notes').textContent = notesText(text);
+      showNotes(text);
     } catch {
       note('This build’s changelog could not be loaded.');
     }
@@ -132,7 +158,7 @@ export async function installReleaseUI() {
         row = { tag_name: newest.tag, prerelease: newest.prerelease, body: newest.notes };
       }
       const expected = `https://github.com/${info.repository}/releases/tag/${row.tag_name}`;
-      $('release-notes').textContent = notesText(String(row.body || 'No release notes.').slice(0, 50000));
+      showNotes(String(row.body || 'No release notes.').slice(0, 50000));
       link('release-upstream', expected);
       // A stable build also checks that its own version is still published. A missing one may
       // have been withdrawn.
