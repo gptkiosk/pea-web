@@ -92,10 +92,16 @@ const system = () => stack.model.requests.at(-1).messages[0].content;
 const pause = (page) => page.evaluate(`new Promise((resolve) => setTimeout(resolve, 150))`);
 const title = (page) => page.text('#review-title');
 
+// The library reads its storage when the page opens and is busy during each save. Until it is free,
+// saving the interview is refused with a notice, so wait on both sides of the save.
+const libraryFree = (page) =>
+  page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be free');
 async function setInterview(page, answers) {
+  await libraryFree(page);
   for (const [field, value] of Object.entries(answers)) await page.fill('#bio-' + field, value);
   await page.click('#interview-save');
   await pause(page);
+  await libraryFree(page);
 }
 const home = {
   assistantHome: 'Synthetic Harbour, the old quarter',
