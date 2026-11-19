@@ -1,7 +1,8 @@
 // Which workspaces are on screen. Pure layout state: names and widths, never content.
 // A wide screen shows two workspaces side by side and a very wide one three; a narrow one shows
 // only the focused workspace, and the saved arrangement is kept for when there is room again.
-export const workspaces = ['chat', 'today', 'greenhouse'];
+// Harvest is the tray that gathers what conversations proposed and what came of it.
+export const workspaces = ['chat', 'today', 'greenhouse', 'harvest'];
 export const minimumSplitWidth = 1100;
 export const threePaneWidth = 1500;
 export const sizeLimits = { min: 0.18 };

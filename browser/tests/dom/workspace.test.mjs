@@ -166,9 +166,14 @@ test(
 
 test('on a screen with room PEA is one fixed window under a slim bar', options, async () => {
   const page = await stack.browser.newPage();
-  await page.setViewport(1440, 900);
+  await page.setViewport(1600, 900);
   await page.goto(stack.gateway.origin + '/');
   await page.waitFor(`document.querySelector('[data-tab].selected')`, 'the workspace');
+  // A double press leaves one workspace alone in the window.
+  const alone = (name) =>
+    page.evaluate(
+      `document.getElementById('tab-${name}').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+    );
   const frame = () =>
     page.evaluate(`(() => {
       const box = (selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; };
@@ -183,7 +188,7 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
       };
     })()`);
   for (const tab of ['chat', 'today', 'greenhouse']) {
-    await page.click('#tab-' + tab);
+    await alone(tab);
     await page.waitFor(`!document.getElementById('${tab}').hidden`, tab);
     const f = await frame();
     assert.equal(f.moved, 0, tab + ': the page does not scroll');
@@ -211,8 +216,9 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     ),
     [
       ['chat', false, 'dashed'],
-      ['today', false, 'solid'],
+      ['today', false, 'dashed'],
       ['greenhouse', true, 'solid'],
+      ['harvest', false, 'dashed'],
     ],
   );
   for (const id of ['connections-open', 'library-open', 'profile', 'theme', 'split-toggle', 'workspace-menu'])
@@ -227,7 +233,7 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
   assert.match(await page.text('#memory-status'), /\S/);
 
   // A long pane scrolls inside itself.
-  await page.click('#tab-today');
+  await alone('today');
   await page.waitFor(`!document.getElementById('today').hidden`, 'Today');
   assert.equal(
     await page.evaluate(
@@ -236,8 +242,9 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     true,
   );
 
-  // Two panes are open by now: each has its own bar with Swap sides and Tuck up, and tucking
-  // leaves the chip dashed.
+  // With a second workspace brought in, each has its own bar with Swap sides and Tuck up, and
+  // tucking leaves the chip dashed.
+  await page.click('#tab-chat');
   assert.equal(await page.evaluate(`document.getElementById('panes').classList.contains('split')`), true);
   assert.equal((await frame()).moved, 0);
   assert.deepEqual(
@@ -253,7 +260,7 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     'dashed',
   );
 
-  // A narrower desktop window puts the status under the chips; it is still a fixed window.
+  // A desktop window under 1500 wide puts the status under the chips; it is still a fixed window.
   await page.setViewport(1024, 768);
   await page.waitFor(
     `document.querySelector('.setup-strip').getBoundingClientRect().top > 40`,
@@ -378,3 +385,83 @@ test('chips bring up to three workspaces in, and panes move, resize and tuck up'
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });
+
+test(
+  'Harvest gathers what a conversation proposed, with the same review and nothing done before it',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1680, height: 900 });
+    const harvest = () =>
+      page.evaluate(`(() => {
+      const list = (id) =>
+        [...document.querySelectorAll('#' + id + ' li')].map((li) => [...li.children].map((c) => c.textContent).join(' | '));
+      const count = document.getElementById('harvest-count');
+      return {
+        waiting: list('harvest-waiting'), done: list('harvest-done'),
+        empty: !document.getElementById('harvest-empty').hidden,
+        count: count.hidden ? '' : count.textContent,
+        chip: document.getElementById('tab-harvest').getAttribute('aria-label'),
+        hint: document.getElementById('tab-harvest').title,
+      };
+    })()`);
+    assert.deepEqual(await harvest(), {
+      waiting: [],
+      done: [],
+      empty: true,
+      count: '',
+      chip: 'Harvest',
+      hint: '',
+    });
+
+    // A plain reply gathers nothing; a proposal is counted on the chip while Harvest is tucked up.
+    await askModel(stack, page, 'Hello there.');
+    assert.equal((await harvest()).count, '');
+    await askModel(stack, page, 'Please capture a story.');
+    let now = await harvest();
+    assert.deepEqual(now.waiting, ['From Chat | Review story: Synthetic story']);
+    assert.equal(now.count, '1');
+    assert.equal(now.chip, 'Harvest, 1 waiting for your review');
+    assert.match(now.hint, /Waiting for your review: Review story: Synthetic story/);
+    assert.equal(await page.evaluate(`document.getElementById('harvest').hidden`), true);
+    assert.equal(
+      await page.evaluate(
+        `document.querySelectorAll('#tasks-section .story-card, #stories .story-card').length`,
+      ),
+      0,
+    );
+
+    // Its chip brings it in beside Chat; the reply keeps its own Review button too.
+    await page.click('#tab-harvest');
+    assert.deepEqual(await shown(page), ['chat', 'harvest']);
+    assert.equal(
+      await page.evaluate(
+        `[...document.querySelectorAll('#messages button')].filter((b) => /^Review story/.test(b.textContent)).length`,
+      ),
+      1,
+    );
+
+    // Reviewing from Harvest is the same review; cancelling changes nothing.
+    await page.evaluate(`document.querySelector('#harvest-waiting button').click()`);
+    await page.waitFor(`document.getElementById('review').open`, 'the review');
+    assert.match(await page.text('#review-body'), /Synthetic story/);
+    await page.click('#review-cancel');
+    await page.waitFor(`!document.getElementById('review').open`);
+    assert.equal((await harvest()).count, '1', 'cancel leaves it waiting');
+
+    await page.evaluate(`document.querySelector('#harvest-waiting button').click()`);
+    await page.waitFor(`document.getElementById('review').open`, 'the review again');
+    await page.click('#review-approve');
+    await page.waitFor(`document.getElementById('harvest-count').hidden`, 'nothing left waiting');
+    now = await harvest();
+    assert.deepEqual(now.waiting, []);
+    assert.equal(now.chip, 'Harvest');
+    assert.match(await page.text('#today'), /Synthetic story/, 'the approved story is on the board');
+
+    // Another profile has its own harvest.
+    await page.fill('#profile', 'work');
+    await page.waitFor(`document.getElementById('profile').value === 'work'`);
+    assert.deepEqual((await harvest()).waiting, []);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);

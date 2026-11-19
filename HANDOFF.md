@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Workspace redesign, step three: the Harvest tray — 2026-11-19
+
+**Branch `design/harvest-tray`, version `0.1.0-rc.4.dev.17`.** The owner answered "Yes, start it" to step three (the Harvest tray, with counts and a peek on tucked chips).
+
+- `browser/workspace.mjs`, `browser/workspace-ui.mjs`: `harvest` is a fourth workspace name and title. Nothing else in the layout rules changed.
+- `browser/index.html`: `#tab-harvest` with `#harvest-count`, and `section#harvest` (`#harvest-empty`, `#harvest-waiting-group` / `#harvest-waiting`, `#harvest-done-group` / `#harvest-done`).
+- `browser/app.mjs`: `renderHarvest()`, called at the end of `renderChat` and `renderCollaboration`. For every complete, non-preview assistant message of the profile in view it calls the existing `proposalButton(m, surface)` again and puts the result in the tray: a button whose text starts with "Review" is waiting; any other non-button result (a receipt or a link) is listed as grown; a button that only opens a workspace is left out. No approval logic was added or copied: the tray holds a second instance of the same control. `tab()` accepts `harvest`.
+- `browser/styles.css`: the tray, the chip count, four tabs on a phone, and the bar's two-row breakpoint raised from 1279px to 1499px.
+- Tests: `browser/tests/dom/workspace.test.mjs` gains a Harvest test (empty; a plain reply gathers nothing; a proposal is counted and named on the tucked chip; nothing on the board before review; the chip brings Harvest in beside Chat and the reply keeps its button; cancel leaves it waiting; approve empties it and the story is on the board; another profile has its own). The frame test now runs at 1600px and uses the double press.
+
+Known gaps: the "peek" is the chip's tooltip, not the small panel drawn in the mock-up. An approved story, to-do or document leaves nothing in "Grown" because its reply keeps no receipt; only kinds that leave a link or a receipt appear there. Harvest has no keyboard shortcut or command-palette entry. Today's at-a-glance pane from the mock-up ("Your day" beside Chat) is the existing Today workspace, unchanged. Not looked at with the owner's real conversations.
+
+Next action: none agreed; candidates are a real peek panel, receipts for approved stories, to-dos and documents, and per-profile arrangements.
+
 ## Workspace redesign, step two: chips work the panes; three at once — 2026-11-19
 
 **Branch `design/pane-chips`, version `0.1.0-rc.4.dev.16`.** The owner answered "Yes, start it" to step two of the agreed redesign (panes that tuck, move and resize).

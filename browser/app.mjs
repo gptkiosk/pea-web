@@ -330,7 +330,7 @@ function stopSpeaking() {
 }
 // Going to a workspace. On a wide screen it may already be on screen beside another one.
 function tab(next) {
-  if (!['chat', 'today', 'greenhouse'].includes(next)) return;
+  if (!['chat', 'today', 'greenhouse', 'harvest'].includes(next)) return;
   // Overdue and due-today counts move with the clock, so the summary is redrawn on the way in.
   if (next === 'today') home?.render();
   stopSpeaking();
@@ -952,6 +952,49 @@ function workingNode(m, surface) {
   box.append(face, pod, words);
   return box;
 }
+// Harvest: everything the conversations of this profile proposed, in one place. Each item carries
+// the very control its reply shows, built the same way, so reviewing from here is the same review
+// and nothing here can approve, add, write or send anything by itself.
+function renderHarvest() {
+  const waiting = [],
+    done = [];
+  for (const [surface, from] of [
+    ['chat', 'Chat'],
+    ['greenhouse', 'Greenhouse'],
+  ])
+    for (const m of history(surface)) {
+      if (m.role !== 'assistant' || m.preview || m.incomplete) continue;
+      const control = proposalButton(m, surface);
+      if (!control) continue;
+      const isReview = control.tagName === 'BUTTON' && /^Review\b/.test(control.textContent);
+      // A button that only opens another workspace is not something made.
+      if (control.tagName === 'BUTTON' && !isReview) continue;
+      const item = document.createElement('li');
+      const source = document.createElement('small');
+      source.textContent = 'From ' + from;
+      item.append(source, control);
+      (isReview ? waiting : done).push(item);
+    }
+  $('harvest-waiting').replaceChildren(...waiting);
+  $('harvest-done').replaceChildren(...done.reverse());
+  $('harvest-waiting-group').hidden = !waiting.length;
+  $('harvest-done-group').hidden = !done.length;
+  $('harvest-empty').hidden = waiting.length + done.length > 0;
+  // The chip shows how much is waiting, and says what when it is pointed at.
+  const count = $('harvest-count');
+  count.hidden = !waiting.length;
+  count.textContent = waiting.length ? String(waiting.length) : '';
+  $('tab-harvest').title = waiting.length
+    ? `Waiting for your review: ${waiting.map((item) => item.lastChild.textContent).join(' · ')}`.slice(
+        0,
+        400,
+      )
+    : '';
+  $('tab-harvest').setAttribute(
+    'aria-label',
+    waiting.length ? `Harvest, ${waiting.length} waiting for your review` : 'Harvest',
+  );
+}
 function renderChat() {
   document.querySelector('.welcome').hidden = history('chat').length > 0;
   const nodes = history('chat').map((m) => {
@@ -966,6 +1009,7 @@ function renderChat() {
     return d;
   });
   drawFollowing(chatScroller, $('composer'), showChatJump, () => $('messages').replaceChildren(...nodes));
+  renderHarvest();
 }
 async function selectFile(f) {
   if (!visible().includes(f)) return;
@@ -1122,6 +1166,7 @@ function renderCollaboration() {
   drawFollowing($('collab-messages'), $('collab-thought'), showCollabJump, () =>
     $('collab-messages').replaceChildren(...nodes),
   );
+  renderHarvest();
 }
 async function submit(surface) {
   voice?.stop();
