@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.11] - 2026-11-19
+
+Nothing in the app changed.
+
+### Fixed
+
+- Two guides still said that no file format existed for carrying a profile between the Web and iPhone apps. They now say what is true: the profile file and the backup file are defined in the shared contracts page and PEA Web reads and writes both; the iPhone app does not yet, so moving a profile from the iPhone waits on an export there.
+
 ## [0.1.0-rc.4.dev.10] - 2026-11-19
 
 ### Added

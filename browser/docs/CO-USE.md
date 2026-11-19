@@ -17,9 +17,9 @@ The shared Drive folder is a content library, not automatic configuration or pri
 
 Conversations, sourced personal memory, persona/interview answers, story boards, provider/OAuth/GitHub/server credentials and service/model consent are not automatically synchronized. Both products have independent local encrypted persistence; the Web library is optional and browser/origin-bound. See [Web memory and recovery](MEMORY.md). Automatic customer-owned encrypted sync needs its own revision/conflict/consent design. Do not copy one app's runtime database into the other or infer completion from seeing the same folder.
 
-The proposed requirements for an interoperable interview and assistant profile are in [profile continuity](PROFILE-CONTINUITY.md). This is a design proposal, not an available transfer format.
+Two encrypted files are defined for carrying a profile from one PEA app to another, and PEA Web already writes and reads both: the profile file (interview answers) and the backup file (interview answers, reviewed memories, to-dos, the character's history and days, deck projects). Their exact formats, limits and test files are in [shared contracts](CONTRACTS.md). The iPhone app does not write or read either yet, so today they move a profile only between Web browsers. Moving one from the iPhone needs an export in the iPhone app that follows that page, made and tested in its own separate change. The earlier requirements behind these formats are kept in [profile continuity](PROFILE-CONTINUITY.md).
 
-PEA Web separately supports an encrypted interview-only snapshot between Web browsers. This is a Web-only format and is not an iPhone transfer or automatic sync; see [memory and recovery](MEMORY.md).
+Either file is moved by hand, by the owner, with a passphrase they choose. Nothing is synchronized automatically, and importing only adds what is missing after the owner has read every addition; see [memory and recovery](MEMORY.md).
 
 Native audio is the primary walk/locked-screen target. Browser dictation stops when hidden and may use an online OS/browser service. AirPods/background behavior needs actual device acceptance; a VPN or faster model does not establish it.
 
