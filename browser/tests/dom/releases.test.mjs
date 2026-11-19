@@ -375,7 +375,14 @@ test(
       `window.__stillHere === undefined && document.getElementById('release-check') && !document.getElementById('release-check').disabled`,
       'the reloaded page',
     );
-    assert.match(await page.text('#footer-build'), /^v9\.9\.9-dev\.2 .* web ccccccc/);
+    assert.match(
+      await page.text('#footer-build'),
+      /^v9\.9\.9-dev\.2( · (files changed since this commit|source not verified))?$/,
+    );
+    assert.match(
+      await page.evaluate(`document.getElementById('footer-build').title`),
+      /^v9\.9\.9-dev\.2 .* web ccccccc · api ccccccc/,
+    );
     await page.click('#releases-open');
     await new Promise((resolve) => setTimeout(resolve, 400));
     assert.equal(await shown(page, 'release-stale'), false);

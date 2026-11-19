@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Footer version line simplified — 2026-11-19
+
+**Branch `design/footer-version-line`, version `0.1.0-rc.4.dev.8`.** The owner asked: "Simplify the footer version line too".
+
+- `browser/releases.mjs`: `footerLine` (the version, plus the same warnings `buildLine` gives, from a shared `buildWarnings`) and `buildDetail` (the former full line, unchanged in content).
+- `browser/release-ui.mjs`: `#footer-build` shows `footerLine`; its `title` holds `buildDetail`.
+- `browser/styles.css`: `#footer-build` is no longer fixed-width.
+- `browser/docs/RELEASES.md`, `browser/docs/OPERATOR-ACCEPTANCE.md`: say where the commit is now read.
+- Tests: 1 unit test in `browser/tests/releases.test.mjs`; the reload test in `browser/tests/dom/releases.test.mjs` checks the footer text and its title.
+
+Known gaps: a title is not reachable by touch; on a phone the commit is read in Versions & updates or from "Source commit". The environment word (development or production) is now only in the title.
+
+Next action: none pending.
+
 ## Versions & updates window laid out afresh — 2026-11-19
 
 **Branch `design/versions-window-tidy`, version `0.1.0-rc.4.dev.7`.** The owner ran the first real update from the Update button (dev.4 to dev.6): "it worked". Their complaint was the look: "unrefined misaligned buttons a lot of poorly formatted text and a confusing layout", with screenshots of the window before the update, the review, and the window after.

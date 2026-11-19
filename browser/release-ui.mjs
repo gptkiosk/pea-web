@@ -6,7 +6,9 @@ import {
   compareMain,
   newestRelease,
   notesBlocks,
+  buildDetail,
   buildLine,
+  footerLine,
   releaseStanding,
   stalePage,
 } from './releases.mjs';
@@ -69,12 +71,11 @@ export async function installReleaseUI() {
     a.hidden = false;
   }
   function render() {
-    const commit = info.commit?.slice(0, 7) ?? 'unknown';
     $('footer-product').textContent = info.organization
       ? `${info.product} · A ${info.organization} product`
       : info.product + ' · Personal Executive Assistant';
-    $('footer-build').textContent =
-      `v${info.version} · ${info.environment} · web ${commit} · api ${info.serverCommit?.slice(0, 7) ?? 'not connected'} · ${info.modified === true ? 'modified' : info.modified === null ? 'unverified source' : 'clean'}`;
+    $('footer-build').textContent = footerLine(info);
+    $('footer-build').title = buildDetail(info);
     $('release-version').textContent = 'v' + info.version;
     $('release-build').textContent = buildLine(info);
     $('feedback-open-upstream').hidden = true;

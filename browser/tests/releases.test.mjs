@@ -292,3 +292,21 @@ test('the build line is plain words and warns only when something is unusual', a
     'Development build · source not verified',
   );
 });
+
+test('the footer shows the version alone, and the full identity is kept for reports', async () => {
+  const { footerLine, buildDetail } = await import('../releases.mjs');
+  const a = 'a'.repeat(40),
+    b = 'b'.repeat(40);
+  const plain = { version: '1.2.3', environment: 'development', commit: a, serverCommit: a, modified: false };
+  assert.equal(footerLine(plain), 'v1.2.3');
+  assert.equal(buildDetail(plain), 'v1.2.3 · development · web aaaaaaa · api aaaaaaa · clean');
+  assert.equal(
+    footerLine({ ...plain, serverCommit: b, modified: true }),
+    'v1.2.3 · server at bbbbbbb · files changed since this commit',
+  );
+  assert.equal(footerLine({ ...plain, serverCommit: null, modified: null }), 'v1.2.3 · source not verified');
+  assert.equal(
+    buildDetail({ ...plain, commit: null, serverCommit: null, modified: null }),
+    'v1.2.3 · development · web unknown · api not connected · unverified source',
+  );
+});

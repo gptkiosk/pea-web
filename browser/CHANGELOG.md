@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.8] - 2026-11-19
+
+### Changed
+
+- **The footer shows the version alone,** such as "v0.1.0-rc.4.dev.8", in the ordinary typeface. It adds a few plain words only when something is unusual: the server runs a different commit, files were changed since the commit, or the source is not verified. The full identity line (environment, web and server commits, clean or modified) appears when the version is pointed at, and the commit is in Versions & updates and behind "Source commit".
+
 ## [0.1.0-rc.4.dev.7] - 2026-11-19
 
 ### Changed
