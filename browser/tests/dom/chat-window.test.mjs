@@ -12,6 +12,33 @@ const long = Array.from({ length: 30 }, (_, i) => `Synthetic paragraph ${i + 1} 
   '\n\n',
 );
 const replies = {
+  richer: [
+    'Compare the beds, ~~not the pots~~:',
+    '',
+    '| Bed | Size |',
+    '| --- | --- |',
+    '| North | **2 m** |',
+    '| South | 1 m |',
+    '',
+    '- [x] order compost',
+    '- [ ] buy seeds',
+    '',
+    '```chart',
+    'title: Hours of sun',
+    'North: 8',
+    'South: 4',
+    '```',
+    '',
+    '```diagram',
+    'Level --> Fill --> Sow',
+    '```',
+    '',
+    '```chart',
+    'this is not a chart',
+    '```',
+    '',
+    'Not links: [x](javascript:alert(1)) [y](http://example.test) [z](https://user:pw@example.test)',
+  ].join('\n'),
   slowly: { text: 'A synthetic reply that took its time.', delay: 1500 },
   broken: { text: 'A synthetic reply that stops halfway through its sentence.', cut: true },
   layout: [
@@ -73,8 +100,10 @@ test(
       strong: tags('strong'), em: tags('em'), code: tags('.reply-prose code'), heading: tags('h4'),
       items: [...reply.querySelectorAll('ol > li')].map((li) => [li.dataset.depth ?? '0', li.textContent]),
       quote: tags('blockquote'), pre: tags('.copy-box pre'), label: tags('.copy-box-bar small'),
-      unsafe: reply.querySelectorAll('a, img, b, script, iframe').length,
+      unsafe: reply.querySelectorAll('img, b, script, iframe, form, input, object, embed').length,
+      links: [...reply.querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href'), a.target, a.rel, a.title, a.nextElementSibling?.textContent ?? '']),
       last: reply.querySelector('.reply-prose:last-child p').textContent,
+      tokens: [...reply.querySelectorAll('.copy-box pre span')].map((t) => t.className + ':' + t.textContent),
       proseFont: getComputedStyle(reply.querySelector('p')).fontFamily,
       codeFont: getComputedStyle(reply.querySelector('.copy-box pre')).fontFamily,
     };
@@ -91,12 +120,24 @@ test(
     assert.deepEqual(seen.quote, ['A quoted note']);
     assert.deepEqual(seen.pre, ['def greet(name):\n    return f"Hello, {name}!"']);
     assert.deepEqual(seen.label, ['python']);
-    assert.equal(seen.unsafe, 0, 'no link, image or other element came from the reply');
+    assert.equal(seen.unsafe, 0, 'no image, form or other element came from the reply');
+    // The one pressable thing: a plain https link, opened apart from this page, with its host shown.
+    assert.deepEqual(seen.links, [
+      [
+        'a site',
+        'https://example.test/',
+        '_blank',
+        'noopener noreferrer',
+        'https://example.test/',
+        ' (example.test)',
+      ],
+    ]);
     assert.match(
       seen.last,
-      /\[a site\]\(https:\/\/example\.test\) <img src=x .*<b>not bold<\/b>/,
-      'shown as typed',
+      /^See a site \(example\.test\) <img src=x .*<b>not bold<\/b>/,
+      'the rest is shown as typed',
     );
+    assert.deepEqual(seen.tokens, ['tok-keyword:def', 'tok-keyword:return', 'tok-string:"Hello, {name}!"']);
     assert.equal(await page.evaluate(`window.__ran`), undefined);
     assert.match(seen.codeFont, /monospace/);
     assert.doesNotMatch(seen.proseFont, /monospace/);
@@ -326,6 +367,66 @@ test(
       15000,
     );
     assert.equal(await working(), null);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);
+
+test(
+  'tables, lines to tick, a small chart and a diagram are drawn, and unsafe addresses stay text',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1400, height: 900 });
+    await page.evaluate(
+      `Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.__copied = text; } } })`,
+    );
+    await askModel(stack, page, 'Something richer please.');
+    const seen = await page.evaluate(`(() => {
+    const reply = document.querySelector('#messages .utterance.assistant .reply');
+    const tags = (selector) => [...reply.querySelectorAll(selector)].map((node) => node.textContent);
+    const bars = [...reply.querySelectorAll('.reply-chart .chart-row')];
+    return {
+      struck: tags('s'), head: tags('.reply-table th'), cells: tags('.reply-table td'), bold: tags('.reply-table strong'),
+      tasks: [...reply.querySelectorAll('li.task')].map((li) => [li.classList.contains('done'), li.querySelector('.task-box').getAttribute('aria-label'), li.textContent]),
+      chartTitle: tags('.reply-chart figcaption'),
+      bars: bars.map((row) => [row.querySelector('.chart-label').textContent, row.querySelector('.chart-value').textContent, Math.round(row.querySelector('.chart-bar').getBoundingClientRect().width / row.querySelector('.chart-track').getBoundingClientRect().width * 100)]),
+      steps: tags('.reply-diagram .diagram-node'),
+      boxes: tags('.copy-box pre'),
+      links: reply.querySelectorAll('a').length,
+      controls: reply.querySelectorAll('input, form, img, script, iframe').length,
+      last: reply.querySelector('.reply-prose:last-child p').textContent,
+    };
+  })()`);
+    assert.deepEqual(seen.struck, ['not the pots']);
+    assert.deepEqual(seen.head, ['Bed', 'Size']);
+    assert.deepEqual(seen.cells, ['North', '2 m', 'South', '1 m']);
+    assert.deepEqual(seen.bold, ['2 m']);
+    assert.deepEqual(seen.tasks, [
+      [true, 'Done', '✓order compost'],
+      [false, 'Not done', 'buy seeds'],
+    ]);
+    assert.deepEqual(seen.chartTitle, ['Hours of sun']);
+    assert.deepEqual(seen.bars, [
+      ['North', '8', 100],
+      ['South', '4', 50],
+    ]);
+    assert.deepEqual(seen.steps, ['Level', 'Fill', 'Sow']);
+    assert.deepEqual(seen.boxes, ['this is not a chart'], 'a block that is not a chart stays a code window');
+    assert.equal(seen.links, 0, 'no unsafe address became a link');
+    assert.equal(seen.controls, 0, 'a line to tick is a picture, not a control');
+    assert.match(
+      seen.last,
+      /\[x\]\(javascript:alert\(1\)\) \[y\]\(http:\/\/example\.test\) \[z\]\(https:\/\/user:pw@example\.test\)/,
+    );
+    // The numbers behind a chart can be copied as they were written.
+    await page.evaluate(`document.querySelector('#messages .reply-chart .figure-copy').click()`);
+    await page.waitFor(`window.__copied !== undefined`, 'the copy');
+    assert.equal(await page.evaluate(`window.__copied`), 'title: Hours of sun\nNorth: 8\nSouth: 4');
+    // The model is told what it may use.
+    assert.match(
+      stack.model.requests.at(-1).messages[0].content,
+      /fenced block labelled chart[\s\S]*Link only to an https address/,
+    );
     assert.deepEqual(page.outsideRequests(), []);
     await page.close();
   },

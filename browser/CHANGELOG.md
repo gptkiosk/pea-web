@@ -2,6 +2,20 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.18] - 2026-11-19
+
+### Added
+
+- **Links in replies can be pressed.** Only a plain `https` address becomes a link. It opens in a new tab that cannot reach back into PEA, and the site's name is shown beside the link's words; words that are themselves a different address are replaced by the real one. Anything else (other schemes, an address with a sign-in part, a local name) stays text. In a reply written with a web page you asked PEA to read in view, addresses are never made pressable.
+- **Tables, struck-out words and lines to tick.** A ticked or unticked line is shown as a small box; it is a picture of the model's list, not a control.
+- **Coloured code.** A code window that names its language shows comments, quoted text, numbers and common words in different colours.
+- **Small charts and diagrams, drawn by PEA.** A block the model labels `chart`, with one "Label: number" per line, is drawn as bars. A block labelled `diagram`, written "First --> Second --> Third", is drawn as boxes joined by arrows. Each keeps a Copy button for its text. Anything that does not fit the simple form stays a code window.
+- The model is told it may use these.
+
+### Changed
+
+- Nothing in a reply loads from the web. Pictures at web addresses are still not shown, because showing one would send its address, and anything a model put in it, to that site.
+
 ## [0.1.0-rc.4.dev.17] - 2026-11-19
 
 Third step of the workspace redesign.

@@ -57,7 +57,7 @@ import {
   spokenReply,
 } from './handoff.mjs';
 import { honestyCorrection, needsHonestyCorrection } from './honesty.mjs';
-import { atLatest, proseBlocks } from './chat-format.mjs';
+import { atLatest, chartData, codeTokens, diagramSteps, proseBlocks } from './chat-format.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -135,26 +135,78 @@ function copyButton(text, name, className = 'text-button') {
   };
   return copy;
 }
-// One line's runs as elements. Everything is set with textContent.
-function inlineNodes(runs) {
-  return runs.map((run) => {
-    if (!run.style) return document.createTextNode(run.text);
-    const node = document.createElement({ bold: 'strong', italic: 'em', code: 'code' }[run.style]);
+// One line's runs as elements. Everything is set with textContent. A link is the one pressable
+// thing a reply can make: an https address already checked by safeLink, opened in a new tab with
+// no way back to this page, with its host shown beside words that are not the address itself.
+// With `links` off (a reply written with a stranger's web page in view) it stays plain text.
+function inlineNodes(runs, links = true) {
+  return runs.flatMap((run) => {
+    if (!run.style) return [document.createTextNode(run.text)];
+    if (run.style === 'link') {
+      if (!links) return [document.createTextNode(run.host ? `${run.text} (${run.href})` : run.text)];
+      const a = document.createElement('a');
+      a.href = run.href;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.referrerPolicy = 'no-referrer';
+      a.title = run.href;
+      a.textContent = run.text;
+      if (!run.host) return [a];
+      const host = document.createElement('small');
+      host.className = 'link-host';
+      host.textContent = ` (${run.host})`;
+      return [a, host];
+    }
+    const node = document.createElement(
+      { bold: 'strong', italic: 'em', code: 'code', strike: 's' }[run.style],
+    );
     node.textContent = run.text;
-    return node;
+    return [node];
   });
 }
-// The prose of a reply laid out as paragraphs, headings, lists and quotes.
-function proseNodes(text) {
+// The prose of a reply laid out as paragraphs, headings, lists, tables and quotes.
+function proseNodes(text, links = true) {
   return proseBlocks(text).map((block) => {
     if (block.kind === 'rule') return document.createElement('hr');
+    if (block.kind === 'table') {
+      const wrap = document.createElement('div');
+      wrap.className = 'reply-table';
+      wrap.tabIndex = 0;
+      const table = document.createElement('table');
+      const row = (cells, tag) => {
+        const tr = document.createElement('tr');
+        for (const runs of cells) {
+          const cell = document.createElement(tag);
+          cell.append(...inlineNodes(runs, links));
+          tr.append(cell);
+        }
+        return tr;
+      };
+      const head = document.createElement('thead'),
+        body = document.createElement('tbody');
+      head.append(row(block.head, 'th'));
+      body.append(...block.rows.map((cells) => row(cells, 'td')));
+      table.append(head, body);
+      wrap.append(table);
+      return wrap;
+    }
     if (block.kind === 'list') {
       const list = document.createElement(block.ordered ? 'ol' : 'ul');
       for (const item of block.items) {
         const li = document.createElement('li');
         if (item.depth) li.dataset.depth = String(item.depth);
         if (block.ordered && item.number !== null && !item.depth) li.value = item.number;
-        li.append(...inlineNodes(item.runs));
+        if (item.done !== null && item.done !== undefined) {
+          // A line to tick, shown as written. It is a picture of a box, not a control.
+          li.className = item.done ? 'task done' : 'task';
+          const box = document.createElement('span');
+          box.className = 'task-box';
+          box.setAttribute('role', 'img');
+          box.setAttribute('aria-label', item.done ? 'Done' : 'Not done');
+          box.textContent = item.done ? '✓' : '';
+          li.append(box);
+        }
+        li.append(...inlineNodes(item.runs, links));
         list.append(li);
       }
       return list;
@@ -162,9 +214,57 @@ function proseNodes(text) {
     const node = document.createElement(
       block.kind === 'heading' ? 'h' + (block.level + 2) : block.kind === 'quote' ? 'blockquote' : 'p',
     );
-    node.append(...inlineNodes(block.runs));
+    node.append(...inlineNodes(block.runs, links));
     return node;
   });
+}
+// A small bar chart drawn from a chart block: lengths only, no script and nothing fetched.
+function chartFigure(chart) {
+  const figure = document.createElement('figure');
+  figure.className = 'reply-chart';
+  if (chart.title) {
+    const caption = document.createElement('figcaption');
+    caption.textContent = chart.title;
+    figure.append(caption);
+  }
+  for (const bar of chart.bars) {
+    const row = document.createElement('div');
+    row.className = 'chart-row';
+    const label = document.createElement('span');
+    label.className = 'chart-label';
+    label.textContent = bar.label;
+    const track = document.createElement('span');
+    track.className = 'chart-track';
+    const fill = document.createElement('span');
+    fill.className = 'chart-bar';
+    fill.style.setProperty('--share', String(bar.share));
+    track.append(fill);
+    const value = document.createElement('span');
+    value.className = 'chart-value';
+    value.textContent = bar.value + chart.unit;
+    row.append(label, track, value);
+    figure.append(row);
+  }
+  return figure;
+}
+// Steps in order, drawn as boxes joined by arrows.
+function diagramFigure(steps) {
+  const figure = document.createElement('figure');
+  figure.className = 'reply-diagram diagram';
+  steps.forEach((step, index) => {
+    if (index) {
+      const arrow = document.createElement('span');
+      arrow.className = 'diagram-arrow';
+      arrow.setAttribute('aria-hidden', 'true');
+      arrow.textContent = '→';
+      figure.append(arrow);
+    }
+    const node = document.createElement('span');
+    node.className = 'diagram-node';
+    node.textContent = step;
+    figure.append(node);
+  });
+  return figure;
 }
 function messageBody(m) {
   const body = document.createElement('span');
@@ -177,8 +277,20 @@ function messageBody(m) {
     if (segment.kind === 'prose') {
       const prose = document.createElement('div');
       prose.className = 'reply-prose';
-      prose.append(...proseNodes(segment.text));
+      prose.append(...proseNodes(segment.text, !m.fromPage));
       body.append(prose);
+      continue;
+    }
+    // A chart or a diagram block is drawn; its text stays one press away to copy.
+    const kind = segment.label.toLowerCase();
+    const chart = kind === 'chart' ? chartData(segment.text) : null;
+    const steps = ['diagram', 'flow', 'mermaid'].includes(kind) ? diagramSteps(segment.text) : null;
+    if (chart || steps) {
+      const drawn = chart ? chartFigure(chart) : diagramFigure(steps);
+      const copy = copyButton(segment.text, chart ? 'Copy the chart’s numbers' : 'Copy the diagram’s text');
+      copy.classList.add('figure-copy');
+      drawn.append(copy);
+      body.append(drawn);
       continue;
     }
     const box = document.createElement('div');
@@ -189,7 +301,18 @@ function messageBody(m) {
     label.textContent = segment.label || 'Text to copy';
     bar.append(label, copyButton(segment.text, 'Copy this block'));
     const pre = document.createElement('pre');
-    pre.textContent = segment.text;
+    // Coloured for reading when the block names a language; otherwise plain.
+    if (segment.label && !segment.label.includes(':') && segment.text.length <= 20000)
+      pre.append(
+        ...codeTokens(segment.text, segment.label).map((token) => {
+          if (!token.kind) return document.createTextNode(token.text);
+          const part = document.createElement('span');
+          part.className = 'tok-' + token.kind;
+          part.textContent = token.text;
+          return part;
+        }),
+      );
+    else pre.textContent = segment.text;
     box.append(bar, pre);
     body.append(box);
   }
@@ -1364,6 +1487,8 @@ live = installConnections({
     if (offer && surface === 'chat') days?.noteFrom(raw);
     reply.text = visibleReply(raw);
     if (complete && sourced && /```pea-/i.test(raw)) reply.text += '\n\n' + sourcedNotice;
+    // Addresses in a reply written with a stranger's page in view are never made pressable.
+    if (sourced) reply.fromPage = true;
     if (offer && !reads.length && claimsRead(reply.text))
       reply.text +=
         '\n\nPEA did not read a web page for this reply. It reads one only after you approve its exact address.';

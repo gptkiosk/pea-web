@@ -4155,3 +4155,159 @@ kbd {
     display: none;
   }
 }
+
+/* Richer replies: links, tables, lines to tick, coloured code, small charts and diagrams. */
+.reply-prose a {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.reply-prose .link-host {
+  display: inline;
+  margin: 0;
+  color: var(--sub);
+  font-size: 0.8em;
+  letter-spacing: 0;
+}
+.reply-prose s {
+  color: var(--sub);
+}
+.reply-table {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.reply-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.reply-table th,
+.reply-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--line);
+}
+.reply-table th {
+  border-top: 0;
+  background: var(--field);
+  font-weight: 600;
+}
+.reply-prose li.task {
+  list-style: none;
+  margin-left: -22px;
+}
+.reply-prose li.task.done {
+  color: var(--sub);
+}
+.task-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border: 1.5px solid var(--sub);
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: -2px;
+}
+li.task.done .task-box {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #22301a;
+}
+.copy-box pre .tok-comment {
+  color: var(--sub);
+  font-style: italic;
+}
+.copy-box pre .tok-string {
+  color: #c9d98a;
+}
+.copy-box pre .tok-number {
+  color: #e2b97a;
+}
+.copy-box pre .tok-keyword {
+  color: #8fc7b8;
+  font-weight: 600;
+}
+html:not([data-theme="dark"]) .copy-box pre .tok-string {
+  color: #4f6b1c;
+}
+html:not([data-theme="dark"]) .copy-box pre .tok-number {
+  color: #8a5a12;
+}
+html:not([data-theme="dark"]) .copy-box pre .tok-keyword {
+  color: #1f6b5c;
+}
+.reply-chart,
+.reply-diagram {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--field);
+  white-space: normal;
+}
+.reply-chart figcaption {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(60px, 28%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.chart-label {
+  overflow-wrap: anywhere;
+}
+.chart-track {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--control);
+  overflow: hidden;
+}
+.chart-bar {
+  display: block;
+  height: 100%;
+  width: calc(var(--share, 0) * 100%);
+  min-width: 2px;
+  border-radius: 6px;
+  background: var(--accent);
+}
+.chart-value {
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+}
+.reply-diagram {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.reply-diagram .diagram-node {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 13px;
+}
+.figure-copy {
+  display: block;
+  margin: 10px 0 0 auto;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.reply-diagram .figure-copy {
+  flex-basis: 100%;
+  text-align: right;
+}
