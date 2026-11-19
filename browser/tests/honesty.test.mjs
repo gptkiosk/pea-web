@@ -96,6 +96,11 @@ test('the app corrects a human claim always, and a dodged sincere question', () 
   assert.equal(needsHonestyCorrection('It is going well.', 'Are you even human, it is 5 am'), false);
   assert.match(honestyCorrection, /I’m an AI assistant, not a person/);
   assert.match(honestyRule, /Never say or imply that you are human/);
+  // It is honest when asked, and does not volunteer a disclaimer in place of a greeting.
+  assert.match(honestyRule, /sincerely asked whether you are a human or an AI, say plainly/);
+  assert.match(honestyRule, /do not open with it/);
+  assert.match(honestyRule, /speak in its voice/);
+  assert.doesNotMatch(honestyRule, /^You are an AI assistant/);
   assert.equal(
     needsHonestyCorrection(honestyCorrection, 'Are you an AI?'),
     false,
