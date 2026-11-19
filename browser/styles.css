@@ -3817,3 +3817,90 @@ kbd {
   padding: 2px 0;
   text-align: left;
 }
+
+/* PEA at work: its picture and three bobbing peas under the reply being written. */
+.pea-working {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: normal;
+  color: var(--sub);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.reply:not(:empty) + .pea-working {
+  margin-top: 14px;
+}
+.pea-face {
+  width: 46px;
+  height: 46px;
+  flex: none;
+}
+.pea-pod {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pea-pod i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e6efb8, #c5dc88 60%);
+  box-shadow: 0 0 0 1px rgb(70 99 46 / 45%);
+}
+@keyframes pea-bob {
+  0%,
+  55%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-5px) scale(1.08);
+  }
+  40% {
+    transform: translateY(1px) scale(0.96);
+  }
+}
+/* The picture hops while PEA thinks, and only rocks a little once the reply is arriving. */
+@keyframes pea-hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1, 1);
+  }
+  20% {
+    transform: translateY(-9px) rotate(-7deg) scale(1.04, 1.04);
+  }
+  38% {
+    transform: translateY(0) rotate(0deg) scale(1.08, 0.92);
+  }
+  48% {
+    transform: translateY(-3px) rotate(3deg) scale(1, 1);
+  }
+}
+@keyframes pea-rock {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pea-working .pea-face {
+    animation: pea-rock 2800ms ease-in-out var(--pea-phase, 0ms) infinite;
+  }
+  .pea-working.thinking .pea-face {
+    animation: pea-hop 1400ms ease-in-out var(--pea-phase, 0ms) infinite;
+  }
+  .pea-pod i {
+    animation: pea-bob 1400ms ease-in-out var(--pea-phase, 0ms) infinite;
+  }
+  .pea-pod i:nth-child(2) {
+    animation: pea-bob 1400ms ease-in-out calc(var(--pea-phase, 0ms) + 180ms) infinite;
+  }
+  .pea-pod i:nth-child(3) {
+    animation: pea-bob 1400ms ease-in-out calc(var(--pea-phase, 0ms) + 360ms) infinite;
+  }
+}

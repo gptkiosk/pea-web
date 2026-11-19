@@ -12,6 +12,8 @@ const long = Array.from({ length: 30 }, (_, i) => `Synthetic paragraph ${i + 1} 
   '\n\n',
 );
 const replies = {
+  slowly: { text: 'A synthetic reply that took its time.', delay: 1500 },
+  broken: { text: 'A synthetic reply that stops halfway through its sentence.', cut: true },
   layout: [
     'Here is a **short plan** with `inline code` and *emphasis*.',
     '',
@@ -246,6 +248,82 @@ test(
     assert.deepEqual(await offers(), [null, null]);
     await askModel(stack, page, 'Hello there.');
     assert.match(await page.text('#messages'), /A plain synthetic reply\./);
+    await page.close();
+  },
+);
+
+test(
+  'while PEA writes a reply, its picture and three bobbing peas say so, and only then',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1400, height: 900 });
+    // Some test machines have reduced motion switched on; say which one is meant each time.
+    const motion = (value) =>
+      page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value }] });
+    await motion('no-preference');
+    await askModel(stack, page, 'Hello there.');
+    assert.equal(await page.evaluate(`document.querySelectorAll('.pea-working').length`), 0);
+
+    const working = () =>
+      page.evaluate(`(() => {
+      const all = [...document.querySelectorAll('#messages .pea-working')];
+      const box = all[0];
+      if (!box) return null;
+      const pod = box.querySelector('.pea-pod');
+      return {
+        count: all.length,
+        inLastReply: box.parentElement === document.querySelector('#messages .utterance:last-child') && box.parentElement.classList.contains('assistant'),
+        peas: pod.querySelectorAll('i').length,
+        decoration: pod.getAttribute('aria-hidden'),
+        words: box.querySelector('.pea-working-words').textContent,
+        motion: getComputedStyle(pod.querySelector('i')).animationName,
+        face: box.querySelector('img.pea-face').getAttribute('src'),
+        faceAlt: box.querySelector('img.pea-face').alt,
+        faceDrawn: box.querySelector('img.pea-face').naturalWidth > 0,
+        faceMotion: getComputedStyle(box.querySelector('img.pea-face')).animationName,
+      };
+    })()`);
+    const send = (text) =>
+      page.evaluate(
+        `(() => { document.getElementById('thought').value = ${JSON.stringify(text)}; document.getElementById('composer').requestSubmit(); })()`,
+      );
+
+    // Waiting for the first words: PEA's picture hops under the empty reply, with words beside it.
+    await send('Answer slowly please.');
+    await page.waitFor(`document.querySelector('#messages .pea-working')`, 'the working sign');
+    assert.deepEqual(await working(), {
+      count: 1,
+      inLastReply: true,
+      peas: 3,
+      decoration: 'true',
+      words: 'PEA is thinking…',
+      motion: 'pea-bob',
+      face: 'assets/pea-icon.svg',
+      faceAlt: '',
+      faceDrawn: true,
+      faceMotion: 'pea-hop',
+    });
+    // An owner who has asked for less motion gets the same sign, still.
+    await motion('reduce');
+    assert.equal((await working()).motion, 'none');
+    assert.equal((await working()).faceMotion, 'none');
+    assert.equal((await working()).words, 'PEA is thinking…');
+    await motion('no-preference');
+
+    // When the reply is complete the sign is gone and the reply is there.
+    await page.waitFor(`!document.querySelector('#profile').disabled`, 'the reply to finish', 15000);
+    assert.equal(await working(), null);
+    assert.match(await page.text('#messages'), /A synthetic reply that took its time\./);
+
+    // A reply that broke off is not shown as still being written.
+    await send('This one comes back broken.');
+    await page.waitFor(
+      `document.querySelectorAll('#messages .utterance.assistant').length === 3 && !document.querySelector('#profile').disabled`,
+      'the broken reply to end',
+      15000,
+    );
+    assert.equal(await working(), null);
+    assert.deepEqual(page.outsideRequests(), []);
     await page.close();
   },
 );
