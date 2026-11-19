@@ -108,3 +108,127 @@ test('choices are kept per profile, and can be forgotten', { skip, timeout: 6000
   assert.equal(await value(page, '#chat-model'), '');
   await page.close();
 });
+
+// The one credential that can be kept: this server's own connection token, and only when asked.
+const keptToken = (page) => page.evaluate(`localStorage.getItem('pea-local-token-v1')`);
+const hasLocalModels = `[...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`;
+const note = (page) => page.evaluate(`document.querySelector('#connection-note').textContent`);
+async function reload(page) {
+  await page.goto(stack.gateway.origin + '/');
+  await page.waitFor(
+    `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
+    'the app to finish starting',
+  );
+}
+
+test(
+  'a ticked box keeps the connection token, and a reload connects by itself',
+  { skip, timeout: 60000 },
+  async () => {
+    const page = await openConnectedPage(stack);
+    assert.equal(await checked(page, '#local-remember'), false, 'remembering is off until asked for');
+    assert.equal(await keptToken(page), null, 'connecting alone keeps nothing');
+
+    // Ticking the box while connected keeps the token this tab already holds.
+    await page.click('#local-remember');
+    assert.equal(await keptToken(page), stack.gateway.token);
+    assert.match(await note(page), /remembered on this browser/);
+    const kept = await saved(page);
+    assert.equal(kept.split(stack.gateway.token).length, 2, 'the token is kept in exactly one place');
+    assert.doesNotMatch(
+      await page.evaluate(`localStorage.getItem('pea-connections-v1') || ''`),
+      new RegExp(stack.gateway.token),
+      'the remembered choices still hold no token',
+    );
+
+    await reload(page);
+    await page.waitFor(hasLocalModels, 'the local model list, with nothing typed');
+    assert.equal(await value(page, '#local-token'), '', 'the token is never put back in the field');
+    assert.equal(await checked(page, '#local-remember'), true);
+    // The Versions window can check for updates straight away: no trip to Connections.
+    await page.click('#releases-open');
+    await page.waitFor(
+      `document.querySelector('#release-dialog').open && document.querySelector('#release-update-open').hidden`,
+      'the update panel to see the connection',
+    );
+    await page.evaluate(`document.querySelector('#release-dialog').close()`);
+
+    // Another profile opened in the same tab is connected too.
+    await page.fill('#profile', 'work');
+    await page.waitFor(hasLocalModels, 'the local model list in the other profile');
+
+    // Connecting again with the box still ticked keeps it; nothing is sent to a model by any of this.
+    assert.equal(stack.model.requests.length, 0, 'restoring the connection asks no model anything');
+
+    // Unticking forgets at once, and the tab stays connected.
+    const second = page;
+    await reload(second);
+    await second.waitFor(hasLocalModels, 'the local model list again');
+    assert.equal(await checked(second, '#local-remember'), true);
+    await second.click('#local-remember');
+    assert.equal(await keptToken(second), null);
+    assert.match(await note(second), /no longer remembered/);
+    assert.equal(await second.evaluate(hasLocalModels), true, 'this tab is still connected');
+    await reload(second);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(await second.evaluate(hasLocalModels), false, 'nothing connects after the next reload');
+    await second.close();
+  },
+);
+
+test(
+  'the kept token goes with Forget local token and with Forget remembered choices',
+  { skip, timeout: 60000 },
+  async () => {
+    const page = await openConnectedPage(stack);
+    // Ticked before connecting: the connect itself keeps it.
+    await page.click('#local-forget');
+    assert.equal(await page.evaluate(hasLocalModels), false);
+    await page.click('#local-remember');
+    assert.equal(await keptToken(page), null, 'a ticked box with no connection keeps nothing yet');
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await page.waitFor(hasLocalModels, 'the local model list');
+    assert.equal(await keptToken(page), stack.gateway.token);
+
+    await page.click('#local-forget');
+    assert.equal(await keptToken(page), null);
+    assert.equal(await checked(page, '#local-remember'), false);
+    assert.equal(await page.evaluate(hasLocalModels), false);
+    assert(!(await saved(page)).includes(stack.gateway.token));
+
+    await page.click('#local-remember');
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await page.waitFor(hasLocalModels, 'the local model list');
+    assert.equal(await keptToken(page), stack.gateway.token);
+    await page.click('#choices-forget');
+    assert.equal(await keptToken(page), null);
+    assert.equal(await checked(page, '#local-remember'), false);
+    await page.close();
+  },
+);
+
+test(
+  'a kept token this server no longer accepts is forgotten, and other stored values are not used',
+  { skip, timeout: 60000 },
+  async () => {
+    const page = await openConnectedPage(stack);
+    const wrong = 'w'.repeat(43);
+    await page.evaluate(`localStorage.setItem('pea-local-token-v1', ${JSON.stringify(wrong)})`);
+    await reload(page);
+    await page.waitFor(`localStorage.getItem('pea-local-token-v1') === null`, 'the refused token to go');
+    assert.match(await note(page), /no longer accepts the remembered connection token/);
+    assert.equal(await checked(page, '#local-remember'), false);
+    assert.equal(await page.evaluate(hasLocalModels), false);
+
+    // Something that is not shaped like a token is never sent anywhere.
+    await page.evaluate(`localStorage.setItem('pea-local-token-v1', 'not a token <script>')`);
+    await reload(page);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(await checked(page, '#local-remember'), false);
+    assert.equal(await page.evaluate(hasLocalModels), false);
+    await page.evaluate(`localStorage.removeItem('pea-local-token-v1')`);
+    await page.close();
+  },
+);

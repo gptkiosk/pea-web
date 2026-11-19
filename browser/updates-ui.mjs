@@ -28,7 +28,7 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
     const key = localKey();
     $('update-status').textContent = key
       ? describeStatus(status)
-      : 'To check for an update and install it from here, connect this PEA first: paste its server connection token under Local model. The token is never saved, so this is needed again after a reload.';
+      : 'To check for an update and install it from here, connect this PEA first: paste its server connection token under Local model. Tick Remember this token on this browser there, and this is not needed again after a reload.';
     $('release-update-open').hidden = Boolean(key);
     $('update-check').hidden = !key || !status.available;
     $('update-check').disabled = working;

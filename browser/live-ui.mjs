@@ -27,6 +27,7 @@ import {
 import { parseConfiguration } from './shared-config.mjs';
 import { LocalModel } from './local-model.mjs';
 import { forgetChoices, loadChoices, profileChoices, saveChoices } from './preferences.mjs';
+import { forgetLocalToken, loadLocalToken, saveLocalToken } from './local-token.mjs';
 const $ = (id) => document.getElementById(id);
 const calendarScope = 'https://www.googleapis.com/auth/calendar.events.readonly',
   // See and change events on calendars the owner owns: the narrowest permission Google offers that
@@ -280,6 +281,44 @@ export function installConnections(hooks) {
   // The local server's token, from this profile or failing that another one connected in this tab.
   const localKey = () =>
     state().localKey || [...sessions.values()].map((s) => s.localKey).find(Boolean) || '';
+  // Keeps the token on this browser when the owner has ticked the box, and drops any kept copy
+  // when they have not. Says whether it is kept.
+  function keepLocal(key) {
+    if ($('local-remember').checked && saveLocalToken(key)) return true;
+    forgetLocalToken();
+    $('local-remember').checked = false;
+    return false;
+  }
+  // Connects this profile with the remembered token, if there is one. It asks this PEA server
+  // for its model list and nothing else. A token the server no longer accepts is forgotten.
+  let restoring = false;
+  async function restoreLocal() {
+    const key = loadLocalToken(),
+      who = p();
+    if (!key || restoring || state().localKey) return;
+    restoring = true;
+    try {
+      const models = await local.catalogue(key);
+      if (who !== p() || state().localKey || loadLocalToken() !== key) return;
+      const s = state();
+      s.localKey = key;
+      s.localModels = models;
+      render();
+      hooks.localChanged?.();
+    } catch (error) {
+      if (error instanceof ServiceError && error.rejected && loadLocalToken() === key) {
+        forgetLocalToken();
+        $('local-remember').checked = false;
+        note(
+          'This server no longer accepts the remembered connection token, so it was forgotten. Paste the current one under Local model.',
+        );
+      }
+      // Anything else (the server is not answering yet) leaves the token for the next try.
+    } finally {
+      restoring = false;
+      if (who !== p()) void restoreLocal();
+    }
+  }
   async function run(action) {
     if (operationActive) {
       note('Finish or stop the active request first.');
@@ -1094,19 +1133,40 @@ export function installConnections(hooks) {
       s.localKey = key;
       s.localModels = models;
       s.approvals.clear();
+      const kept = keepLocal(key);
       hooks.localChanged?.();
       note(
-        'Local model list loaded. Choose Local models for Chat and/or Greenhouse. No inference or cloud request was made.',
+        'Local model list loaded. Choose Local models for Chat and/or Greenhouse. No inference or cloud request was made.' +
+          (kept ? ' The connection token is remembered on this browser.' : ''),
       );
     });
   $('local-forget').onclick = () => {
     stop();
-    state().localKey = '';
-    state().localModels = [];
-    state().approvals.clear();
+    // Every profile's copy goes, or the next one opened would quietly connect again.
+    for (const s of sessions.values()) {
+      s.localKey = '';
+      s.localModels = [];
+      s.approvals.clear();
+    }
+    forgetLocalToken();
+    $('local-remember').checked = false;
     render();
     hooks.localChanged?.();
-    note('Forgot the local server token in this profile.');
+    note('Forgot the local server token, in this tab and on this browser.');
+  };
+  $('local-remember').checked = Boolean(loadLocalToken());
+  $('local-remember').onchange = () => {
+    if (!$('local-remember').checked) {
+      forgetLocalToken();
+      return note('The connection token is no longer remembered on this browser. This tab stays connected.');
+    }
+    const key = localKey();
+    if (!key) return note('Paste the token and connect. It will be remembered on this browser.');
+    note(
+      keepLocal(key)
+        ? 'The connection token is remembered on this browser.'
+        : 'This browser refused to keep the token. It stays in this tab only.',
+    );
   };
   $('context-clear').onclick = () => {
     currentAttachment = null;
@@ -1185,7 +1245,11 @@ export function installConnections(hooks) {
   $('choices-forget').onclick = () => {
     forgetChoices();
     choices = loadChoices();
-    note('Forgot the choices remembered on this browser. What is set in this tab stays until you reload.');
+    forgetLocalToken();
+    $('local-remember').checked = false;
+    note(
+      'Forgot the choices and the connection token remembered on this browser. What is set in this tab stays until you reload.',
+    );
   };
   $('google-connect').onclick = () => run(googleConnect);
   $('google-forget').onclick = () => {
@@ -1299,6 +1363,8 @@ export function installConnections(hooks) {
     if (generatedURL) URL.revokeObjectURL(generatedURL);
   });
   render();
+  // After the rest of the page has started: connect with the remembered token, if there is one.
+  setTimeout(() => void restoreLocal(), 0);
   return {
     chat,
     compose,
@@ -1404,6 +1470,7 @@ export function installConnections(hooks) {
       $('local-token').value = '';
       $('shared-config').value = '';
       render();
+      void restoreLocal();
     },
     selectCheckbox(file) {
       const check = document.createElement('input');
