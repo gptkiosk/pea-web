@@ -2,6 +2,20 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.17] - 2026-11-19
+
+Third step of the workspace redesign.
+
+### Added
+
+- **Harvest, a fourth workspace.** It gathers everything PEA has proposed in this profile's Chat and Greenhouse conversations: under "Waiting for your review", each proposal with its own Review button; under "Grown from these conversations", what you approved that leaves something to show, such as a link or a receipt. A proposal no longer scrolls out of sight with its reply.
+- **A count on the Harvest chip** says how many proposals are waiting, also while Harvest is tucked up, and pointing at the chip lists them.
+
+### Changed
+
+- Reviewing from Harvest is the same review as from the reply, which keeps its own button. Nothing is added, written or sent until you approve it, exactly as before.
+- The top bar is one row from 1500 pixels wide; under that the status sits on a second row, so it is no longer cut short. On a phone the four tabs fit by leaving out their small pictures.
+
 ## [0.1.0-rc.4.dev.16] - 2026-11-19
 
 Second step of the workspace redesign.

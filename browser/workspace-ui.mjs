@@ -25,7 +25,7 @@ import {
   workspaces,
 } from './workspace.mjs';
 
-const titles = { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse' };
+const titles = { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse', harvest: 'Harvest' };
 const $ = (id) => document.getElementById(id);
 
 export function installWorkspace({ onFocus, onShow = () => {}, canChange = () => true }) {
