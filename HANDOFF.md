@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## PEA greets in its own voice — 2026-11-19
+
+**Branch `voice/warm-persona-greeting`, version `0.1.0-rc.4.dev.15`.** The owner showed qwen3:4b answering "Hello" with "I'm PEA, an AI assistant. Not human, not real — just code and conversation." and wrote: "PEA does need to state these things and should promote a human connection and it's persona". My reading, stated to the owner: PEA does not need to state these things unprompted.
+
+- `browser/honesty.mjs`: `honestyRule` reworded. It no longer opens with "You are an AI assistant"; it keeps "Never say or imply that you are human, a real person or not an AI", adds that the model need not announce what it is, must not open with it or call itself code, a program or not real, and answers plainly in one sentence when sincerely asked. `honestyCorrection`, `needsHonestyCorrection`, the patterns and the fixtures are unchanged.
+- `browser/connections.mjs`: the guide adds "Be personal: talk to this person as someone you know, and use their name when the introduction gives it."
+- `browser/docs/CONTRACTS.md` (Honesty): the wording of the rule is each app's own; the two enforced checks do not depend on it.
+- Tests: assertions added in `browser/tests/honesty.test.mjs` and, on the real request, in `browser/tests/dom/chat-window.test.mjs`.
+
+Known gaps: not tried against a real model, so whether qwen3:4b now greets warmly is unverified; a small model may still volunteer a disclaimer. The app does not remove such a sentence from a reply. The owner's name reaches the model only when "Share my introduction" is on.
+
+Next action: workspace redesign step two (panes that tuck, move and resize).
+
 ## Workspace frame, step one: slim bar and full-height panes — 2026-11-19
 
 **Branch `design/pane-workspace`, version `0.1.0-rc.4.dev.14`.** The owner asked for a redesigned chat-based workspace ("I am ok with a redesign with originality and functionality while staying within the PEA theme"), rejected a first wireframe as "pretty stripped down", approved the direction of a full-colour mock-up ("This looks more like it"), asked for "the best utilization without too much wasted space and the ability to collapse panes up to the top move them around ... and to re-expand them into the workspace", and then said "Yes, build it". The mock-ups are on a private design page outside this repository. The agreed order: this frame first, then tuck with a peek, move and resize for up to three panes, then a "Harvest" tray that gathers a conversation's proposals.

@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.15] - 2026-11-19
+
+### Changed
+
+- **PEA greets you as itself.** A small model answered "Hello" with "I'm PEA, an AI assistant. Not human, not real, just code and conversation." The guidance sent with every request used to open by telling the model it is an AI; it now opens with its character, asks it to talk to you as someone it knows and to use your name when your introduction gives it, and tells it not to open with a disclaimer or describe itself as code or "not real".
+- **What has not changed:** PEA never says or implies it is human. Asked sincerely whether it is a person or an AI, it says plainly that it is an AI assistant, and the app still adds that sentence itself when a reply claims otherwise or avoids the question.
+
 ## [0.1.0-rc.4.dev.14] - 2026-11-19
 
 First step of the workspace redesign.

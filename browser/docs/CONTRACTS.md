@@ -113,6 +113,8 @@ Both apps send a rule with every request and also enforce it themselves:
 
 The `honesty` section of the fixtures lists sincere and non-sincere questions, claims and non-claims. The patterns are English only.
 
+The wording of the rule sent to the model is each app's own. On the web it also tells the model not to volunteer what it is: no opening disclaimer, and no describing itself as code or "not real". A greeting gets a greeting in the character's voice, and the plain sentence is for when it is sincerely asked. The two checks above are unchanged and do not depend on that wording.
+
 ## The assistant's name
 
 Sent with every request as a label, whether or not the introduction is shared. On the web it must be one line of letters, apostrophes, dots and hyphens, at most three words and forty characters; anything else is sent as PEA.

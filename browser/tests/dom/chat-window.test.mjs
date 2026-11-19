@@ -262,6 +262,11 @@ test(
     await motion('no-preference');
     await askModel(stack, page, 'Hello there.');
     assert.equal(await page.evaluate(`document.querySelectorAll('.pea-working').length`), 0);
+    // Every request asks the model for its own voice, honesty when asked, and no opening disclaimer.
+    const guidance = stack.model.requests.at(-1).messages[0].content;
+    assert.match(guidance, /talk to this person as someone you know/);
+    assert.match(guidance, /Never say or imply that you are human/);
+    assert.match(guidance, /do not open with it, and do not describe yourself as code/);
 
     const working = () =>
       page.evaluate(`(() => {
