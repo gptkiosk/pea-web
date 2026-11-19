@@ -3775,4 +3775,25 @@ kbd {
     position: static;
     flex: none;
   }
+  /* In a narrow frame the writing box's buttons show their icons only, on one row. Their names
+     stay for screen readers and as tooltips. */
+  @container pane (max-width: 720px) {
+    #chat:has(.welcome[hidden]) #composer .compose-bottom {
+      flex-wrap: nowrap;
+      gap: 8px;
+    }
+    #chat:has(.welcome[hidden]) #composer .compose-bottom .quiet > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    #chat:has(.welcome[hidden]) #composer .compose-bottom .quiet {
+      position: relative;
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+  }
 }
