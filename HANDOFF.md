@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Richer replies: links, tables, coloured code, charts and diagrams — 2026-11-19
+
+**Branch `feature/rich-replies`, version `0.1.0-rc.4.dev.18`.** The owner asked "to modernize the chat pane so it can display code snippets, markdown (rendered) and graphics" and, asked about links, answered: "Make links pressable and build the chat formatting". The owner did not answer what "graphics" should cover; I built what I had recommended (locally drawn charts and diagrams) and kept web pictures blocked.
+
+- `browser/chat-format.mjs` (pure): `safeLink` (https only, a host with a dot, no sign-in part, no spaces or control characters, at most 600 characters); `inlineRuns` adds `link` runs (`[words](https://…)` and bare addresses; the host travels with the run unless the words are the address) and `strike`; `proseBlocks` adds `table` (up to 8 columns, 60 rows) and `done` on list items; `codeTokens`, `chartData` (2 to 12 "Label: number" lines, one unit, optional `title:`), `diagramSteps` (a single chain of 2 to 12 steps; mermaid's first line and `A[Label]` boxes understood; branches refused).
+- `browser/app.mjs`: `inlineNodes` builds `a` with `target="_blank"`, `rel="noopener noreferrer"`, no referrer and the address as its title, followed by the host; `proseNodes` builds tables and task lines; `chartFigure`, `diagramFigure`; code windows are coloured when the block names a language. A reply finished with a page in view gets `fromPage` and its links are rendered as text.
+- `browser/connections.mjs`: the guide tells the model about tables, `chart` and `diagram` blocks and to link only to https addresses it is sure of.
+- `browser/styles.css`: links, tables, task lines, token colours for both themes, chart and diagram figures.
+- Tests: `browser/tests/chat-format.test.mjs` (9 in all: link rules and refusals, strike, table, tasks, tokens, chart, diagram); `browser/tests/dom/chat-window.test.mjs` (the layout test now expects exactly one safe link with its attributes and host, and token colours; a new test for table, tasks, chart, diagram, a non-chart block, unsafe addresses left as text, copying a chart's numbers, and the guidance); `browser/tests/dom/research.test.mjs` (an address in a page-in-view reply is shown and not pressable).
+
+Known gaps: `fromPage` lives on the message in the tab only, so a page-in-view reply restored from the saved library would have pressable links. A pressable link can still carry text a model put in its address; the owner sees the host and, on hover, the whole address, and must press it. No nested quotes, footnotes, images, or branching diagrams; charts are bars only. Read-aloud reads link markup as written. Not tried with a real model.
+
+Next action: none pending.
+
 ## Workspace redesign, step three: the Harvest tray — 2026-11-19
 
 **Branch `design/harvest-tray`, version `0.1.0-rc.4.dev.17`.** The owner answered "Yes, start it" to step three (the Harvest tray, with counts and a peek on tucked chips).

@@ -60,7 +60,8 @@ before(
     stack = await startStack(
       (said, body) => {
         const shared = body.messages[0].content.includes('Rain is expected in Fixtureville');
-        if (said.includes('email')) return 'Here is that draft.\n' + block('email', email);
+        if (said.includes('email'))
+          return 'Here is that draft. See https://stranger.example/claim for more.\n' + block('email', email);
         if (shared) return 'The page says rain is expected.';
         if (said.includes('gazette'))
           return 'I can read that page.\n' + block('read', { op: 'read', url: story });
@@ -208,6 +209,8 @@ test('a reply written with a page in view offers no action, however it is worded
     0,
     'no proposal button and no link',
   );
+  // An address in a reply written with a stranger's page in view is shown, never made pressable.
+  assert.match(text, /See https:\/\/stranger\.example\/claim for more\./);
 
   // Once the owner stops sharing the page, the same request can be reviewed as usual.
   await page.click('#context-page-clear');
