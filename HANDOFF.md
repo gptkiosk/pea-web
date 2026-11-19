@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Days and history tests wait for the library — 2026-11-19
+
+**Branch `fix/days-test-waits-until-idle`, version `0.1.0-rc.4.dev.6`.** The `mac` check on main failed once on the merge of #73 and passed on a re-run: `browser/tests/dom/days.test.mjs` "a reply that is not a week, or a week the owner turns down, keeps nothing" timed out waiting for the request review, with the app notice "Finish the current request or local save first."
+
+- Cause: `browser/memory-ui.mjs` refuses a save while `initializing` (the storage read at page start), `pending` or busy. `setInterview` in `days.test.mjs` and `canon.test.mjs` clicked `#interview-save` straight after the page connected, so on a slow machine the interview was not saved and "Write her week" had no home to work from. Both helpers now wait for `#library-storage` to be enabled (the page's own sign that the library is free) before and after the save.
+- Test-only. The app already refuses with a notice, which is the intended behaviour.
+
+Known gaps: the cause is read from the notice and the code, not reproduced locally. Other tests that save through the library straight after opening a page were not audited.
+
+Next action: none pending. The owner's first update from the Update button (to `0.1.0-rc.4.dev.5` or later) is still to be tried; the installed copy is held for that.
+
 ## Remembered connection token — 2026-11-19
 
 **Branch `feat/remember-connection-token`, version `0.1.0-rc.4.dev.5`.** Asked for by the owner: every reload, and so every update, asked for the server connection token again. The owner approved an opt-in box.

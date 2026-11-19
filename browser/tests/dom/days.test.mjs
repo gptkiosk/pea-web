@@ -85,10 +85,16 @@ const home = {
   family: 'FIXTURE FAMILY',
 };
 
+// The library reads its storage when the page opens and is busy during each save. Until it is free,
+// saving the interview is refused with a notice, so wait on both sides of the save.
+const libraryFree = (page) =>
+  page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be free');
 async function setInterview(page, answers) {
+  await libraryFree(page);
   for (const [field, value] of Object.entries(answers)) await page.fill('#bio-' + field, value);
   await page.click('#interview-save');
   await pause(page);
+  await libraryFree(page);
 }
 // Sends one Chat message and waits for the reply, approving the sharing review if it opens.
 // Returns whether a review was shown.

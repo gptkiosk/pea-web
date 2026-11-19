@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.6] - 2026-11-19
+
+Nothing in the app changed.
+
+### Fixed
+
+- Two project tests saved the interview the instant the page opened, before the library had finished reading its storage, and one failed now and then on a slow test machine. They now wait for the library to be free.
+
 ## [0.1.0-rc.4.dev.5] - 2026-11-19
 
 ### Added
