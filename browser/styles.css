@@ -3797,3 +3797,19 @@ kbd {
     }
   }
 }
+
+/* "Find a model": narrows the long model lists as the owner types. */
+.model-filter {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+.model-filter input {
+  width: 100%;
+}
+.setup-copy .use-only-model {
+  justify-self: start;
+  align-self: start;
+  padding: 2px 0;
+  text-align: left;
+}
