@@ -43,7 +43,8 @@ export function installWorkspace({ onFocus, canChange = () => true }) {
       const close = document.createElement('button');
       close.type = 'button';
       close.className = 'text-button';
-      close.textContent = 'Close';
+      // Its chip in the top bar stays, dashed, and brings the pane back.
+      close.textContent = 'Tuck up';
       close.setAttribute('aria-label', `Close ${titles[name]} pane`);
       close.onclick = () => set(closePane(layout, name));
       bar.append(label, swap, close);

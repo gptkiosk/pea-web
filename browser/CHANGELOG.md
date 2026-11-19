@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.14] - 2026-11-19
+
+First step of the workspace redesign.
+
+### Changed
+
+- **PEA is one fixed window on a screen with room.** A single slim bar across the top holds the logo, the three workspaces as chips, the status of your connection and your library, and the profile, side-by-side, theme and menu controls. It replaces the tall header, the page title and the two large setup cards, which took about a third of the window.
+- **Every workspace fills the rest of the window and scrolls inside itself.** Chat, Today and Greenhouse are frames; the page itself no longer scrolls. On its own, Chat keeps a comfortable reading width in the middle.
+- **Chips show what is open.** A chip is filled while its workspace is in the window and dashed while it is tucked up in the bar. In side-by-side view "Close" is now "Tuck up".
+- **The writing box in Chat is compact from the start.** "Talk with PEA" is no longer a large button above it; "Voice chat" in the row under the box opens the same thing.
+- A narrower desktop window puts the status under the chips. Phones and small windows keep the ordinary page with its top tabs.
+
 ## [0.1.0-rc.4.dev.13] - 2026-11-19
 
 ### Added

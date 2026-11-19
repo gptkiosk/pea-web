@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Workspace frame, step one: slim bar and full-height panes — 2026-11-19
+
+**Branch `design/pane-workspace`, version `0.1.0-rc.4.dev.14`.** The owner asked for a redesigned chat-based workspace ("I am ok with a redesign with originality and functionality while staying within the PEA theme"), rejected a first wireframe as "pretty stripped down", approved the direction of a full-colour mock-up ("This looks more like it"), asked for "the best utilization without too much wasted space and the ability to collapse panes up to the top move them around ... and to re-expand them into the workspace", and then said "Yes, build it". The mock-ups are on a private design page outside this repository. The agreed order: this frame first, then tuck with a peek, move and resize for up to three panes, then a "Harvest" tray that gathers a conversation's proposals.
+
+- `browser/styles.css` (end of file, two blocks under `@media (min-width: 901px) and (min-height: 640px)`): `.shell` is a grid and `main` is `display: contents`, so `.rail`, `.setup-strip` and `main > header` share the first row with no change to the markup or to any id; `#panes` takes the second row and the footer the third. The earlier "locked" rules now apply to every workspace, not only to a conversation. Between 901px and 1279px the status takes a second row.
+- `browser/workspace-ui.mjs`: the pane bar's button reads "Tuck up" (its label for assistive technology is unchanged).
+- No markup changed. Hidden in the frame only: the brand's subtitle, the page title, the rail's "Preferences & privacy" button (still in the menu), the preview tag and the large "Talk with PEA" button.
+- Tests: one browser test added to `browser/tests/dom/workspace.test.mjs` (no page scroll on each workspace, one slim bar in order, every replaced control still present, chips solid or dashed, a long pane scrolls inside itself, Swap sides and Tuck up, the two-row bar at 1024px); `chat-window.test.mjs` now expects Today to be a frame.
+
+Known gaps: not built yet from the agreed design: three panes at once, tuck with a count and a peek, drag to move, resizing more than one divider, the Harvest tray, and remembering the arrangement per profile. Clicking a chip still switches workspace as a tab did; Shift-click or the side-by-side button opens a second. The preview tag ("LOCAL PREVIEW · SAMPLE DATA") is not shown in the frame. Not looked at on a real phone or with the owner's data.
+
+Next action: step two, panes that tuck, move and resize.
+
 ## PEA at work: the pea-pod sign — 2026-11-19
 
 **Branch `design/pea-working-indicator`, version `0.1.0-rc.4.dev.13`.** The owner said: "There is no progress given in chat when PEA is working on an answer.  maybe you can create a Pea themed animated progress indicator that let's me know visually that Pea is working on an answer for me."
