@@ -6,7 +6,7 @@ PEA Web is a separate open-source product. Its repository, package versions, cha
 
 `release.json` is the version/channel/public-repository configuration. Use SemVer, a dated nonempty entry in [CHANGELOG.md](../CHANGELOG.md), a clean committed checkout and an immutable `v<version>` tag for a published release. A `development` build is explicitly marked as such. The organization defaults to Bamcio Ventures LLC and remains configurable for forks.
 
-The bordered footer shows the version, environment, web commit, connected gateway commit and modified/unknown state. Static previews without a stamp honestly report unknown identity; generate a preview stamp with `identity --write browser/build-info.json` when desired. Never commit that generated file. Packaged files are checked against the installed manifest for the modified indicator. That indicator is local diagnostics, not an independent authenticity guarantee; activation verifies the release signature.
+The bordered footer shows the version, and adds a few words only when the gateway runs a different commit or the files are modified or unverified. Pointing at it shows the full line (version, environment, web commit, connected gateway commit and modified/unknown state); **Updates & rollback** shows the commit, and **Source commit** links to it. Static previews without a stamp honestly report unknown identity; generate a preview stamp with `identity --write browser/build-info.json` when desired. Never commit that generated file. Packaged files are checked against the installed manifest for the modified indicator. That indicator is local diagnostics, not an independent authenticity guarantee; activation verifies the release signature.
 
 ```sh
 python3 browser/server/releases.py identity

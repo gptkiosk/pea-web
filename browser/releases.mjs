@@ -234,10 +234,18 @@ export function notesBlocks(markdown) {
   }
   return blocks.filter((b) => b.text.trim()).map(({ kind, text }) => ({ kind, text }));
 }
+// What is unusual about a build, in plain words. Empty for an ordinary one.
+function buildWarnings(info) {
+  const out = [];
+  if (typeof info.serverCommit === 'string' && info.serverCommit !== info.commit)
+    out.push('server at ' + info.serverCommit.slice(0, 7));
+  if (info.modified === true) out.push('files changed since this commit');
+  else if (info.modified === null) out.push('source not verified');
+  return out;
+}
 // One plain line about a build: what kind it is and which commit, with a warning only when
-// something is unusual. The footer keeps the full technical line.
+// something is unusual.
 export function buildLine(info) {
-  const short = (commit) => (typeof commit === 'string' ? commit.slice(0, 7) : '');
   const kind =
     info.channel === 'stable'
       ? 'Release'
@@ -245,10 +253,14 @@ export function buildLine(info) {
         ? 'Pre-release'
         : 'Development build';
   const parts = [kind];
-  if (short(info.commit)) parts.push('commit ' + short(info.commit));
-  if (info.serverCommit && info.serverCommit !== info.commit)
-    parts.push('server at ' + short(info.serverCommit));
-  if (info.modified === true) parts.push('files changed since this commit');
-  else if (info.modified === null) parts.push('source not verified');
-  return parts.join(' · ');
+  if (typeof info.commit === 'string') parts.push('commit ' + info.commit.slice(0, 7));
+  return [...parts, ...buildWarnings(info)].join(' · ');
+}
+// The footer: the version alone, and the same warnings when something is unusual.
+export const footerLine = (info) => ['v' + info.version, ...buildWarnings(info)].join(' · ');
+// Every part of the build's identity on one line, for a report. Shown when the footer's version
+// is pointed at.
+export function buildDetail(info) {
+  const short = (commit) => (typeof commit === 'string' ? commit.slice(0, 7) : '');
+  return `v${info.version} · ${info.environment} · web ${short(info.commit) || 'unknown'} · api ${short(info.serverCommit) || 'not connected'} · ${info.modified === true ? 'modified' : info.modified === null ? 'unverified source' : 'clean'}`;
 }

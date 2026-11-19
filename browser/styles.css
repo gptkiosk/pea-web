@@ -1761,9 +1761,9 @@ main {
 }
 .release-footer #footer-build {
   color: var(--sub);
-  font:
-    11px/1.7 ui-monospace,
-    monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 .release-footer nav {
