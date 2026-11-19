@@ -3807,6 +3807,10 @@ kbd {
 .model-filter input {
   width: 100%;
 }
+.use-only-model {
+  color: var(--green);
+  font-weight: 600;
+}
 .setup-copy .use-only-model {
   justify-self: start;
   align-self: start;
