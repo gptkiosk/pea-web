@@ -3818,11 +3818,11 @@ kbd {
   text-align: left;
 }
 
-/* PEA at work: three peas in a pod under the reply being written. */
+/* PEA at work: its picture and three bobbing peas under the reply being written. */
 .pea-working {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   white-space: normal;
   color: var(--sub);
   font-size: 13px;
@@ -3831,27 +3831,22 @@ kbd {
 .reply:not(:empty) + .pea-working {
   margin-top: 14px;
 }
+.pea-face {
+  width: 46px;
+  height: 46px;
+  flex: none;
+}
 .pea-pod {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 12px 5px 10px;
-  border: 1.5px solid #50732e;
-  /* A pod: rounded, a little pointed at one end. */
-  border-radius: 60% 40% 45% 55% / 70% 60% 60% 70%;
-  background: linear-gradient(160deg, #80ab4b, #6f9b3e);
-  transform: rotate(-6deg);
+  gap: 5px;
 }
 .pea-pod i {
-  width: 11px;
-  height: 11px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #e6efb8, #c5dc88 60%);
   box-shadow: 0 0 0 1px rgb(70 99 46 / 45%);
-}
-.pea-pod i:last-child {
-  width: 10px;
-  height: 10px;
 }
 @keyframes pea-bob {
   0%,
@@ -3866,18 +3861,38 @@ kbd {
     transform: translateY(1px) scale(0.96);
   }
 }
-@keyframes pod-sway {
+/* The picture hops while PEA thinks, and only rocks a little once the reply is arriving. */
+@keyframes pea-hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1, 1);
+  }
+  20% {
+    transform: translateY(-9px) rotate(-7deg) scale(1.04, 1.04);
+  }
+  38% {
+    transform: translateY(0) rotate(0deg) scale(1.08, 0.92);
+  }
+  48% {
+    transform: translateY(-3px) rotate(3deg) scale(1, 1);
+  }
+}
+@keyframes pea-rock {
   0%,
   100% {
-    transform: rotate(-6deg);
+    transform: rotate(-4deg);
   }
   50% {
-    transform: rotate(-2deg);
+    transform: rotate(4deg);
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .pea-pod {
-    animation: pod-sway 2800ms ease-in-out var(--pea-phase, 0ms) infinite;
+  .pea-working .pea-face {
+    animation: pea-rock 2800ms ease-in-out var(--pea-phase, 0ms) infinite;
+  }
+  .pea-working.thinking .pea-face {
+    animation: pea-hop 1400ms ease-in-out var(--pea-phase, 0ms) infinite;
   }
   .pea-pod i {
     animation: pea-bob 1400ms ease-in-out var(--pea-phase, 0ms) infinite;

@@ -6,7 +6,7 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 
 ### Added
 
-- **PEA shows that it is working.** While a reply is being written, three peas in a pod bob under it, in Chat and in Greenhouse. Before the first words arrive it reads "PEA is thinking…"; once the reply is arriving, "Still writing…". It goes when the reply is complete, and is not shown on a reply that was stopped or failed. With reduced motion switched on in your system, the pod and the words are shown without movement.
+- **PEA shows that it is working.** While a reply is being written, PEA's own picture and three small bobbing peas sit under it, in Chat and in Greenhouse. Before the first words arrive the picture hops and it reads "PEA is thinking…"; once the reply is arriving the picture only rocks a little and it reads "Still writing…". It goes when the reply is complete, and is not shown on a reply that was stopped or failed. With reduced motion switched on in your system, the picture, the peas and the words are shown without movement.
 
 ## [0.1.0-rc.4.dev.12] - 2026-11-19
 

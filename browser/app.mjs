@@ -925,25 +925,31 @@ async function atWork(surface, request) {
     workingOn = null;
   }
 }
-// Three peas in a pod, bobbing, under the reply PEA is writing. Shown only while that request is
+// PEA's picture and three bobbing peas under the reply PEA is writing. Shown only while that request is
 // under way; a reply that was stopped or failed has none. The picture is decoration: the words
 // beside it say the same thing, and they are all there is when motion is switched off.
 function workingNode(m, surface) {
   if (workingOn !== surface || !m.incomplete || m.role !== 'assistant' || m !== history(surface).at(-1))
     return null;
   const box = document.createElement('div');
-  box.className = 'pea-working';
+  box.className = m.text ? 'pea-working' : 'pea-working thinking';
+  // The conversation is redrawn as the reply arrives. Starting each new drawing at the same point
+  // of the same clock keeps the motion smooth instead of restarting every time.
+  box.style.setProperty('--pea-phase', `-${Math.round(performance.now() % 2800)}ms`);
+  // PEA's own picture, which bounces while it thinks.
+  const face = document.createElement('img');
+  face.className = 'pea-face';
+  face.src = 'assets/pea-icon.svg';
+  face.alt = '';
+  face.width = face.height = 46;
   const pod = document.createElement('span');
   pod.className = 'pea-pod';
   pod.setAttribute('aria-hidden', 'true');
-  // The conversation is redrawn as the reply arrives. Starting each new drawing at the same point
-  // of the same clock keeps the peas bobbing smoothly instead of restarting every time.
-  pod.style.setProperty('--pea-phase', `-${Math.round(performance.now() % 2800)}ms`);
   pod.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
   const words = document.createElement('span');
   words.className = 'pea-working-words';
   words.textContent = m.text ? 'Still writing…' : 'PEA is thinking…';
-  box.append(pod, words);
+  box.append(face, pod, words);
   return box;
 }
 function renderChat() {
