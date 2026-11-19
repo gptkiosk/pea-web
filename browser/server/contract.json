@@ -32,6 +32,7 @@
     "index.html",
     "live-ui.mjs",
     "local-model.mjs",
+    "local-token.mjs",
     "memory-ui.mjs",
     "memory.mjs",
     "policy.mjs",

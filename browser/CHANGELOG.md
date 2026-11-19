@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.5] - 2026-11-19
+
+### Added
+
+- **PEA can remember its own connection token.** Under Local model there is a new box, "Remember this token on this browser", off by default. Ticked, the token is kept in this browser's storage for this address and PEA connects by itself after a reload, so an update no longer ends with pasting the token again. Anyone who can open that browser on that device can then use that PEA server. "Forget local token", unticking the box and "Forget remembered choices" each remove it. A token the server no longer accepts is forgotten.
+
+### Changed
+
+- Only this one token can be kept. The OpenRouter key, GitHub token, voice provider keys and Google access still live in the tab's memory only.
+- "Forget local token" now disconnects every profile open in the tab, not just the current one.
+
 ## [0.1.0-rc.4.dev.4] - 2026-11-18
 
 Nothing in the app changed.

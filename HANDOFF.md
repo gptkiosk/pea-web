@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Remembered connection token — 2026-11-19
+
+**Branch `feat/remember-connection-token`, version `0.1.0-rc.4.dev.5`.** Asked for by the owner: every reload, and so every update, asked for the server connection token again. The owner approved an opt-in box.
+
+- `browser/local-token.mjs` (new, listed in `WEB-FILES.json` and `contract.json`): keeps one value under `pea-local-token-v1` in `localStorage`, and only a value matching the gateway's token pattern is stored or read back. It is separate from `preferences.mjs`, which still holds no credential.
+- `browser/live-ui.mjs`: `#local-remember` box (off by default). `keepLocal` saves on connect or on ticking while connected; unticking, `#local-forget` and `#choices-forget` remove it. `restoreLocal` runs at page start and on a profile change: it asks this server for `/v1/models` with the kept token and nothing else. A 401 (`ServiceError.rejected`, set in `browser/local-model.mjs`) forgets the token; any other failure leaves it. `#local-forget` now clears every profile's session in the tab.
+- Page text in `browser/index.html` and `browser/updates-ui.mjs`, and `browser/docs/SELF-HOSTING.md`, state the exception to "tokens are never saved".
+- Tests: 4 unit tests in `browser/tests/local-token.test.mjs`; 3 browser tests added to `browser/tests/dom/preferences.test.mjs` (kept only when ticked and in one place, reload connects with nothing typed and no model request, other profile connects, unticking and both forget buttons remove it, a refused or malformed stored value is dropped). The gateways and the contract's rules are unchanged; the contract only lists the new file.
+
+Known gaps: the token is stored as plain text in the browser profile, readable by anyone or anything with access to that profile, including a browser extension allowed on the page. It is not tied to the encrypted library. Not tried on a phone over a private HTTPS address. A real update started from the Update button is still untested; the owner intends to install this change that way.
+
+Next action: after merge, leave the installed copy for the owner to update with the button (one-time hold on the follow-main routine).
+
 ## To-do test waits for the list — 2026-11-18
 
 **Branch `fix/todo-test-waits-for-add`, version `0.1.0-rc.4.dev.4`.** The `web` check on main failed once on the merge of #71 and passed on a re-run: `browser/tests/dom/todos.test.mjs` "the owner can add, check off, reopen and remove to-dos by hand" found an empty list.

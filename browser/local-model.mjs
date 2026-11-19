@@ -42,8 +42,8 @@ export class LocalModel {
       referrerPolicy: 'no-referrer',
       signal: signal ?? AbortSignal.timeout(45000),
     });
-    if (!r.ok && !anyStatus)
-      throw new ServiceError(
+    if (!r.ok && !anyStatus) {
+      const failure = new ServiceError(
         r.status === 401
           ? 'Local server token rejected.'
           : r.status === 429
@@ -52,6 +52,10 @@ export class LocalModel {
               ? 'Run this web app with the PEA local-model gateway first.'
               : 'Local model unavailable. Refresh the model list; no cloud fallback.',
       );
+      // Lets a caller tell "this token is wrong" from "the server is not answering".
+      failure.rejected = r.status === 401;
+      throw failure;
+    }
     return r;
   }
   // Asks whether this server can show reminders as system notifications (only PEA for Mac can), or,

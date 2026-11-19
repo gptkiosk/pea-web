@@ -239,7 +239,7 @@ test(
     assert.match(text, /Update this copy/);
     assert.match(
       await page.text('#update-status'),
-      /connect this PEA first: paste its server connection token under Local model\. The token is never saved/,
+      /connect this PEA first: paste its server connection token under Local model\. Tick Remember this token on this browser there/,
     );
     assert.equal(await shown(page, 'release-update-open'), true, 'the way to connect is offered');
     assert.equal(await shown(page, 'update-check'), false);
