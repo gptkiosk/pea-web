@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.13] - 2026-11-19
+
+### Added
+
+- **PEA shows that it is working.** While a reply is being written, three peas in a pod bob under it, in Chat and in Greenhouse. Before the first words arrive it reads "PEA is thinking…"; once the reply is arriving, "Still writing…". It goes when the reply is complete, and is not shown on a reply that was stopped or failed. With reduced motion switched on in your system, the pod and the words are shown without movement.
+
 ## [0.1.0-rc.4.dev.12] - 2026-11-19
 
 ### Added

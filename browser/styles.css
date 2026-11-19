@@ -3817,3 +3817,75 @@ kbd {
   padding: 2px 0;
   text-align: left;
 }
+
+/* PEA at work: three peas in a pod under the reply being written. */
+.pea-working {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: normal;
+  color: var(--sub);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.reply:not(:empty) + .pea-working {
+  margin-top: 14px;
+}
+.pea-pod {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px 5px 10px;
+  border: 1.5px solid #50732e;
+  /* A pod: rounded, a little pointed at one end. */
+  border-radius: 60% 40% 45% 55% / 70% 60% 60% 70%;
+  background: linear-gradient(160deg, #80ab4b, #6f9b3e);
+  transform: rotate(-6deg);
+}
+.pea-pod i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e6efb8, #c5dc88 60%);
+  box-shadow: 0 0 0 1px rgb(70 99 46 / 45%);
+}
+.pea-pod i:last-child {
+  width: 10px;
+  height: 10px;
+}
+@keyframes pea-bob {
+  0%,
+  55%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-5px) scale(1.08);
+  }
+  40% {
+    transform: translateY(1px) scale(0.96);
+  }
+}
+@keyframes pod-sway {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(-2deg);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pea-pod {
+    animation: pod-sway 2800ms ease-in-out var(--pea-phase, 0ms) infinite;
+  }
+  .pea-pod i {
+    animation: pea-bob 1400ms ease-in-out var(--pea-phase, 0ms) infinite;
+  }
+  .pea-pod i:nth-child(2) {
+    animation: pea-bob 1400ms ease-in-out calc(var(--pea-phase, 0ms) + 180ms) infinite;
+  }
+  .pea-pod i:nth-child(3) {
+    animation: pea-bob 1400ms ease-in-out calc(var(--pea-phase, 0ms) + 360ms) infinite;
+  }
+}

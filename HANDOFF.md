@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## PEA at work: the pea-pod sign — 2026-11-19
+
+**Branch `design/pea-working-indicator`, version `0.1.0-rc.4.dev.13`.** The owner said: "There is no progress given in chat when PEA is working on an answer.  maybe you can create a Pea themed animated progress indicator that let's me know visually that Pea is working on an answer for me."
+
+- `browser/app.mjs`: `workingOn` (the workspace a request is under way in), `atWork(surface, request)` around `live.run` in `submit` and in the board's `execute`, and `workingNode(m, surface)`: a `.pea-working` box (a decorative `.pea-pod` with three `i` peas, and words) appended to the last assistant message only while it is incomplete and that request is under way. The pod carries `--pea-phase` from one clock so redrawing the conversation as text arrives does not restart the motion.
+- `browser/styles.css` (end of file): the pod, `pea-bob` and `pod-sway`, declared only under `prefers-reduced-motion: no-preference`.
+- Tests: one browser test in `browser/tests/dom/chat-window.test.mjs` (present with three peas and words before the first text, motion named `pea-bob`, still under reduced motion, gone when complete, absent on a reply that broke off).
+
+Known gaps: seen in a scratch copy against a slow synthetic model, not the owner's real model. There is no sign while a review dialog is waiting for the owner, by intent. The text just sent stays in the writing box until the reply ends, as before. Voice-room sends were not looked at separately.
+
+Next action: none pending.
+
 ## OpenRouter key kept in the encrypted library — 2026-11-19
 
 **Branch `feature/keep-router-key-in-library`, version `0.1.0-rc.4.dev.12`.** The owner, with Chat working on a real model, said: "This now has a config and need to persist updates along with memory data of course." Asked whether the OpenRouter key should be kept inside the encrypted library and restored on unlock, they answered: "Yes, in the library".
