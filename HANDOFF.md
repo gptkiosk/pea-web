@@ -23,6 +23,14 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Profile exchange docs corrected — 2026-11-19
+
+**Branch `docs/profile-exchange-pointers`, version `0.1.0-rc.4.dev.11`.** Documentation only. `browser/docs/CO-USE.md` and `browser/docs/PROFILE-CONTINUITY.md` said the cross-app profile format was design only, which led to a wrong answer to the owner. Both now point to `browser/docs/CONTRACTS.md` ("The profile file", "The backup file") and say that only the iPhone export is missing. No code or test changed.
+
+Known gaps: the iPhone app's export is not built; whether its interview and memories fit the contract's names and limits is for its own change to establish. The line in the interview window ("Your iPhone does not receive these answers yet") is still true and unchanged.
+
+Next action: none pending here.
+
 ## One-press local model and "Find a model" — 2026-11-19
 
 **Branch `feature/model-picker-help`, version `0.1.0-rc.4.dev.10`.** The owner asked: "Add the one-click offer to use the only local model and I think a dynamic filter for the openrouter models is necessary since there are so many...  something than when typing nemotron shows all nemotron models or Haiku shows all haiku models." They also asked for "the method of exporting memory from the iOS app to the web app"; there is none (see `browser/docs/PROFILE-CONTINUITY.md`, design only), and that was answered in conversation, not built.

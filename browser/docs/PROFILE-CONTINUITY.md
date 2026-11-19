@@ -1,6 +1,6 @@
 # Interview and profile continuity: proposed cross-app contract
 
-Status: design only. PEA Web and PEA for iPhone do not yet exchange interview answers or assistant personas. The existing Web encrypted library backup is a Web-only format. A common Drive folder and the portable model configuration do not synchronize private profiles. Do not treat this document as an implemented wire format.
+Status: requirements, partly delivered. The file formats this page asked for now exist and are specified, with test files, in [shared contracts](CONTRACTS.md): the profile file and the backup file. PEA Web writes and reads both. PEA for iPhone does not yet write or read either, so the two apps still do not exchange interview answers or personas. This page is the reasoning and the remaining steps; it is not the wire format, and where it differs from the contracts page, the contracts page is right. The Web encrypted library backup is a different, Web-only file. A common Drive folder and the portable model configuration do not synchronize private profiles.
 
 ## Outcome
 
@@ -43,4 +43,4 @@ The iPhone also has a separate optional wellbeing section with a separate storag
 2. Implement the reviewed contract in each product independently, with synthetic compatibility vectors and local tests; preserve existing encrypted archives and rollback behavior.
 3. Test explicit import/export and conflict cases across Web and a physical iPhone, then separately test any customer-owned Drive transport. Only describe automatic sync if revision handling and failure recovery are actually implemented and accepted.
 
-Until these steps are complete, the interview is browser-local and optional encrypted saving must be enabled to retain its answers across reloads. See [memory and recovery](MEMORY.md) and [using both apps](CO-USE.md).
+Where this stands: step 1's exchange specification and the Web half of step 2 are done (see [shared contracts](CONTRACTS.md)). The iPhone half of step 2 and all of step 3 are not. Until they are, a profile moves only between Web browsers; the interview is browser-local and optional encrypted saving must be enabled to retain its answers across reloads. See [memory and recovery](MEMORY.md) and [using both apps](CO-USE.md).
