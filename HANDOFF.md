@@ -23,6 +23,21 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Chat window: locked layout, following conversation, laid-out replies — 2026-11-19
+
+**Branch `design/chat-window`, version `0.1.0-rc.4.dev.9`.** The owner reported two things. First: "I cannot chat with PEA web, even though it says it has local model configured." Their copy was connected and listed one local model, but no Chat model was chosen, and the card showed a blank. Second: "The navigation with all the scroll bars is a little wonky. I would like to lock these panels and have an autoscrolling chat window that follows the chat and formats the chat results as needed with code windows, copy icons and other chat niceties."
+
+- `browser/chat-format.mjs` (new, pure): `inlineRuns` (bold, italic, code; unclosed marks and `snake_case` stay as typed), `proseBlocks` (heading, list with depth, quote, rule, paragraph) and `atLatest`. Links and HTML are never interpreted. Listed in `WEB-FILES.json` and `contract.json` (57 assets; `RulesTests.swift` count updated).
+- `browser/app.mjs`: `messageBody` builds a reply from `replySegments` (unchanged) and `proseBlocks` with `textContent` only; `copyButton`, `messageHead` (Copy per message, absent while a reply is arriving); `follow`, `toLatest`, `drawFollowing` keep `.conversation-main` and `#collab-messages` at the newest message while followed; `addReply` follows again; `focusChanged` shows the newest message when a workspace comes back.
+- `browser/index.html`: `#chat-latest` and `#collab-latest`; `title` on the four buttons under Chat's writing box, whose labels are visually hidden in a split frame under 720px (container query).
+- `browser/styles.css` (end of file): reply typography; the locked layout under `@media (min-width: 901px) and (min-height: 640px)`, applied when Chat has a conversation or `#panes.split`. Split panes are `position: relative` so their visually hidden labels cannot stretch the page.
+- `browser/live-ui.mjs`: connection status and model ticker when no Chat model is chosen (`||` in place of `??`, which let an empty id through).
+- Tests: `browser/tests/chat-format.test.mjs` (5); `browser/tests/dom/chat-window.test.mjs` (4: layout of a reply and that nothing becomes markup, both Copy buttons; no page scroll, following, Latest, return from Today, split; phone unchanged; the no-model wording).
+
+Known gaps: checked in a scratch copy against a synthetic model, not against the owner's real model. Tables, nested quotes and links are shown as typed. Greenhouse on its own and Today are still ordinary scrolling pages; only Greenhouse's conversation box follows. Whether the owner's Chat model was chosen earlier and lost, or never chosen, is not known. Not looked at on a real phone.
+
+Next action: none pending.
+
 ## Footer version line simplified — 2026-11-19
 
 **Branch `design/footer-version-line`, version `0.1.0-rc.4.dev.8`.** The owner asked: "Simplify the footer version line too".

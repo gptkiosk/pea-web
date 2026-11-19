@@ -163,15 +163,17 @@ export function installConnections(hooks) {
       ...s.roots.map((w, i) => new Option(w.folder.title + ' · ' + w.folder.id.slice(-6), String(i))),
     );
     $('connection-status').textContent =
-      s.localKey && s.key
-        ? 'Local + OpenRouter ready'
-        : s.localKey
-          ? 'Local model connected'
-          : s.key
-            ? 'OpenRouter connected'
-            : s.google
-              ? 'Google connected · no model'
-              : 'Choose a model';
+      (s.localKey || s.key) && !s.chat
+        ? 'Connected · no Chat model chosen yet'
+        : s.localKey && s.key
+          ? 'Local + OpenRouter ready'
+          : s.localKey
+            ? 'Local model connected'
+            : s.key
+              ? 'OpenRouter connected'
+              : s.google
+                ? 'Google connected · no model'
+                : 'Choose a model';
     $('local-origin').textContent = location.origin;
     $('context-drive').textContent = s.workspace
       ? s.workspace.folder.title
@@ -188,7 +190,7 @@ export function installConnections(hooks) {
     const id = modelID(s, hooks.surface());
     const ticker =
       s.key || s.localKey
-        ? `${hooks.surface() === 'chat' ? 'Chat' : s.role} · ${[...s.localModels, ...s.models].find((m) => m.id === id)?.name ?? id ?? 'choose a model'}`
+        ? `${hooks.surface() === 'chat' ? 'Chat' : s.role} · ${[...s.localModels, ...s.models].find((m) => m.id === id)?.name || id || 'choose a model in Set up'}`
         : 'Your keys · or your local model';
     const badge = $('active-model'),
       label = document.createElement('span');

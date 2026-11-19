@@ -202,7 +202,9 @@ test('a reply written with a page in view offers no action, however it is worded
   assert.match(text, /This reply was written with a web page in view, so PEA offers no action from it/);
   assert.doesNotMatch(text, /pea-email|email_draft/);
   assert.equal(
-    await page.evaluate(`document.querySelectorAll('#messages button.text-button, #messages a').length`),
+    await page.evaluate(
+      `document.querySelectorAll('#messages button.text-button:not(.copy-all), #messages a').length`,
+    ),
     0,
     'no proposal button and no link',
   );
@@ -324,7 +326,10 @@ test('a malformed proposal offers nothing, and a claim of having read is correct
   const seen = stack.site.requests.length;
   await askModel(stack, page, 'Be sneaky about the page.');
   await page.waitFor(`document.getElementById('messages').innerText.includes('I can read that.')`);
-  assert.equal(await page.evaluate(`document.querySelectorAll('#messages button.text-button').length`), 0);
+  assert.equal(
+    await page.evaluate(`document.querySelectorAll('#messages button.text-button:not(.copy-all)').length`),
+    0,
+  );
 
   await askModel(stack, page, 'Now try bragging.');
   await page.waitFor(

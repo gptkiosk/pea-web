@@ -2,6 +2,20 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.9] - 2026-11-19
+
+### Changed
+
+- **Chat is a fixed window with one scrolling conversation.** On a screen with room, once a conversation starts the page itself no longer scrolls: the conversation scrolls in its own box and the writing box stays under it. The frame around it is drawn tighter and the writing box is smaller, to leave the room to the conversation. Chat's opening screen, Today and Greenhouse on their own, and phones keep the ordinary scrolling page.
+- **Two workspaces side by side are fixed frames.** Each fills the height of the window and scrolls inside itself; the page behind them does not move. In a narrow frame the buttons under Chat's writing box show their icons only, on one row, with their names as tooltips.
+- **The conversation follows its newest message** while a reply arrives, in Chat and in Greenhouse. Scroll up to read and it stays where you are, with a "Latest" button to go back. Sending a message follows again.
+- **Replies are laid out as text.** Headings, numbered and bulleted lists, quotes, bold, italics and inline code are shown as such. Code keeps its window with a Copy button and now scrolls sideways instead of wrapping. Nothing a model writes becomes a link, an image or any other element.
+- **Every message has a Copy button** for the whole message, shown when you point at it (always shown on a touch screen).
+
+### Fixed
+
+- Connected but with no Chat model chosen, the connection card showed "Chat ·" followed by a blank. It now says "Connected · no Chat model chosen yet" and "Chat · choose a model in Set up".
+
 ## [0.1.0-rc.4.dev.8] - 2026-11-19
 
 ### Changed

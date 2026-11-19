@@ -3492,3 +3492,308 @@ kbd {
   width: 100%;
   box-sizing: border-box;
 }
+
+/* A conversation that reads well: laid-out prose, code windows, and a Copy button per message. */
+.utterance-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.utterance-head small {
+  margin-bottom: 0;
+}
+.utterance-head .copy-all {
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sub);
+  opacity: 0;
+}
+.utterance:hover .copy-all,
+.utterance:focus-within .copy-all {
+  opacity: 1;
+}
+@media (hover: none) {
+  .utterance-head .copy-all {
+    opacity: 1;
+  }
+}
+.reply {
+  white-space: normal;
+}
+.reply-prose {
+  white-space: normal;
+}
+.reply-prose > * {
+  margin: 0 0 12px;
+}
+.reply > :last-child,
+.reply-prose > :last-child {
+  margin-bottom: 0;
+}
+.reply-prose p,
+.reply-prose blockquote {
+  white-space: pre-wrap;
+}
+.reply-prose h3,
+.reply-prose h4,
+.reply-prose h5 {
+  margin-top: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.1px;
+}
+.reply-prose > :first-child {
+  margin-top: 0;
+}
+.reply-prose h3 {
+  font-size: 19px;
+}
+.reply-prose h4 {
+  font-size: 17px;
+}
+.reply-prose h5 {
+  font-size: 16px;
+}
+.reply-prose ul,
+.reply-prose ol {
+  padding-left: 24px;
+}
+.reply-prose li {
+  margin: 4px 0;
+}
+.reply-prose li[data-depth="1"] {
+  margin-left: 22px;
+}
+.reply-prose li[data-depth="2"] {
+  margin-left: 44px;
+}
+.reply-prose li[data-depth] {
+  list-style-type: circle;
+}
+.reply-prose blockquote {
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--line);
+  color: var(--sub);
+}
+.reply-prose hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.reply-prose code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--field);
+  font:
+    0.86em/1.5 ui-monospace,
+    monospace;
+  overflow-wrap: anywhere;
+}
+.reply .copy-box {
+  margin: 14px 0;
+}
+.copy-box pre {
+  font-size: 13px;
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 2;
+}
+
+/* "Latest": shown when the reader has scrolled up from the newest message. */
+.latest {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 12px;
+}
+.conversation-layout {
+  position: relative;
+}
+#chat-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+.latest-row {
+  position: relative;
+  height: 0;
+}
+.latest-row .latest {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+}
+.collaboration #collab-messages {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Locked workspace: on a screen with room, a conversation in Chat (and two workspaces side by
+   side) fill the window and never scroll the page. Chat's opening screen, before anything is said,
+   is an ordinary page. The conversation is the one thing that scrolls, and the writing box
+   stays put under it. A small or short screen keeps the ordinary scrolling page. */
+@media (min-width: 901px) and (min-height: 640px) {
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]),
+  .shell:has(#panes.split) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) > main,
+  .shell:has(#panes.split) > main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-bottom: 14px;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) #panes,
+  .shell:has(#panes.split) #panes {
+    flex: 1;
+    min-height: 0;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer,
+  .shell:has(#panes.split) .release-footer {
+    margin-top: 0;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    flex-wrap: nowrap;
+    border-bottom: 0;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer nav,
+  .shell:has(#panes.split) .release-footer nav {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer strong,
+  .shell:has(#panes.split) .release-footer strong {
+    white-space: nowrap;
+  }
+  #panes:not(.split) > #chat:has(.welcome[hidden]),
+  #panes.split > #chat {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+  #panes.split > #chat[hidden] {
+    display: none;
+  }
+  #panes:not(.split) > #chat[hidden]:has(.welcome[hidden]) {
+    display: none;
+  }
+  #chat .conversation-layout {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  #chat .conversation-main {
+    position: relative;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-right: 6px;
+  }
+  #chat #composer {
+    flex: none;
+    margin-top: 12px;
+  }
+  /* Once a conversation is under way the writing box is kept small, so the conversation has the room. */
+  #chat:has(.welcome[hidden]) #composer .voice-entry {
+    display: none;
+  }
+  #chat:has(.welcome[hidden]) #composer {
+    padding: 12px;
+  }
+  #chat:has(.welcome[hidden]) #composer textarea,
+  #chat:has(.welcome[hidden]) #composer textarea:focus {
+    min-height: 0;
+    height: 56px;
+    padding: 12px 16px;
+  }
+  #chat:has(.welcome[hidden]) #composer textarea:focus {
+    height: 96px;
+  }
+  #chat:has(.welcome[hidden]) #composer .compose-bottom {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+  /* The frame around the workspace is drawn tighter, to leave the room to the conversation. */
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) > main,
+  .shell:has(#panes.split) > main {
+    padding-top: 16px;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .setup-strip,
+  .shell:has(#panes.split) .setup-strip {
+    margin-top: 12px;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .setup-card,
+  .shell:has(#panes.split) .setup-card {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    min-height: 0;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .setup-icon,
+  .shell:has(#panes.split) .setup-icon {
+    display: none;
+  }
+  #panes:not(.split) > #chat:has(.welcome[hidden]) {
+    padding-top: 12px;
+  }
+  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer > div,
+  .shell:has(#panes.split) .release-footer > div {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  /* Two workspaces: each is a fixed frame as tall as the window allows. Chat scrolls only its
+     conversation; the other workspace scrolls inside its own frame. */
+  #panes.split {
+    align-items: stretch;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  #panes.split > .panel {
+    /* Still the frame its hidden labels are placed in, so none of them can stretch the page. */
+    position: relative;
+    top: auto;
+    max-height: none;
+    height: 100%;
+    min-height: 0;
+  }
+  #panes.split > #chat {
+    overflow: hidden;
+  }
+  #panes.split > #chat .pane-bar {
+    position: static;
+    flex: none;
+  }
+  /* In a narrow frame the writing box's buttons show their icons only, on one row. Their names
+     stay for screen readers and as tooltips. */
+  @container pane (max-width: 720px) {
+    #chat:has(.welcome[hidden]) #composer .compose-bottom {
+      flex-wrap: nowrap;
+      gap: 8px;
+    }
+    #chat:has(.welcome[hidden]) #composer .compose-bottom .quiet > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    #chat:has(.welcome[hidden]) #composer .compose-bottom .quiet {
+      position: relative;
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+  }
+}

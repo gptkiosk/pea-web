@@ -13,6 +13,7 @@
     "build-info.json",
     "canon-ui.mjs",
     "canon.mjs",
+    "chat-format.mjs",
     "commands-ui.mjs",
     "commands.mjs",
     "connections.mjs",

@@ -57,6 +57,7 @@ import {
   spokenReply,
 } from './handoff.mjs';
 import { honestyCorrection, needsHonestyCorrection } from './honesty.mjs';
+import { atLatest, proseBlocks } from './chat-format.mjs';
 // A page served without the gateway's frame-ancestors header must still refuse to run inside another site's frame.
 if (globalThis.top !== globalThis.self) {
   document.body.replaceChildren(
@@ -114,22 +115,69 @@ const chats = {},
   openReady = new Set();
 const applePlatform = /mac|iphone|ipad/i.test(navigator.userAgentData?.platform || navigator.platform || '');
 // Draws a message: prose as text, and each fenced block as a box with a Copy button.
+// A small button that copies text, with a notice as the lasting confirmation: the conversation
+// may be redrawn at any moment, replacing the button.
+function copyButton(text, name, className = 'text-button') {
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = className;
+  copy.textContent = 'Copy';
+  copy.setAttribute('aria-label', name);
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = 'Copied';
+      notice('Copied to the clipboard.');
+      setTimeout(() => (copy.textContent = 'Copy'), 1800);
+    } catch {
+      notice('Copying is blocked in this browser. Select the text and copy it by hand.');
+    }
+  };
+  return copy;
+}
+// One line's runs as elements. Everything is set with textContent.
+function inlineNodes(runs) {
+  return runs.map((run) => {
+    if (!run.style) return document.createTextNode(run.text);
+    const node = document.createElement({ bold: 'strong', italic: 'em', code: 'code' }[run.style]);
+    node.textContent = run.text;
+    return node;
+  });
+}
+// The prose of a reply laid out as paragraphs, headings, lists and quotes.
+function proseNodes(text) {
+  return proseBlocks(text).map((block) => {
+    if (block.kind === 'rule') return document.createElement('hr');
+    if (block.kind === 'list') {
+      const list = document.createElement(block.ordered ? 'ol' : 'ul');
+      for (const item of block.items) {
+        const li = document.createElement('li');
+        if (item.depth) li.dataset.depth = String(item.depth);
+        if (block.ordered && item.number !== null && !item.depth) li.value = item.number;
+        li.append(...inlineNodes(item.runs));
+        list.append(li);
+      }
+      return list;
+    }
+    const node = document.createElement(
+      block.kind === 'heading' ? 'h' + (block.level + 2) : block.kind === 'quote' ? 'blockquote' : 'p',
+    );
+    node.append(...inlineNodes(block.runs));
+    return node;
+  });
+}
 function messageBody(m) {
   const body = document.createElement('span');
   if (m.role === 'user') {
     body.textContent = m.text;
     return body;
   }
-  const segments = replySegments(m.text);
-  if (!segments.some((segment) => segment.kind === 'box')) {
-    body.textContent = m.text;
-    return body;
-  }
-  for (const segment of segments) {
+  body.className = 'reply';
+  for (const segment of replySegments(m.text)) {
     if (segment.kind === 'prose') {
-      const prose = document.createElement('span');
+      const prose = document.createElement('div');
       prose.className = 'reply-prose';
-      prose.textContent = segment.text;
+      prose.append(...proseNodes(segment.text));
       body.append(prose);
       continue;
     }
@@ -139,22 +187,7 @@ function messageBody(m) {
     bar.className = 'copy-box-bar';
     const label = document.createElement('small');
     label.textContent = segment.label || 'Text to copy';
-    const copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'text-button';
-    copy.textContent = 'Copy';
-    copy.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(segment.text);
-        copy.textContent = 'Copied';
-        // The conversation may be redrawn at any moment, replacing this button, so the notice is the lasting confirmation.
-        notice('Copied to the clipboard.');
-        setTimeout(() => (copy.textContent = 'Copy'), 1800);
-      } catch {
-        notice('Copying is blocked in this browser. Select the text and copy it by hand.');
-      }
-    };
-    bar.append(label, copy);
+    bar.append(label, copyButton(segment.text, 'Copy this block'));
     const pre = document.createElement('pre');
     pre.textContent = segment.text;
     box.append(bar, pre);
@@ -162,6 +195,58 @@ function messageBody(m) {
   }
   return body;
 }
+// The name over a message, with a Copy button for the whole message once it is complete.
+function messageHead(m, name) {
+  const head = document.createElement('div');
+  head.className = 'utterance-head';
+  const label = document.createElement('small');
+  label.textContent = name;
+  head.append(label);
+  if (m.text && !m.incomplete)
+    head.append(
+      copyButton(m.text, m.role === 'user' ? 'Copy your message' : 'Copy this reply', 'text-button copy-all'),
+    );
+  return head;
+}
+// A conversation follows its newest message while the reader is at the end of it, and stays put
+// once they scroll up to read. "Latest" brings them back.
+const following = new Map();
+function follow(scroller, jump) {
+  following.set(scroller, true);
+  const show = () =>
+    (jump.hidden = following.get(scroller) || scroller.scrollHeight <= scroller.clientHeight + 1);
+  scroller.addEventListener(
+    'scroll',
+    () => {
+      following.set(scroller, atLatest(scroller));
+      show();
+    },
+    { passive: true },
+  );
+  jump.onclick = () => toLatest(scroller);
+  return show;
+}
+function toLatest(scroller) {
+  following.set(scroller, true);
+  scroller.scrollTop = scroller.scrollHeight;
+}
+// Redraws a conversation and keeps the newest message in view when the reader was following.
+// `box` is where that conversation is written.
+function drawFollowing(scroller, box, show, draw) {
+  // Where the conversation is not a scrolling box of its own (a phone), the page itself follows
+  // while the writing box is in view.
+  const own = () => scroller.scrollHeight > scroller.clientHeight + 1;
+  const pageFollows = !own() && box.getBoundingClientRect().bottom <= innerHeight + 72;
+  draw();
+  // Before anything is said there is nothing to follow: the opening screen is read from its top.
+  if (!scroller.querySelector('.utterance')) scroller.scrollTop = 0;
+  else if (following.get(scroller)) scroller.scrollTop = scroller.scrollHeight;
+  if (pageFollows && !own() && scroller.querySelector('.utterance')) box.scrollIntoView({ block: 'nearest' });
+  show();
+}
+const chatScroller = document.querySelector('.conversation-main'),
+  showChatJump = follow(chatScroller, $('chat-latest')),
+  showCollabJump = follow($('collab-messages'), $('collab-latest'));
 let reviewingStory = false;
 const history = (surface, who = profile) => chats[`${who}:${surface}`] ?? (chats[`${who}:${surface}`] = []);
 const message = (role, text, extra = {}) => ({
@@ -256,6 +341,12 @@ function focusChanged(next, changed) {
   if (changed) stopSpeaking();
   activeTab = next;
   if (next === 'chat' || next === 'greenhouse') lastConversationSurface = next;
+  // A conversation that grew while it was out of sight is shown at its newest message.
+  requestAnimationFrame(() => {
+    for (const scroller of [chatScroller, $('collab-messages')])
+      if (following.get(scroller) && scroller.querySelector('.utterance'))
+        scroller.scrollTop = scroller.scrollHeight;
+  });
   live?.render();
 }
 function fileRow(f) {
@@ -829,16 +920,13 @@ function renderChat() {
   const nodes = history('chat').map((m) => {
     const d = document.createElement('div');
     d.className = `utterance ${m.role}`;
-    const l = document.createElement('small');
-    l.textContent = m.role === 'user' ? 'YOU' : m.preview ? 'PEA PREVIEW' : 'PEA';
-    const t = messageBody(m);
-    d.append(l, t);
+    d.append(messageHead(m, m.role === 'user' ? 'YOU' : m.preview ? 'PEA PREVIEW' : 'PEA'), messageBody(m));
     const action = proposalButton(m, 'chat');
     if (action) d.append(action);
     if (!m.preview && !m.incomplete) makeMessageDraggable(d, m.id);
     return d;
   });
-  $('messages').replaceChildren(...nodes);
+  drawFollowing(chatScroller, $('composer'), showChatJump, () => $('messages').replaceChildren(...nodes));
 }
 async function selectFile(f) {
   if (!visible().includes(f)) return;
@@ -976,22 +1064,23 @@ $('home-connections').onclick = () => $('connections-open').click();
 function addReply(surface, text) {
   const reply = message('assistant', '', { incomplete: true });
   history(surface).push(message('user', text), reply);
+  // Sending is a reason to see the answer arrive.
+  toLatest(surface === 'chat' ? chatScroller : $('collab-messages'));
   return reply;
 }
 function renderCollaboration() {
   const nodes = history('greenhouse').map((m) => {
     const d = document.createElement('div');
     d.className = `utterance ${m.role}`;
-    const label = document.createElement('small');
-    label.textContent = m.role === 'user' ? 'YOU' : 'PEA · GREENHOUSE';
-    const t = messageBody(m);
-    d.append(label, t);
+    d.append(messageHead(m, m.role === 'user' ? 'YOU' : 'PEA · GREENHOUSE'), messageBody(m));
     const action = proposalButton(m, 'greenhouse');
     if (action) d.append(action);
     if (!m.incomplete) makeMessageDraggable(d, m.id);
     return d;
   });
-  $('collab-messages').replaceChildren(...nodes);
+  drawFollowing($('collab-messages'), $('collab-thought'), showCollabJump, () =>
+    $('collab-messages').replaceChildren(...nodes),
+  );
 }
 async function submit(surface) {
   voice?.stop();
