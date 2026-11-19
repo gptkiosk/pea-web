@@ -257,6 +257,10 @@ test(
   options,
   async () => {
     const page = await openConnectedPage(stack, { width: 1400, height: 900 });
+    // Some test machines have reduced motion switched on; say which one is meant each time.
+    const motion = (value) =>
+      page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value }] });
+    await motion('no-preference');
     await askModel(stack, page, 'Hello there.');
     assert.equal(await page.evaluate(`document.querySelectorAll('.pea-working').length`), 0);
 
@@ -300,13 +304,11 @@ test(
       faceMotion: 'pea-hop',
     });
     // An owner who has asked for less motion gets the same sign, still.
-    await page.send('Emulation.setEmulatedMedia', {
-      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
-    });
+    await motion('reduce');
     assert.equal((await working()).motion, 'none');
     assert.equal((await working()).faceMotion, 'none');
     assert.equal((await working()).words, 'PEA is thinking…');
-    await page.send('Emulation.setEmulatedMedia', { features: [] });
+    await motion('no-preference');
 
     // When the reply is complete the sign is gone and the reply is there.
     await page.waitFor(`!document.querySelector('#profile').disabled`, 'the reply to finish', 15000);
