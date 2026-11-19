@@ -528,6 +528,7 @@ export function installMemory(hooks) {
         $('memory-share').checked = false;
         hooks.clearAll();
         source = null;
+        hooks.libraryChanged?.(false);
         for (const id of ['memory-quote', 'memory-fact', 'library-search']) $(id).value = '';
         $('memory-source-text').textContent = '';
         fillInterview();
@@ -770,6 +771,9 @@ export function installMemory(hooks) {
   };
   let unlocking = false;
   $('library-unlock').addEventListener('close', () => {
+    // Closing a dialog reports it a moment later. If the dialog has been opened again by then,
+    // that late report belongs to the earlier close and must not cancel this unlock.
+    if ($('library-unlock').open) return;
     if (unlocking) vault?.lock();
     $('library-passphrase').value = '';
   });
@@ -785,7 +789,7 @@ export function installMemory(hooks) {
         hasSaved &&
         !(await hooks.review(
           'Open the saved library',
-          'Unlocking replaces the current tab-only library and interview answers with the encrypted saved copy. Save or finish any unsaved work first. No provider keys or grants will be restored. Continue?',
+          'Unlocking replaces the current tab-only library and interview answers with the encrypted saved copy. Save or finish any unsaved work first. An OpenRouter key you chose to keep in this library is restored and checked with OpenRouter; no other key or grant is. Continue?',
         ))
       )
         return;
@@ -812,6 +816,7 @@ export function installMemory(hooks) {
       $('library-unlock').close();
       render();
       hooks.notice('Library unlocked. Search and continue a conversation; nothing has been sent to a model.');
+      hooks.libraryChanged?.(true);
     } catch (error) {
       say(error);
     } finally {
@@ -885,6 +890,15 @@ export function installMemory(hooks) {
   fillInterview();
   render();
   return {
+    // A provider key the owner chose to keep, sealed with the unlocked library's key and stored
+    // beside the library. Never part of the library, a backup or a profile file.
+    secrets: {
+      open: () => Boolean(vault?.key) && !failed,
+      keep: (name, value) => vault.keepSecret(name, value),
+      read: (name) => (vault?.key ? vault.readSecret(name) : Promise.resolve('')),
+      has: (name) => (vault ? vault.hasSecret(name) : Promise.resolve(false)),
+      forget: (name) => (vault ? vault.forgetSecret(name) : Promise.resolve()),
+    },
     record,
     profileChanged,
     render,

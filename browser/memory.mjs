@@ -306,6 +306,8 @@ export function introductionContext(value) {
 const aad = new TextEncoder().encode('PEA conversation library v1');
 // Record version selects the PBKDF2-SHA256 work factor. Version 1 records are re-keyed to version 2 on their next unlock.
 export const kdfIterations = { 1: 310000, 2: 600000 };
+const secretName = /^[a-z]{2,20}:[a-z]{2,20}$/,
+  secretAad = (name) => new TextEncoder().encode('PEA kept secret v1:' + name);
 export class ConversationVault {
   constructor(storage) {
     this.storage = storage;
@@ -356,7 +358,88 @@ export class ConversationVault {
               ),
             );
         }),
+      // Small sealed records kept beside the library, each under its own name.
+      getAt: (name) =>
+        new Promise((resolve, reject) => {
+          const r = db.transaction('encrypted').objectStore('encrypted').get(name);
+          r.onsuccess = () => resolve(r.result);
+          r.onerror = () => reject(r.error);
+        }),
+      putAt: (name, value) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction('encrypted', 'readwrite');
+          tx.objectStore('encrypted').put(value, name);
+          tx.oncomplete = () => resolve();
+          tx.onabort = tx.onerror = () => reject(new ServiceError('Saving to this browser failed.'));
+        }),
+      deleteAt: (name) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction('encrypted', 'readwrite');
+          tx.objectStore('encrypted').delete(name);
+          tx.oncomplete = () => resolve();
+          tx.onabort = tx.onerror = () => reject(new ServiceError('Removing from this browser failed.'));
+        }),
     });
+  }
+  // A kept secret: one short text (a provider key) sealed with the unlocked library's own key and
+  // stored as its own record beside the library. It is not part of the library, so it is in no
+  // backup, export or profile file, and it can be removed without the passphrase. The name is
+  // authenticated with it, so one record cannot be passed off as another.
+  async keepSecret(name, value) {
+    if (!this.key) throw new ServiceError('Unlock the library before keeping a key in it.');
+    if (!secretName.test(name) || typeof value !== 'string' || !value || value.length > 512)
+      throw new ServiceError('That cannot be kept in the library.');
+    const iv = crypto.getRandomValues(new Uint8Array(12)),
+      data = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv, additionalData: secretAad(name) },
+        this.key,
+        new TextEncoder().encode(value),
+      );
+    await this.storage.putAt('secret:' + name, { version: 1, salt: this.salt.slice(), iv, data });
+  }
+  // The kept text, or '' when there is none, the library is locked, or the record cannot be opened
+  // with this library's key (a damaged record, or one sealed before the library was re-keyed).
+  async readSecret(name) {
+    if (!this.key || !secretName.test(name)) return '';
+    try {
+      const saved = await this.storage.getAt('secret:' + name);
+      if (
+        !fields(saved, ['version', 'salt', 'iv', 'data']) ||
+        saved.version !== 1 ||
+        !(saved.salt instanceof Uint8Array) ||
+        saved.salt.length !== 16 ||
+        !saved.salt.every((byte, i) => byte === this.salt[i]) ||
+        !(saved.iv instanceof Uint8Array) ||
+        saved.iv.length !== 12 ||
+        !(saved.data instanceof ArrayBuffer) ||
+        saved.data.byteLength < 17 ||
+        saved.data.byteLength > 2100
+      )
+        return '';
+      const value = new TextDecoder('utf-8', { fatal: true }).decode(
+        await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: saved.iv, additionalData: secretAad(name) },
+          this.key,
+          saved.data,
+        ),
+      );
+      return value.length <= 512 ? value : '';
+    } catch {
+      return '';
+    }
+  }
+  // Whether a record is there at all. Answerable while locked, without opening anything.
+  async hasSecret(name) {
+    if (!secretName.test(name)) return false;
+    try {
+      return (await this.storage.getAt('secret:' + name)) !== undefined;
+    } catch {
+      return false;
+    }
+  }
+  // Removing needs no passphrase: taking a key away must always be possible.
+  async forgetSecret(name) {
+    if (secretName.test(name)) await this.storage.deleteAt('secret:' + name);
   }
   async derive(passphrase, salt, version = 2) {
     if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 256)

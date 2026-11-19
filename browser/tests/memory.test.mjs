@@ -51,6 +51,7 @@ function fact(s, overrides = {}, at = now) {
 }
 function store() {
   let record;
+  const named = new Map();
   return {
     get: async () => structuredClone(record),
     comparePut: async (expected, value) => {
@@ -60,6 +61,10 @@ function store() {
     set(value) {
       record = structuredClone(value);
     },
+    named,
+    getAt: async (name) => structuredClone(named.get(name)),
+    putAt: async (name, value) => void named.set(name, structuredClone(value)),
+    deleteAt: async (name) => void named.delete(name),
   };
 }
 
@@ -506,4 +511,55 @@ test('a full library or key-like reply never blocks later saving', () => {
   ]).library;
   assert.equal(first.threads[0].title, omittedText);
   assert.ok(validLibrary(first));
+});
+
+test('a kept key is sealed beside the library, opens only with that library, and is in no export', async () => {
+  const storage = store(),
+    v = new ConversationVault(storage),
+    secret = 'sk-or-v1-' + 'syntheticSYNTHETIC'.repeat(2),
+    bytes = (value) => Buffer.from(new Uint8Array(value)).toString('latin1');
+  await assert.rejects(v.keepSecret('openrouter:personal', secret), /Unlock the library/);
+  assert.equal(await v.readSecret('openrouter:personal'), '', 'nothing is read while locked');
+  await v.unlock('synthetic library passphrase', sample().library);
+  await v.keepSecret('openrouter:personal', secret);
+  assert.equal(await v.readSecret('openrouter:personal'), secret);
+  assert.equal(await v.readSecret('openrouter:work'), '', 'each profile has its own record');
+  assert.equal(await v.hasSecret('openrouter:personal'), true);
+
+  // The stored record does not hold the key in the clear, and the library and its export do not hold it at all.
+  const record = storage.named.get('secret:openrouter:personal');
+  assert.deepEqual(Object.keys(record).sort(), ['data', 'iv', 'salt', 'version']);
+  assert(!bytes(record.data).includes('sk-or-v1'));
+  assert(!bytes((await storage.get()).data).includes('sk-or-v1'));
+  assert(!(await v.exportEncrypted()).includes('secret'));
+  assert.deepEqual([...storage.named.keys()], ['secret:openrouter:personal']);
+
+  // A record cannot be passed off under another name, an altered record gives nothing, and a
+  // fresh nonce is used every time.
+  storage.named.set('secret:openrouter:work', structuredClone(record));
+  assert.equal(await v.readSecret('openrouter:work'), '');
+  const altered = structuredClone(record);
+  new Uint8Array(altered.data)[0] ^= 1;
+  storage.named.set('secret:openrouter:personal', altered);
+  assert.equal(await v.readSecret('openrouter:personal'), '');
+  await v.keepSecret('openrouter:personal', secret);
+  assert.notDeepEqual(storage.named.get('secret:openrouter:personal').iv, record.iv);
+
+  // Locked, nothing is read, but it can still be seen to exist and be removed without the passphrase.
+  v.lock();
+  assert.equal(await v.readSecret('openrouter:personal'), '');
+  assert.equal(await v.hasSecret('openrouter:personal'), true);
+  // Another library (another passphrase and salt) cannot open it.
+  const other = new ConversationVault({ ...store(), named: storage.named, getAt: storage.getAt });
+  await other.unlock('a different synthetic passphrase', sample().library);
+  assert.equal(await other.readSecret('openrouter:personal'), '');
+  await v.forgetSecret('openrouter:personal');
+  assert.equal(await v.hasSecret('openrouter:personal'), false);
+
+  // Names and sizes are fixed.
+  await v.unlock('synthetic library passphrase');
+  for (const name of ['library', 'openrouter', 'OPENROUTER:personal', 'a:b:c', '../x:y'])
+    await assert.rejects(v.keepSecret(name, secret), /cannot be kept/, name);
+  await assert.rejects(v.keepSecret('openrouter:work', ''), /cannot be kept/);
+  await assert.rejects(v.keepSecret('openrouter:work', 'x'.repeat(513)), /cannot be kept/);
 });
