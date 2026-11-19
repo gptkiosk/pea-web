@@ -60,6 +60,21 @@ async function start(page) {
 // Unlocks (or first enables) the library. A saved library asks for a review first.
 async function unlock(page) {
   await page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be ready');
+  await page.evaluate(`(() => {
+    if (window.__log) return;
+    const log = (window.__log = []), t0 = performance.now(), at = () => Math.round(performance.now() - t0);
+    const d = document.getElementById('library-unlock');
+    for (const type of ['close', 'cancel']) d.addEventListener(type, () => log.push(at() + ' event ' + type + ' open=' + d.open), true);
+    for (const type of ['pagehide', 'visibilitychange', 'blur']) window.addEventListener(type, () => log.push(at() + ' window ' + type), true);
+    for (const name of ['close', 'showModal', 'requestClose']) {
+      const real = HTMLDialogElement.prototype[name];
+      if (!real) continue;
+      HTMLDialogElement.prototype[name] = function (...a) { log.push(at() + ' call ' + name + ' #' + this.id + ' open=' + this.open); return real.apply(this, a); };
+    }
+    document.addEventListener('click', (e) => log.push(at() + ' click #' + (e.target.id || e.target.tagName)), true);
+    const dk = crypto.subtle.deriveKey.bind(crypto.subtle);
+    crypto.subtle.deriveKey = async (...a) => { log.push(at() + ' derive start'); try { return await dk(...a); } finally { log.push(at() + ' derive end'); } };
+  })()`);
   await page.click('#library-storage');
   await page.waitFor(`document.getElementById('library-unlock').open`, 'the passphrase dialog');
   await page.fill('#library-passphrase', passphrase);
@@ -74,7 +89,12 @@ async function unlock(page) {
     review = await page.text('#review-body');
     await page.click('#review-approve');
   }
-  await page.waitFor(`!document.getElementById('library-unlock').open`, 'the library to unlock', 20000);
+  // TEMPORARY DIAGNOSTICS: what happened to the dialog while unlocking.
+  try {
+    await page.waitFor(`!document.getElementById('library-unlock').open`, 'the library to unlock', 20000);
+  } catch (error) {
+    throw new Error(error.message + ' LOG: ' + (await page.evaluate(`JSON.stringify(window.__log || [])`)));
+  }
   await page.waitFor(`!document.getElementById('router-remember').disabled`, 'the box to be offered');
   return review;
 }
