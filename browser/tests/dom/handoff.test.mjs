@@ -129,7 +129,10 @@ test(
       'the correction',
     );
     await askModel(stack, page, 'Run the shortcut.');
-    assert.equal(await page.evaluate(`document.querySelectorAll('#messages button').length`), 0);
+    assert.equal(
+      await page.evaluate(`document.querySelectorAll('#messages button:not(.copy-all)').length`),
+      0,
+    );
     assert.doesNotMatch(await page.text('#messages'), /open_shortcut|open_call/);
     await page.close();
   },
