@@ -3636,47 +3636,47 @@ kbd {
   overscroll-behavior: contain;
 }
 
-/* Locked workspace: on a screen with room, a conversation in Chat (and two workspaces side by
-   side) fill the window and never scroll the page. Chat's opening screen, before anything is said,
-   is an ordinary page. The conversation is the one thing that scrolls, and the writing box
-   stays put under it. A small or short screen keeps the ordinary scrolling page. */
+/* The workspace frame: on a screen with room, PEA is one fixed window. A slim bar across the top
+   holds the brand, the pane chips, the status of the connection and the library, and the controls;
+   the panes fill everything under it and scroll inside themselves, so the page itself never
+   scrolls. A small or short screen keeps the ordinary scrolling page with its top tabs. */
 @media (min-width: 901px) and (min-height: 640px) {
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]),
-  .shell:has(#panes.split) {
+  .shell,
+  .shell {
     height: 100dvh;
     min-height: 0;
     overflow: hidden;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) > main,
-  .shell:has(#panes.split) > main {
+  .shell > main,
+  .shell > main {
     display: flex;
     flex-direction: column;
     min-height: 0;
     padding-bottom: 14px;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) #panes,
-  .shell:has(#panes.split) #panes {
+  .shell #panes,
+  .shell #panes {
     flex: 1;
     min-height: 0;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer,
-  .shell:has(#panes.split) .release-footer {
+  .shell .release-footer,
+  .shell .release-footer {
     margin-top: 0;
     padding-top: 2px;
     padding-bottom: 2px;
     flex-wrap: nowrap;
     border-bottom: 0;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer nav,
-  .shell:has(#panes.split) .release-footer nav {
+  .shell .release-footer nav,
+  .shell .release-footer nav {
     flex-wrap: nowrap;
     white-space: nowrap;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer strong,
-  .shell:has(#panes.split) .release-footer strong {
+  .shell .release-footer strong,
+  .shell .release-footer strong {
     white-space: nowrap;
   }
-  #panes:not(.split) > #chat:has(.welcome[hidden]),
+  #panes:not(.split) > #chat,
   #panes.split > #chat {
     display: flex;
     flex-direction: column;
@@ -3686,7 +3686,7 @@ kbd {
   #panes.split > #chat[hidden] {
     display: none;
   }
-  #panes:not(.split) > #chat[hidden]:has(.welcome[hidden]) {
+  #panes:not(.split) > #chat[hidden] {
     display: none;
   }
   #chat .conversation-layout {
@@ -3706,50 +3706,51 @@ kbd {
     flex: none;
     margin-top: 12px;
   }
-  /* Once a conversation is under way the writing box is kept small, so the conversation has the room. */
-  #chat:has(.welcome[hidden]) #composer .voice-entry {
+  /* The writing box is kept small, so the conversation has the room. Voice chat stays one press
+     away in the row of buttons under it. */
+  #chat #composer .voice-entry {
     display: none;
   }
-  #chat:has(.welcome[hidden]) #composer {
+  #chat #composer {
     padding: 12px;
   }
-  #chat:has(.welcome[hidden]) #composer textarea,
-  #chat:has(.welcome[hidden]) #composer textarea:focus {
+  #chat #composer textarea,
+  #chat #composer textarea:focus {
     min-height: 0;
     height: 56px;
     padding: 12px 16px;
   }
-  #chat:has(.welcome[hidden]) #composer textarea:focus {
+  #chat #composer textarea:focus {
     height: 96px;
   }
-  #chat:has(.welcome[hidden]) #composer .compose-bottom {
+  #chat #composer .compose-bottom {
     margin-top: 8px;
     padding-top: 8px;
   }
   /* The frame around the workspace is drawn tighter, to leave the room to the conversation. */
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) > main,
-  .shell:has(#panes.split) > main {
+  .shell > main,
+  .shell > main {
     padding-top: 16px;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .setup-strip,
-  .shell:has(#panes.split) .setup-strip {
+  .shell .setup-strip,
+  .shell .setup-strip {
     margin-top: 12px;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .setup-card,
-  .shell:has(#panes.split) .setup-card {
+  .shell .setup-card,
+  .shell .setup-card {
     padding-top: 8px;
     padding-bottom: 8px;
     min-height: 0;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .setup-icon,
-  .shell:has(#panes.split) .setup-icon {
+  .shell .setup-icon,
+  .shell .setup-icon {
     display: none;
   }
-  #panes:not(.split) > #chat:has(.welcome[hidden]) {
+  #panes:not(.split) > #chat {
     padding-top: 12px;
   }
-  .shell:has(#panes:not(.split) > #chat:not([hidden]) .welcome[hidden]) .release-footer > div,
-  .shell:has(#panes.split) .release-footer > div {
+  .shell .release-footer > div,
+  .shell .release-footer > div {
     display: flex;
     align-items: baseline;
     gap: 12px;
@@ -3778,11 +3779,11 @@ kbd {
   /* In a narrow frame the writing box's buttons show their icons only, on one row. Their names
      stay for screen readers and as tooltips. */
   @container pane (max-width: 720px) {
-    #chat:has(.welcome[hidden]) #composer .compose-bottom {
+    #chat #composer .compose-bottom {
       flex-wrap: nowrap;
       gap: 8px;
     }
-    #chat:has(.welcome[hidden]) #composer .compose-bottom .quiet > span {
+    #chat #composer .compose-bottom .quiet > span {
       position: absolute;
       width: 1px;
       height: 1px;
@@ -3790,7 +3791,7 @@ kbd {
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    #chat:has(.welcome[hidden]) #composer .compose-bottom .quiet {
+    #chat #composer .compose-bottom .quiet {
       position: relative;
       padding-left: 12px;
       padding-right: 12px;
@@ -3902,5 +3903,173 @@ kbd {
   }
   .pea-pod i:nth-child(3) {
     animation: pea-bob 1400ms ease-in-out calc(var(--pea-phase, 0ms) + 360ms) infinite;
+  }
+}
+
+/* The top bar of the workspace frame, and panes that are frames of their own. */
+@media (min-width: 901px) and (min-height: 640px) {
+  .shell {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    column-gap: 14px;
+  }
+  /* Its parts sit in the bar and its panes under it; the element itself draws nothing. */
+  .shell > main {
+    display: contents;
+  }
+  .shell > .rail {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    position: static;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    padding: 6px 0 6px 16px;
+    border: 0;
+    background: none;
+  }
+  .shell > .rail .brand {
+    gap: 8px;
+  }
+  .shell > .rail .brand img {
+    width: 38px;
+    height: 38px;
+  }
+  .shell > .rail .brand small,
+  .shell > .rail #settings-open,
+  .shell > .rail .preview-tag,
+  .shell main > header > div:first-child {
+    display: none;
+  }
+  .shell > .rail nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  /* A pane chip: filled while its pane is in the workspace, dashed while it is tucked up here. */
+  .shell > .rail .nav {
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    background: none;
+    color: var(--sub);
+    font-size: 13px;
+  }
+  .shell > .rail .nav.beside {
+    border-style: solid;
+    background: var(--tint);
+    color: var(--ink);
+  }
+  .shell > .rail .nav.selected {
+    border: 1px solid var(--green);
+    background: var(--control);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .shell > .rail,
+  .shell .setup-strip,
+  .shell main > header {
+    align-self: center;
+    min-height: 56px;
+  }
+  .shell .setup-strip {
+    grid-area: 1 / 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+  }
+  .shell .setup-card {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 8px;
+    padding: 4px 6px 4px 12px;
+    border-radius: 999px;
+  }
+  .shell .setup-copy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .shell .setup-copy > strong {
+    display: none;
+  }
+  .shell .setup-copy > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+  }
+  .shell .setup-card .model-ticker {
+    max-width: 200px;
+  }
+  .shell .setup-action {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .shell main > header {
+    grid-area: 1 / 3;
+    padding-right: 16px;
+  }
+  .shell main > header #profile {
+    min-height: 40px;
+  }
+  .shell #panes {
+    grid-area: 2 / 1 / 3 / -1;
+    padding: 6px 12px 8px;
+  }
+  .shell > .release-footer {
+    grid-area: 3 / 1 / 4 / -1;
+  }
+  /* On its own, Chat keeps a comfortable reading width in the middle of the window. */
+  #panes:not(.split) > #chat .conversation-layout,
+  #panes:not(.split) > #chat #composer {
+    width: 100%;
+    max-width: 1080px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  /* Today and Greenhouse are frames too: each scrolls inside itself. */
+  #panes:not(.split) > .panel:not(#chat) {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: relative;
+    padding: 0 6px 12px;
+  }
+}
+/* Between a tablet and a wide screen the bar takes two rows: brand and chips, then the rest. */
+@media (min-width: 901px) and (max-width: 1279px) and (min-height: 640px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+  .shell > .rail {
+    grid-area: 1 / 1;
+  }
+  .shell main > header {
+    grid-area: 1 / 2;
+  }
+  .shell .setup-strip {
+    grid-area: 2 / 1 / 3 / -1;
+    justify-content: flex-start;
+    padding: 0 16px 4px;
+  }
+  .shell #panes {
+    grid-area: 3 / 1 / 4 / -1;
+  }
+  .shell > .release-footer {
+    grid-area: 4 / 1 / 5 / -1;
   }
 }

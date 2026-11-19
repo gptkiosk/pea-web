@@ -124,7 +124,7 @@ test(
   options,
   async () => {
     const page = await openConnectedPage(stack, { width: 1400, height: 900 });
-    // Before anything is said, Chat's opening screen is an ordinary page.
+    // Before anything is said, Chat's opening screen is shown from its top.
     assert.equal(await page.evaluate(`document.querySelector('.welcome').hidden`), false);
     await askModel(stack, page, 'A long one please.');
     assert.equal(await pageScrolls(page), false, 'the page itself does not scroll');
@@ -157,13 +157,12 @@ test(
     assert.ok(at.gap <= 2, 'the newest reply is in view');
     assert.equal(await pageScrolls(page), false);
 
-    // Today is an ordinary scrolling page; coming back, Chat is still at its newest message.
+    // Today is a frame of its own: it scrolls inside itself, not the page. Coming back, Chat is
+    // still at its newest message.
     await page.click('#tab-today');
     await page.waitFor(`!document.getElementById('today').hidden`, 'Today');
-    assert.equal(
-      await page.evaluate(`getComputedStyle(document.querySelector('.shell')).overflowY`),
-      'visible',
-    );
+    assert.equal(await pageScrolls(page), false, 'Today does not scroll the page');
+    assert.equal(await page.evaluate(`getComputedStyle(document.getElementById('today')).overflowY`), 'auto');
     await page.click('#tab-chat');
     await page.waitFor(`!document.getElementById('chat').hidden`, 'Chat');
     await page.waitFor(
