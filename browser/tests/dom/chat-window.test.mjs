@@ -171,8 +171,7 @@ test(
     );
 
     // Two workspaces side by side are both fixed frames.
-    await page.click('#split-toggle');
-    await page.waitFor(`document.getElementById('panes').classList.contains('split')`, 'the split');
+    await page.waitFor(`document.getElementById('panes').classList.contains('split')`, 'the two panes');
     assert.equal(await pageScrolls(page), false, 'two workspaces do not scroll the page either');
     const frames = await page.evaluate(
       `[...document.querySelectorAll('#panes > .panel:not([hidden])')].map((p) => { const r = p.getBoundingClientRect(); return r.bottom <= innerHeight && r.height > 200; })`,

@@ -4073,3 +4073,27 @@ kbd {
     grid-area: 4 / 1 / 5 / -1;
   }
 }
+
+/* Three panes: the second divider sits between the second and third, and a pane's name is its
+   handle for moving it. */
+#pane-divider-2 {
+  order: 4;
+}
+@media (min-width: 901px) and (min-height: 640px) {
+  /* In the frame the panes start right under the bar. */
+  .shell #panes.split {
+    margin-top: 0;
+  }
+}
+.pane-bar strong {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.pane-bar .pane-move {
+  min-width: 32px;
+  padding: 4px 6px;
+}
+.pane-bar .pane-move:disabled {
+  opacity: 0.35;
+}

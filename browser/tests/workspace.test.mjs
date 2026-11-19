@@ -14,6 +14,13 @@ import {
   saveLayout,
   swapPanes,
   visiblePanes,
+  addPane,
+  capacityFor,
+  movePane,
+  pressChip,
+  resizeThree,
+  soloPane,
+  threePaneWidth,
 } from '../workspace.mjs';
 
 const store = (initial = {}) => {
@@ -31,14 +38,14 @@ test('a layout starts as Chat alone and anything malformed falls back to that', 
     assert.deepEqual(normalizeLayout(bad), initialLayout());
 });
 
-test('normalizing keeps at most two known, distinct workspaces and a bounded width', () => {
+test('normalizing keeps at most three known, distinct workspaces and bounded widths', () => {
   assert.deepEqual(
     normalizeLayout({
       panes: ['today', 'today', 'vault', 'chat', 'greenhouse'],
       focus: 'greenhouse',
       ratio: 9,
     }),
-    { panes: ['today', 'chat'], focus: 'today', ratio: 0.7 },
+    { panes: ['today', 'chat', 'greenhouse'], focus: 'greenhouse', ratio: 0.7, sizes: [0.3, 0.4, 0.3] },
   );
   assert.equal(normalizeLayout({ panes: ['chat', 'today'], ratio: -1 }).ratio, 0.3);
   assert.equal(normalizeLayout({ panes: ['chat', 'today'], ratio: 'wide' }).ratio, 0.5);
@@ -131,4 +138,98 @@ test('the saved layout round-trips, survives damage and never throws when storag
   };
   assert.deepEqual(loadLayout(refused), initialLayout());
   assert.equal(saveLayout(split, refused), false);
+});
+
+const three = () => normalizeLayout({ panes: ['today', 'chat', 'greenhouse'], focus: 'chat' });
+
+test('a window shows one, two or three workspaces by its width', () => {
+  assert.equal(capacityFor(threePaneWidth), 3);
+  assert.equal(capacityFor(threePaneWidth - 1), 2);
+  assert.equal(capacityFor(minimumSplitWidth), 2);
+  assert.equal(capacityFor(minimumSplitWidth - 1), 1);
+  assert.deepEqual(visiblePanes(three(), threePaneWidth), ['today', 'chat', 'greenhouse']);
+  // Room for two of three: the focused one keeps a neighbour, in the saved order.
+  assert.deepEqual(visiblePanes(three(), minimumSplitWidth), ['today', 'chat']);
+  assert.deepEqual(visiblePanes({ ...three(), focus: 'today' }, minimumSplitWidth), ['today', 'chat']);
+  assert.deepEqual(visiblePanes({ ...three(), focus: 'greenhouse' }, minimumSplitWidth), [
+    'chat',
+    'greenhouse',
+  ]);
+  assert.deepEqual(visiblePanes(three(), 400), ['chat']);
+});
+
+test('a chip brings its workspace in, then focuses it, then tucks it up', () => {
+  let layout = initialLayout();
+  layout = pressChip(layout, 'chat', 3);
+  assert.deepEqual(layout.panes, ['chat'], 'the only open workspace stays');
+  layout = pressChip(layout, 'today', 3);
+  assert.deepEqual([layout.panes, layout.focus], [['chat', 'today'], 'today'], 'opened beside and focused');
+  layout = pressChip(layout, 'chat', 3);
+  assert.deepEqual([layout.panes, layout.focus], [['chat', 'today'], 'chat'], 'an open one is focused first');
+  layout = pressChip(layout, 'greenhouse', 3);
+  assert.deepEqual(
+    [layout.panes, layout.focus],
+    [['chat', 'greenhouse', 'today'], 'greenhouse'],
+    'beside the focused one',
+  );
+  assert.deepEqual(layout.sizes, [0.3, 0.4, 0.3]);
+  layout = pressChip(layout, 'greenhouse', 3);
+  assert.deepEqual([layout.panes, layout.focus], [['chat', 'today'], 'chat'], 'the focused one is tucked up');
+  assert.equal('sizes' in layout, false, 'two panes go back to one divider');
+  assert.deepEqual(pressChip(layout, 'vault', 3), layout);
+});
+
+test('with no room left a new workspace takes the place of the pane furthest from the focus', () => {
+  const pair = normalizeLayout({ panes: ['chat', 'today'], focus: 'chat' });
+  assert.deepEqual(addPane(pair, 'greenhouse', 2).panes, ['chat', 'greenhouse']);
+  assert.deepEqual(addPane({ ...pair, focus: 'today' }, 'greenhouse', 2).panes, ['greenhouse', 'today']);
+  assert.deepEqual(
+    addPane(pair, 'greenhouse', 1).panes,
+    ['greenhouse', 'today'],
+    'one at a time swaps the focused one',
+  );
+  assert.equal(addPane(pair, 'greenhouse', 2).focus, 'greenhouse');
+  assert.deepEqual(soloPane(three(), 'today'), { panes: ['today'], focus: 'today', ratio: 0.5 });
+  // Closing one of three keeps the focus where it was.
+  assert.deepEqual(closePane(three(), 'today'), { panes: ['chat', 'greenhouse'], focus: 'chat', ratio: 0.5 });
+  assert.equal(closePane(three(), 'chat').focus, 'today');
+});
+
+test('a pane moves one place at a time and takes its width with it', () => {
+  const start = normalizeLayout({
+    panes: ['today', 'chat', 'greenhouse'],
+    focus: 'chat',
+    sizes: [0.2, 0.5, 0.3],
+  });
+  const moved = movePane(start, 'today', 1);
+  assert.deepEqual(
+    [moved.panes, moved.sizes],
+    [
+      ['chat', 'today', 'greenhouse'],
+      [0.5, 0.2, 0.3],
+    ],
+  );
+  assert.deepEqual(movePane(start, 'today', -1), start, 'nothing is left of the first pane');
+  assert.deepEqual(movePane(start, 'greenhouse', 1), start);
+  const pair = normalizeLayout({ panes: ['chat', 'today'], focus: 'chat', ratio: 0.6 });
+  assert.deepEqual(movePane(pair, 'chat', 1), { panes: ['today', 'chat'], focus: 'chat', ratio: 0.4 });
+});
+
+test('with three panes a divider changes only the two panes beside it, within limits', () => {
+  const start = three();
+  assert.deepEqual(resizeThree(start, 0, 0.4).sizes, [0.4, 0.3, 0.3]);
+  assert.deepEqual(resizeThree(start, 1, 0.8).sizes, [0.3, 0.5, 0.2]);
+  assert.deepEqual(resizeThree(start, 0, 0).sizes, [0.18, 0.52, 0.3], 'no pane is thinner than the limit');
+  assert.deepEqual(resizeThree(start, 0, 1).sizes, [0.52, 0.18, 0.3]);
+  assert.deepEqual(resizeThree(start, 1, 0).sizes, [0.3, 0.18, 0.52]);
+  assert.deepEqual(resizeThree(start, 2, 0.5), start);
+  assert.deepEqual(resizeThree(start, 0, Number.NaN), start);
+  assert.deepEqual(resizeThree(initialLayout(), 0, 0.5), initialLayout(), 'one pane has nothing to resize');
+  // Damaged widths fall back to even shares, and nothing but names and widths is kept.
+  assert.deepEqual(normalizeLayout({ ...start, sizes: [9, -1, 'x'] }).sizes, [0.3, 0.4, 0.3]);
+  assert.deepEqual(normalizeLayout({ ...start, sizes: [0.9, 0.05, 0.05] }).sizes, [0.3, 0.4, 0.3]);
+  assert.deepEqual(normalizeLayout({ ...start, sizes: [2, 5, 3] }).sizes, [0.2, 0.5, 0.3], 'shares are scaled to add up to one');
+  const saved = [];
+  saveLayout({ ...start, note: 'private' }, { setItem: (k, v) => saved.push(v) });
+  assert.deepEqual(Object.keys(JSON.parse(saved[0])).sort(), ['focus', 'panes', 'ratio', 'sizes']);
 });

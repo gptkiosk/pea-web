@@ -1,8 +1,12 @@
-// Which workspaces are on screen. Pure layout state: names and a width, never content.
-// On a wide screen two workspaces can sit side by side; on a narrow one only the focused
-// workspace is shown and the saved pair is kept for when there is room again.
+// Which workspaces are on screen. Pure layout state: names and widths, never content.
+// A wide screen shows two workspaces side by side and a very wide one three; a narrow one shows
+// only the focused workspace, and the saved arrangement is kept for when there is room again.
 export const workspaces = ['chat', 'today', 'greenhouse'];
 export const minimumSplitWidth = 1100;
+export const threePaneWidth = 1500;
+export const sizeLimits = { min: 0.18 };
+// How many workspaces a window of this width shows at once.
+export const capacityFor = (width) => (width >= threePaneWidth ? 3 : width >= minimumSplitWidth ? 2 : 1);
 export const ratioLimits = { min: 0.3, max: 0.7 };
 const storageKey = 'pea-workspace-v1';
 
@@ -12,18 +16,38 @@ const clampRatio = (value) =>
     ? Math.min(ratioLimits.max, Math.max(ratioLimits.min, Math.round(value * 1000) / 1000))
     : 0.5;
 
+const defaultSizes = [0.3, 0.4, 0.3];
+// Three shares of the width that add up to one, none thinner than the limit.
+function normalizeSizes(value) {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 3 ||
+    !value.every((n) => typeof n === 'number' && Number.isFinite(n) && n > 0)
+  )
+    return [...defaultSizes];
+  const floor = value.map((n) => Math.max(sizeLimits.min, n));
+  const total = floor[0] + floor[1] + floor[2];
+  const a = Math.round((floor[0] / total) * 1000) / 1000,
+    b = Math.round((floor[1] / total) * 1000) / 1000;
+  const c = Math.round((1 - a - b) * 1000) / 1000;
+  return a < sizeLimits.min || b < sizeLimits.min || c < sizeLimits.min ? [...defaultSizes] : [a, b, c];
+}
+
 export const initialLayout = () => ({ panes: ['chat'], focus: 'chat', ratio: 0.5 });
 
 // Accepts anything, such as stored text edited by hand, and returns a usable layout.
 export function normalizeLayout(value) {
   if (!value || typeof value !== 'object' || !Array.isArray(value.panes)) return initialLayout();
-  const panes = [...new Set(value.panes.filter(known))].slice(0, 2);
+  const panes = [...new Set(value.panes.filter(known))].slice(0, 3);
   if (!panes.length) return initialLayout();
-  return {
+  const layout = {
     panes,
     focus: panes.includes(value.focus) ? value.focus : panes[0],
     ratio: clampRatio(value.ratio),
   };
+  // Three panes carry their three widths, in the order of the panes.
+  if (panes.length === 3) layout.sizes = normalizeSizes(value.sizes);
+  return layout;
 }
 
 // Going to a workspace: focus it if it is already on screen, otherwise it takes the focused pane's place.
@@ -50,7 +74,83 @@ export function closePane(layout, name) {
   const current = normalizeLayout(layout);
   if (current.panes.length < 2 || !current.panes.includes(name)) return current;
   const panes = current.panes.filter((pane) => pane !== name);
-  return { ...current, panes, focus: panes[0] };
+  return normalizeLayout({
+    ...current,
+    panes,
+    focus: panes.includes(current.focus) ? current.focus : panes[0],
+  });
+}
+
+// Bringing a workspace into the window beside what is there, and focusing it. With no room left
+// it takes the place of the pane furthest from the focused one.
+export function addPane(layout, name, capacity = 3) {
+  const current = normalizeLayout(layout);
+  if (!known(name)) return current;
+  if (current.panes.includes(name)) return { ...current, focus: name };
+  const room = Math.min(3, Math.max(1, Math.floor(capacity) || 1));
+  if (room === 1) return openWorkspace(current, name);
+  const panes = [...current.panes];
+  const at = panes.indexOf(current.focus);
+  if (panes.length < room) panes.splice(at + 1, 0, name);
+  else {
+    const others = panes.map((_, i) => i).filter((i) => i !== at);
+    const victim = others.reduce((far, i) => (Math.abs(i - at) >= Math.abs(far - at) ? i : far), others[0]);
+    panes[victim] = name;
+    panes.length = room;
+    if (!panes.includes(current.focus)) panes[0] = current.focus;
+  }
+  return normalizeLayout({ ...current, panes, focus: name });
+}
+
+// What pressing a workspace's chip does: bring it in when it is tucked up, focus it when it is
+// open but not in use, and tuck it up when it is the one in use and another is open.
+export function pressChip(layout, name, capacity = 3) {
+  const current = normalizeLayout(layout);
+  if (!known(name)) return current;
+  if (!current.panes.includes(name)) return addPane(current, name, capacity);
+  if (current.focus !== name) return { ...current, focus: name };
+  return current.panes.length > 1 ? closePane(current, name) : current;
+}
+
+// Only this workspace, alone.
+export function soloPane(layout, name) {
+  const current = normalizeLayout(layout);
+  return known(name) ? normalizeLayout({ ...current, panes: [name], focus: name }) : current;
+}
+
+// Moving a pane one place left (-1) or right (1). Its width travels with it.
+export function movePane(layout, name, step) {
+  const current = normalizeLayout(layout);
+  const from = current.panes.indexOf(name),
+    to = from + (step < 0 ? -1 : 1);
+  if (from < 0 || to < 0 || to >= current.panes.length) return current;
+  const panes = [...current.panes];
+  [panes[from], panes[to]] = [panes[to], panes[from]];
+  const next = { ...current, panes };
+  if (current.sizes) {
+    next.sizes = [...current.sizes];
+    [next.sizes[from], next.sizes[to]] = [next.sizes[to], next.sizes[from]];
+  }
+  if (panes.length === 2) next.ratio = clampRatio(1 - current.ratio);
+  return normalizeLayout(next);
+}
+
+// With three panes: dragging the first (0) or second (1) divider to a place across the window,
+// given as a share of its width. Only the two panes beside that divider change.
+export function resizeThree(layout, divider, position) {
+  const current = normalizeLayout(layout);
+  if (!current.sizes || typeof position !== 'number' || !Number.isFinite(position)) return current;
+  const [a, b, c] = current.sizes,
+    min = sizeLimits.min;
+  let sizes;
+  if (divider === 0) {
+    const first = Math.min(a + b - min, Math.max(min, position));
+    sizes = [first, a + b - first, c];
+  } else if (divider === 1) {
+    const second = Math.min(b + c - min, Math.max(min, position - a));
+    sizes = [a, second, b + c - second];
+  } else return current;
+  return normalizeLayout({ ...current, sizes });
 }
 
 export function focusPane(layout, name) {
@@ -78,7 +178,12 @@ export function partnerFor(layout) {
 // What is actually drawn. Below the minimum width only the focused workspace shows.
 export function visiblePanes(layout, width) {
   const current = normalizeLayout(layout);
-  return width >= minimumSplitWidth ? current.panes : [current.focus];
+  const room = capacityFor(width);
+  if (room >= current.panes.length) return current.panes;
+  if (room === 1) return [current.focus];
+  // Room for two of three: the focused pane and the one before it, or after it when it is first.
+  const at = current.panes.indexOf(current.focus);
+  return at === 0 ? current.panes.slice(0, 2) : current.panes.slice(at - 1, at + 1);
 }
 
 export function loadLayout(storage = globalThis.localStorage) {
