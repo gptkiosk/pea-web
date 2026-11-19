@@ -23,6 +23,21 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## OpenRouter key kept in the encrypted library — 2026-11-19
+
+**Branch `feature/keep-router-key-in-library`, version `0.1.0-rc.4.dev.12`.** The owner, with Chat working on a real model, said: "This now has a config and need to persist updates along with memory data of course." Asked whether the OpenRouter key should be kept inside the encrypted library and restored on unlock, they answered: "Yes, in the library".
+
+- `browser/memory.mjs`: `ConversationVault.keepSecret`, `readSecret`, `hasSecret`, `forgetSecret`. A secret is its own record `secret:<name>` in the same object store, sealed with the unlocked library key, a fresh nonce and the additional data `PEA kept secret v1:<name>`; it carries a copy of the library salt and is ignored when that differs (so a record from before a re-key reads as absent). Names match `^[a-z]{2,20}:[a-z]{2,20}$`; values are 1 to 512 characters. The storage adapter gained `getAt`, `putAt`, `deleteAt`. The library schema, `exportEncrypted` and both file contracts are unchanged.
+- `browser/memory-ui.mjs`: returns `secrets` (`open`, `keep`, `read`, `has`, `forget`) and calls `hooks.libraryChanged(true|false)` after an unlock and on Lock. The unlock review text names the restored key.
+- `browser/live-ui.mjs`: `#router-remember` (per profile, usable only while the library is open), `keepRouter`, `restoreRouter` (through `run`; `/api/v1/key` then `/api/v1/models`; a 401 or 403 removes the kept record), `libraryChanged` (Lock clears a kept key from every profile's session). `#router-forget` removes the kept record.
+- `browser/app.mjs`: passes `secrets` to the connections and `libraryChanged` to the memory module.
+- `browser/index.html`: the box and its note; two sentences about keys amended. `README.md`, `browser/docs/MEMORY.md`, `browser/local-token.mjs` comment.
+- Tests: 1 unit test in `browser/tests/memory.test.mjs` (sealed, bound to its name and library, not in the export, removable while locked, name and size limits); `browser/tests/dom/router-key.test.mjs` (locked box, keep, nothing readable in localStorage, sessionStorage or IndexedDB, reload, restore on unlock with exactly two OpenRouter requests and none to a model, per profile, Lock, Disconnect, refused key).
+
+Known gaps: OpenRouter was a stand-in answered by the test; not tried with a real key. A v1 library re-keyed on unlock leaves an unreadable kept record that is ignored, not deleted. Current chats are still lost on reload unless the library is unlocked while chatting; nothing here changes that. Deleting the library is not offered by the app, so there is no path that would orphan a kept record other than clearing site data, which removes both.
+
+Next action: none pending.
+
 ## Profile exchange docs corrected — 2026-11-19
 
 **Branch `docs/profile-exchange-pointers`, version `0.1.0-rc.4.dev.11`.** Documentation only. `browser/docs/CO-USE.md` and `browser/docs/PROFILE-CONTINUITY.md` said the cross-app profile format was design only, which led to a wrong answer to the owner. Both now point to `browser/docs/CONTRACTS.md` ("The profile file", "The backup file") and say that only the iPhone export is missing. No code or test changed.

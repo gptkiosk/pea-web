@@ -198,6 +198,12 @@ export function installConnections(hooks) {
                 ? 'Google connected · no model'
                 : 'Choose a model';
     $('local-origin').textContent = location.origin;
+    const libraryOpen = Boolean(lib()?.open());
+    $('router-remember').checked = libraryOpen && (wanted.has(p()) || Boolean(s.keyKept));
+    $('router-remember').disabled = !libraryOpen;
+    $('router-remember-note').textContent = libraryOpen
+      ? 'Off, the key stays in this tab’s memory and a reload asks for it again. On, it is sealed with your library passphrase on this browser, comes back when you unlock the library and leaves the tab when you lock it. It is never in a backup or a profile file.'
+      : 'To keep this key between reloads, unlock or enable encrypted saving under Conversations & memory. Until then it stays in this tab’s memory only.';
     $('context-drive').textContent = s.workspace
       ? s.workspace.folder.title
       : s.google
@@ -316,6 +322,73 @@ export function installConnections(hooks) {
     forgetLocalToken();
     $('local-remember').checked = false;
     return false;
+  }
+  // The OpenRouter key can be kept sealed in the owner's encrypted library, never in plain storage.
+  // It is kept only while the box is ticked and the library is unlocked, comes back when the
+  // library is unlocked, and is put away again when the library is locked.
+  const lib = () => hooks.secrets?.() ?? null,
+    routerSecret = (who) => 'openrouter:' + who,
+    routerKey = /^sk-or-v1-[A-Za-z0-9_-]{16,}$/;
+  // The profiles whose box is ticked in this tab.
+  const wanted = new Set();
+  let restoringRouter = false;
+  async function keepRouter(s, who) {
+    if (!wanted.has(who) || !s.key || !lib()?.open()) return false;
+    await lib().keep(routerSecret(who), s.key);
+    s.keyKept = true;
+    return true;
+  }
+  // After the library is unlocked, or the profile changes while it is: connect with the kept key.
+  // It asks OpenRouter to confirm the key and list its models, and nothing else.
+  async function restoreRouter() {
+    const who = p();
+    if (restoringRouter || state().key || !lib()?.open()) return;
+    restoringRouter = true;
+    try {
+      const key = await lib().read(routerSecret(who));
+      if (!routerKey.test(key) || who !== p() || state().key) return;
+      wanted.add(who);
+      await run(async () => {
+        try {
+          const models = await service.catalogue(key);
+          if (who !== p() || state().key || !lib()?.open()) return;
+          const s = state();
+          s.key = key;
+          s.models = models;
+          s.keyKept = true;
+          s.approvals.clear();
+          note('OpenRouter connected with the key kept in your library. No inference was requested.');
+        } catch (error) {
+          // A key OpenRouter no longer accepts is of no use to keep.
+          if (error instanceof ServiceError && [401, 403].includes(error.status)) {
+            await lib()
+              ?.forget(routerSecret(who))
+              .catch(() => {});
+            wanted.delete(who);
+            throw new ServiceError(
+              'OpenRouter no longer accepts the key kept in your library, so it was removed. Paste a current one.',
+            );
+          }
+          throw error;
+        }
+      });
+    } finally {
+      restoringRouter = false;
+      render();
+    }
+  }
+  // Locking the library puts a kept key away: it leaves this tab too.
+  function libraryChanged(unlocked) {
+    render();
+    if (unlocked) return void restoreRouter();
+    for (const s of sessions.values())
+      if (s.keyKept) {
+        s.key = '';
+        s.models = [];
+        s.keyKept = false;
+        s.approvals.clear();
+      }
+    render();
   }
   // Connects this profile with the remembered token, if there is one. It asks this PEA server
   // for its model list and nothing else. A token the server no longer accepts is forgotten.
@@ -1145,9 +1218,12 @@ export function installConnections(hooks) {
       const s = state();
       s.key = key;
       s.models = models;
+      s.keyKept = false;
       s.approvals.clear();
+      const kept = await keepRouter(s, who);
       note(
-        'OpenRouter verified. Choose Chat and Greenhouse models independently; no inference was requested.',
+        'OpenRouter verified. Choose Chat and Greenhouse models independently; no inference was requested.' +
+          (kept ? ' The key is kept in your encrypted library.' : ''),
       );
     });
   $('local-connect').onclick = () =>
@@ -1205,10 +1281,43 @@ export function installConnections(hooks) {
     const s = state();
     s.key = '';
     s.models = [];
+    s.keyKept = false;
     s.approvals.clear();
     $('router-key').value = '';
+    wanted.delete(p());
     render();
-    note('Forgot this tab’s key. Revoke it in OpenRouter to disable it elsewhere.');
+    // The kept copy goes too, or the next unlock would quietly connect again.
+    Promise.resolve(lib()?.forget(routerSecret(p()))).then(
+      () =>
+        note(
+          'Forgot this key, in this tab and in your library. Revoke it in OpenRouter to disable it elsewhere.',
+        ),
+      () => note('Forgot this tab’s key, but the copy in your library could not be removed. Try again.'),
+    );
+  };
+  $('router-remember').onchange = async () => {
+    const who = p(),
+      s = state();
+    const want = $('router-remember').checked;
+    if (want) wanted.add(who);
+    else wanted.delete(who);
+    try {
+      if (!want) {
+        await lib()?.forget(routerSecret(who));
+        s.keyKept = false;
+        note('The OpenRouter key is no longer kept in your library. It stays in this tab until you reload.');
+      } else if (!lib()?.open()) {
+        wanted.delete(who);
+        note('Unlock or enable encrypted saving under Conversations & memory first. The key was not kept.');
+      } else if (s.key) {
+        if (await keepRouter(s, who)) note('The OpenRouter key is now kept in your encrypted library.');
+      } else note('The next key you verify will be kept in your encrypted library.');
+    } catch {
+      if (s.keyKept) wanted.add(who);
+      else wanted.delete(who);
+      note('The library could not be changed. Nothing was kept or removed.');
+    }
+    render();
   };
   for (const [id, field] of [
     ['chat-model', 'chat'],
@@ -1477,6 +1586,7 @@ export function installConnections(hooks) {
     },
     isBusy: () => operationActive,
     localKey,
+    libraryChanged,
     readPage: (key, url) => local.read(key, url),
     voices: (key, provider, providerKey) => local.voices(key, provider, providerKey),
     speak: (key, request, signal) => local.speak(key, request, signal),
@@ -1512,6 +1622,7 @@ export function installConnections(hooks) {
       $('shared-config').value = '';
       render();
       void restoreLocal();
+      void restoreRouter();
     },
     selectCheckbox(file) {
       const check = document.createElement('input');

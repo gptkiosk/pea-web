@@ -1200,6 +1200,7 @@ window.addEventListener('pagehide', () => {
   if (imageURL) URL.revokeObjectURL(imageURL);
 });
 live = installConnections({
+  secrets: () => memory?.secrets ?? null,
   todoGuidance: (shared) => todos?.guidance(shared) ?? '',
   localChanged: () => {
     todos?.connectionChanged();
@@ -1505,6 +1506,7 @@ todos = installTodos({
   changed: () => home?.render(),
 });
 memory = installMemory({
+  libraryChanged: (unlocked) => live.libraryChanged(unlocked),
   profile: () => profile,
   history,
   busy: () => live.isBusy(),

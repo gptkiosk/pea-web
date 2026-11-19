@@ -101,6 +101,7 @@
   "tests/dom/releases.test.mjs",
   "tests/dom/research.test.mjs",
   "tests/dom/reviews.test.mjs",
+  "tests/dom/router-key.test.mjs",
   "tests/dom/speech.test.mjs",
   "tests/dom/stability.test.mjs",
   "tests/dom/todos.test.mjs",
