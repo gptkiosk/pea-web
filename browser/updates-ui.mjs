@@ -32,12 +32,16 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
     $('release-update-open').hidden = Boolean(key);
     $('update-check').hidden = !key || !status.available;
     $('update-check').disabled = working;
+    $('update-check').textContent = offer ? 'Check again' : 'Check for updates';
+    // Where this copy cannot update itself, looking at published releases is the main thing to do.
+    $('release-check').className = key && !status.available ? 'primary' : 'text-button';
     const target = offer && !offer.upToDate ? offer.target : null;
     $('update-apply').hidden = !target || !status.available;
     $('update-apply').disabled = working;
     $('update-apply').textContent = target ? `Update to ${target.version}…` : '';
     $('update-found').textContent = offer ? describeOffer(offer) : '';
-    $('update-reload').hidden = !$('update-reload').dataset.ready;
+    // One reload button at a time: the out-of-date notice above has its own.
+    $('update-reload').hidden = !$('update-reload').dataset.ready || !$('release-stale').hidden;
   }
   // Asks the gateway what it can do. Quiet when it cannot be reached.
   async function refresh() {
@@ -110,7 +114,10 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
               : outcome.text,
             landed ? 'ok' : 'warn',
           );
-          if (landed) $('update-reload').dataset.ready = '1';
+          if (landed) {
+            $('update-reload').dataset.ready = '1';
+            document.dispatchEvent(new Event('pea-updated'));
+          }
           offer = null;
           watching = 0;
           return render();
@@ -133,7 +140,11 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
     const target = offer && !offer.upToDate ? offer.target : null;
     if (!target || working) return;
     if (isBusy()) return say('Finish the current request first. An update restarts PEA.', 'warn');
-    if (!(await review(`Update PEA to ${target.version}?`, describeUpdate(offer, location.origin))))
+    if (
+      !(await review(`Update PEA to ${target.version}?`, describeUpdate(offer, location.origin), {
+        prose: true,
+      }))
+    )
       return say('Not updated. Nothing was changed.');
     working = true;
     render();
@@ -184,6 +195,7 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
     $('releases-open').click();
   };
   for (const id of ['releases-open', 'changelog-open']) $(id).addEventListener('click', opened);
+  document.addEventListener('pea-stale', render);
   render();
   return { render, refresh };
 }

@@ -252,3 +252,43 @@ test('a page is told when its PEA now runs other code, and only then', async () 
   ])
     assert.equal(stalePage(x, y), null);
 });
+
+test('notes become headings, list items, paragraphs and code, as words only', async () => {
+  const { notesBlocks } = await import('../releases.mjs');
+  assert.deepEqual(
+    notesBlocks(
+      '## Added\n\n- **One.** Uses `code`.\n* Two [here](https://example.test/x)\n\nPlain <b>text</b>.\n\n```sh\nrun --this\n# not a heading\n```\n',
+    ),
+    [
+      { kind: 'heading', text: 'Added' },
+      { kind: 'item', text: 'One. Uses code.' },
+      { kind: 'item', text: 'Two here' },
+      { kind: 'text', text: 'Plain <b>text</b>.' },
+      { kind: 'code', text: 'run --this\n# not a heading' },
+    ],
+  );
+  assert.deepEqual(notesBlocks(''), []);
+  assert.deepEqual(notesBlocks(null), []);
+});
+
+test('the build line is plain words and warns only when something is unusual', async () => {
+  const { buildLine } = await import('../releases.mjs');
+  const a = 'a'.repeat(40),
+    b = 'b'.repeat(40);
+  assert.equal(
+    buildLine({ channel: 'development', commit: a, serverCommit: a, modified: false }),
+    'Development build · commit aaaaaaa',
+  );
+  assert.equal(
+    buildLine({ channel: 'stable', commit: a, serverCommit: a, modified: false }),
+    'Release · commit aaaaaaa',
+  );
+  assert.equal(
+    buildLine({ channel: 'prerelease', commit: a, serverCommit: b, modified: true }),
+    'Pre-release · commit aaaaaaa · server at bbbbbbb · files changed since this commit',
+  );
+  assert.equal(
+    buildLine({ channel: 'development', commit: null, serverCommit: null, modified: null }),
+    'Development build · source not verified',
+  );
+});

@@ -2,6 +2,15 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.7] - 2026-11-19
+
+### Changed
+
+- **Versions & updates is laid out afresh.** The window now opens with this copy's version in large type and one plain line about the build. Updating sits in the same card, with one main button at a time: Connect, then Update, then Reload. "Check for updates" is beside it. Published releases, their notes and the changelog have their own section below.
+- **Release notes and the changelog read as text.** Headings, lists and paragraphs are set in the reading typeface; only commands are fixed-width.
+- **One reload button after an update,** where there were two.
+- **The review before an update** is set in the reading typeface. Its words are unchanged.
+
 ## [0.1.0-rc.4.dev.6] - 2026-11-19
 
 Nothing in the app changed.

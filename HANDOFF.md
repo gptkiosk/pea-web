@@ -23,6 +23,21 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Versions & updates window laid out afresh — 2026-11-19
+
+**Branch `design/versions-window-tidy`, version `0.1.0-rc.4.dev.7`.** The owner ran the first real update from the Update button (dev.4 to dev.6): "it worked". Their complaint was the look: "unrefined misaligned buttons a lot of poorly formatted text and a confusing layout", with screenshots of the window before the update, the review, and the window after.
+
+- `browser/index.html` (`#release-dialog`): one card for this copy (`#release-version`, `#release-build`, the out-of-date notice, then "Update this copy" with its status, offer, buttons and outcome), then a "Published releases" section (`#release-note`, the three links, `#release-notes` as a `div`). All ids are kept. Button order in the update row: main button first, `#update-check` last.
+- `browser/releases.mjs`: `notesLines` (shared), `notesText` (same output as before), `notesBlocks` (heading, item, text, code) and `buildLine` (plain build description; the footer keeps the full technical line).
+- `browser/release-ui.mjs`: `showNotes` builds `p`, `h4`, `ul/li` and `pre` with `textContent` only. After each look it sends `pea-stale`; it looks again on `pea-updated`.
+- `browser/updates-ui.mjs`: `#update-check` reads "Check for updates" or "Check again"; `#update-reload` is hidden while the out-of-date notice shows; `#release-check` is the main button only where this copy cannot update itself; sends `pea-updated` when an update lands; the update review asks for `prose`.
+- `browser/live-ui.mjs`: `review(…, { prose })` sets `#review-body.prose`. Every other review keeps the fixed-width face.
+- Tests: 2 unit tests (`notesBlocks`, `buildLine`) in `browser/tests/releases.test.mjs`; browser tests in `browser/tests/dom/releases.test.mjs` (notes structure and typefaces, version and build line, one reload button) and `browser/tests/dom/updates.test.mjs` (one main button, order, "Check again", prose review).
+
+Known gaps: looked at in the dev preview with a connected-state mock-up, not through a second real update. The footer's technical version line and every other review dialog are unchanged. Wording of the status and offer sentences is unchanged.
+
+Next action: none pending.
+
 ## Days and history tests wait for the library — 2026-11-19
 
 **Branch `fix/days-test-waits-until-idle`, version `0.1.0-rc.4.dev.6`.** The `mac` check on main failed once on the merge of #73 and passed on a re-run: `browser/tests/dom/days.test.mjs` "a reply that is not a week, or a week the owner turns down, keeps nothing" timed out waiting for the request review, with the app notice "Finish the current request or local save first."

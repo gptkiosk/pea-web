@@ -200,10 +200,13 @@ export function installConnections(hooks) {
     requestAnimationFrame(() => label.classList.toggle('overflow', label.scrollWidth > badge.clientWidth));
     $('google-origin').textContent = location.origin;
   }
-  async function review(title, text, { publicRepo = false } = {}) {
+  // prose: the text is an explanation to read, not exact content to check character by character,
+  // so it is set in the reading typeface.
+  async function review(title, text, { publicRepo = false, prose = false } = {}) {
     if ($('review').open) return false;
     $('review-title').textContent = title;
     $('review-body').textContent = text;
+    $('review-body').classList.toggle('prose', prose);
     $('review-extra').replaceChildren();
     let acknowledge = null;
     if (publicRepo) {

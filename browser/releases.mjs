@@ -181,29 +181,74 @@ export function compareMain(remote, current, modified) {
 // takes the markup out so they read as sentences. A link keeps its words and loses its address;
 // the window's own link to the release page is where the real links are. The result is only
 // ever set as text, never as HTML.
-export function notesText(markdown) {
+function notesLines(markdown) {
   let fenced = false;
-  return String(markdown ?? '')
+  const clean = (line) =>
+    line
+      .replace(/!?\[([^\]\n]*)\]\(([^)\s]*)\)/g, (all, words, address) => words.replace(/`/g, '') || address)
+      .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '$2')
+      .replace(/`([^`\n]+)`/g, '$1');
+  const rows = [];
+  for (const line of String(markdown ?? '')
     .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map((line) => {
-      if (/^\s*(```|~~~)/.test(line)) {
-        fenced = !fenced;
-        return null;
-      }
-      if (fenced) return '    ' + line;
-      return line
-        .replace(/^(\s*)#{1,6}\s+/, '$1')
-        .replace(/^(\s*)[-*+]\s+/, '$1• ')
-        .replace(
-          /!?\[([^\]\n]*)\]\(([^)\s]*)\)/g,
-          (all, words, address) => words.replace(/`/g, '') || address,
-        )
-        .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '$2')
-        .replace(/`([^`\n]+)`/g, '$1');
-    })
-    .filter((line) => line !== null)
+    .split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    else if (fenced) rows.push({ kind: 'code', text: line });
+    else if (!line.trim()) rows.push({ kind: 'blank', text: '' });
+    else {
+      const heading = /^(\s*)#{1,6}\s+(.*)$/.exec(line),
+        item = /^(\s*)[-*+]\s+(.*)$/.exec(line);
+      if (heading) rows.push({ kind: 'heading', indent: heading[1], text: clean(heading[2]) });
+      else if (item) rows.push({ kind: 'item', indent: item[1], text: clean(item[2]) });
+      else rows.push({ kind: 'text', indent: '', text: clean(line) });
+    }
+  }
+  return rows;
+}
+export function notesText(markdown) {
+  return notesLines(markdown)
+    .map((row) =>
+      row.kind === 'code'
+        ? '    ' + row.text
+        : row.kind === 'item'
+          ? row.indent + '• ' + row.text
+          : (row.indent ?? '') + row.text,
+    )
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+// The same notes as a list of plain pieces, so the page can set headings, list items, paragraphs
+// and code apart. Every piece is words only; the page puts each one in as text, never as markup.
+export function notesBlocks(markdown) {
+  const blocks = [];
+  for (const row of notesLines(markdown)) {
+    const last = blocks.at(-1);
+    if (row.kind === 'blank') {
+      if (last?.kind === 'code') last.open = false;
+      continue;
+    }
+    if (row.kind === 'code' && last?.kind === 'code' && last.open !== false) last.text += '\n' + row.text;
+    else blocks.push({ kind: row.kind, text: row.kind === 'code' ? row.text : row.text.trim() });
+  }
+  return blocks.filter((b) => b.text.trim()).map(({ kind, text }) => ({ kind, text }));
+}
+// One plain line about a build: what kind it is and which commit, with a warning only when
+// something is unusual. The footer keeps the full technical line.
+export function buildLine(info) {
+  const short = (commit) => (typeof commit === 'string' ? commit.slice(0, 7) : '');
+  const kind =
+    info.channel === 'stable'
+      ? 'Release'
+      : info.channel === 'prerelease'
+        ? 'Pre-release'
+        : 'Development build';
+  const parts = [kind];
+  if (short(info.commit)) parts.push('commit ' + short(info.commit));
+  if (info.serverCommit && info.serverCommit !== info.commit)
+    parts.push('server at ' + short(info.serverCommit));
+  if (info.modified === true) parts.push('files changed since this commit');
+  else if (info.modified === null) parts.push('source not verified');
+  return parts.join(' · ');
 }
