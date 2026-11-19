@@ -34,6 +34,8 @@ Resume: branch from `main`, keep one bounded slice per pull request, stage named
 - `browser/index.html`: the box and its note; two sentences about keys amended. `README.md`, `browser/docs/MEMORY.md`, `browser/local-token.mjs` comment.
 - Tests: 1 unit test in `browser/tests/memory.test.mjs` (sealed, bound to its name and library, not in the export, removable while locked, name and size limits); `browser/tests/dom/router-key.test.mjs` (locked box, keep, nothing readable in localStorage, sessionStorage or IndexedDB, reload, restore on unlock with exactly two OpenRouter requests and none to a model, per profile, Lock, Disconnect, refused key).
 
+- Found by CI on this branch: `#library-unlock`'s `close` listener locked the vault whenever an unlock was under way. The close event of the previous unlock arrived about 390 ms late on the CI machines, during the next unlock, and cancelled it ("Library unlock was cancelled"). The listener now returns when the dialog is open again, as `review()` already does for its own dialog. `router-key.test.mjs` sends such a late event during an unlock.
+
 Known gaps: OpenRouter was a stand-in answered by the test; not tried with a real key. A v1 library re-keyed on unlock leaves an unreadable kept record that is ignored, not deleted. Current chats are still lost on reload unless the library is unlocked while chatting; nothing here changes that. Deleting the library is not offered by the app, so there is no path that would orphan a kept record other than clearing site data, which removes both.
 
 Next action: none pending.

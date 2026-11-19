@@ -14,6 +14,10 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 - The kept key is a separate sealed record beside the library, not part of it: it is in no library backup, profile file or backup file, and never in readable form in the browser's storage. Each profile keeps its own. GitHub tokens, voice provider keys and Google access are still never kept.
 - The review shown before unlocking a saved library now says that a kept OpenRouter key is restored.
 
+### Fixed
+
+- Unlocking the library a moment after locking it could fail with "Library unlock was cancelled". The browser reports a dialog's closing slightly late, and that late report from the previous unlock was taken as a cancellation of the new one. It is now ignored while the dialog is open again.
+
 ## [0.1.0-rc.4.dev.11] - 2026-11-19
 
 Nothing in the app changed.

@@ -58,23 +58,10 @@ async function start(page) {
   await page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be ready');
 }
 // Unlocks (or first enables) the library. A saved library asks for a review first.
-async function unlock(page) {
+// `late` sends the dialog a late report of an earlier close while the unlock is under way, as a
+// browser does when the dialog is reopened quickly. It must not cancel the unlock.
+async function unlock(page, { late = false } = {}) {
   await page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be ready');
-  await page.evaluate(`(() => {
-    if (window.__log) return;
-    const log = (window.__log = []), t0 = performance.now(), at = () => Math.round(performance.now() - t0);
-    const d = document.getElementById('library-unlock');
-    for (const type of ['close', 'cancel']) d.addEventListener(type, () => log.push(at() + ' event ' + type + ' open=' + d.open), true);
-    for (const type of ['pagehide', 'visibilitychange', 'blur']) window.addEventListener(type, () => log.push(at() + ' window ' + type), true);
-    for (const name of ['close', 'showModal', 'requestClose']) {
-      const real = HTMLDialogElement.prototype[name];
-      if (!real) continue;
-      HTMLDialogElement.prototype[name] = function (...a) { log.push(at() + ' call ' + name + ' #' + this.id + ' open=' + this.open); return real.apply(this, a); };
-    }
-    document.addEventListener('click', (e) => log.push(at() + ' click #' + (e.target.id || e.target.tagName)), true);
-    const dk = crypto.subtle.deriveKey.bind(crypto.subtle);
-    crypto.subtle.deriveKey = async (...a) => { log.push(at() + ' derive start'); try { return await dk(...a); } finally { log.push(at() + ' derive end'); } };
-  })()`);
   await page.click('#library-storage');
   await page.waitFor(`document.getElementById('library-unlock').open`, 'the passphrase dialog');
   await page.fill('#library-passphrase', passphrase);
@@ -89,12 +76,9 @@ async function unlock(page) {
     review = await page.text('#review-body');
     await page.click('#review-approve');
   }
-  // TEMPORARY DIAGNOSTICS: what happened to the dialog while unlocking.
-  try {
-    await page.waitFor(`!document.getElementById('library-unlock').open`, 'the library to unlock', 20000);
-  } catch (error) {
-    throw new Error(error.message + ' LOG: ' + (await page.evaluate(`JSON.stringify(window.__log || [])`)));
-  }
+  if (late)
+    await page.evaluate(`document.getElementById('library-unlock').dispatchEvent(new Event('close'))`);
+  await page.waitFor(`!document.getElementById('library-unlock').open`, 'the library to unlock', 20000);
   await page.waitFor(`!document.getElementById('router-remember').disabled`, 'the box to be offered');
   return review;
 }
@@ -193,7 +177,7 @@ test(
     assert.deepEqual(await routerModels(page), []);
 
     // Disconnecting removes the kept copy too: the next unlock restores nothing.
-    await unlock(page);
+    await unlock(page, { late: true });
     await page.waitFor(
       `[...document.getElementById('chat-model').options].some((o) => o.value === 'synthetic/router-model')`,
       'the key to come back again',

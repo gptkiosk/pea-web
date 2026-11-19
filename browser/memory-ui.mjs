@@ -771,6 +771,9 @@ export function installMemory(hooks) {
   };
   let unlocking = false;
   $('library-unlock').addEventListener('close', () => {
+    // Closing a dialog reports it a moment later. If the dialog has been opened again by then,
+    // that late report belongs to the earlier close and must not cancel this unlock.
+    if ($('library-unlock').open) return;
     if (unlocking) vault?.lock();
     $('library-passphrase').value = '';
   });
