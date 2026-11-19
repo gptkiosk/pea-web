@@ -2,6 +2,19 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.16] - 2026-11-19
+
+Second step of the workspace redesign.
+
+### Changed
+
+- **The chips in the top bar now work the panes.** On a wide screen, pressing a dashed chip brings that workspace in beside what is open and puts you in it. Pressing the chip of a workspace that is open but not in use moves you to it. Pressing the chip of the one you are in tucks it up, as long as another is open. Pressing a chip twice quickly leaves that workspace alone in the window.
+- **Three workspaces at once** on a window 1500 pixels wide or more; two from 1100. When there is no room for another, the new one takes the place of the pane furthest from the one you are in. A narrower window shows the one in use with a neighbour and keeps the rest of the arrangement for later.
+- **Move panes.** Drag a pane by its name in its bar, or with three open use the arrow buttons there. With two, "Swap sides" remains. A pane keeps its width when it moves.
+- **Resize between every pair.** With three panes there are two dividers; each changes only the two panes beside it, by dragging or with the arrow keys, and no pane can be squeezed thinner than about a fifth of the window.
+- The arrangement, including the three widths, is remembered on this browser as before: names and widths only.
+- On a phone or a small window the chips are still tabs.
+
 ## [0.1.0-rc.4.dev.15] - 2026-11-19
 
 ### Changed

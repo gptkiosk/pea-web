@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Workspace redesign, step two: chips work the panes; three at once — 2026-11-19
+
+**Branch `design/pane-chips`, version `0.1.0-rc.4.dev.16`.** The owner answered "Yes, start it" to step two of the agreed redesign (panes that tuck, move and resize).
+
+- `browser/workspace.mjs` (pure): up to three panes; `threePaneWidth` (1500), `capacityFor(width)`, `sizes` (three shares, present only with three panes, none under `sizeLimits.min` 0.18), `addPane`, `pressChip` (bring in, then focus, then tuck), `soloPane`, `movePane` (one place; the width travels; with two the ratio flips), `resizeThree(layout, divider, position)`. `visiblePanes` shows the focused pane and a neighbour when there is room for two of three. `closePane` keeps the focus when it can. `openBeside`, `openWorkspace`, `swapPanes` and `resizeSplit` are unchanged, so shortcuts, commands and the side-by-side button behave as before.
+- `browser/workspace-ui.mjs`: on a wide screen a chip press is `pressChip` (Shift- or Alt-click is still "beside"; a double press is `soloPane`); pane bars gain "Move left/right" buttons (shown with three panes) and their name is a drag handle; a second divider `#pane-divider-2`; both dividers share one pointer and keyboard handler; `onShow(name)` tells the app when a workspace comes into view (Today redraws its summary).
+- `browser/index.html`: `#pane-divider-2`. `browser/commands.mjs`: two or more panes count as split.
+- `browser/styles.css`: the second divider's order, the drag cursor, and no gap above split panes in the frame.
+- Tests: 5 unit tests added and 1 updated in `browser/tests/workspace.test.mjs`; a three-pane browser test added to `browser/tests/dom/workspace.test.mjs` (bring in, focus, move by button and by drag, second divider and its limit, remembered across a reload, two-of-three in a narrower window, tuck, solo); two existing browser tests updated for the chip behaviour.
+
+Known gaps: no count or peek on a tucked chip yet, and no Harvest tray: both are step three, since a peek needs the summaries that tray introduces. The arrangement is remembered per browser, not per profile. A pane drag was tested with made-up pointer events, not a real mouse or finger. Keyboard shortcuts and "go to" commands still replace the pane in use rather than adding one. Not looked at on the owner's own screen sizes.
+
+Next action: step three, the Harvest tray and chip counts with a peek.
+
 ## PEA greets in its own voice — 2026-11-19
 
 **Branch `voice/warm-persona-greeting`, version `0.1.0-rc.4.dev.15`.** The owner showed qwen3:4b answering "Hello" with "I'm PEA, an AI assistant. Not human, not real — just code and conversation." and wrote: "PEA does need to state these things and should promote a human connection and it's persona". My reading, stated to the owner: PEA does not need to state these things unprompted.

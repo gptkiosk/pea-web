@@ -7,7 +7,7 @@ const names = Object.keys(titles);
 // `context` is what is on screen now: { panes, focus, wide, profile, busy }.
 export function commandList(context = {}) {
   const panes = Array.isArray(context.panes) ? context.panes : ['chat'];
-  const split = panes.length === 2;
+  const split = panes.length >= 2;
   const list = [];
   for (const name of names)
     list.push({

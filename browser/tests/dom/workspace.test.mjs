@@ -30,7 +30,7 @@ const toggleShown = (page) =>
   page.evaluate(`getComputedStyle(document.querySelector('#split-toggle')).display !== 'none'`);
 
 test('a wide screen can show two workspaces side by side and return to one', options, async () => {
-  const page = await openConnectedPage(stack, { width: 1500 });
+  const page = await openConnectedPage(stack, { width: 1400 });
   assert.deepEqual(await shown(page), ['chat']);
   assert.equal(await toggleShown(page), true);
 
@@ -50,14 +50,19 @@ test('a wide screen can show two workspaces side by side and return to one', opt
   const gap = await page.evaluate(
     `Math.round(document.getElementById('chat').getBoundingClientRect().top - document.querySelector('.setup-strip').getBoundingClientRect().bottom)`,
   );
-  assert(gap >= 12, 'the panes sit clear of the setup cards above them: ' + gap);
+  assert(gap >= 0, 'the panes sit under the bar that holds the status: ' + gap);
 
   await page.click('#tab-today');
-  assert.deepEqual(await shown(page), ['chat', 'today'], 'going to a shown workspace keeps both');
+  assert.deepEqual(await shown(page), ['chat', 'today'], 'the chip of an open workspace focuses it');
   assert.equal(await focused(page), 'today');
 
   await page.click('#tab-greenhouse');
-  assert.deepEqual(await shown(page), ['chat', 'greenhouse'], 'a new workspace replaces the focused pane');
+  assert.deepEqual(
+    await shown(page),
+    ['greenhouse', 'today'],
+    'with room for two, a new workspace takes the place of the one not in use',
+  );
+  assert.equal(await focused(page), 'greenhouse');
 
   await page.evaluate(
     `document.querySelector('#tab-today').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }))`,
@@ -206,7 +211,7 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     ),
     [
       ['chat', false, 'dashed'],
-      ['today', false, 'dashed'],
+      ['today', false, 'solid'],
       ['greenhouse', true, 'solid'],
     ],
   );
@@ -231,13 +236,13 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     true,
   );
 
-  // Two panes: each has its own bar with Swap sides and Tuck up, and tucking leaves the chip dashed.
-  await page.click('#split-toggle');
-  await page.waitFor(`document.getElementById('panes').classList.contains('split')`, 'two panes');
+  // Two panes are open by now: each has its own bar with Swap sides and Tuck up, and tucking
+  // leaves the chip dashed.
+  assert.equal(await page.evaluate(`document.getElementById('panes').classList.contains('split')`), true);
   assert.equal((await frame()).moved, 0);
   assert.deepEqual(
     await page.evaluate(
-      `[...document.querySelectorAll('#today .pane-bar button')].map((b) => b.textContent)`,
+      `[...document.querySelectorAll('#today .pane-bar button')].filter((b) => !b.hidden).map((b) => b.textContent)`,
     ),
     ['Swap sides', 'Tuck up'],
   );
@@ -258,6 +263,118 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
   assert.equal(narrow.moved, 0);
   assert.ok(narrow.panes.top <= 130);
   assert.ok(narrow.status.top >= narrow.chips.bottom - 8, 'the status is on its own row');
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
+
+test('chips bring up to three workspaces in, and panes move, resize and tuck up', options, async () => {
+  const page = await stack.browser.newPage();
+  await page.setViewport(1680, 900);
+  await page.goto(stack.gateway.origin + '/');
+  await page.waitFor(`document.querySelector('[data-tab].selected')`, 'the workspace');
+  const state = async () => [await shown(page), await focused(page)];
+  const press = async (name) => {
+    await page.click('#tab-' + name);
+  };
+  assert.deepEqual(await state(), [['chat'], 'chat']);
+  await press('chat');
+  assert.deepEqual(await state(), [['chat'], 'chat'], 'the only open workspace stays');
+
+  // A tucked chip brings its workspace in beside the one in use, and focuses it.
+  await press('today');
+  assert.deepEqual(await state(), [['chat', 'today'], 'today']);
+  await press('greenhouse');
+  assert.deepEqual(await state(), [['chat', 'today', 'greenhouse'], 'greenhouse']);
+  assert.equal(
+    await page.evaluate(`(() => { scrollTo(0, 300); const y = scrollY; scrollTo(0, 0); return y; })()`),
+    0,
+  );
+  assert.deepEqual(
+    await page.evaluate(`[...document.querySelectorAll('.pane-divider')].map((d) => d.hidden)`),
+    [false, false],
+  );
+  // The chip of an open workspace that is not in use only focuses it.
+  await press('chat');
+  assert.deepEqual(await state(), [['chat', 'today', 'greenhouse'], 'chat']);
+
+  // With three, each bar has move buttons where there is somewhere to go, and no Swap sides.
+  const buttons = (name) =>
+    page.evaluate(
+      `[...document.querySelectorAll('#${name} .pane-bar button')].filter((b) => !b.hidden).map((b) => b.getAttribute('aria-label') + (b.disabled ? ' (off)' : ''))`,
+    );
+  assert.deepEqual(await buttons('chat'), ['Move Chat left (off)', 'Move Chat right', 'Close Chat pane']);
+  assert.deepEqual(await buttons('greenhouse'), [
+    'Move Greenhouse left',
+    'Move Greenhouse right (off)',
+    'Close Greenhouse pane',
+  ]);
+  await page.evaluate(`document.querySelector('#chat .pane-bar [aria-label="Move Chat right"]').click()`);
+  assert.deepEqual(await shown(page), ['today', 'chat', 'greenhouse']);
+
+  // Dragging a pane by its name moves it past the pane the pointer is over.
+  await page.evaluate(`(() => {
+    const handle = document.querySelector('#greenhouse .pane-bar strong');
+    const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + 10, bubbles: true, pointerId: 7 }; };
+    handle.dispatchEvent(new PointerEvent('pointerdown', at(handle)));
+    handle.dispatchEvent(new PointerEvent('pointermove', at(document.getElementById('today'))));
+    handle.dispatchEvent(new PointerEvent('pointerup', at(document.getElementById('today'))));
+  })()`);
+  assert.deepEqual(await shown(page), ['greenhouse', 'today', 'chat']);
+
+  // The second divider changes only the second and third panes, by keyboard, within limits.
+  const widths = () =>
+    page.evaluate(
+      `['greenhouse', 'today', 'chat'].map((id) => Math.round(document.getElementById(id).getBoundingClientRect().width))`,
+    );
+  const before = await widths();
+  await page.evaluate(`(() => {
+    const bar = document.getElementById('pane-divider-2');
+    for (let i = 0; i < 5; i++) bar.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  })()`);
+  const after = await widths();
+  assert.ok(Math.abs(after[0] - before[0]) <= 2, 'the first pane keeps its width');
+  assert.ok(
+    after[1] > before[1] + 80 && after[2] < before[2] - 80,
+    'the second grows, the third shrinks: ' + after,
+  );
+  await page.evaluate(
+    `document.getElementById('pane-divider-2').dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))`,
+  );
+  const least = await widths();
+  assert.ok(least[2] >= 0.17 * (least[0] + least[1] + least[2]), 'no pane is squeezed away: ' + least);
+
+  // The arrangement is remembered, as names and widths only.
+  const saved = JSON.parse(await page.evaluate(`localStorage.getItem('pea-workspace-v1')`));
+  assert.deepEqual(Object.keys(saved).sort(), ['focus', 'panes', 'ratio', 'sizes']);
+  await page.goto(stack.gateway.origin + '/');
+  await page.waitFor(
+    `document.querySelectorAll('.panel:not([hidden])').length === 3`,
+    'the three panes again',
+  );
+  assert.deepEqual(await shown(page), ['greenhouse', 'today', 'chat']);
+
+  // A window with room for two shows the one in use and a neighbour, and keeps the third for later.
+  await page.setViewport(1300, 900);
+  await page.waitFor(`document.querySelectorAll('.panel:not([hidden])').length === 2`, 'two panes');
+  await page.setViewport(1680, 900);
+  await page.waitFor(`document.querySelectorAll('.panel:not([hidden])').length === 3`, 'three panes');
+
+  // Pressing the chip of the workspace in use tucks it up; pressing a chip twice leaves it alone.
+  const inUse = await focused(page);
+  await press(inUse);
+  assert.equal((await shown(page)).includes(inUse), false);
+  assert.equal(
+    await page.evaluate(`getComputedStyle(document.getElementById('tab-${inUse}')).borderTopStyle`),
+    'dashed',
+  );
+  assert.deepEqual(
+    await page.evaluate(`[...document.querySelectorAll('.pane-divider')].map((d) => d.hidden)`),
+    [false, true],
+  );
+  await page.evaluate(
+    `document.getElementById('tab-today').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+  );
+  assert.deepEqual(await state(), [['today'], 'today']);
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });

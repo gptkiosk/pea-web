@@ -1998,7 +1998,13 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => voice.stop());
 renderLists();
-const workspace = installWorkspace({ onFocus: focusChanged });
+const workspace = installWorkspace({
+  onFocus: focusChanged,
+  // Overdue and due-today counts move with the clock, so Today is redrawn as it comes into view.
+  onShow: (name) => {
+    if (name === 'today') home?.render();
+  },
+});
 workspace.render();
 installDragDrop({
   openLocalFile,
