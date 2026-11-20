@@ -239,7 +239,15 @@ test(
           note: document.getElementById('chat-export-note').textContent,
         };
       })()`);
-      await page.evaluate(`document.getElementById('chat-export-dialog').close()`);
+      // The dialog's close event arrives a moment after close() and withdraws the file; wait for
+      // it, so it cannot land on the next export this test prepares.
+      await page.evaluate(
+        `new Promise((done) => {
+          const dialog = document.getElementById('chat-export-dialog');
+          dialog.addEventListener('close', () => setTimeout(done, 0), { once: true });
+          dialog.close();
+        })`,
+      );
       return result;
     };
 
