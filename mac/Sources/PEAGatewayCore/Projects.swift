@@ -136,6 +136,17 @@ public struct ProjectEngine {
         base = "http://" + (local.host.contains(":") ? "[" + local.host + "]" : local.host) + ":" + String(local.port)
     }
 
+    /// The project rules shipped with the web files at `webRoot`, for the Mac app to check a setting against.
+    public static func rules(webRoot: URL) throws -> ProjectRules {
+        guard let data = Files.read(root: webRoot.resolvingSymlinksInPath(), name: "server/contract.json", limit: 200_000) else {
+            throw GatewayError("The web files were not found, or their rules file is missing.")
+        }
+        return try Contract(data: data).projects
+    }
+
+    /// Whether the credential file can be used right now. Says nothing about what it holds.
+    public func hasCredential(_ rules: ProjectRules) -> Bool { token(rules) != nil }
+
     /// The engine's credential, read for each request so that removing the file ends the access.
     func token(_ rules: ProjectRules) -> String? {
         var info = stat()

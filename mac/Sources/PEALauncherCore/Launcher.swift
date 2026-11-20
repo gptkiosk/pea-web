@@ -22,6 +22,10 @@ public final class Launcher: ObservableObject {
     @Published public private(set) var status = Status.stopped
     @Published public private(set) var port: UInt16
     @Published public private(set) var upstream: String
+    /// The owner's project engine (MCD or RCD), if they connected one: its address, and the path of
+    /// the private file holding the access the engine issued. The app keeps the path, never the access.
+    @Published public private(set) var engineAddress: String?
+    @Published public private(set) var engineTokenFile: String?
     public let version: String
     public let repository: String?
     public let channel: String
@@ -30,6 +34,7 @@ public final class Launcher: ObservableObject {
     private let tokens: TokenStore
     private let defaults: UserDefaults
     private var gateway: Gateway?
+    private let projectRules: ProjectRules?
     private let reminders: ReminderCenter?
     /// Whether reminders from PEA in the browser are shown as notifications on this Mac.
     @Published public private(set) var remindersOn = false
@@ -45,6 +50,14 @@ public final class Launcher: ObservableObject {
         port = (1024...65535).contains(saved) ? UInt16(saved) : Launcher.defaultPort
         let address = defaults.string(forKey: "upstream") ?? Launcher.defaultUpstream
         upstream = (try? Upstream(address)) == nil ? Launcher.defaultUpstream : address
+        projectRules = try? ProjectEngine.rules(webRoot: webRoot)
+        // A saved engine whose address no longer passes the rules is not used. A credential file
+        // that has gone missing is kept: the gateway then says projects are not available.
+        if let address = defaults.string(forKey: "projectsAddress"), let file = defaults.string(forKey: "projectsTokenFile"),
+           let rules = projectRules, (try? ProjectEngine(address: address, tokenFile: file, rules: rules)) != nil {
+            engineAddress = address
+            engineTokenFile = file
+        }
         let identity = try? BuildIdentity.read(root: webRoot.resolvingSymlinksInPath())
         version = identity?["version"]?.string ?? "unknown"
         repository = identity?["repository"]?.string
@@ -93,7 +106,9 @@ public final class Launcher: ObservableObject {
         status = .starting
         let wanted = port
         do {
-            let next = try Gateway(Gateway.Options(port: wanted, token: try token(), upstream: upstream, root: webRoot, reminders: reminders))
+            var options = Gateway.Options(port: wanted, token: try token(), upstream: upstream, root: webRoot, reminders: reminders)
+            options.projects = engine()
+            let next = try Gateway(options)
             gateway = next
             next.start { error in
                 Task { @MainActor in
@@ -137,6 +152,53 @@ public final class Launcher: ObservableObject {
         upstream = cleaned
         defaults.set(cleaned, forKey: "upstream")
         try gateway?.setUpstream(cleaned)
+    }
+
+    private func engine() -> ProjectEngine? {
+        guard let address = engineAddress, let file = engineTokenFile, let rules = projectRules else { return nil }
+        return try? ProjectEngine(address: address, tokenFile: file, rules: rules)
+    }
+
+    /// Whether the connected engine's credential file can be used right now.
+    public var engineReady: Bool {
+        guard let rules = projectRules, let engine = engine() else { return false }
+        return engine.hasCredential(rules)
+    }
+
+    /// Connects PEA to the owner's project engine. The address is http:// on a loopback IP of this
+    /// Mac or https:// on a named host; the file must be a regular file only the owner can read,
+    /// holding the access the engine issued. Anything else is refused and nothing changes. A running
+    /// PEA restarts on the same port, because the gateway takes this setting only when it starts.
+    public func use(engine address: String, tokenFile: String) async throws {
+        guard let rules = projectRules else { throw GatewayError("The web files were not found, or their rules file is missing.") }
+        let cleaned = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let file = (tokenFile as NSString).expandingTildeInPath
+        guard file.hasPrefix("/") else { throw GatewayError("Choose the file that holds the access your project engine issued for PEA.") }
+        let next = try ProjectEngine(address: cleaned, tokenFile: file, rules: rules)
+        guard next.hasCredential(rules) else {
+            throw GatewayError("That file cannot be used. It must be a regular file that only you can read (mode 600), holding the 64-character access your project engine issued for PEA.")
+        }
+        engineAddress = cleaned
+        engineTokenFile = file
+        defaults.set(cleaned, forKey: "projectsAddress")
+        defaults.set(file, forKey: "projectsTokenFile")
+        await restartIfRunning()
+    }
+
+    /// Disconnects PEA from the project engine. The credential file is left where it is.
+    public func removeEngine() async {
+        guard engineAddress != nil else { return }
+        engineAddress = nil
+        engineTokenFile = nil
+        defaults.removeObject(forKey: "projectsAddress")
+        defaults.removeObject(forKey: "projectsTokenFile")
+        await restartIfRunning()
+    }
+
+    private func restartIfRunning() async {
+        guard gateway != nil else { return }
+        await stop()
+        start()
     }
 
     /// The first port after `port` that nothing on this Mac is listening on.

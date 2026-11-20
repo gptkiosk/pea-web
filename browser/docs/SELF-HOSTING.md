@@ -58,6 +58,8 @@ python3 browser/server/gateway.py --token-file "$HOME/.config/pea/connection-tok
 - **What can be asked.** `POST /v1/projects` with one of: `{"action":"types"}`, `{"action":"list"}`, `{"action":"get","project":N}`, `{"action":"status","project":N}`, `{"action":"draft","type","title","brief","constraints"?}`. A draft starts nothing. There is no request to plan, approve, start, pause, pay or choose a working folder: those are decided in the engine's own pages.
 - **What an engine must answer.** One `POST /api/pea-projects` with `Authorization: Bearer <credential>` and the request above as JSON, answered with `200`, `application/json` and a JSON object of at most 500,000 bytes within 20 seconds. `401`/`403` mean the access is not accepted; `400`/`404`/`409`/`422` mean the request is not. No redirect is followed, and the engine's error text is not shown.
 
+In PEA for Mac the same two settings are **Project Engine…** in its menu: the address, then the access file. The app keeps the file's path and never its contents.
+
 The exact rules are the `projects` section of `browser/server/contract.json`, and both gateways pass the same tests for them.
 
 ## Phone/tablet and private VPN
