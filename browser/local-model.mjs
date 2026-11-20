@@ -27,6 +27,7 @@ export class LocalModel {
         '/v1/speak',
         '/v1/voices',
         '/v1/update',
+        '/v1/projects',
       ].includes(path) ||
       typeof key !== 'string' ||
       !/^[A-Za-z0-9_-]{32,128}$/.test(key)
@@ -148,6 +149,23 @@ export class LocalModel {
     let answer = null;
     try {
       answer = JSON.parse((await r.text()).slice(0, 20000));
+    } catch {
+      // Left as null; the caller treats that as no usable answer.
+    }
+    return { status: r.status, body: answer };
+  }
+  // Asks this server about the owner's project engine: with no body, whether its operator
+  // connected one; otherwise one of the five named requests the server passes on. The answer is
+  // the engine's, as data.
+  async projects(key, body) {
+    const r = await this.request('/v1/projects', key, {
+      body,
+      signal: AbortSignal.timeout(body ? 30000 : 8000),
+      anyStatus: true,
+    });
+    let answer = null;
+    try {
+      answer = JSON.parse((await r.text()).slice(0, 600000));
     } catch {
       // Left as null; the caller treats that as no usable answer.
     }

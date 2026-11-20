@@ -43,6 +43,8 @@ import { installSpeech } from './speech-ui.mjs';
 import { installDecks } from './decks-ui.mjs';
 import { installBackup } from './backup-ui.mjs';
 import { installUpdates } from './updates-ui.mjs';
+import { installProjects } from './projects-ui.mjs';
+import { claimsProject, projectGuidance, projectProposals } from './projects.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -84,6 +86,7 @@ let live,
   days,
   speech,
   decks,
+  projects,
   portable,
   updates;
 // Ends reading aloud, whichever voice is doing it.
@@ -110,6 +113,8 @@ const chats = {},
   calendarEdited = new Map(),
   // What happened to each approved to-do proposal, shown in place of its button.
   todoDone = new Map(),
+  // What each sent project draft said, by the reply that suggested it.
+  projectDone = new Map(),
   // The outcome of each approved document proposal: a sentence, and a download link when it became a file.
   docDone = new Map(),
   // Phone-link proposals the owner has approved; the link appears only for these.
@@ -945,6 +950,27 @@ function proposalButton(m, surface) {
     };
     return b;
   }
+  if (projectDone.has(m.id)) {
+    const receipt = document.createElement('small');
+    receipt.textContent = projectDone.get(m.id);
+    receipt.dataset.shows = 'projects-section';
+    return receipt;
+  }
+  const drafting = proposals.get(m.id);
+  if (drafting?.kind === 'project' && !m.incomplete && drafting.profile === profile) {
+    const b = document.createElement('button');
+    b.className = 'text-button';
+    b.textContent = 'Review project: ' + drafting.title;
+    // Fills the form on Today and sends nothing. The owner chooses a template and reviews it there.
+    b.onclick = () => {
+      if (reviewingStory || live.isBusy()) return notice('Finish the current request first.');
+      if (!projects.available())
+        return notice('This PEA is not connected to a project engine. Nothing was filled in.');
+      projects.fill(drafting.draft, { id: m.id, surface, profile });
+      showOnToday('projects-section');
+    };
+    return b;
+  }
   const change = proposals.get(m.id);
   if (todoDone.has(m.id)) {
     const receipt = document.createElement('small');
@@ -1105,6 +1131,18 @@ function peekFor(name) {
   );
   return lines.length ? lines : ['Nothing to show yet.'];
 }
+// Brings one of Today's cards into view. It changes nothing.
+const todayCards = {
+  'tasks-section': 'Show the story board',
+  'todos-section': 'Show the to-do list',
+  'projects-section': 'Show projects',
+};
+function showOnToday(card) {
+  if (workspace.wide()) workspace.add('today');
+  else tab('today');
+  $(card).open = true;
+  $(card).scrollIntoView({ block: 'start', behavior: 'auto' });
+}
 function renderHarvest() {
   const waiting = [],
     done = [];
@@ -1130,17 +1168,31 @@ function renderHarvest() {
         const show = document.createElement('button');
         show.type = 'button';
         show.className = 'text-button';
-        show.textContent = card === 'tasks-section' ? 'Show the story board' : 'Show the to-do list';
-        show.onclick = () => {
-          if (workspace.wide()) workspace.add('today');
-          else tab('today');
-          $(card).open = true;
-          $(card).scrollIntoView({ block: 'start', behavior: 'auto' });
-        };
+        show.textContent = todayCards[card];
+        show.onclick = () => showOnToday(card);
         item.append(show);
       }
       (isReview ? waiting : done).push(item);
     }
+  // Projects the engine says have ended, as this page was last shown them. They belong to the
+  // engine, not to one conversation, so they are listed in every profile.
+  for (const ended of projects?.receipts() ?? []) {
+    const item = document.createElement('li');
+    const source = document.createElement('small');
+    source.textContent = 'From your project engine';
+    const receipt = document.createElement('small');
+    receipt.textContent = ended.text;
+    const show = document.createElement('button');
+    show.type = 'button';
+    show.className = 'text-button';
+    show.textContent = 'Show the project';
+    show.onclick = () => {
+      showOnToday('projects-section');
+      projects.show(ended.id);
+    };
+    item.append(source, receipt, show);
+    done.unshift(item);
+  }
   $('harvest-waiting').replaceChildren(...waiting);
   $('harvest-done').replaceChildren(...done.reverse());
   $('harvest-waiting-group').hidden = !waiting.length;
@@ -1456,8 +1508,10 @@ window.addEventListener('pagehide', () => {
 live = installConnections({
   secrets: () => memory?.secrets ?? null,
   todoGuidance: (shared) => todos?.guidance(shared) ?? '',
+  projectGuidance: () => (projects?.available() ? projectGuidance : ''),
   localChanged: () => {
     todos?.connectionChanged();
+    void projects?.connectionChanged();
     void updates?.refresh();
   },
   profile: () => profile,
@@ -1526,7 +1580,9 @@ live = installConnections({
       changes = offer ? todoProposals(raw) : [],
       written = offer ? docProposals(raw, live.currentDocument()) : [],
       opens = offer ? openProposals(raw) : [],
-      reads = offer ? readProposals(raw) : [];
+      reads = offer ? readProposals(raw) : [],
+      // A project draft is offered only where this server has a project engine to leave it in.
+      drafts = offer && projects?.available() ? projectProposals(raw) : [];
     // A note about her own day, kept only while the owner has notes on. Never from a sourced reply.
     if (offer && surface === 'chat') days?.noteFrom(raw);
     reply.text = visibleReply(raw);
@@ -1552,6 +1608,9 @@ live = installConnections({
     if (complete && !changes.length && claimsTodoChange(reply.text))
       reply.text +=
         '\n\nPEA did not change your to-do list. Review and approve a proposal before anything changes.';
+    if (complete && projects?.available() && claimsProject(reply.text))
+      reply.text +=
+        '\n\nPEA did not create or start a project. A suggestion only fills the form on Today; you review and send the draft, and the engine runs nothing until you approve it there.';
     if (complete && !opens.length && claimsOpen(reply.text))
       reply.text +=
         '\n\nPEA did not call, text or open directions. Review and approve a proposal, then press the link yourself.';
@@ -1620,6 +1679,8 @@ live = installConnections({
       !written.length
     )
       proposals.set(reply.id, { profile, kind: 'read', address: reads[0] });
+    else if (drafts.length === 1)
+      proposals.set(reply.id, { profile, kind: 'project', draft: drafts[0], title: drafts[0].title });
     memory.record(surface);
     if (surface === 'chat') renderChat();
     else renderCollaboration();
@@ -1789,6 +1850,7 @@ memory = installMemory({
     calendarEdited.clear();
     eventIds.clear();
     todoDone.clear();
+    projectDone.clear();
     docDone.clear();
     openReady.clear();
     live.forgetDocument();
@@ -1819,7 +1881,22 @@ decks = installDecks({
   compose: live.compose,
   isBusy: live.isBusy,
 });
-// Updating the installed copy, when its operator has turned that on. Reviewed, never by a model.
+// The owner's project engine: read-only progress and a reviewed draft. Never reached by a model.
+projects = installProjects({
+  localKey: () => live.localKey(),
+  ask: (key, body) => live.projects(key, body),
+  review: live.review,
+  isBusy: live.isBusy,
+  changed: () => renderHarvest(),
+  // A draft that came from a reply leaves its receipt on that reply, if it is still there.
+  drafted(from, text) {
+    if (!history(from.surface, from.profile).some((x) => x.id === from.id)) return;
+    projectDone.set(from.id, text);
+    proposals.delete(from.id);
+    renderChat();
+    renderCollaboration();
+  },
+});
 updates = installUpdates({
   localKey: () => live.localKey(),
   ask: (key, body) => live.update(key, body),

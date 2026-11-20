@@ -182,6 +182,53 @@ export async function startFakeSite(answer) {
   };
 }
 
+// A stand-in project engine (MCD or RCD), reached only through the gateway, which is started with
+// its address and a credential made for this run. `answer(asked)` gets the request body and returns
+// { status, body }; every request is kept with its headers for the tests.
+export async function startFakeEngine(answer) {
+  const requests = [];
+  const token = randomBytes(48).toString('base64url');
+  const folder = mkdtempSync(join(tmpdir(), 'pea-engine-'));
+  const tokenFile = join(folder, 'engine-token');
+  writeFileSync(tokenFile, token + '\n', { mode: 0o600, flag: 'wx' });
+  const server = createServer((request, response) => {
+    const parts = [];
+    request.on('data', (part) => parts.push(part));
+    request.on('end', () => {
+      let asked = null;
+      try {
+        asked = JSON.parse(Buffer.concat(parts).toString('utf8'));
+      } catch {
+        // Answered as a bad request below.
+      }
+      requests.push({ method: request.method, path: request.url, headers: request.headers, asked });
+      const plan =
+        request.headers.authorization !== 'Bearer ' + token
+          ? { status: 401, body: { detail: 'SYNTHETIC ENGINE DETAIL' } }
+          : request.method !== 'POST' || request.url !== '/api/pea-projects' || !asked
+            ? { status: 404, body: { detail: 'SYNTHETIC ENGINE DETAIL' } }
+            : (answer(asked) ?? { status: 422, body: { detail: 'SYNTHETIC ENGINE DETAIL' } });
+      response.writeHead(plan.status ?? 200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify(plan.body ?? {}));
+    });
+  });
+  const port = await listen(server);
+  return {
+    port,
+    token,
+    requests,
+    options: ['--projects-url', `http://127.0.0.1:${port}`, '--projects-token-file', tokenFile],
+    close: () =>
+      new Promise((resolve) => {
+        server.close(() => {
+          remove(folder);
+          resolve();
+        });
+        server.closeAllConnections();
+      }),
+  };
+}
+
 // Stand-in voice providers, reached only through the gateway's test option. `answer(request)`
 // gets { method, path, headers, body } and returns { status, type, data }; every request is kept.
 // `shortSound` is a fifth of a second of silence a browser can play.
@@ -680,7 +727,10 @@ async function launchBrowserOnce() {
 }
 
 // The whole synthetic stack for one test file: model, gateway and browser, stopped together.
-export async function startStack(reply, { site = null, voices = null, models = undefined } = {}) {
+export async function startStack(
+  reply,
+  { site = null, voices = null, models = undefined, engine = null } = {},
+) {
   const parts = {};
   const close = async () => {
     // Each part is stopped even if another fails to stop, so a failed cleanup cannot leave the run hanging.
@@ -690,6 +740,7 @@ export async function startStack(reply, { site = null, voices = null, models = u
       parts.model?.close(),
       parts.site?.close(),
       parts.voices?.close(),
+      parts.engine?.close(),
     ]);
   };
   // Starting must finish well inside a test hook's own time limit. If it does not, everything
@@ -714,6 +765,12 @@ export async function startStack(reply, { site = null, voices = null, models = u
       if (abandoned) return;
       for (const provider of ['elevenlabs', 'fish'])
         reader.push('--speech-test-port', `${provider}=${parts.voices.port}`);
+    }
+    // `engine` answers as the owner's project engine would.
+    if (engine) {
+      parts.engine = await startFakeEngine(engine);
+      if (abandoned) return;
+      reader.push(...parts.engine.options);
     }
     parts.gateway = await startGateway(parts.model.port, reader);
     if (abandoned) return;
