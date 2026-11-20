@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.24] - 2026-11-19
+
+### Added
+
+- **PEA for Mac: a Project Engine setting.** The menu has **Project Engine…**. You give the address of your own engine (MCD or RCD: `http://` on this Mac, or `https://` and the name of another machine of yours), then choose the file holding the access the engine issued for PEA. The app checks that the file is a regular file only you can read with the right shape, and keeps its path. It never shows, copies or stores what the file holds. If PEA is running it restarts at the same address; reload the page and Projects on Today is connected. **Disconnect** in the same dialog ends it and leaves the file alone. Removing the file also ends the access at once. Neither engine issues this access yet, so there is nothing real to choose until the engine side exists.
+
 ## [0.1.0-rc.4.dev.23] - 2026-11-19
 
 ### Added

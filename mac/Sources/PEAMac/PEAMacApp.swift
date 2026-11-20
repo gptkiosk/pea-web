@@ -66,6 +66,7 @@ struct Actions: View {
         Button("Open PEA") { open(launcher) }.disabled(!launcher.isRunning)
         Button("Copy Connection Token") { copyToken() }
         Button("Local Model Address…") { askForModelAddress() }
+        Button(launcher.engineAddress == nil ? "Project Engine…" : "Project Engine (Connected)…") { askForEngine() }
         if case .portBusy(let free) = launcher.status {
             Divider()
             if let free {
@@ -114,6 +115,52 @@ struct Actions: View {
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do { try launcher.use(upstream: field.stringValue) } catch { tell("That address was not saved", String(describing: error)) }
+    }
+
+    /// Two steps: where the engine is, then which file holds the access it issued. The app reads
+    /// that file only to check it can be used, and never shows, copies or stores what is in it.
+    private func askForEngine() {
+        let alert = NSAlert()
+        alert.messageText = "Project engine"
+        alert.informativeText = "The address of your own project engine (MCD or RCD), for example http://127.0.0.1:8800 on this Mac, or https:// and the name of another machine of yours. Next you choose the file holding the access the engine issued for PEA. PEA can then list your projects, show their progress and leave drafts. It cannot plan, approve, start or pay for anything; that stays in the engine."
+            + (launcher.engineAddress == nil ? "" : "\n\nConnected now" + (launcher.engineReady ? "." : ", but its access file cannot be used, so projects are not available."))
+        let field = NSTextField(string: launcher.engineAddress ?? "")
+        field.placeholderString = "http://127.0.0.1:8800"
+        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Choose Access File…")
+        alert.addButton(withTitle: "Cancel")
+        if launcher.engineAddress != nil { alert.addButton(withTitle: "Disconnect") }
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = field
+        let answer = alert.runModal()
+        if answer == .alertThirdButtonReturn {
+            Task {
+                await launcher.removeEngine()
+                tell("Project engine disconnected", "PEA no longer asks it anything. The access file was not touched; revoke PEA’s access in the engine if you no longer want it.")
+            }
+            return
+        }
+        guard answer == .alertFirstButtonReturn else { return }
+        let panel = NSOpenPanel()
+        panel.message = "Choose the file holding the access your project engine issued for PEA."
+        panel.prompt = "Use This File"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = false
+        panel.showsHiddenFiles = true
+        if let current = launcher.engineTokenFile { panel.directoryURL = URL(fileURLWithPath: current).deletingLastPathComponent() }
+        guard panel.runModal() == .OK, let file = panel.url else { return }
+        let address = field.stringValue
+        Task {
+            do {
+                try await launcher.use(engine: address, tokenFile: file.path)
+                tell("Project engine connected", "In PEA in your browser, reload the page and open Projects on Today. If PEA was running, it has restarted at the same address.")
+            } catch {
+                tell("The project engine was not connected", String(describing: error))
+            }
+        }
     }
 
     private func confirmPort(_ free: UInt16) {
@@ -183,7 +230,7 @@ struct StatusView: View {
                 Image(systemName: launcher.isRunning ? "leaf.fill" : "leaf").font(.system(size: 28)).foregroundStyle(.green)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(statusLine(launcher)).font(.headline)
-                    Text("Version \(launcher.version) · model server \(launcher.upstream)").font(.caption).foregroundStyle(.secondary)
+                    Text("Version \(launcher.version) · model server \(launcher.upstream)" + (launcher.engineAddress.map { " · project engine \($0)" } ?? "")).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Text("PEA runs on this Mac and opens in your browser. The first time, copy the connection token and paste it into Connections → Local model.")

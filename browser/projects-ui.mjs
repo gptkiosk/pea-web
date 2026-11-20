@@ -112,7 +112,7 @@ export function installProjects({ localKey, ask, review, isBusy, changed, drafte
     $('projects-status').textContent = !key
       ? 'Connect this PEA first: paste its server connection token under Local model.'
       : available === false
-        ? 'This PEA server is not connected to a project engine. Its operator connects one when the server starts; Self-hosting says how.'
+        ? 'This PEA server is not connected to a project engine. In PEA for Mac, choose Project Engine… in its menu. Otherwise its operator connects one when the server starts; Self-hosting says how.'
         : available
           ? listed && !list.length
             ? 'The engine has no projects yet.'

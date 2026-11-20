@@ -167,6 +167,114 @@ final class LauncherTests: XCTestCase {
         XCTAssertFalse(one.version.isEmpty)
     }
 
+    /// A synthetic access file of the shape an engine issues, in a folder removed after the test.
+    func accessFile(_ text: String = String(repeating: "e", count: 64) + "\n", mode: Int = 0o600) throws -> String {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pea-engine-tests-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("pea.token").path
+        XCTAssertTrue(FileManager.default.createFile(atPath: file, contents: Data(text.utf8), attributes: [.posixPermissions: mode]))
+        return file
+    }
+
+    func testAProjectEngineIsAcceptedOnlyWithASafeAddressAndAPrivateAccessFile() async throws {
+        let one = launcher()
+        XCTAssertNil(one.engineAddress)
+        XCTAssertFalse(one.engineReady)
+        let good = try accessFile()
+        for address in ["http://example.com:8800", "http://192.168.0.2:8800", "http://127.0.0.1:8800/api",
+                        "https://user@engine.example", "https://engine.example/?x=1", "ftp://127.0.0.1", "http://127.0.0.1:0", ""] {
+            do {
+                try await one.use(engine: address, tokenFile: good)
+                XCTFail("accepted " + address)
+            } catch {}
+        }
+        let link = (good as NSString).deletingLastPathComponent + "/link.token"
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: good)
+        for file in [try accessFile(mode: 0o644), try accessFile("too short\n"), try accessFile(String(repeating: "e", count: 63) + "!"),
+                     link, (good as NSString).deletingLastPathComponent, good + ".missing", "relative.token", ""] {
+            do {
+                try await one.use(engine: "http://127.0.0.1:8800", tokenFile: file)
+                XCTFail("accepted the file " + file)
+            } catch {
+                XCTAssertFalse(String(describing: error).contains("eeee"), "a refusal never repeats the access")
+            }
+        }
+        XCTAssertNil(one.engineAddress, "a refused setting changes nothing")
+        XCTAssertNil(defaults.string(forKey: "projectsAddress"))
+        XCTAssertNil(launcher().engineAddress)
+
+        try await one.use(engine: "  http://127.0.0.1:8800/ ", tokenFile: good)
+        XCTAssertEqual(one.engineAddress, "http://127.0.0.1:8800/")
+        XCTAssertEqual(one.engineTokenFile, good)
+        XCTAssertTrue(one.engineReady)
+        XCTAssertEqual(one.status, .stopped, "a stopped PEA is not started by the setting")
+        // Only the address and the path are remembered, never what the file holds.
+        let saved = defaults.dictionaryRepresentation().filter { $0.key.hasPrefix("projects") }
+        XCTAssertEqual(saved.keys.sorted(), ["projectsAddress", "projectsTokenFile"])
+        XCTAssertFalse(String(describing: saved).contains("eeee"))
+        let next = launcher()
+        XCTAssertEqual(next.engineAddress, "http://127.0.0.1:8800/")
+        XCTAssertTrue(next.engineReady)
+        // Another machine of the owner's, by name over HTTPS, is accepted too.
+        try await one.use(engine: "https://engine.example:9443", tokenFile: good)
+        XCTAssertEqual(launcher().engineAddress, "https://engine.example:9443")
+
+        // A saved address that no longer passes the rules is not used; a file that has gone is, and is simply not ready.
+        defaults.set("http://192.168.0.2:8800", forKey: "projectsAddress")
+        XCTAssertNil(launcher().engineAddress)
+        defaults.set("http://127.0.0.1:8800", forKey: "projectsAddress")
+        try FileManager.default.removeItem(atPath: good)
+        XCTAssertEqual(launcher().engineAddress, "http://127.0.0.1:8800")
+        XCTAssertFalse(launcher().engineReady)
+
+        await one.removeEngine()
+        XCTAssertNil(one.engineAddress)
+        XCTAssertNil(defaults.string(forKey: "projectsAddress"))
+        XCTAssertNil(defaults.string(forKey: "projectsTokenFile"))
+        XCTAssertNil(launcher().engineAddress)
+    }
+
+    func testTheRunningAppOffersProjectsOnlyWhileAnEngineIsConnectedAndItsFileIsUsable() async throws {
+        let port = try XCTUnwrap(Launcher.freePort(after: 43000))
+        defaults.set(Int(port), forKey: "port")
+        let one = launcher()
+        one.start()
+        try await wait(for: one) { $0 == .running }
+        let token = try one.token()
+        let route = one.address.appendingPathComponent("v1/projects")
+        func available() async throws -> String { String(decoding: try await get(route, token: token).1, as: UTF8.self) }
+        let before = try await available()
+        XCTAssertEqual(before, #"{"available":false}"#)
+        let asked = try await send(route, token: token, body: #"{"action":"list"}"#)
+        XCTAssertEqual(asked.0, 409, "with no engine nothing is asked of anyone")
+
+        // Port 9 on this Mac answers nothing: the setting is what is under test, not an engine.
+        let file = try accessFile()
+        try await one.use(engine: "http://127.0.0.1:9", tokenFile: file)
+        try await wait(for: one) { $0 == .running }
+        XCTAssertEqual(one.port, port, "PEA restarts at the same address")
+        let connected = try await available()
+        XCTAssertEqual(connected, #"{"available":true}"#)
+        let unanswered = try await send(route, token: token, body: #"{"action":"list"}"#)
+        XCTAssertEqual(unanswered.0, 502, "the request now goes to the engine's address, where nothing answers")
+        XCTAssertFalse(unanswered.1.contains("eeee"))
+        let closed = try await get(route)
+        XCTAssertEqual(closed.0, 401, "the route still needs PEA's own token")
+
+        // Removing the file ends the access at once, with no restart.
+        try FileManager.default.removeItem(atPath: file)
+        let gone = try await available()
+        XCTAssertEqual(gone, #"{"available":false}"#)
+        XCTAssertFalse(one.engineReady)
+
+        await one.removeEngine()
+        try await wait(for: one) { $0 == .running }
+        let after = try await send(route, token: token, body: #"{"action":"list"}"#)
+        XCTAssertEqual(after.0, 409)
+        await one.stop()
+    }
+
     func testItStartsServesStopsAndRestartsOnTheSamePort() async throws {
         let port = try XCTUnwrap(Launcher.freePort(after: 41000))
         defaults.set(Int(port), forKey: "port")

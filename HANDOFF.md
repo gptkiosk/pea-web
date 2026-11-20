@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Project engine setting in the Mac launcher — 2026-11-19
+
+**Branch `feature/mac-engine-setting`, version `0.1.0-rc.4.dev.24`.** The owner asked: "Add the engine setting to the Mac launcher".
+
+- `mac/Sources/PEALauncherCore/Launcher.swift`: `engineAddress`, `engineTokenFile`, `engineReady`; `use(engine:tokenFile:)` checks the address with `ProjectEngine` (the contract's rules) and that the file is usable now, saves the address and the path in the app's preferences (`projectsAddress`, `projectsTokenFile`), and restarts a running gateway on the same port; `removeEngine()`; `start()` passes the engine to `Gateway.Options.projects`. A saved address that no longer passes is ignored; a file that has gone is kept and simply not ready.
+- `mac/Sources/PEAGatewayCore/Projects.swift`: `ProjectEngine.rules(webRoot:)` and `hasCredential(_:)`, so the launcher can check a setting without reading the credential. No rule changed; the contract and both gateways are as they were.
+- `mac/Sources/PEAMac/PEAMacApp.swift`: menu item **Project Engine…** (address, then a file panel, or Disconnect), and the engine's address on the status line.
+- `browser/projects-ui.mjs`: the "no engine" sentence names the Mac menu item.
+- Tests: 2 in `LauncherTests.swift` (bad addresses and unusable files refused with nothing saved and the access never repeated; only address and path remembered; a running app answers `available` true only while connected and the file is usable, restarts on the same port, and answers 409 again after Disconnect). `swift test` runs 17 launcher tests (1 skipped) and 22 gateway tests.
+
+Known gaps: the dialog and file panel are checked by hand only, and I did not launch the app. The page must be reloaded after connecting. The path is kept as plain text, which a sandboxed build would need to replace with a security-scoped bookmark. The contract accepts `https://` to an IP address as a "named host" (its certificate would have to match); unchanged here. No real engine issues the access file yet.
+
 ## Project engine connection, step two: the pages — 2026-11-19
 
 **Branch `feature/projects-pages`, version `0.1.0-rc.4.dev.23`.** The owner asked: "Build the PEA pages for projects against the fake engine". The engine side is described in open documentation pull requests on both engine repositories and is not built, so everything here is proven against stand-ins only.
@@ -33,7 +45,7 @@ Resume: branch from `main`, keep one bounded slice per pull request, stage named
 - `browser/index.html`, `browser/styles.css`: the card, a read-only story lane and the draft form.
 - Tests: `browser/tests/projects.test.mjs` (10) including a check that the page's limits equal `contract.json`; `browser/tests/dom/projects.test.mjs` (7) with `startFakeEngine` in `harness.mjs`, run on both gateways: nothing asked until the card is opened, the engine's credential is not the page's token, hostile story text stays text, nothing from the engine reaches the model, a declined review sends nothing, the draft sent equals the draft reviewed, receipts in Harvest, refusals in PEA's words. Contract assets are now 59.
 
-Known gaps: no real engine has answered any of this; the `status` shape is the one proposed to the engines and must be matched to what they build. The card cannot link to the engine's page because the page is not told the engine's address (that needs a contract change). Progress is read when the owner asks, with no automatic refresh. `get` (a project's brief and plan) is not used by any page. Projects belong to the engine, so the card and its Harvest receipts are the same in every profile; ended-project receipts are rebuilt from the engine each time the card is opened and are not kept in the library or a backup. The Mac launcher still has no setting for the engine, and the installed launchd job is not started with the options, so the owner's own copy shows "No engine".
+Known gaps: no real engine has answered any of this; the `status` shape is the one proposed to the engines and must be matched to what they build. The card cannot link to the engine's page because the page is not told the engine's address (that needs a contract change). Progress is read when the owner asks, with no automatic refresh. `get` (a project's brief and plan) is not used by any page. Projects belong to the engine, so the card and its Harvest receipts are the same in every profile; ended-project receipts are rebuilt from the engine each time the card is opened and are not kept in the library or a backup. The Mac launcher's setting came in the next slice (above). The installed launchd job is not started with the options, so the owner's own copy shows "No engine".
 
 Next action: when an engine has its side, start a gateway with `--projects-url` and `--projects-token-file` against it and compare its real `types`, `list`, `status` and `draft` answers with `projectTypes`, `projectList`, `projectStatus` and `draftAnswer`.
 
