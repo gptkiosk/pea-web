@@ -54,6 +54,7 @@ import {
   trailRows,
   trailSummary,
 } from './activity.mjs';
+import { chatExport, chatExportName } from './chat-export.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -1605,11 +1606,11 @@ live = installConnections({
   },
 
   page: () => research?.current() ?? null,
-  beginReply(surface, text, { sourced = false, steps = null } = {}) {
+  beginReply(surface, text, { sourced = false, steps = null, detail = null } = {}) {
     const reply = addReply(surface, text);
     if (sourced) sourcedReplies.add(reply.id);
     if (steps) {
-      trails.set(reply.id, startTrail(steps, performance.now()));
+      trails.set(reply.id, startTrail(steps, performance.now(), detail));
       // Kept for this tab only, and not without end.
       if (trails.size > 400) trails.delete(trails.keys().next().value);
     }
@@ -1750,7 +1751,17 @@ live = installConnections({
       proposals.set(reply.id, { profile, kind: 'project', draft: drafts[0], title: drafts[0].title });
     endTrail(
       trails.get(reply.id),
-      { complete, stopped, offered: proposals.has(reply.id) },
+      {
+        complete,
+        stopped,
+        offered: proposals.has(reply.id),
+        result: {
+          shown: [...reply.text].length,
+          raw: [...raw].length,
+          corrected: reply.text !== visibleReply(raw),
+          kind: proposals.get(reply.id)?.kind ?? (proposals.has(reply.id) ? 'story' : ''),
+        },
+      },
       performance.now(),
     );
     memory.record(surface);
@@ -2008,6 +2019,50 @@ days = installDays({
   isBusy: live.isBusy,
   notice,
 });
+// Export this chat: a plain text file of the Chat conversation in this profile, made in the
+// browser when the owner asks. With debug detail it also carries what PEA did for each reply.
+// Nothing is sent anywhere; the file goes only where the owner saves it.
+let chatExportURL = '';
+function clearChatExport() {
+  if (chatExportURL) URL.revokeObjectURL(chatExportURL);
+  chatExportURL = '';
+  $('chat-export-download').hidden = true;
+  $('chat-export-download').removeAttribute('href');
+  $('chat-export-note').textContent = '';
+}
+$('menu-export-chat').onclick = () => {
+  $('workspace-menu').open = false;
+  clearChatExport();
+  $('chat-export-debug').checked = false;
+  $('chat-export-dialog').showModal();
+};
+$('chat-export-dialog').addEventListener('close', clearChatExport);
+$('chat-export-debug').onchange = clearChatExport;
+$('chat-export-submit').onclick = () => {
+  clearChatExport();
+  const said = history('chat').filter((m) => !m.preview);
+  if (!said.length) {
+    $('chat-export-note').textContent = 'There is no conversation in Chat to export yet.';
+    return;
+  }
+  const debug = $('chat-export-debug').checked,
+    now = Date.now(),
+    text = chatExport({
+      messages: said,
+      trailFor: (id) => trails.get(id) ?? null,
+      debug,
+      profile,
+      version: $('footer-build').textContent,
+      now,
+    });
+  chatExportURL = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const link = $('chat-export-download');
+  link.href = chatExportURL;
+  link.download = chatExportName(now, debug);
+  link.hidden = false;
+  $('chat-export-note').textContent =
+    `Ready: ${said.length} ${said.length === 1 ? 'message' : 'messages'}${debug ? ', with debug detail' : ''}. The file is plain text and not encrypted.`;
+};
 for (const [id, target] of [
   ['menu-new-chat', 'library-new-chat'],
   ['menu-history', 'library-open'],

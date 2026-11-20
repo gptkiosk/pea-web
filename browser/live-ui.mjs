@@ -608,7 +608,35 @@ export function installConnections(hooks) {
       days: Boolean(days?.context),
       history: Math.max(0, body.messages.length - 2),
     });
-    const reply = hooks.beginReply(surface, text, { sourced: Boolean(page), steps });
+    // For the owner's own debug export: sizes and names only.
+    const detail = {
+      at: Date.now(),
+      surface,
+      profile: who,
+      model: String(model.id),
+      local: Boolean(model.local),
+      messages: body.messages.length,
+      characters: body.messages.reduce((sum, m) => sum + String(m.content ?? '').length, 0),
+      system: String(body.messages[0]?.content ?? '').length,
+      cap: body.max_tokens,
+      guidance: [
+        'stories',
+        'email',
+        'documents',
+        'calendar',
+        ...(shownOwn.length && snapshot ? ['calendar changes'] : []),
+        'navigation',
+        'phone links',
+        ...(surface === 'chat' && localKey() ? ['page reading'] : []),
+        ...(todoText ? ['to-dos'] : []),
+        ...(projectText ? ['projects'] : []),
+        ...(canon?.send.length ? ['her history'] : []),
+        ...(days?.context ? ['her days'] : []),
+        ...(days?.notes ? ['day notes'] : []),
+        ...(surface === 'greenhouse' ? ['greenhouse'] : []),
+      ],
+    };
+    const reply = hooks.beginReply(surface, text, { sourced: Boolean(page), steps, detail });
     onDispatch();
     if (canon) hooks.canonSent?.(canon.send.length);
     try {

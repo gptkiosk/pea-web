@@ -211,3 +211,89 @@ test('a reply cannot add to the list: its own words about work done stay in the 
   assert.match(await page.text('#messages .utterance.assistant .reply'), /Ran 7 commands/);
   await page.close();
 });
+
+test(
+  'Export this chat makes a plain text file in the browser, with what PEA did only when debug detail is asked for',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1400, height: 900 });
+    // The page's own rules do not let it fetch a file it made, so the test keeps the file's
+    // contents as they are handed to the browser.
+    await page.evaluate(
+      `(() => { const make = URL.createObjectURL.bind(URL); URL.createObjectURL = (blob) => { window.__exported = blob; return make(blob); }; })()`,
+    );
+    const prepared = async (debug) => {
+      await page.evaluate(`document.getElementById('menu-export-chat').click()`);
+      await page.waitFor(`document.getElementById('chat-export-dialog').open`, 'the export dialog');
+      // Debug detail is off every time the dialog opens.
+      assert.equal(await page.evaluate(`document.getElementById('chat-export-debug').checked`), false);
+      if (debug) await page.click('#chat-export-debug');
+      await page.click('#chat-export-submit');
+      const result = await page.evaluate(`(async () => {
+        const link = document.getElementById('chat-export-download');
+        return {
+          hidden: link.hidden,
+          name: link.getAttribute('download'),
+          href: (link.getAttribute('href') ?? '').slice(0, 5),
+          text: link.hidden ? '' : await window.__exported.text(),
+          note: document.getElementById('chat-export-note').textContent,
+        };
+      })()`);
+      await page.evaluate(`document.getElementById('chat-export-dialog').close()`);
+      return result;
+    };
+
+    // Nothing to export yet: no file is made.
+    const empty = await prepared(false);
+    assert.equal(empty.hidden, true);
+    assert.equal(empty.note, 'There is no conversation in Chat to export yet.');
+
+    await askModel(stack, page, 'Hello there.');
+    const asked = stack.model.requests.length;
+    const plain = await prepared(false);
+    assert.equal(plain.hidden, false);
+    assert.equal(plain.href, 'blob:');
+    assert.match(plain.name, /^pea-chat-\d{4}-\d\d-\d\d\.txt$/);
+    assert.match(plain.note, /^Ready: 2 messages\. The file is plain text and not encrypted\.$/);
+    assert.match(plain.text, /^PEA chat export\n/);
+    assert.match(plain.text, /^Debug detail: not included$/m);
+    assert.match(plain.text, /YOU · \d{4}-[\dT:.-]+Z\n\nHello there\.\n/);
+    assert.match(plain.text, /PEA · \d{4}-[\dT:.-]+Z\n\nA plain synthetic reply\.\n/);
+    assert.ok(!/What PEA did|Model id/.test(plain.text));
+
+    const debug = await prepared(true);
+    assert.match(debug.name, /^pea-chat-\d{4}-\d\d-\d\d-debug\.txt$/);
+    assert.match(debug.note, /^Ready: 2 messages, with debug detail\./);
+    assert.match(debug.text, /^Debug detail: included$/m);
+    assert.match(debug.text, /  What PEA did · 4 steps · /);
+    assert.match(debug.text, /  - You reviewed what is shared\n  - Sent to .+ on your own server\n/);
+    assert.match(
+      debug.text,
+      /  - Workspace: chat · profile: personal\n  - Model id: local:synthetic-model · the owner’s own server\n/,
+    );
+    assert.match(
+      debug.text,
+      /  - Request: 2 messages, \d+ characters in all, of which \d+ are PEA’s instructions and shared context · reply cap \d+ tokens\n/,
+    );
+    assert.match(
+      debug.text,
+      /  - Instructions included: stories, email, documents, calendar, navigation, phone links, page reading/,
+    );
+    assert.match(
+      debug.text,
+      /  - First words after: \d+ ms\n  - Ended after: \d+ ms\n  - Outcome: finished\n/,
+    );
+    assert.match(
+      debug.text,
+      /  - Reply: 24 characters shown, 24 characters received\n  - PEA added its own correction to the reply: no\n  - Offered for review: nothing\n/,
+    );
+    // The connection token and the instructions' own words are not in the file.
+    assert.ok(!debug.text.includes(stack.gateway.token));
+    assert.ok(!/Never say or imply that you are human/.test(debug.text));
+    // Closing the dialog withdraws the file, and exporting asked no model and no other site anything.
+    await page.waitFor(`document.getElementById('chat-export-download').hidden`, 'the file to be withdrawn');
+    assert.equal(stack.model.requests.length, asked);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);

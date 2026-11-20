@@ -76,10 +76,32 @@ export function contextSteps(sent = {}) {
   return steps;
 }
 
+// More about one request, for the owner's own debug export: sizes, names and switches, never the
+// words that were shared.
+function cleanDetail(detail) {
+  if (!detail || typeof detail !== 'object') return null;
+  return {
+    at: Number.isFinite(detail.at) ? detail.at : null,
+    surface: line(detail.surface, 20),
+    profile: line(detail.profile, 20),
+    model: line(detail.model, 120),
+    local: detail.local === true,
+    messages: count(detail.messages),
+    characters: count(detail.characters),
+    system: count(detail.system),
+    cap: count(detail.cap),
+    guidance: (Array.isArray(detail.guidance) ? detail.guidance : [])
+      .filter((g) => typeof g === 'string' && /^[a-z][a-z -]{0,29}$/.test(g))
+      .slice(0, 20),
+  };
+}
+
 // A trail starts when the request leaves.
-export function startTrail(steps, now) {
+export function startTrail(steps, now, detail = null) {
   return {
     steps: Array.isArray(steps) ? steps.slice(0, 20) : [],
+    detail: cleanDetail(detail),
+    result: null,
     sentAt: now,
     firstAt: null,
     endAt: null,
@@ -92,11 +114,18 @@ export function firstWords(trail, now) {
 }
 // How the request ended: 'done', 'stopped' by the owner, or 'failed'. `offered` says the reply
 // carries something for the owner to review.
-export function endTrail(trail, { complete, stopped = false, offered = false }, now) {
+export function endTrail(trail, { complete, stopped = false, offered = false, result = null }, now) {
   if (!trail || trail.endAt !== null) return;
   trail.endAt = now;
   trail.outcome = complete ? 'done' : stopped ? 'stopped' : 'failed';
   trail.offered = Boolean(complete && offered);
+  if (result && typeof result === 'object')
+    trail.result = {
+      shown: count(result.shown),
+      raw: count(result.raw),
+      corrected: result.corrected === true,
+      kind: line(result.kind, 30),
+    };
 }
 export const trailActive = (trail) => trail.endAt === null;
 
@@ -125,4 +154,43 @@ export function trailSummary(trail) {
   if (trail.outcome === 'stopped') return `What PEA did · ${steps} · stopped after ${time}`;
   if (trail.outcome === 'failed') return `What PEA did · ${steps} · did not finish`;
   return `What PEA did · ${steps} · ${time}`;
+}
+
+// The fuller record of one request, for a debug export the owner asks for. Exact times and sizes,
+// the model's id and which instructions went with it. No shared words, keys or addresses.
+export function trailDebug(trail) {
+  const ms = (n) => `${Math.max(0, Math.round(n))} ms`,
+    d = trail.detail,
+    r = trail.result,
+    lines = [];
+  if (d) {
+    if (d.at !== null) lines.push(`Sent at: ${new Date(d.at).toISOString()}`);
+    if (d.surface || d.profile)
+      lines.push(`Workspace: ${d.surface || 'not recorded'} · profile: ${d.profile || 'not recorded'}`);
+    lines.push(
+      `Model id: ${d.model || 'not recorded'} · ${d.local ? 'the owner’s own server' : 'OpenRouter'}`,
+    );
+    lines.push(
+      `Request: ${some(d.messages, 'message', 'messages')}, ${d.characters} characters in all, of which ${d.system} are PEA’s instructions and shared context · reply cap ${d.cap} tokens`,
+    );
+    lines.push(`Instructions included: ${d.guidance.length ? d.guidance.join(', ') : 'none recorded'}`);
+  } else lines.push('Request details: not recorded');
+  lines.push(
+    trail.firstAt === null
+      ? 'First words: none arrived'
+      : `First words after: ${ms(trail.firstAt - trail.sentAt)}`,
+  );
+  if (trail.endAt === null) lines.push('Outcome: still in progress when exported');
+  else {
+    lines.push(`Ended after: ${ms(trail.endAt - trail.sentAt)}`);
+    lines.push(
+      `Outcome: ${{ done: 'finished', stopped: 'stopped by the owner', failed: 'did not finish; no retry and no other model' }[trail.outcome]}`,
+    );
+  }
+  if (r) {
+    lines.push(`Reply: ${r.shown} characters shown, ${r.raw} characters received`);
+    lines.push(`PEA added its own correction to the reply: ${r.corrected ? 'yes' : 'no'}`);
+    lines.push(`Offered for review: ${r.kind || 'nothing'}`);
+  }
+  return lines;
 }
