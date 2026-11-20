@@ -535,6 +535,9 @@ export function installConnections(hooks) {
     // under the owner's sharing setting for this profile.
     const todoText = hooks.todoGuidance?.(s.shareTodos) ?? '';
     if (todoText) body.messages[0].content += '\n' + todoText;
+    // Offered only where this server's operator connected a project engine.
+    const projectText = hooks.projectGuidance?.() ?? '';
+    if (projectText) body.messages[0].content += '\n' + projectText;
     if (surface === 'greenhouse')
       body.messages[0].content +=
         '\nThis is Greenhouse collaboration. Critique, iterate and build with the same approved persona/context. For source files emit fenced blocks with file:relative/path as the fence label. Suggest [PEA_MODEL:coding], [PEA_MODEL:image] or [PEA_MODEL:collaboration] when useful; you cannot grant permissions or claim to have saved, run or published anything.';
@@ -1592,6 +1595,7 @@ export function installConnections(hooks) {
     speak: (key, request, signal) => local.speak(key, request, signal),
     update: (key, body) => local.update(key, body),
     macReminders: (key, list) => local.reminders(key, list),
+    projects: (key, body) => local.projects(key, body),
     model(surface, role) {
       const s = state();
       if (!s.key && !s.localKey) return null;

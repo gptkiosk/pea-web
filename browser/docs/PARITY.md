@@ -75,6 +75,10 @@ Gmail drafts through the API, Sheets documents from a model, resume import, food
 
 The browser is not yet feature-complete against native. A public release must label these gaps rather than present source checks as full parity. No developer-host relay, Open WebUI owner login, bundled provider key, membership-token workaround or customer runtime data is required. Background/locked-screen browser microphone reliability is not promised.
 
+## Projects from the owner's project engine
+
+Browser-only, with no iPhone equivalent. Where the gateway's operator connected a project engine (see Self-hosting), Today has a Projects card: the engine's projects, one project's stories with state, agent, model, run time and cost, and a form that leaves a draft after a review. A model may suggest a draft, which only fills the form. PEA cannot plan, approve, start or pay for a project, and no model sees what the engine answers. It is tested against a stand-in engine only; no real engine has answered it.
+
 ## Workspace navigation
 
 On a screen at least 1,100 pixels wide the owner can show two of Chat, Today and Greenhouse side by side, resize them and swap or close either. Each profile keeps its own arrangement in this browser. This is a browser-only layout choice with no iPhone equivalent: it shows and sizes the existing workspaces and cannot open a file, approve a review or grant access. Every review behaves the same in one pane or two. The layout is stored on this browser as workspace names and a width. Going to a workspace that is already on screen focuses it; otherwise it replaces the focused pane. Reading a reply aloud still stops when focus moves to the other pane.

@@ -46,7 +46,7 @@ The gateway has no conversation database or request-content logging. Your upstre
 
 ## Project engine (MCD or RCD), optional
 
-A gateway can be connected to your own project engine, Mac Control Dashboard or its Raspberry Pi counterpart. This is groundwork: no page in PEA uses it yet, and an engine needs its matching side before it answers. Start the gateway with both options, or neither:
+A gateway can be connected to your own project engine, Mac Control Dashboard or its Raspberry Pi counterpart. With it, the Projects card on Today lists the engine's projects, shows a project's stories with their agent, model, time and cost, and can leave a reviewed draft. An engine needs its matching side before it answers; until then the card says there is no engine or that the request was not accepted. Start the gateway with both options, or neither:
 
 ```sh
 python3 browser/server/gateway.py --token-file "$HOME/.config/pea/connection-token" \

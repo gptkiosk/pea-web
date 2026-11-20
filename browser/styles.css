@@ -4357,3 +4357,70 @@ html:not([data-theme="dark"]) .copy-box pre .tok-keyword {
   flex-basis: 100%;
   text-align: right;
 }
+/* Projects on Today: the owner's project engine, read-only, and a draft form. */
+.project-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: grid;
+  gap: 6px;
+}
+.project-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.project-list li button {
+  flex: 1 1 14rem;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.project-list li button[aria-pressed="true"] {
+  font-weight: 700;
+}
+.project-lane {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+.project-story {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.project-story .pill {
+  min-height: 0;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.project-story small {
+  color: var(--sub);
+}
+.project-story .project-waiting {
+  color: var(--green);
+  font-weight: 600;
+}
+.project-draft {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 4px;
+}
+.project-draft input,
+.project-draft textarea,
+.project-draft select {
+  width: 100%;
+}
+#projects-note[data-level="warn"] {
+  font-weight: 600;
+}

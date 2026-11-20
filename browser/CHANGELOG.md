@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.23] - 2026-11-19
+
+### Added
+
+- **Projects on Today, for a PEA connected to your project engine (MCD or RCD).** Built and tested against a stand-in engine: neither engine answers PEA yet, so on your own copy the card says there is no engine until the engine side exists and the gateway is started with its address.
+  - **Watch.** Opening the card lists the engine's projects. Choosing one shows its stories as read-only cards with the state, agent, model, run time and cost of each, a line of totals, and "Waiting for you in the engine" where a story needs your decision there. A cost the engine does not report is shown as not known, a subscription run as "on a subscription", and nothing is estimated. Nothing is asked of the engine until you open the card or press Refresh.
+  - **Draft.** A form with the engine's templates, a title, what the project is for, and optional limits. "Review the draft…" shows exactly what will be sent; approving leaves a draft in the engine and starts nothing. Planning, approval, spending and every run stay in the engine's own pages.
+  - **From chat.** Where an engine is connected, PEA may suggest a project. "Review project: …" only fills the form on Today; you choose the template, read the review and send it. A model cannot choose the template, start anything or see progress. If a reply claims to have created or started a project, the app adds that it did not.
+  - **Harvest.** A suggestion waits in Harvest like any other; once you send the draft, its receipt stays there with "Show projects". A project the engine says has ended is listed in Harvest with its stories, time and cost once you have looked at it.
+  - What the engine answers is shown as plain text, cut to size, and is never given to your model. A refusal is told in PEA's words; the engine's own error text is not shown.
+
 ## [0.1.0-rc.4.dev.22] - 2026-11-19
 
 ### Added

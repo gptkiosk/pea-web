@@ -40,6 +40,8 @@
     "preferences.mjs",
     "presence.mjs",
     "profile-transfer.mjs",
+    "projects-ui.mjs",
+    "projects.mjs",
     "release-ui.mjs",
     "release.json",
     "releases.mjs",
