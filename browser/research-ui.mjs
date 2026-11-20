@@ -3,13 +3,17 @@
 // the model-sharing review of the next message. Nothing here is saved, and nothing is read unasked.
 import { ServiceError, containsCredential } from './connections.mjs';
 import { describeRead, pageAddress, pageText, researchLimits } from './research.mjs';
+import { beginWork, endWork, workStep, workWaiting } from './activity.mjs';
+import { showWork } from './activity-ui.mjs';
 
 const $ = (id) => document.getElementById(id);
 
 export function installResearch(hooks) {
   // The one page being shared, if any: { profile, url, host, title, text, length }.
   let page = null,
-    reading = false;
+    reading = false,
+    // What PEA did for the latest read in this tab: { profile, trail }. Shown over the page card.
+    work = null;
 
   function render() {
     const shown = page && page.profile === hooks.profile() ? page : null;
@@ -19,10 +23,12 @@ export function installResearch(hooks) {
       ? `${shown.url}\n${shown.text.length.toLocaleString('en-US')} of ${shown.length.toLocaleString('en-US')} characters kept, as plain words. This is everything a model would be given, and only after you review your next message. It is not saved with your chats.`
       : '';
     $('context-page-text').textContent = shown ? shown.text : '';
+    showWork($('page-activity'), work && work.profile === hooks.profile() ? work.trail : null);
   }
   function clear() {
-    if (!page) return;
+    if (!page && !work) return;
     page = null;
+    work = null;
     render();
   }
   $('context-page-clear').onclick = () => {
@@ -48,6 +54,11 @@ export function installResearch(hooks) {
       return false;
     }
     reading = true;
+    let trail = null;
+    const finish = (outcome, icon, text) => {
+      endWork(trail, outcome, icon, text, performance.now());
+      render();
+    };
     try {
       let next = address,
         moved = null;
@@ -56,14 +67,44 @@ export function installResearch(hooks) {
           moved ? 'This page has moved. Read the new address?' : 'Read this public web page?',
           describeRead(next, { profile: who, from: moved ? 'site' : from, moved, feed }),
         );
-        if (!approved) return false;
+        if (!approved) {
+          finish('stopped', 'stop', 'You did not approve the new address. Nothing was read.');
+          return false;
+        }
         if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the page again.');
         const asked = next;
+        // The list starts at the first approval. Every line names something that has happened.
+        if (!trail) {
+          trail = beginWork(performance.now());
+          work = { profile: who, trail };
+          workStep(
+            trail,
+            'shield',
+            `You approved reading ${asked.host}` +
+              (from === 'model'
+                ? ', which PEA’s reply suggested'
+                : from === 'feed'
+                  ? ', from your headlines'
+                  : ''),
+          );
+        } else workStep(trail, 'shield', `You approved the new address at ${asked.host}`);
+        workWaiting(trail, 'Your PEA server is reading the page…');
+        render();
         // `run` reports a failure to the owner itself and then gives back nothing.
         const answer = await hooks.run(() => hooks.read(hooks.key(), asked.url));
-        if (!answer) return false;
+        if (!answer) {
+          finish(
+            'failed',
+            'warn',
+            'The page could not be read. Nothing was kept, and PEA did not try again.',
+          );
+          return false;
+        }
         if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the page again.');
+        workWaiting(trail, '');
         if (answer.outcome === 'redirect') {
+          workStep(trail, 'globe', `${asked.host} answered that the page has moved`);
+          render();
           next = pageAddress(answer.location);
           if (!next || hop + 1 >= researchLimits.hops)
             throw new ServiceError(
@@ -84,14 +125,21 @@ export function installResearch(hooks) {
             'That page shows something that looks like a password or key, so PEA did not keep it.',
           );
         page = { profile: who, url: asked.url, host: asked.host, ...kept };
-        render();
+        workStep(trail, 'globe', `Your PEA server read the page at ${asked.host}`);
+        finish(
+          'done',
+          'file',
+          `Kept ${kept.text.length.toLocaleString('en-US')} of ${kept.length.toLocaleString('en-US')} characters as plain words, in this tab only`,
+        );
         hooks.notice(
           `Page read. ${kept.text.length.toLocaleString('en-US')} characters are kept in this tab; your model sees them only after you review your next message.`,
         );
         return true;
       }
     } catch (error) {
-      hooks.notice(error instanceof ServiceError ? error.message : 'The page could not be read.');
+      const said = error instanceof ServiceError ? error.message : 'The page could not be read.';
+      finish('failed', 'warn', said);
+      hooks.notice(said);
       return false;
     } finally {
       reading = false;

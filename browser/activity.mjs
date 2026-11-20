@@ -147,14 +147,45 @@ export function trailRows(trail) {
   return rows;
 }
 // The one line shown over the rows, and all that shows once a finished trail is folded away.
-export function trailSummary(trail) {
-  const steps = some(trailRows(trail).filter((r) => r.state !== 'active').length, 'step', 'steps');
-  if (trail.endAt === null) return 'What PEA is doing';
-  const time = took(trail.endAt - trail.sentAt);
-  if (trail.outcome === 'stopped') return `What PEA did · ${steps} · stopped after ${time}`;
-  if (trail.outcome === 'failed') return `What PEA did · ${steps} · did not finish`;
+function summaryOf(rows, record) {
+  const steps = some(rows.filter((r) => r.state !== 'active').length, 'step', 'steps');
+  if (record.endAt === null) return 'What PEA is doing';
+  const time = took(record.endAt - record.sentAt);
+  if (record.outcome === 'stopped') return `What PEA did · ${steps} · stopped after ${time}`;
+  if (record.outcome === 'failed') return `What PEA did · ${steps} · did not finish`;
   return `What PEA did · ${steps} · ${time}`;
 }
+export const trailSummary = (trail) => summaryOf(trailRows(trail), trail);
+
+// Other work PEA does when the owner approves it: reading a page, making a picture, writing a
+// document. The same kind of list, built one step at a time by the code doing the work. A step
+// is added only after the thing it names has happened.
+export function beginWork(now) {
+  return { steps: [], waiting: '', sentAt: now, endAt: null, outcome: null };
+}
+export function workStep(work, icon, text) {
+  if (!work || work.endAt !== null || work.steps.length >= 20) return;
+  work.steps.push({ icon, text: line(text, 200), state: 'done' });
+}
+// What PEA is waiting on right now, shown as the turning last line. Empty for nothing.
+export function workWaiting(work, text) {
+  if (work && work.endAt === null) work.waiting = line(text, 200);
+}
+// Ends the work with one last line: 'done', 'stopped' or 'failed'. It ends once.
+export function endWork(work, outcome, icon, text, now) {
+  if (!work || work.endAt !== null) return;
+  work.waiting = '';
+  work.endAt = now;
+  work.outcome = outcome === 'done' || outcome === 'stopped' ? outcome : 'failed';
+  work.steps.push({ icon, text: line(text, 200), state: work.outcome === 'done' ? 'done' : 'problem' });
+}
+export const workActive = (work) => work.endAt === null;
+export function workRows(work) {
+  const rows = work.steps.map((s) => ({ icon: s.icon, text: s.text, state: s.state }));
+  if (work.endAt === null && work.waiting) rows.push({ icon: 'clock', text: work.waiting, state: 'active' });
+  return rows;
+}
+export const workSummary = (work) => summaryOf(workRows(work), work);
 
 // The fuller record of one request, for a debug export the owner asks for. Exact times and sizes,
 // the model's id and which instructions went with it. No shared words, keys or addresses.

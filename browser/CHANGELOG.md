@@ -2,6 +2,21 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.27] - 2026-11-20
+
+### Added
+
+- **The list of what PEA did, for page reading, pictures and documents.** The same list with icons that sits over each reply now appears for three more kinds of work, starting when you approve the review:
+  - **Reading a web page:** over the page card in Chat. Your approval, a page that has moved and your approval of the new address, the read by your PEA server, and how many characters were kept.
+  - **Pictures:** over the picture in Greenhouse. The price check against your ceiling, your review of the prompt and price, the provider it was sent to, and the picture that arrived with its type and size.
+  - **Documents:** under the reply that proposed the document. Your review, then either the file prepared in your browser, or the document created or replaced in your PEA folder and the folder list read again.
+- The last line turns while PEA waits. A list folds to one line when the work is done and stays open when it was stopped or did not finish, with a line saying so. A site's or provider's own error words are never shown in it.
+- A debug chat export also carries the document list under the reply that proposed it.
+
+### Changed
+
+- The list over a reply now stays open when the request was stopped or did not finish, so the reason is in view.
+
 ## [0.1.0-rc.4.dev.26] - 2026-11-20
 
 ### Added

@@ -12,7 +12,8 @@ import { readGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
 import { canonContext } from './canon.mjs';
 import { noteGuidance } from './days.mjs';
-import { contextSteps } from './activity.mjs';
+import { beginWork, contextSteps, endWork, workStep, workWaiting } from './activity.mjs';
+import { showWork } from './activity-ui.mjs';
 import {
   Services,
   ServiceError,
@@ -44,6 +45,8 @@ export function installConnections(hooks) {
   let operationActive = false,
     controller = null,
     currentAttachment = null,
+    // What PEA did for the latest picture in this tab: { profile, trail }.
+    pictureWork = null,
     nonce = 0,
     draftForm = false,
     imageCatalog = [],
@@ -279,7 +282,8 @@ export function installConnections(hooks) {
   }
   // Shows the owner the whole document, then creates it, replaces it or prepares it as a file.
   // Returns what actually happened, or null if the owner cancelled.
-  async function writeDocument(request) {
+  // `onWork(work)` is told each time the list of what PEA did for this document changes.
+  async function writeDocument(request, onWork = () => {}) {
     const s = state(),
       who = p(),
       draft = request.draft,
@@ -293,6 +297,16 @@ export function installConnections(hooks) {
       if (!ok) return null;
       if (who !== p()) throw new ServiceError('Profile changed. Review the document again.');
       s.currentDoc = { file: null, draft };
+      const made = beginWork(performance.now());
+      workStep(made, 'shield', `You reviewed the document “${draft.title}”`);
+      endWork(
+        made,
+        'done',
+        'file',
+        'Prepared it as a file in this browser. Nothing was created in Google or sent to anyone.',
+        performance.now(),
+      );
+      onWork(made);
       return { status: 'file', html, title: draft.title };
     }
     const g = googleSession(),
@@ -303,13 +317,53 @@ export function installConnections(hooks) {
     );
     if (!ok) return null;
     if (who !== p()) throw new ServiceError('Profile changed. Review the document again.');
+    const work = beginWork(performance.now());
+    workStep(work, 'shield', `You reviewed the document “${draft.title}”`);
     return run(async () => {
       busy(true);
-      const file = replacing
-        ? await service.replaceDocument(s.currentDoc.file, html, s.workspace, g.token)
-        : await service.createRichDocument(draft.title, html, s.workspace, g.token);
-      if (who === p()) s.currentDoc = { file, draft };
-      await refresh();
+      let wrote = false;
+      try {
+        workWaiting(
+          work,
+          replacing ? 'Google Docs is replacing the text…' : 'Google Docs is creating the document…',
+        );
+        onWork(work);
+        const file = replacing
+          ? await service.replaceDocument(s.currentDoc.file, html, s.workspace, g.token)
+          : await service.createRichDocument(draft.title, html, s.workspace, g.token);
+        wrote = true;
+        if (who === p()) s.currentDoc = { file, draft };
+        workStep(
+          work,
+          'file',
+          replacing
+            ? `Replaced the text of “${draft.title}” in your PEA folder`
+            : `Created “${draft.title}” in your PEA folder`,
+        );
+        workWaiting(work, 'Reading your PEA folder list again…');
+        onWork(work);
+        await refresh();
+        endWork(
+          work,
+          'done',
+          'check',
+          'Your PEA folder list is up to date. Nothing was shared or sent to anyone.',
+          performance.now(),
+        );
+        onWork(work);
+      } catch (error) {
+        endWork(
+          work,
+          'failed',
+          'warn',
+          wrote
+            ? 'The document was written, but your PEA folder list could not be read again.'
+            : 'The document was not written. PEA did not try again.',
+          performance.now(),
+        );
+        onWork(work);
+        throw error;
+      }
       return { status: replacing ? 'replaced' : 'created', title: draft.title };
     });
   }
@@ -1047,39 +1101,95 @@ export function installConnections(hooks) {
     busy(true);
     controller = new AbortController();
     onDispatch();
-    const result = await service.call('router', '/api/v1/images', {
-      token: s.key,
-      method: 'POST',
-      body: {
-        model: s.image,
-        prompt,
-        n: 1,
-        stream: false,
-        provider: {
-          only: [endpoint.provider_tag],
-          allow_fallbacks: false,
-          data_collection: s.allowData ? 'allow' : 'deny',
-          sort: 'latency',
-          max_price: { image: max },
+    // What PEA did for this picture, shown over it. Every line names something that has happened.
+    const work = beginWork(performance.now());
+    pictureWork = { profile: who, trail: work };
+    const drawPicture = () =>
+      showWork($('generated-activity'), pictureWork?.profile === p() ? pictureWork.trail : null);
+    workStep(
+      work,
+      'list',
+      `Checked prices for ${s.image}: ${endpoints.length} ${endpoints.length === 1 ? 'provider fits' : 'providers fit'} your $${max} ceiling`,
+    );
+    workStep(
+      work,
+      'shield',
+      `You reviewed the exact prompt and the price, $${endpoint.pricing[0].cost_usd} for one picture`,
+    );
+    workStep(work, 'send', `Sent the prompt to ${endpoint.provider_tag} through OpenRouter`);
+    workWaiting(work, 'Waiting for the picture…');
+    drawPicture();
+    const pictureEnded = (outcome, icon, text) => {
+      endWork(work, outcome, icon, text, performance.now());
+      drawPicture();
+    };
+    let result;
+    try {
+      result = await requestPicture();
+    } catch (error) {
+      if (error?.name === 'AbortError')
+        pictureEnded(
+          'stopped',
+          'stop',
+          'Stopped before a picture arrived. A charge may already have been made.',
+        );
+      else
+        pictureEnded(
+          'failed',
+          'warn',
+          'The request did not finish. PEA did not retry or use another provider or model.',
+        );
+      throw error;
+    }
+    async function requestPicture() {
+      return service.call('router', '/api/v1/images', {
+        token: s.key,
+        method: 'POST',
+        body: {
+          model: s.image,
+          prompt,
+          n: 1,
+          stream: false,
+          provider: {
+            only: [endpoint.provider_tag],
+            allow_fallbacks: false,
+            data_collection: s.allowData ? 'allow' : 'deny',
+            sort: 'latency',
+            max_price: { image: max },
+          },
         },
-      },
-      max: 16000000,
-      signal: controller.signal,
-    });
+        max: 16000000,
+        signal: controller.signal,
+      });
+    }
     const output = result.data?.[0];
     if (
       result.data?.length !== 1 ||
       !['image/png', 'image/jpeg', 'image/webp'].includes(output?.media_type) ||
       typeof output.b64_json !== 'string' ||
       output.b64_json.length > 12000000
-    )
+    ) {
+      pictureEnded('failed', 'warn', 'The answer was not one picture PEA accepts. Nothing was opened.');
       throw new ServiceError('Unexpected image result; nothing was opened.');
-    const bytes = Uint8Array.from(atob(output.b64_json), (c) => c.charCodeAt(0)),
-      url = URL.createObjectURL(new Blob([bytes], { type: output.media_type }));
+    }
+    let bytes;
+    try {
+      bytes = Uint8Array.from(atob(output.b64_json), (c) => c.charCodeAt(0));
+    } catch {
+      pictureEnded('failed', 'warn', 'The answer was not one picture PEA accepts. Nothing was opened.');
+      throw new ServiceError('Unexpected image result; nothing was opened.');
+    }
+    const url = URL.createObjectURL(new Blob([bytes], { type: output.media_type }));
     if (who !== p()) {
       URL.revokeObjectURL(url);
+      pictureEnded('stopped', 'stop', 'The profile changed, so the picture was discarded.');
       return;
     }
+    pictureEnded(
+      'done',
+      'check',
+      `A picture arrived (${output.media_type}, ${Math.max(1, Math.round(bytes.length / 1024)).toLocaleString('en-US')} KB). It is kept in this tab only.`,
+    );
     if (generatedURL) URL.revokeObjectURL(generatedURL);
     generatedURL = url;
     const img = document.createElement('img');
@@ -1675,6 +1785,8 @@ export function installConnections(hooks) {
       currentAttachment = null;
       selectedCleanup.clear();
       $('generated-output').replaceChildren();
+      pictureWork = null;
+      showWork($('generated-activity'), null);
       $('connection-note').textContent = '';
       $('role-suggestion').hidden = true;
       $('router-key').value = '';
