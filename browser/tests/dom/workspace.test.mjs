@@ -183,6 +183,7 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
         moved, tall: document.documentElement.scrollHeight - innerHeight,
         brand: box('.rail .brand'), chips: box('.rail nav'), status: box('.setup-strip'), controls: box('main > header'),
         panes: box('#panes'), footer: box('.release-footer'), height: innerHeight,
+        first: box('#tab-chat'), last: box('#tab-harvest'), width: innerWidth,
         inside: open.every((p) => { const r = p.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }),
         title: getComputedStyle(document.getElementById('page-title').parentElement).display,
       };
@@ -193,14 +194,18 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     const f = await frame();
     assert.equal(f.moved, 0, tab + ': the page does not scroll');
     assert.ok(f.tall <= 1, tab + ': nothing reaches below the window');
-    // One bar: brand, chips, status and controls share a row, left to right.
-    assert.ok(f.panes.top <= 72, tab + ': the bar is slim');
+    // Brand, status and controls share the bar; the chips have the row under it, in the middle.
+    assert.ok(f.panes.top <= 108, tab + ': the bar and the chip row are slim');
     for (const part of [f.brand, f.chips, f.status, f.controls])
       assert.ok(part.top >= 0 && part.bottom <= f.panes.top + 1, tab + ': a part of the bar is inside it');
+    assert.ok(f.brand.right <= f.status.left + 1 && f.status.right <= f.controls.left + 1);
     assert.ok(
-      f.brand.right <= f.chips.left &&
-        f.chips.right <= f.status.left + 1 &&
-        f.status.right <= f.controls.left + 1,
+      f.first.top >= Math.max(f.brand.bottom, f.status.bottom, f.controls.bottom) - 8,
+      tab + ': the chips sit a level below the bar',
+    );
+    assert.ok(
+      Math.abs((f.first.left + f.last.right) / 2 - f.width / 2) <= 2,
+      tab + ': the chips are centred in the window',
     );
     assert.ok(
       f.footer.bottom <= f.height + 1 && f.footer.top >= f.panes.bottom - 1,
@@ -260,16 +265,18 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     'dashed',
   );
 
-  // A desktop window under 1500 wide puts the status under the chips; it is still a fixed window.
+  // A smaller desktop window keeps the same two levels and is still a fixed window: the status
+  // gives up width before anything leaves the bar.
   await page.setViewport(1024, 768);
-  await page.waitFor(
-    `document.querySelector('.setup-strip').getBoundingClientRect().top > 40`,
-    'the second row',
-  );
+  await page.waitFor(`innerWidth === 1024`, 'the smaller window');
   const narrow = await frame();
   assert.equal(narrow.moved, 0);
-  assert.ok(narrow.panes.top <= 130);
-  assert.ok(narrow.status.top >= narrow.chips.bottom - 8, 'the status is on its own row');
+  assert.ok(narrow.tall <= 1);
+  assert.ok(narrow.panes.top <= 108);
+  assert.ok(narrow.brand.right <= narrow.status.left + 1 && narrow.status.right <= narrow.controls.left + 1);
+  assert.ok(narrow.controls.right <= narrow.width, 'the controls are inside the window');
+  assert.ok(narrow.first.top >= narrow.status.bottom - 8, 'the chips are on their own row');
+  assert.ok(Math.abs((narrow.first.left + narrow.last.right) / 2 - narrow.width / 2) <= 2);
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });
@@ -402,6 +409,14 @@ test(
         count: count.hidden ? '' : count.textContent,
         chip: document.getElementById('tab-harvest').getAttribute('aria-label'),
         hint: document.getElementById('tab-harvest').title,
+        peek: (() => {
+          const chip = document.getElementById('tab-harvest');
+          chip.dispatchEvent(new PointerEvent('pointerenter'));
+          const card = document.getElementById('chip-peek');
+          const lines = card.hidden ? [] : [...card.querySelectorAll('p')].map((p) => p.textContent);
+          chip.dispatchEvent(new PointerEvent('pointerleave'));
+          return lines;
+        })(),
       };
     })()`);
     assert.deepEqual(await harvest(), {
@@ -411,6 +426,7 @@ test(
       count: '',
       chip: 'Harvest',
       hint: '',
+      peek: ['Nothing gathered yet.'],
     });
 
     // A plain reply gathers nothing; a proposal is counted on the chip while Harvest is tucked up.
@@ -421,7 +437,8 @@ test(
     assert.deepEqual(now.waiting, ['From Chat | Review story: Synthetic story']);
     assert.equal(now.count, '1');
     assert.equal(now.chip, 'Harvest, 1 waiting for your review');
-    assert.match(now.hint, /Waiting for your review: Review story: Synthetic story/);
+    assert.equal(now.hint, '', 'the peek panel says it, not a tooltip');
+    assert.deepEqual(now.peek, ['1 waiting for your review:', 'Review story: Synthetic story']);
     assert.equal(await page.evaluate(`document.getElementById('harvest').hidden`), true);
     assert.equal(
       await page.evaluate(
@@ -447,6 +464,7 @@ test(
     await page.click('#review-cancel');
     await page.waitFor(`!document.getElementById('review').open`);
     assert.equal((await harvest()).count, '1', 'cancel leaves it waiting');
+    assert.deepEqual((await harvest()).peek, [], 'a workspace that is open has no peek');
 
     await page.evaluate(`document.querySelector('#harvest-waiting button').click()`);
     await page.waitFor(`document.getElementById('review').open`, 'the review again');
@@ -461,6 +479,97 @@ test(
     await page.fill('#profile', 'work');
     await page.waitFor(`document.getElementById('profile').value === 'work'`);
     assert.deepEqual((await harvest()).waiting, []);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);
+
+test(
+  'a tucked chip shows a peek of its workspace, in words only, and an open one shows none',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1680, height: 900 });
+    const point = (name, kind) =>
+      page.evaluate(`document.getElementById('tab-${name}').dispatchEvent(new PointerEvent('${kind}'))`);
+    const peek = () =>
+      page.evaluate(`(() => {
+        const card = document.getElementById('chip-peek');
+        if (card.hidden) return null;
+        const r = card.getBoundingClientRect();
+        const chip = document.querySelector('[aria-describedby="chip-peek"]');
+        const c = chip.getBoundingClientRect();
+        return {
+          title: card.querySelector('strong').textContent,
+          lines: [...card.querySelectorAll('p')].map((p) => p.textContent),
+          hint: card.querySelector('small').textContent,
+          role: card.getAttribute('role'),
+          chip: chip.id,
+          under: r.top >= c.bottom && r.top <= c.bottom + 16,
+          centred: Math.abs(r.left + r.width / 2 - (c.left + c.width / 2)) <= 2,
+          inside: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+          pressable: card.querySelectorAll('button, a, input, [tabindex]').length,
+          clicks: getComputedStyle(card).pointerEvents,
+        };
+      })()`);
+    assert.equal(await peek(), null, 'nothing shows until a chip is pointed at');
+
+    // Chat is open, so its chip has no peek; Today is tucked up and says what it holds.
+    await point('chat', 'pointerenter');
+    assert.equal(await peek(), null);
+    await point('today', 'pointerenter');
+    let now = await peek();
+    assert.equal(now.title, 'Today');
+    assert.ok(now.lines.length >= 1 && now.lines.length <= 4);
+    assert.match(now.hint, /Tucked up/);
+    assert.equal(now.role, 'tooltip');
+    assert.equal(now.chip, 'tab-today');
+    assert.ok(now.under && now.centred && now.inside, 'the panel sits under its chip, inside the window');
+    assert.equal(now.pressable, 0, 'words only: nothing in the peek can be pressed');
+    assert.equal(now.clicks, 'none');
+    await point('today', 'pointerleave');
+    assert.equal(await peek(), null);
+    assert.equal(
+      await page.evaluate(`document.querySelectorAll('[aria-describedby="chip-peek"]').length`),
+      0,
+    );
+
+    // A conversation shows through the peek once Chat is tucked: its size and its last line,
+    // as plain words with the layout marks left out, cut to one short line.
+    await askModel(stack, page, 'Hello there.');
+    await page.evaluate(
+      `document.getElementById('tab-today').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+    );
+    assert.deepEqual(await shown(page), ['today']);
+    await point('chat', 'pointerenter');
+    now = await peek();
+    assert.equal(now.title, 'Chat');
+    assert.equal(now.lines[0], '2 messages in this conversation');
+    assert.match(now.lines[1], /^PEA: \S/);
+    assert.ok(now.lines[1].length <= 96);
+    assert.doesNotMatch(now.lines[1], /[#*`]/);
+
+    // Escape puts it away, and pressing the chip brings the workspace in with no peek left over.
+    await page.evaluate(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+    );
+    assert.equal(await peek(), null);
+    await point('chat', 'pointerenter');
+    assert.notEqual(await peek(), null);
+    await page.click('#tab-chat');
+    assert.deepEqual(await shown(page), ['today', 'chat']);
+    assert.equal(await peek(), null);
+
+    // Greenhouse and Harvest answer too, each with its own words.
+    await point('greenhouse', 'pointerenter');
+    assert.deepEqual((await peek()).lines.at(-1), 'No conversation yet.');
+    await point('harvest', 'pointerenter');
+    assert.deepEqual((await peek()).lines, ['Nothing gathered yet.']);
+    await point('harvest', 'pointerleave');
+
+    // On a phone-sized screen the chips are plain tabs and show no panel.
+    await page.setViewport(390, 800);
+    await point('greenhouse', 'pointerenter');
+    assert.equal(await peek(), null);
     assert.deepEqual(page.outsideRequests(), []);
     await page.close();
   },

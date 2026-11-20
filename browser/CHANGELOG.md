@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.19] - 2026-11-19
+
+### Added
+
+- **A peek at a tucked-up workspace.** Point at a dashed chip, or reach it with the keyboard, and a small panel under it says what that workspace holds: how long the conversation is and its last line for Chat and Greenhouse, the at-a-glance lines for Today, and what is waiting for review in Harvest. It is words only (nothing in it can be pressed), shows at most four short lines already on the page, and goes away when the pointer leaves, on Escape, or when the chip is pressed. It replaces the tooltip on the Harvest chip.
+
+### Changed
+
+- **The workspace chips have their own row, centred under the bar.** The bar now holds the brand, the connection and library status, and the controls at every desktop width; the chips sit in the middle of the window on the row below. On a window narrower than about 1100 pixels the status text is shortened rather than moved to a row of its own. Phones and small windows keep their top tabs unchanged.
+
 ## [0.1.0-rc.4.dev.18] - 2026-11-19
 
 ### Added

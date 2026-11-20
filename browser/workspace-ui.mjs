@@ -1,6 +1,8 @@
 // Draws the workspace layout: one workspace on a narrow screen, two side by side on a wide one and
 // three on a very wide one. Each workspace has a chip in the top bar that brings it in, focuses it
 // or tucks it up.
+// A chip whose workspace is tucked up shows a small peek panel when pointed at or focused; the page
+// supplies its few lines.
 // It only shows, hides and sizes the existing panels. It never reads their content, approves a review
 // or grants anything, and the saved layout holds workspace names and a width only.
 import {
@@ -14,6 +16,7 @@ import {
   openBeside,
   openWorkspace,
   partnerFor,
+  peekLines,
   pressChip,
   resizeSplit,
   resizeThree,
@@ -28,7 +31,7 @@ import {
 const titles = { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse', harvest: 'Harvest' };
 const $ = (id) => document.getElementById(id);
 
-export function installWorkspace({ onFocus, onShow = () => {}, canChange = () => true }) {
+export function installWorkspace({ onFocus, onShow = () => {}, canChange = () => true, peek = () => [] }) {
   const wide = globalThis.matchMedia(`(min-width: ${minimumSplitWidth}px)`),
     wider = globalThis.matchMedia(`(min-width: ${threePaneWidth}px)`);
   // The width the layout rules are asked about: a tier, not the exact window.
@@ -171,6 +174,7 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
 
   function set(next, { save = true } = {}) {
     if (!canChange()) return false;
+    hidePeek();
     layout = next;
     if (save) saveLayout(layout);
     render();
@@ -185,6 +189,60 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
           ? closePane(layout, partnerFor(layout))
           : openBeside(layout, partnerFor(layout)),
     );
+
+  // The peek: a small panel under a tucked chip, with a few lines about what is in that workspace.
+  // It is words only, so nothing in it can be pressed; pressing the chip brings the workspace in.
+  const framed = globalThis.matchMedia('(min-width: 901px)');
+  const card = document.createElement('div');
+  card.id = 'chip-peek';
+  card.className = 'chip-peek';
+  card.setAttribute('role', 'tooltip');
+  card.hidden = true;
+  document.body.append(card);
+  let peeking = null;
+  function hidePeek() {
+    if (!peeking) return;
+    peeking.removeAttribute('aria-describedby');
+    peeking = null;
+    card.hidden = true;
+  }
+  function showPeek(button) {
+    const name = button.dataset.tab;
+    if (!framed.matches || visiblePanes(layout, tier()).includes(name)) return hidePeek();
+    hidePeek();
+    const heading = document.createElement('strong');
+    heading.textContent = titles[name];
+    const lines = peekLines(peek(name)).map((line) => {
+      const p = document.createElement('p');
+      p.textContent = line;
+      return p;
+    });
+    const hint = document.createElement('small');
+    hint.textContent = wide.matches ? 'Tucked up · press to bring it in' : 'Press to open';
+    card.replaceChildren(heading, ...lines, hint);
+    card.hidden = false;
+    // Under its chip, centred on it, and kept inside the window.
+    const chip = button.getBoundingClientRect(),
+      width = card.offsetWidth;
+    const left = Math.max(8, Math.min(chip.left + chip.width / 2 - width / 2, innerWidth - width - 8));
+    card.style.left = `${Math.round(left)}px`;
+    card.style.top = `${Math.round(chip.bottom + 8)}px`;
+    button.setAttribute('aria-describedby', card.id);
+    peeking = button;
+  }
+  for (const button of document.querySelectorAll('[data-tab]')) {
+    button.addEventListener('pointerenter', () => showPeek(button));
+    button.addEventListener('pointerleave', hidePeek);
+    button.addEventListener('focus', () => {
+      // Only for a chip reached with the keyboard: a press is about to open it.
+      if (button.matches(':focus-visible')) showPeek(button);
+    });
+    button.addEventListener('blur', hidePeek);
+  }
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') hidePeek();
+  });
+  globalThis.addEventListener('resize', hidePeek);
 
   // Shift-click (or Alt-click) on a tab puts that workspace beside the current one.
   document.querySelector('[role=tablist]').addEventListener(
@@ -265,6 +323,8 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
     wide: () => wide.matches,
     layout: () => ({ ...layout, panes: [...layout.panes] }),
     shown: () => visiblePanes(layout, tier()),
+    peek: (name) => showPeek($(`tab-${name}`)),
+    unpeek: hidePeek,
     render,
   };
 }

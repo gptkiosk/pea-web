@@ -4049,29 +4049,75 @@ kbd {
     padding: 0 6px 12px;
   }
 }
-/* Up to a very wide screen the bar takes two rows: brand, chips and controls, then the status. */
-@media (min-width: 901px) and (max-width: 1499px) and (min-height: 640px) {
+/* The chips have a row of their own under the bar, in the middle of the window: brand, status and
+   controls above, the workspaces below. The rail draws nothing itself; its brand and its chips
+   are placed in the frame. */
+@media (min-width: 901px) and (min-height: 640px) {
   .shell {
-    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
   .shell > .rail {
+    display: contents;
+  }
+  .shell > .rail .rail-caption,
+  .shell > .rail .grow-space {
+    display: none;
+  }
+  .shell > .rail .brand {
     grid-area: 1 / 1;
+    align-self: center;
+    padding-left: 16px;
   }
-  .shell main > header {
-    grid-area: 1 / 2;
-  }
-  .shell .setup-strip {
+  .shell > .rail nav {
     grid-area: 2 / 1 / 3 / -1;
-    justify-content: flex-start;
-    padding: 0 16px 4px;
+    justify-content: center;
+    padding: 0 16px 6px;
+  }
+  .shell > .rail .nav {
+    min-height: 36px;
   }
   .shell #panes {
     grid-area: 3 / 1 / 4 / -1;
+    padding-top: 2px;
   }
   .shell > .release-footer {
     grid-area: 4 / 1 / 5 / -1;
   }
+}
+
+/* The peek: a small panel under a chip whose workspace is tucked up. */
+.chip-peek {
+  position: fixed;
+  z-index: 40;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(340px, calc(100vw - 16px));
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.chip-peek strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.chip-peek p {
+  margin: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-peek small {
+  display: block;
+  margin-top: 8px;
+  color: var(--sub);
+  font-size: 11px;
 }
 
 /* Three panes: the second divider sits between the second and third, and a pane's name is its

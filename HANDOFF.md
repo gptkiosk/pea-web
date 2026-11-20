@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## A peek panel on tucked chips, and the chips on a centred row — 2026-11-19
+
+**Branch `design/chip-peek`, version `0.1.0-rc.4.dev.19`.** The owner sent a picture of the chip row and asked: "Build the real peek panel for tucked chips and maybe drop these down a level and center them".
+
+- `browser/workspace.mjs`: `peekLines(lines, { limit, length })` flattens each line to one, cuts it to 96 characters and keeps four, counting the rest ("and 3 more").
+- `browser/workspace-ui.mjs`: `installWorkspace` takes `peek(name)`. One `#chip-peek` element (`role="tooltip"`, `pointer-events: none`, no controls) is shown under a chip on `pointerenter` and on keyboard focus (`:focus-visible`) when that workspace is not in the window and the window is at least 901 wide; the chip gets `aria-describedby` while it shows. It hides on `pointerleave`, blur, Escape, resize and any layout change. The module still reads no panel content: the page supplies the lines. Returned API gains `peek(name)` and `unpeek()`.
+- `browser/app.mjs`: `peekFor(name)` and `conversationPeek(surface)`. Chat and Greenhouse give the message count and the last line with layout marks removed (or "PEA is working on an answer…"); Greenhouse adds the open file's name; Today gives the `#home-lines` rows as "Kind: text"; Harvest gives the waiting controls' words and a count of what was grown. Nothing is fetched or sent for it. The `title` on `#tab-harvest` is gone; its `aria-label` with the count stays.
+- `browser/styles.css`: in the frame, `.rail` is `display: contents`; the brand is in the bar and `nav` is a second grid row spanning the window with `justify-content: center`. The separate 901–1499 layout (status on a row of its own) is removed, so every desktop width has two levels: bar, then chips. `.chip-peek` styles.
+- Tests: `browser/tests/workspace.test.mjs` (`peekLines`), `browser/tests/dom/workspace.test.mjs` (frame test now checks the chip row is below the bar and centred at 1600 and 1024 wide; Harvest test reads the peek instead of the tooltip; a new peek test covers open and tucked chips, position, words-only content, Escape, press, each workspace and a phone width).
+
+Known gaps: the peek has no controls, so "open alone" is still a double press on the chip. Below about 1100 wide the connection status in the bar is cut short with an ellipsis. Today's lines are whatever the at-a-glance card last drew. The peek was tried with made-up pointer events and a fake model, not the owner's mouse or data. Touch screens at desktop width get no peek (a tap opens the workspace).
+
+Next action: none pending.
+
 ## Richer replies: links, tables, coloured code, charts and diagrams — 2026-11-19
 
 **Branch `feature/rich-replies`, version `0.1.0-rc.4.dev.18`.** The owner asked "to modernize the chat pane so it can display code snippets, markdown (rendered) and graphics" and, asked about links, answered: "Make links pressable and build the chat formatting". The owner did not answer what "graphics" should cover; I built what I had recommended (locally drawn charts and diagrams) and kept web pictures blocked.
@@ -47,7 +61,7 @@ Next action: none pending.
 - `browser/styles.css`: the tray, the chip count, four tabs on a phone, and the bar's two-row breakpoint raised from 1279px to 1499px.
 - Tests: `browser/tests/dom/workspace.test.mjs` gains a Harvest test (empty; a plain reply gathers nothing; a proposal is counted and named on the tucked chip; nothing on the board before review; the chip brings Harvest in beside Chat and the reply keeps its button; cancel leaves it waiting; approve empties it and the story is on the board; another profile has its own). The frame test now runs at 1600px and uses the double press.
 
-Known gaps: the "peek" is the chip's tooltip, not the small panel drawn in the mock-up. An approved story, to-do or document leaves nothing in "Grown" because its reply keeps no receipt; only kinds that leave a link or a receipt appear there. Harvest has no keyboard shortcut or command-palette entry. Today's at-a-glance pane from the mock-up ("Your day" beside Chat) is the existing Today workspace, unchanged. Not looked at with the owner's real conversations.
+Known gaps: (the peek became a real panel in `0.1.0-rc.4.dev.19`.) An approved story, to-do or document leaves nothing in "Grown" because its reply keeps no receipt; only kinds that leave a link or a receipt appear there. Harvest has no keyboard shortcut or command-palette entry. Today's at-a-glance pane from the mock-up ("Your day" beside Chat) is the existing Today workspace, unchanged. Not looked at with the owner's real conversations.
 
 Next action: none agreed; candidates are a real peek panel, receipts for approved stories, to-dos and documents, and per-profile arrangements.
 
