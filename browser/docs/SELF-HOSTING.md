@@ -46,11 +46,11 @@ The gateway has no conversation database or request-content logging. Your upstre
 
 ## Project engine (MCD or RCD), optional
 
-A gateway can be connected to your own project engine, Mac Control Dashboard or its Raspberry Pi counterpart. With it, the Projects card on Today lists the engine's projects, shows a project's stories with their agent, model, time and cost, and can leave a reviewed draft. An engine needs its matching side before it answers; until then the card says there is no engine or that the request was not accepted. Start the gateway with both options, or neither:
+PEA does not need a project engine. It is an option that adds an agent project and assignment engine to your assistant. A gateway can be connected to your own project engine, Mac Control Dashboard or its Raspberry Pi counterpart. With it, the Projects card on Today lists the engine's projects, shows a project's stories with their agent, model, time and cost, and can leave a reviewed draft. An engine needs its matching side before it answers; until then the card says there is no engine or that the request was not accepted. Install and start the engine first, then start the gateway with both options, or neither. `ENGINE_ADDRESS` is wherever your own engine answers, on this machine or elsewhere; PEA assumes no location or port for it:
 
 ```sh
 python3 browser/server/gateway.py --token-file "$HOME/.config/pea/connection-token" \
-  --projects-url http://127.0.0.1:8800 --projects-token-file "$HOME/.config/pea/engine-token"
+  --projects-url "$ENGINE_ADDRESS" --projects-token-file "$HOME/.config/pea/engine-token"
 ```
 
 - **Address.** Plain HTTP only to a loopback IP of this machine, or `https://` to a host you name (its certificate is checked the usual way), with no path, query or sign-in. Nothing in a request can change it.
@@ -58,7 +58,7 @@ python3 browser/server/gateway.py --token-file "$HOME/.config/pea/connection-tok
 - **What can be asked.** `POST /v1/projects` with one of: `{"action":"types"}`, `{"action":"list"}`, `{"action":"get","project":N}`, `{"action":"status","project":N}`, `{"action":"draft","type","title","brief","constraints"?}`. A draft starts nothing. There is no request to plan, approve, start, pause, pay or choose a working folder: those are decided in the engine's own pages.
 - **What an engine must answer.** One `POST /api/pea-projects` with `Authorization: Bearer <credential>` and the request above as JSON, answered with `200`, `application/json` and a JSON object of at most 500,000 bytes within 20 seconds. `401`/`403` mean the access is not accepted; `400`/`404`/`409`/`422` mean the request is not. No redirect is followed, and the engine's error text is not shown.
 
-In PEA for Mac the same two settings are **Project Engine…** in its menu: the address, then the access file. The app keeps the file's path and never its contents.
+In PEA for Mac the same two settings are **Project Engine…** in its menu: paste the address of your MCD server (on this Mac or in the cloud), then choose the access file. The app keeps the file's path and never its contents.
 
 The exact rules are the `projects` section of `browser/server/contract.json`, and both gateways pass the same tests for them.
 
