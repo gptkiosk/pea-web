@@ -3819,6 +3819,68 @@ kbd {
   text-align: left;
 }
 
+/* What PEA did for a reply: a short list of steps with icons, over the reply. */
+.activity {
+  margin: 2px 0 10px;
+  white-space: normal;
+  color: var(--sub);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.activity summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: 2px 0;
+}
+.activity ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.activity li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.activity li[data-state="active"] {
+  color: inherit;
+  font-style: italic;
+}
+.activity li[data-state="problem"] {
+  color: var(--ink);
+}
+.activity-icon,
+.activity-spinner {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+.activity-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.activity-spinner {
+  box-sizing: border-box;
+  border: 2px dotted currentColor;
+  border-radius: 50%;
+}
+@keyframes activity-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .activity-spinner {
+    animation: activity-turn 2400ms linear infinite;
+  }
+}
+
 /* PEA at work: its picture and three bobbing peas under the reply being written. */
 .pea-working {
   display: flex;

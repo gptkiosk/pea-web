@@ -12,6 +12,7 @@ import { readGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
 import { canonContext } from './canon.mjs';
 import { noteGuidance } from './days.mjs';
+import { contextSteps } from './activity.mjs';
 import {
   Services,
   ServiceError,
@@ -473,14 +474,17 @@ export function installConnections(hooks) {
     // Events PEA added go with the calendar snapshot, under the same switch, so the owner can ask
     // to move or cancel one. Only the ref, title and times are sent.
     const shownOwn = sharedOwnEvents().map(({ ref, title, start, end }) => ({ ref, title, start, end }));
-    const sources =
-      s.scheduleAt && Date.now() - s.scheduleAt < 900000
-        ? JSON.stringify({
-            calendar: s.shareCalendar ? s.calendar.filter((e) => e.profile === who).slice(0, 4) : [],
-            ...(shownOwn.length ? { ownEvents: shownOwn } : {}),
-            mail: s.shareMail ? s.mail.filter((e) => e.profile === who).slice(0, 3) : [],
-          })
-        : '';
+    const snapshot = Boolean(s.scheduleAt && Date.now() - s.scheduleAt < 900000),
+      sentCalendar =
+        snapshot && s.shareCalendar ? s.calendar.filter((e) => e.profile === who).slice(0, 4) : [],
+      sentMail = snapshot && s.shareMail ? s.mail.filter((e) => e.profile === who).slice(0, 3) : [];
+    const sources = snapshot
+      ? JSON.stringify({
+          calendar: sentCalendar,
+          ...(shownOwn.length ? { ownEvents: shownOwn } : {}),
+          mail: sentMail,
+        })
+      : '';
     // A web page the owner read is shared in Chat only, and only through the review below.
     const page = surface === 'chat' ? (hooks.page?.() ?? null) : null;
     // Her history: at most two kept cards, in Chat, under the same switch as the introduction.
@@ -563,7 +567,8 @@ export function installConnections(hooks) {
       // The first message that carries PEA's own events asks again; later changes to them do not.
       shownOwn.length > 0,
     ]);
-    if (!s.approvals.has(fingerprint)) {
+    const reviewed = !s.approvals.has(fingerprint);
+    if (reviewed) {
       const ok = await review(
         'Before sharing with your model',
         `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nAssistant name (always sent): ${calledName}\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nWeb page you read (exactly what is sent; a stranger wrote it, and the model is told to treat it as quoted data, not instructions):\n${page ? page.url + '\n\n' + page.text : 'None'}\n\nHer history (fiction your model wrote and you kept; at most two cards go with a message, mostly when you ask about her. Later messages may carry other cards from this list without asking again):\n${canon ? canon.all : 'Not shared'}\n\nHer days (fiction about your assistant’s own days, kept in this browser): ${days ? `Shared under your setting: the kept lines for the days around today. ${days.notes ? 'Your model may also end a reply with one short note about its own day, which PEA keeps and tells you about.' : 'Notes from Chat are off.'} Later changes to the lines are sent without asking again. Right now:\n${days.context || 'No lines for these days yet.'}` : 'Not shared'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
@@ -579,7 +584,59 @@ export function installConnections(hooks) {
     }
     busy(true);
     controller = new AbortController();
-    const reply = hooks.beginReply(surface, text, { sourced: Boolean(page) });
+    // What the owner sees PEA doing for this reply: counts and names of what was just sent, never
+    // the words themselves, and nothing a model said.
+    let pageHost = '';
+    try {
+      pageHost = page ? new URL(page.url).host : '';
+    } catch {
+      // A page with no readable address is still counted, without a name.
+      pageHost = page ? 'a web address' : '';
+    }
+    const steps = contextSteps({
+      model: { name: model.name, local: Boolean(model.local) },
+      reviewed,
+      introduction: Boolean(intro),
+      memories: memories.length,
+      file: attachment ? String(currentAttachment?.name ?? 'your file') : '',
+      calendar: sentCalendar.length,
+      ownEvents: snapshot ? shownOwn.length : 0,
+      mail: sentMail.length,
+      todos: Boolean(s.shareTodos && todoText),
+      page: pageHost,
+      canon: canon?.send.length ?? 0,
+      days: Boolean(days?.context),
+      history: Math.max(0, body.messages.length - 2),
+    });
+    // For the owner's own debug export: sizes and names only.
+    const detail = {
+      at: Date.now(),
+      surface,
+      profile: who,
+      model: String(model.id),
+      local: Boolean(model.local),
+      messages: body.messages.length,
+      characters: body.messages.reduce((sum, m) => sum + String(m.content ?? '').length, 0),
+      system: String(body.messages[0]?.content ?? '').length,
+      cap: body.max_tokens,
+      guidance: [
+        'stories',
+        'email',
+        'documents',
+        'calendar',
+        ...(shownOwn.length && snapshot ? ['calendar changes'] : []),
+        'navigation',
+        'phone links',
+        ...(surface === 'chat' && localKey() ? ['page reading'] : []),
+        ...(todoText ? ['to-dos'] : []),
+        ...(projectText ? ['projects'] : []),
+        ...(canon?.send.length ? ['her history'] : []),
+        ...(days?.context ? ['her days'] : []),
+        ...(days?.notes ? ['day notes'] : []),
+        ...(surface === 'greenhouse' ? ['greenhouse'] : []),
+      ],
+    };
+    const reply = hooks.beginReply(surface, text, { sourced: Boolean(page), steps, detail });
     onDispatch();
     if (canon) hooks.canonSent?.(canon.send.length);
     try {
@@ -612,7 +669,7 @@ export function installConnections(hooks) {
         }
       }
     } catch (error) {
-      hooks.finishReply(surface, reply, false);
+      hooks.finishReply(surface, reply, false, { stopped: error?.name === 'AbortError' });
       throw error;
     } finally {
       controller = null;

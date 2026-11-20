@@ -4,6 +4,7 @@
   "assets": [
     "CHANGELOG.md",
     "actions.mjs",
+    "activity.mjs",
     "app.mjs",
     "assets/pea-icon.svg",
     "assets/pea-mascot.svg",
@@ -13,6 +14,7 @@
     "build-info.json",
     "canon-ui.mjs",
     "canon.mjs",
+    "chat-export.mjs",
     "chat-format.mjs",
     "commands-ui.mjs",
     "commands.mjs",

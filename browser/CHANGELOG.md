@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.26] - 2026-11-20
+
+### Added
+
+- **What PEA is doing, step by step, over each reply.** While PEA works on a reply in Chat or Greenhouse, a short list with an icon on each line shows what it has done so far: what went with your message (your introduction, how many memories, a file excerpt, calendar events, mail items, your to-do list, a page you read, earlier messages), whether you reviewed the sharing or an earlier approval was used, which model it was sent to and where, how long the first words took, and that the reply is being written. The last line turns while PEA waits or writes. When the reply is done the list folds to one line, "What PEA did · 4 steps · 6 s", which you can open again. A request you stopped, or one that did not finish, says so.
+- **Export this chat, with optional debug detail.** The workspace menu has **Export this chat…**. It makes a plain text file of the Chat conversation in this profile, in your browser; nothing is sent anywhere, and the dialog says the file is not encrypted. Tick **Include debug detail** and each reply also carries what PEA did for it: the steps shown over the reply, exact times in milliseconds, the model's id and where it runs, how large the request and the reply were, which instructions went with it, whether PEA added its own correction, and what was offered for review. It holds no keys and none of the shared context's words. The record exists only until the page is reloaded, so older replies say there is none.
+- Every line is something the page itself did and timed. A reply's own words cannot add a line, so a model cannot claim work that was not done. The list shows counts and names only, is kept in this tab only, and is never saved, put in a backup or sent to a model.
+
 ## [0.1.0-rc.4.dev.25] - 2026-11-20
 
 ### Changed
