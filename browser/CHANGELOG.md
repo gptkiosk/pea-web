@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.25] - 2026-11-20
+
+### Changed
+
+- **The project engine's address is asked for in general words.** PEA for Mac's **Project Engine…** dialog now says to paste the address of your MCD server, on this Mac or in the cloud, after installing and starting it, and says first that MCD is optional: PEA does not need it, and it adds an agent project and assignment engine to your assistant. The Projects card and its "no engine" sentence say the same. The dialog, the gateway's help, Self-hosting and the Mac guide no longer show an example address or port, because PEA assumes none: an engine can be anywhere its owner put it. The rules for an accepted address are unchanged.
+
 ## [0.1.0-rc.4.dev.24] - 2026-11-19
 
 ### Added

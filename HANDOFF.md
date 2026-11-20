@@ -23,6 +23,14 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The engine's address in general words — 2026-11-20
+
+**Branch `general-engine-address`, version `0.1.0-rc.4.dev.25`.** The owner asked that nothing from one installation be baked in as a standard for where MCD is: "A general one like paste the address of your MCD server (local or cloud located) would be good", and that installing MCD is a new user's first step; then: "MCD is an option that the app does not need but adds an agent project and assignment engine to your assistant if desired." `browser/index.html` (the Projects card's opening sentence) says so too.
+
+- Wording only; no rule, contract or behavior changed. `mac/Sources/PEAMac/PEAMacApp.swift` (dialog text and field placeholder), `--projects-url` help in `browser/server/gateway.py` and `local.py`, `browser/docs/SELF-HOSTING.md`, `mac/README.md`, and the "no engine" sentence in `browser/projects-ui.mjs` no longer show an example address or port and say to install and start the engine first.
+- Tests are unchanged and still use made-up loopback addresses and ports as test values; they set no default. No code has a default engine address.
+- Known gaps are the same as below: no real engine has answered, and the Mac dialog has not been seen running.
+
 ## Project engine setting in the Mac launcher — 2026-11-19
 
 **Branch `feature/mac-engine-setting`, version `0.1.0-rc.4.dev.24`.** The owner asked: "Add the engine setting to the Mac launcher".

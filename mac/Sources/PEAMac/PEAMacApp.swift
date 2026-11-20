@@ -122,10 +122,10 @@ struct Actions: View {
     private func askForEngine() {
         let alert = NSAlert()
         alert.messageText = "Project engine"
-        alert.informativeText = "The address of your own project engine (MCD or RCD), for example http://127.0.0.1:8800 on this Mac, or https:// and the name of another machine of yours. Next you choose the file holding the access the engine issued for PEA. PEA can then list your projects, show their progress and leave drafts. It cannot plan, approve, start or pay for anything; that stays in the engine."
+        alert.informativeText = "Optional: PEA does not need this. MCD adds an agent project and assignment engine to your assistant. If you want it, install and start MCD, then paste the address of your MCD server, on this Mac or in the cloud. RCD works the same way. An engine on this Mac starts with http://, and one anywhere else starts with https:// and its host name. Next you choose the file holding the access the engine issued for PEA. PEA can then list your projects, show their progress and leave drafts. It cannot plan, approve, start or pay for anything; that stays in the engine."
             + (launcher.engineAddress == nil ? "" : "\n\nConnected now" + (launcher.engineReady ? "." : ", but its access file cannot be used, so projects are not available."))
         let field = NSTextField(string: launcher.engineAddress ?? "")
-        field.placeholderString = "http://127.0.0.1:8800"
+        field.placeholderString = "Address of your MCD server"
         field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
         alert.accessoryView = field
         alert.addButton(withTitle: "Choose Access File…")

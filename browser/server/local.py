@@ -42,7 +42,7 @@ def main(argv=None):
     parser.add_argument('--update-launchd-label', help='The launchd job of this user that runs PEA; an update restarts it.')
     parser.add_argument('--update-channel', choices=('development', 'release'), default='release', help='release: signed published releases only. development: the main branch, unsigned.')
     parser.add_argument('--update-prerelease', action='store_true', help='With the release channel: also offer signed pre-releases.')
-    parser.add_argument('--projects-url', help='Connect to your project engine (MCD or RCD): http:// on a loopback IP of this machine, for example http://127.0.0.1:8800, or https:// on a named host. Needs --projects-token-file.')
+    parser.add_argument('--projects-url', help='The address of your project engine (MCD or RCD), installed and running first: http:// and its port on a loopback IP of this machine, or https:// on a named host elsewhere. Needs --projects-token-file.')
     parser.add_argument('--projects-token-file', help='The private file (mode 0600) holding the access the project engine issued for PEA.')
     args = parser.parse_args(argv)
     try:
