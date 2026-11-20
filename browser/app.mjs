@@ -45,6 +45,15 @@ import { installBackup } from './backup-ui.mjs';
 import { installUpdates } from './updates-ui.mjs';
 import { installProjects } from './projects-ui.mjs';
 import { claimsProject, projectGuidance, projectProposals } from './projects.mjs';
+import {
+  activityIcons,
+  endTrail,
+  firstWords,
+  startTrail,
+  trailActive,
+  trailRows,
+  trailSummary,
+} from './activity.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
 import { claimsTodoChange, todoProposals } from './todos.mjs';
@@ -1105,6 +1114,54 @@ function workingNode(m, surface) {
   box.append(face, pod, words);
   return box;
 }
+// What PEA did for a reply, by reply id: the steps this page itself took, shown over the reply
+// while it happens. Open while PEA works, folded to one line afterwards unless the owner opens
+// it. Kept for this tab only: never saved, backed up or sent to a model.
+const trails = new Map();
+function activityIcon(name) {
+  const NS = 'http://www.w3.org/2000/svg',
+    svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', 'activity-icon');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of activityIcons[name] ?? activityIcons.check) {
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+function trailNode(m) {
+  const trail = m.role === 'assistant' ? trails.get(m.id) : null;
+  if (!trail) return null;
+  const box = document.createElement('details');
+  box.className = 'activity';
+  box.dataset.state = trailActive(trail) ? 'active' : trail.outcome;
+  box.open = trail.open ?? trailActive(trail);
+  const summary = document.createElement('summary');
+  summary.textContent = trailSummary(trail);
+  // The conversation is redrawn as a reply arrives, so the owner's choice is remembered here.
+  summary.onclick = () => {
+    trail.open = !box.open;
+  };
+  const list = document.createElement('ul');
+  for (const row of trailRows(trail)) {
+    const item = document.createElement('li');
+    item.dataset.state = row.state;
+    if (row.state === 'active') {
+      const spinner = document.createElement('span');
+      spinner.className = 'activity-spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      item.append(spinner);
+    } else item.append(activityIcon(row.icon));
+    const words = document.createElement('span');
+    words.textContent = row.text;
+    item.append(words);
+    list.append(item);
+  }
+  box.append(summary, list);
+  return box;
+}
 // Harvest: everything the conversations of this profile proposed, in one place. Each item carries
 // the very control its reply shows, built the same way, so reviewing from here is the same review
 // and nothing here can approve, add, write or send anything by itself.
@@ -1219,6 +1276,8 @@ function renderChat() {
     const d = document.createElement('div');
     d.className = `utterance ${m.role}`;
     d.append(messageHead(m, m.role === 'user' ? 'YOU' : m.preview ? 'PEA PREVIEW' : 'PEA'), messageBody(m));
+    const trail = trailNode(m);
+    if (trail) d.querySelector('.utterance-head').after(trail);
     const working = workingNode(m, 'chat');
     if (working) d.append(working);
     const action = proposalButton(m, 'chat');
@@ -1375,6 +1434,8 @@ function renderCollaboration() {
     const d = document.createElement('div');
     d.className = `utterance ${m.role}`;
     d.append(messageHead(m, m.role === 'user' ? 'YOU' : 'PEA · GREENHOUSE'), messageBody(m));
+    const trail = trailNode(m);
+    if (trail) d.querySelector('.utterance-head').after(trail);
     const working = workingNode(m, 'greenhouse');
     if (working) d.append(working);
     const action = proposalButton(m, 'greenhouse');
@@ -1544,9 +1605,14 @@ live = installConnections({
   },
 
   page: () => research?.current() ?? null,
-  beginReply(surface, text, { sourced = false } = {}) {
+  beginReply(surface, text, { sourced = false, steps = null } = {}) {
     const reply = addReply(surface, text);
     if (sourced) sourcedReplies.add(reply.id);
+    if (steps) {
+      trails.set(reply.id, startTrail(steps, performance.now()));
+      // Kept for this tab only, and not without end.
+      if (trails.size > 400) trails.delete(trails.keys().next().value);
+    }
     renderChat();
     renderCollaboration();
     memory.record(surface);
@@ -1555,6 +1621,7 @@ live = installConnections({
   appendReply(surface, reply, delta) {
     reply.raw = (reply.raw ?? '') + delta;
     reply.text = visibleReply(reply.raw);
+    firstWords(trails.get(reply.id), performance.now());
     if (!reply.frame)
       reply.frame = requestAnimationFrame(() => {
         reply.frame = null;
@@ -1562,7 +1629,7 @@ live = installConnections({
         else renderCollaboration();
       });
   },
-  finishReply(surface, reply, complete) {
+  finishReply(surface, reply, complete, { stopped = false } = {}) {
     const raw = reply.raw ?? '',
       // A reply written with a web page in view offers nothing to approve: words from a stranger's
       // page must not be able to steer the owner toward an action, however it is worded.
@@ -1681,6 +1748,11 @@ live = installConnections({
       proposals.set(reply.id, { profile, kind: 'read', address: reads[0] });
     else if (drafts.length === 1)
       proposals.set(reply.id, { profile, kind: 'project', draft: drafts[0], title: drafts[0].title });
+    endTrail(
+      trails.get(reply.id),
+      { complete, stopped, offered: proposals.has(reply.id) },
+      performance.now(),
+    );
     memory.record(surface);
     if (surface === 'chat') renderChat();
     else renderCollaboration();
@@ -1843,6 +1915,7 @@ memory = installMemory({
   },
   clearAll() {
     proposals.clear();
+    trails.clear();
     consumed.clear();
     emailReady.clear();
     calendarReady.clear();

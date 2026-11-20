@@ -75,6 +75,10 @@ Gmail drafts through the API, Sheets documents from a model, resume import, food
 
 The browser is not yet feature-complete against native. A public release must label these gaps rather than present source checks as full parity. No developer-host relay, Open WebUI owner login, bundled provider key, membership-token workaround or customer runtime data is required. Background/locked-screen browser microphone reliability is not promised.
 
+## What PEA did for a reply
+
+Web shows a list of steps with icons over each reply while PEA works on it, and folds it to one line when the reply is done. The steps are what the page itself sent and timed: counts and names of what went with the message, the approval used, the model and where it runs, the time to the first words and the time to write. A request that was stopped or did not finish says so. The list is built by `browser/activity.mjs` from the request, never from a reply's words; it is kept in the tab only and is not saved, backed up or sent to a model. It covers conversation replies in Chat and Greenhouse; pictures, page reading, documents and Google requests have no list yet. What the iPhone app shows is not recorded here.
+
 ## Projects from the owner's project engine
 
 Browser-only, with no iPhone equivalent. Where the gateway's operator connected a project engine (see Self-hosting), Today has a Projects card: the engine's projects, one project's stories with state, agent, model, run time and cost, and a form that leaves a draft after a review. A model may suggest a draft, which only fills the form. PEA cannot plan, approve, start or pay for a project, and no model sees what the engine answers. It is tested against a stand-in engine only; no real engine has answered it.
