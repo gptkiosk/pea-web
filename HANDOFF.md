@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The same list for calendar, mail, GitHub and decks — 2026-11-20
+
+**Branch `feature/activity-services`, version `0.1.0-rc.4.dev.28`.** The owner asked: "Add the same list to calendar, mail, GitHub and decks." (The same message also asked for choice popups that answer in chat and for numbered voice navigation; those are separate changes.)
+
+- `browser/activity.mjs`: `beginWork(now, label)` (the label names the work in an export) and `workStep(work, icon, text, problem)` (a step that went wrong while the work carried on).
+- Calendar changes, `browser/live-ui.mjs` `addEvent(draft, id, onWork)` and `editEvent(event, edit, onWork)`: `app.mjs` keeps the record by reply id with `keepWork` (the same `docTrails` map documents use) and draws it under the reply. A changed event ends the list as failed before anything is asked of Google; a failure after the request was sent says to look in the calendar first.
+- Calendar and mail, `live-ui.mjs` `refreshToday()`: one record (`todayWork`) drawn in `#today-activity` under the refresh button. One row per connected source with a count, or a problem row for a source that failed. It runs wherever `refreshToday` runs: the button, connecting Google, and after a calendar change.
+- GitHub, `live-ui.mjs` `githubDeliver()` (now a wrapper around `githubSend`): one record (`githubWork`) drawn in `#github-activity` under the delivery button.
+- Decks, `live-ui.mjs` `compose({ …, trail, redraw })` adds the review, the model, and the answer's time and size; `browser/decks-ui.mjs` adds what was read from the reply and whether it was kept, drawn in `#deck-activity`. A declined first review leaves no list.
+- `browser/chat-export.mjs`: the debug file uses the work's label (`Calendar · …`), `Document` when there is none.
+- Tests: `browser/tests/activity.test.mjs` (10), `browser/tests/chat-export.test.mjs` (5), `browser/tests/dom/calendar.test.mjs` (9: list checks in the add, change and changed-after-review tests, and a new test for the refresh with mail failing and then answering), `browser/tests/dom/decks.test.mjs` (list checks for declined, kept and unusable outlines), `browser/tests/dom/activity-services.test.mjs` (new, 1: a GitHub delivery declined, done, stopped part way, and refused because the repository moved). The test stand-in now allows GitHub's version header and PUT in `harness.mjs`.
+- Known gaps: removing an event, an event already added, and a slides request have no list check of their own. Stopping a deck request is not tested. The refresh, GitHub and deck lists hold only the latest piece of work and are not in the chat export. Project engine requests, reminders, weather, headlines and voices have no list. Not looked at by eye in this change.
+
 ## The same list for page reading, pictures and documents — 2026-11-20
 
 **Branch `feature/activity-more`, version `0.1.0-rc.4.dev.27`.** The owner asked: "Add the same list to page reading, pictures and documents".

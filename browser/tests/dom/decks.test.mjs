@@ -68,6 +68,17 @@ const noted = (page, pattern) =>
     `new RegExp(${JSON.stringify(pattern.source)}).test(document.querySelector('#decks-note').textContent)`,
     'the note ' + pattern,
   );
+// The list of what PEA did for the last deck request: null when there is none.
+const worked = (page) =>
+  page.evaluate(`(() => {
+    const box = document.querySelector('#deck-activity details.activity');
+    if (!box) return null;
+    return {
+      open: box.open,
+      state: box.dataset.state,
+      rows: [...box.querySelectorAll('li')].map((li) => li.querySelector('span:last-child').textContent),
+    };
+  })()`);
 async function openGreenhouse() {
   const page = await openConnectedPage(stack);
   await page.click('#tab-greenhouse');
@@ -121,6 +132,7 @@ test(
     await answer(page, '#review-cancel');
     await noted(page, /No outline was written\. Nothing was kept/);
     assert.equal(stack.model.requests.length, sent, 'cancel sends nothing');
+    assert.equal(await worked(page), null, 'nothing is listed when nothing was sent');
 
     await askOutline(page);
     await waitReview(page, 'Ask your model for a deck outline?');
@@ -135,8 +147,21 @@ test(
     await answer(page, '#review-cancel');
     await noted(page, /Not kept\. The outline your model wrote was discarded/);
     assert.equal(await saved(page), null, 'declining keeps nothing');
+    let did = await worked(page);
+    assert.equal(did.state, 'stopped');
+    assert.equal(did.open, true);
+    assert.equal(did.rows[0], 'You reviewed exactly what is sent');
+    assert.equal(did.rows[1], 'Sent to synthetic-model on your own server');
+    assert.match(did.rows[2], /^Your model answered in .+ \([\d,]+ characters\)$/);
+    assert.equal(did.rows[3], 'Read the reply as an outline of 4 slides, for your review');
+    assert.equal(did.rows[4], 'Not kept. The outline your model wrote was discarded.');
+    assert.doesNotMatch(did.rows.join(' '), /Synthetic slide|Purpose number/, 'none of the model’s words');
 
     await keepOutline(page);
+    did = await worked(page);
+    assert.equal(did.state, 'done');
+    assert.equal(did.open, false);
+    assert.match(did.rows.at(-1), /^Outline kept: 4 slides\./);
     assert.match(await words(page, '#decks-list'), /Synthetic plan · 4 slides · outline only/);
     assert.equal(await page.evaluate(`document.querySelectorAll('#deck-slides fieldset').length`), 4);
     assert.equal(
@@ -231,6 +256,10 @@ test(
       await waitReview(page, 'Ask your model for a deck outline?');
       await answer(page, '#review-approve');
       await noted(page, /not a usable outline, so nothing was kept/);
+      const did = await worked(page);
+      assert.equal(did.state, 'failed');
+      assert.equal(did.open, true);
+      assert.match(did.rows.at(-1), /not a usable outline, so nothing was kept/);
       assert.equal(await reviewOpen(page), false, 'there is nothing to keep, so nothing to review');
       assert.equal(await saved(page), null);
 

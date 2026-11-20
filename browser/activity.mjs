@@ -157,15 +157,18 @@ function summaryOf(rows, record) {
 }
 export const trailSummary = (trail) => summaryOf(trailRows(trail), trail);
 
-// Other work PEA does when the owner approves it: reading a page, making a picture, writing a
-// document. The same kind of list, built one step at a time by the code doing the work. A step
+// Other work PEA does when the owner asks or approves it: reading a page, making a picture,
+// writing a document, changing the calendar, refreshing calendar and mail, a GitHub delivery, a
+// deck request. The same kind of list, built one step at a time by the code doing the work. A step
 // is added only after the thing it names has happened.
-export function beginWork(now) {
-  return { steps: [], waiting: '', sentAt: now, endAt: null, outcome: null };
+// `label` names the kind of work in an export: 'Document' or 'Calendar'.
+export function beginWork(now, label = '') {
+  return { label: line(label, 20), steps: [], waiting: '', sentAt: now, endAt: null, outcome: null };
 }
-export function workStep(work, icon, text) {
+// `problem` marks a step that happened and went wrong while the work carried on.
+export function workStep(work, icon, text, problem = false) {
   if (!work || work.endAt !== null || work.steps.length >= 20) return;
-  work.steps.push({ icon, text: line(text, 200), state: 'done' });
+  work.steps.push({ icon, text: line(text, 200), state: problem ? 'problem' : 'done' });
 }
 // What PEA is waiting on right now, shown as the turning last line. Empty for nothing.
 export function workWaiting(work, text) {

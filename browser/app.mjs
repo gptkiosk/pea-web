@@ -644,7 +644,7 @@ function proposalButton(m, surface) {
           throw new Error('The conversation or profile changed. Review the event again.');
         if (live.eventAccount() !== account)
           throw new Error('Your Google connection changed. Review the event again.');
-        const done = await live.editEvent(now, editing.edit);
+        const done = await live.editEvent(now, editing.edit, (work) => keepWork(m.id, work));
         if (!done) return;
         calendarEdited.set(m.id, removing ? 'deleted' : 'changed');
         notice(
@@ -718,7 +718,7 @@ function proposalButton(m, surface) {
           if (live.eventAccount() !== account)
             throw new Error('Your Google connection changed. Review the event again.');
           if (!eventIds.has(m.id)) eventIds.set(m.id, newEventId());
-          const added = await live.addEvent(d, eventIds.get(m.id));
+          const added = await live.addEvent(d, eventIds.get(m.id), (work) => keepWork(m.id, work));
           // A failure has already been explained; trying again is safe because the id is the same.
           if (!added) return;
           calendarAdded.set(m.id, added);
@@ -858,12 +858,7 @@ function proposalButton(m, surface) {
       const who = profile;
       try {
         if (!history(surface, who).some((x) => x.id === m.id) || proposals.get(m.id) !== written) return;
-        const result = await live.writeDocument(written.request, (work) => {
-          docTrails.set(m.id, work);
-          if (docTrails.size > 400) docTrails.delete(docTrails.keys().next().value);
-          renderChat();
-          renderCollaboration();
-        });
+        const result = await live.writeDocument(written.request, (work) => keepWork(m.id, work));
         if (!result) return;
         const title = result.title;
         docDone.set(
@@ -1121,8 +1116,15 @@ function trailNode(m) {
   const trail = m.role === 'assistant' ? trails.get(m.id) : null;
   return trail ? trailBox(trail) : null;
 }
-// What PEA did to write a document a reply proposed, by reply id. Shown under that reply.
+// What PEA did to carry out something a reply proposed and the owner approved (a document, a
+// calendar event), by reply id. Shown under that reply.
 const docTrails = new Map();
+function keepWork(id, work) {
+  docTrails.set(id, work);
+  if (docTrails.size > 400) docTrails.delete(docTrails.keys().next().value);
+  renderChat();
+  renderCollaboration();
+}
 function docTrailNode(m) {
   const work = docTrails.get(m.id);
   return work ? workBox(work) : null;

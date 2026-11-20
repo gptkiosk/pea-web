@@ -23,6 +23,8 @@ import {
   slidesRequest,
   validSavedDecks,
 } from './decks.mjs';
+import { beginWork, endWork, workStep } from './activity.mjs';
+import { showWork } from './activity-ui.mjs';
 
 const $ = (id) => document.getElementById(id);
 const storageKey = 'pea-decks-v1';
@@ -45,6 +47,19 @@ export function installDecks({ profile, review, run, compose, isBusy }) {
     }
   };
   const say = (text) => ($('decks-note').textContent = text);
+  // What the last request to the model did, for the profile that asked. Shown once it was sent.
+  let work = null;
+  const showTrail = () =>
+    showWork(
+      $('deck-activity'),
+      work && work.profile === profile() && work.trail.steps.length ? work.trail : null,
+    );
+  // Ends the list with one last line and says the same thing in the note.
+  const finish = (outcome, icon, text) => {
+    if (work) endWork(work.trail, outcome, icon, text, performance.now());
+    showTrail();
+    return say(text);
+  };
   const usable = () => ['work', 'personal'].includes(profile());
   const mine = () => decks.filter((d) => d.profile === profile());
   const current = () => mine().find((d) => d.id === open) ?? null;
@@ -113,6 +128,7 @@ export function installDecks({ profile, review, run, compose, isBusy }) {
   }
 
   function render() {
+    showTrail();
     const on = usable(),
       list = on ? mine() : [],
       deck = on ? current() : null;
@@ -194,24 +210,39 @@ export function installDecks({ profile, review, run, compose, isBusy }) {
     render();
     try {
       say('Waiting for your review…');
+      work = { profile: who, trail: beginWork(performance.now()) };
+      showTrail();
       const result = await run(() =>
         compose({
           title: 'Ask your model for a deck outline?',
           about: describeOutlineRequest({ title, count }),
           system: outlinePrompt({ title, brief, count }),
           user: outlineRequest,
+          trail: work.trail,
+          redraw: showTrail,
         }),
       );
-      if (!result?.started) return say('No outline was written. Nothing was kept.');
-      if (who !== profile()) return say('Profile changed. Nothing was kept.');
+      if (!result?.started) {
+        showTrail();
+        return say('No outline was written. Nothing was kept.');
+      }
+      if (who !== profile()) return finish('failed', 'warn', 'Profile changed. Nothing was kept.');
       const slides = parseOutline(result.text, count);
       if (!slides)
-        return say(
+        return finish(
+          'failed',
+          'warn',
           'Your model’s reply was not a usable outline, so nothing was kept. You can try again; each try is one request.',
         );
+      workStep(
+        work.trail,
+        'list',
+        `Read the reply as an outline of ${slides.length} slides, for your review`,
+      );
+      showTrail();
       if (!(await review('Keep this outline?', describeOutline(slides))))
-        return say('Not kept. The outline your model wrote was discarded.');
-      if (who !== profile()) return say('Profile changed. Nothing was kept.');
+        return finish('stopped', 'stop', 'Not kept. The outline your model wrote was discarded.');
+      if (who !== profile()) return finish('failed', 'warn', 'Profile changed. Nothing was kept.');
       const deck = {
         id: 'deck-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20),
         profile: who,
@@ -224,7 +255,11 @@ export function installDecks({ profile, review, run, compose, isBusy }) {
       store();
       open = deck.id;
       $('deck-title').value = $('deck-brief').value = '';
-      say(`Outline kept: ${slides.length} slides. Rename or delete slides below, then write them.`);
+      finish(
+        'done',
+        'check',
+        `Outline kept: ${slides.length} slides. Rename or delete slides below, then write them.`,
+      );
     } finally {
       working = false;
       render();
@@ -245,35 +280,50 @@ export function installDecks({ profile, review, run, compose, isBusy }) {
     render();
     try {
       say('Waiting for your review…');
+      work = { profile: who, trail: beginWork(performance.now()) };
+      showTrail();
       const result = await run(() =>
         compose({
           title: 'Ask your model to write the slides?',
           about: describeSlidesRequest({ title: deck.title, count: asked.length, replacing }),
           system: slidesPrompt({ title: deck.title, brief: deck.brief, outline: asked }),
           user: slidesRequest,
+          trail: work.trail,
+          redraw: showTrail,
         }),
       );
-      if (!result?.started) return say('No slides were written. Nothing was changed.');
+      if (!result?.started) {
+        showTrail();
+        return say('No slides were written. Nothing was changed.');
+      }
       if (who !== profile() || !decks.includes(deck))
-        return say('The project or profile changed. Nothing was kept.');
+        return finish('failed', 'warn', 'The project or profile changed. Nothing was kept.');
       const slides = parseSlides(result.text, asked);
       if (!slides)
-        return say(
+        return finish(
+          'failed',
+          'warn',
           'Your model’s reply did not give usable points for every slide, so nothing was changed. You can try again; each try is one request.',
         );
+      workStep(
+        work.trail,
+        'list',
+        `Read the reply as points and notes for ${slides.length} slides, for your review`,
+      );
+      showTrail();
       if (
         !(await review(
           replacing ? 'Replace the slides with these?' : 'Keep these slides?',
           describeSlides(slides),
         ))
       )
-        return say('Not kept. The slides your model wrote were discarded.');
+        return finish('stopped', 'stop', 'Not kept. The slides your model wrote were discarded.');
       if (who !== profile() || !decks.includes(deck))
-        return say('The project or profile changed. Nothing was kept.');
+        return finish('failed', 'warn', 'The project or profile changed. Nothing was kept.');
       // Titles and purposes stay the owner's; only points and notes are taken.
       deck.slides = deck.slides.map((s, i) => ({ ...s, bullets: slides[i].bullets, notes: slides[i].notes }));
       touch(deck);
-      say('Slides kept. Read and edit each one, then download the deck.');
+      finish('done', 'check', 'Slides kept. Read and edit each one, then download the deck.');
     } finally {
       working = false;
       render();

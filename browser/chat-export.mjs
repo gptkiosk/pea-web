@@ -48,7 +48,7 @@ export function chatExport({
     }
     // A document this reply proposed and the owner approved.
     if (work) {
-      out.push('  Document · ' + workSummary(work));
+      out.push(`  ${work.label || 'Document'} · ` + workSummary(work));
       for (const row of workRows(work)) out.push(`  - ${row.text}`);
     }
   }
