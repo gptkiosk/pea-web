@@ -98,7 +98,8 @@ let voiceTarget = null;
 const chats = {},
   schedules = {},
   proposals = new Map(),
-  consumed = new Set(),
+  // Stories the owner approved, by reply, with the title each was added under.
+  consumed = new Map(),
   emailReady = new Set(),
   calendarReady = new Map(),
   // Events added to the owner's Google calendar from a reply, and the id each proposal uses so a
@@ -948,6 +949,8 @@ function proposalButton(m, surface) {
   if (todoDone.has(m.id)) {
     const receipt = document.createElement('small');
     receipt.textContent = todoDone.get(m.id);
+    // Harvest offers the way to the list this receipt speaks of.
+    receipt.dataset.shows = 'todos-section';
     return receipt;
   }
   if (change?.kind === 'todo' && !m.incomplete && change.profile === profile) {
@@ -989,7 +992,8 @@ function proposalButton(m, surface) {
   }
   if (consumed.has(m.id)) {
     const receipt = document.createElement('small');
-    receipt.textContent = 'Added to Today';
+    receipt.textContent = 'Added to Today: ' + consumed.get(m.id);
+    receipt.dataset.shows = 'tasks-section';
     return receipt;
   }
   const entry = proposals.get(m.id);
@@ -1018,7 +1022,7 @@ function proposalButton(m, surface) {
       )
         throw new Error('The conversation or profile changed. Review the story again.');
       board.capture(entry.title, entry.details, entry.acceptance);
-      consumed.add(m.id);
+      consumed.set(m.id, entry.title);
       proposals.delete(m.id);
       tab('today');
       $('tasks-section').open = true;
@@ -1119,6 +1123,22 @@ function renderHarvest() {
       const source = document.createElement('small');
       source.textContent = 'From ' + from;
       item.append(source, control);
+      // A receipt for a story or a to-do change leads to where it now lives. It only shows that
+      // card on Today; it changes nothing.
+      const card = control.dataset.shows;
+      if (card) {
+        const show = document.createElement('button');
+        show.type = 'button';
+        show.className = 'text-button';
+        show.textContent = card === 'tasks-section' ? 'Show the story board' : 'Show the to-do list';
+        show.onclick = () => {
+          if (workspace.wide()) workspace.add('today');
+          else tab('today');
+          $(card).open = true;
+          $(card).scrollIntoView({ block: 'start', behavior: 'auto' });
+        };
+        item.append(show);
+      }
       (isReview ? waiting : done).push(item);
     }
   $('harvest-waiting').replaceChildren(...waiting);
@@ -1131,7 +1151,7 @@ function renderHarvest() {
   count.hidden = !waiting.length;
   count.textContent = waiting.length ? String(waiting.length) : '';
   harvestPeek = [
-    ...waiting.map((item) => item.lastChild.textContent),
+    ...waiting.map((item) => item.children[1].textContent),
     ...(done.length ? [`${done.length} grown from these conversations`] : []),
   ];
   if (!harvestPeek.length) harvestPeek = ['Nothing gathered yet.'];

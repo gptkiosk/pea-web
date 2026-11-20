@@ -10,12 +10,18 @@ const story =
   'I can capture that.\n```pea-story\n' +
   JSON.stringify({ op: 'story_add', title: 'Synthetic story', details: 'Synthetic scope' }) +
   '\n```\n';
+const todo =
+  'Here is that to-do.\n```pea-task\n' +
+  JSON.stringify([{ op: 'task_add', title: 'Buy synthetic groceries' }]) +
+  '\n```\n';
 
 let stack;
 before(
   async () => {
     if (!skip)
-      stack = await startStack((said) => (said.includes('story') ? story : 'A plain synthetic reply.'));
+      stack = await startStack((said) =>
+        said.includes('story') ? story : said.includes('groceries') ? todo : 'A plain synthetic reply.',
+      );
   },
   { timeout: 60000 },
 );
@@ -472,6 +478,7 @@ test(
     await page.waitFor(`document.getElementById('harvest-count').hidden`, 'nothing left waiting');
     now = await harvest();
     assert.deepEqual(now.waiting, []);
+    assert.deepEqual(now.done, ['From Chat | Added to Today: Synthetic story | Show the story board']);
     assert.equal(now.chip, 'Harvest');
     assert.match(await page.text('#today'), /Synthetic story/, 'the approved story is on the board');
 
@@ -570,6 +577,97 @@ test(
     await page.setViewport(390, 800);
     await point('greenhouse', 'pointerenter');
     assert.equal(await peek(), null);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);
+
+test(
+  'Harvest keeps a receipt for an approved story and to-do, and leads to where each now lives',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1680, height: 900 });
+    const lists = () =>
+      page.evaluate(`(() => {
+        const list = (id) =>
+          [...document.querySelectorAll('#' + id + ' li')].map((li) => [...li.children].map((c) => c.textContent).join(' | '));
+        return { waiting: list('harvest-waiting'), done: list('harvest-done') };
+      })()`);
+    const kept = () =>
+      page.evaluate(
+        `[document.querySelectorAll('#todo-list .todo-item').length, document.querySelectorAll('#board-columns .story-card, #board-columns article').length]`,
+      );
+    await page.waitFor(`!document.getElementById('todo-title').disabled`, 'the to-do list to be ready');
+    await askModel(stack, page, 'Please capture a story.');
+    await askModel(stack, page, 'Please add groceries to my list.');
+    assert.deepEqual(await lists(), {
+      waiting: ['From Chat | Review story: Synthetic story', 'From Chat | Review to-do changes'],
+      done: [],
+    });
+
+    // Each is approved from Harvest with the usual review.
+    for (const label of ['Review story', 'Review to-do changes']) {
+      await page.evaluate(
+        `[...document.querySelectorAll('#harvest-waiting button')].find((b) => b.textContent.startsWith(${JSON.stringify(label)})).click()`,
+      );
+      await page.waitFor(`document.getElementById('review').open`, label);
+      await page.click('#review-approve');
+      await page.waitFor(`!document.getElementById('review').open`);
+    }
+    await page.waitFor(`document.querySelectorAll('#harvest-done li').length === 2`, 'two receipts');
+    // Newest first; each says what was done, in the words the reply itself now shows.
+    assert.deepEqual(await lists(), {
+      waiting: [],
+      done: [
+        'From Chat | Added to your list: “Buy synthetic groceries”. | Show the to-do list',
+        'From Chat | Added to Today: Synthetic story | Show the story board',
+      ],
+    });
+    const chat = await page.text('#messages');
+    assert.match(chat, /Added to Today: Synthetic story/);
+    assert.match(chat, /Added to your list: “Buy synthetic groceries”\./);
+    assert.equal(
+      await page.evaluate(
+        `[...document.querySelectorAll('#messages button')].filter((b) => /^Show the /.test(b.textContent)).length`,
+      ),
+      0,
+      'the way to Today is offered in Harvest only',
+    );
+    assert.equal(await page.evaluate(`document.getElementById('harvest-count').hidden`), true);
+
+    // From Harvest alone, a receipt brings Today in beside it and opens the right card. Nothing is
+    // added or changed by looking.
+    const before = await kept();
+    await page.evaluate(
+      `document.getElementById('tab-harvest').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+    );
+    assert.deepEqual(await shown(page), ['harvest']);
+    await page.evaluate(`document.getElementById('todos-section').open = false`);
+    const show = (text) =>
+      page.evaluate(
+        `[...document.querySelectorAll('#harvest-done button')].find((b) => b.textContent === ${JSON.stringify(text)}).click()`,
+      );
+    await show('Show the to-do list');
+    assert.deepEqual(await shown(page), ['harvest', 'today']);
+    assert.equal(await page.evaluate(`document.getElementById('todos-section').open`), true);
+    assert.match(await page.text('#todo-list'), /Buy synthetic groceries/);
+    await page.evaluate(`document.getElementById('tasks-section').open = false`);
+    await show('Show the story board');
+    assert.equal(await page.evaluate(`document.getElementById('tasks-section').open`), true);
+    assert.match(await page.text('#board-columns'), /Synthetic story/);
+    assert.deepEqual(await kept(), before);
+    assert.equal((await lists()).done.length, 2, 'the receipts stay');
+
+    // On a narrow screen the same button simply opens Today.
+    await page.setViewport(800, 900);
+    await page.click('#tab-harvest');
+    await show('Show the story board');
+    assert.deepEqual(await shown(page), ['today']);
+
+    // Another profile sees none of it.
+    await page.fill('#profile', 'work');
+    await page.waitFor(`document.getElementById('profile').value === 'work'`);
+    assert.deepEqual(await lists(), { waiting: [], done: [] });
     assert.deepEqual(page.outsideRequests(), []);
     await page.close();
   },
