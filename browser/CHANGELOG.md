@@ -2,6 +2,22 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.29] - 2026-11-20
+
+### Added
+
+- **Answers you can press or say by number.** When PEA needs you to pick between a few set answers, the newest reply now shows them as numbered buttons under it, and the voice room shows the same buttons.
+  - Press one, or say or type its number: "2", "two", "option two", "the second one", "the last one". PEA sends that answer's own words as your next message, so your model never has to guess what "two" meant, and a note tells you which answer went.
+  - Saying the answer's own words works too. Anything else you say is sent as it is, as your own answer.
+  - When a reply is read aloud, its answers are read after it with their numbers.
+  - Only the newest reply's answers can be picked. Once the conversation moves on they are gone.
+
+### Notes
+
+- Picking an answer only sends a chat message, through the same send and the same sharing review as typed words. It approves nothing: every action still has its own review.
+- Your model is told how to offer set answers in one more paragraph of PEA's instructions, which you can read in the sharing review. A reply written with a web page in view offers none, as with every other proposal.
+- A number is matched by fixed rules in the page, not by a model. Words that speech recognition often writes for a number ("to", "for", "won") count only after "option" or "number".
+
 ## [0.1.0-rc.4.dev.28] - 2026-11-20
 
 ### Added

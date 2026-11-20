@@ -47,6 +47,7 @@ import { installProjects } from './projects-ui.mjs';
 import { claimsProject, projectGuidance, projectProposals } from './projects.mjs';
 import { endTrail, firstWords, startTrail } from './activity.mjs';
 import { trailBox, workBox } from './activity-ui.mjs';
+import { choiceProposals, choicesAloud, spokenChoice } from './choices.mjs';
 import { chatExport, chatExportName } from './chat-export.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
@@ -577,7 +578,61 @@ function renderSchedule(sample) {
     : 'Sample';
   $('mail-status').textContent = live?.mailOn ? mail.length + ' messages' : 'Not connected';
 }
+// The set answers the newest reply of a workspace offers, or null. An older reply's answers can
+// no longer be picked: the conversation has moved on.
+function liveChoice(surface) {
+  const last = history(surface).at(-1),
+    choice = last && !last.incomplete ? proposals.get(last.id) : null;
+  return choice?.kind === 'choices' && choice.profile === profile ? choice : null;
+}
+// Sends one of the offered answers as the owner's own next message, through the usual send.
+function pickChoice(surface, option) {
+  const field = surface === 'chat' ? $('thought') : $('collab-thought');
+  if (live.isBusy()) return notice('Finish the current request first.');
+  if (liveChoice(surface)?.options.includes(option) !== true)
+    return notice('The conversation moved on. That answer is no longer offered.');
+  if (field.value.trim() && field.value.trim() !== option)
+    return notice('Your typed draft is still open. Send or clear it first.');
+  field.value = option;
+  void submit(surface);
+}
+// The numbered buttons for a choice. `press` is given the answer's words.
+function choiceBox(choice, press) {
+  const box = document.createElement('div'),
+    question = document.createElement('p'),
+    list = document.createElement('ol'),
+    hint = document.createElement('small');
+  box.className = 'choices';
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', choice.question);
+  question.textContent = choice.question;
+  choice.options.forEach((option, i) => {
+    const row = document.createElement('li'),
+      b = document.createElement('button'),
+      number = document.createElement('span'),
+      words = document.createElement('span');
+    b.type = 'button';
+    b.className = 'choice';
+    number.className = 'choice-number';
+    number.textContent = String(i + 1);
+    words.textContent = option;
+    b.append(number, words);
+    b.setAttribute('aria-label', `Answer ${i + 1}: ${option}`);
+    b.onclick = () => press(option);
+    row.append(b);
+    list.append(row);
+  });
+  hint.textContent =
+    'Press one, or say or type its number. It is sent as your next message. You can also answer in your own words.';
+  box.append(question, list, hint);
+  return box;
+}
 function proposalButton(m, surface) {
+  const picking = proposals.get(m.id);
+  if (picking?.kind === 'choices')
+    return liveChoice(surface) === picking
+      ? choiceBox(picking, (option) => pickChoice(surface, option))
+      : null;
   const nav = proposals.get(m.id);
   if (nav?.kind === 'navigation' && !m.incomplete && nav.profile === profile) {
     const b = document.createElement('button');
@@ -1421,9 +1476,17 @@ function renderCollaboration() {
 }
 async function submit(surface) {
   voice?.stop();
-  const field = surface === 'chat' ? $('thought') : $('collab-thought'),
-    text = field.value.trim();
+  const field = surface === 'chat' ? $('thought') : $('collab-thought');
+  let text = field.value.trim();
   if (!text) return;
+  // A number, said or typed, names one of the answers the newest reply offers. What is sent is
+  // that answer's own words, so the model never has to guess what "two" meant.
+  const offered = liveChoice(surface),
+    picked = offered ? spokenChoice(text, offered.options) : -1;
+  if (picked >= 0) {
+    if (text !== offered.options[picked]) notice(`Sent answer ${picked + 1}: ${offered.options[picked]}`);
+    text = field.value = offered.options[picked];
+  }
   const destination = ownerNavigation(text);
   if (destination) {
     if (live.isBusy()) {
@@ -1619,6 +1682,7 @@ live = installConnections({
       written = offer ? docProposals(raw, live.currentDocument()) : [],
       opens = offer ? openProposals(raw) : [],
       reads = offer ? readProposals(raw) : [],
+      choices = offer ? choiceProposals(raw) : [],
       // A project draft is offered only where this server has a project engine to leave it in.
       drafts = offer && projects?.available() ? projectProposals(raw) : [];
     // A note about her own day, kept only while the owner has notes on. Never from a sourced reply.
@@ -1719,6 +1783,8 @@ live = installConnections({
       proposals.set(reply.id, { profile, kind: 'read', address: reads[0] });
     else if (drafts.length === 1)
       proposals.set(reply.id, { profile, kind: 'project', draft: drafts[0], title: drafts[0].title });
+    // A question with set answers. Its block is the only one in the reply, so nothing else is offered.
+    else if (choices.length === 1) proposals.set(reply.id, { profile, kind: 'choices', ...choices[0] });
     endTrail(
       trails.get(reply.id),
       {
@@ -2239,6 +2305,19 @@ function openVoiceRoom(surface) {
     surface === 'greenhouse' ? 'Greenhouse · ' + $('greenhouse-role').selectedOptions[0].textContent : 'Chat';
   updateVoiceControls();
   $('voice-room-status').textContent = 'Ready when you are.';
+  // The answers the newest reply offers are shown here too, to press or to say by number.
+  const offered = liveChoice(surface);
+  $('voice-room-choices').hidden = !offered;
+  $('voice-room-choices').replaceChildren(
+    ...(offered
+      ? [
+          choiceBox(offered, (option) => {
+            $('voice-transcript').value = option;
+            $('voice-room-send').click();
+          }),
+        ]
+      : []),
+  );
   $('voice-room').showModal();
 }
 $('voice-open').onclick = () => openVoiceRoom('chat');
@@ -2365,7 +2444,10 @@ for (const [id, surface] of [
     }
     stopVoices();
     // Copy boxes are never read aloud; only the prose around them is.
-    const spoken = spokenReply(reply.text);
+    // The answers a reply offers are read after it, with their numbers, so one can be said back.
+    const answers = proposals.get(reply.id),
+      aloud = answers?.kind === 'choices' && liveChoice(surface) === answers ? choicesAloud(answers) : '',
+      spoken = [spokenReply(reply.text), aloud].filter(Boolean).join(' ');
     if (!spoken) {
       notice('This reply is only text to copy, so there is nothing to read aloud.');
       return;
