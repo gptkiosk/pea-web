@@ -44,6 +44,22 @@ The gateway binds only to 127.0.0.1. Its upstream is restricted to a loopback IP
 
 The gateway has no conversation database or request-content logging. Your upstream model software can have its own logs; inspect its settings. Stopping a client cannot guarantee the upstream has already stopped GPU work. The gateway has no API billing because it never contacts a model cloud provider.
 
+## Project engine (MCD or RCD), optional
+
+A gateway can be connected to your own project engine, Mac Control Dashboard or its Raspberry Pi counterpart. This is groundwork: no page in PEA uses it yet, and an engine needs its matching side before it answers. Start the gateway with both options, or neither:
+
+```sh
+python3 browser/server/gateway.py --token-file "$HOME/.config/pea/connection-token" \
+  --projects-url http://127.0.0.1:8800 --projects-token-file "$HOME/.config/pea/engine-token"
+```
+
+- **Address.** Plain HTTP only to a loopback IP of this machine, or `https://` to a host you name (its certificate is checked the usual way), with no path, query or sign-in. Nothing in a request can change it.
+- **Credential.** The access the engine issued for PEA, 64 URL-safe characters, in a file that is yours alone (mode 0600, not a link). It is read for each request, so removing the file ends the access at once. It is sent only to the engine and never to the browser.
+- **What can be asked.** `POST /v1/projects` with one of: `{"action":"types"}`, `{"action":"list"}`, `{"action":"get","project":N}`, `{"action":"status","project":N}`, `{"action":"draft","type","title","brief","constraints"?}`. A draft starts nothing. There is no request to plan, approve, start, pause, pay or choose a working folder: those are decided in the engine's own pages.
+- **What an engine must answer.** One `POST /api/pea-projects` with `Authorization: Bearer <credential>` and the request above as JSON, answered with `200`, `application/json` and a JSON object of at most 500,000 bytes within 20 seconds. `401`/`403` mean the access is not accepted; `400`/`404`/`409`/`422` mean the request is not. No redirect is followed, and the engine's error text is not shown.
+
+The exact rules are the `projects` section of `browser/server/contract.json`, and both gateways pass the same tests for them.
+
 ## Phone/tablet and private VPN
 
 Run a TLS reverse proxy you control on your private VPN, forwarding one **HTTPS origin** to the loopback gateway, preserving its streaming response and request Host/Origin. Start the gateway with `--public-origin https://your-private-host.example` using your actual origin. No listener is opened on the public network by this flag. Keep the upstream model port private. Do not enable port forwarding to publish it on the Internet.

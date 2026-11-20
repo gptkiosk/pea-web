@@ -362,4 +362,50 @@ final class RulesTests: XCTestCase {
         try Data("{\"schema\":1,\"version\":\"01.2\",\"channel\":\"stable\",\"product\":\"PEA\",\"organization\":\"Example\"}".utf8).write(to: folder.appendingPathComponent("release.json"))
         XCTAssertThrowsError(try BuildIdentity.read(root: folder))
     }
+
+    // MARK: The owner's project engine
+
+    func testAProjectRequestIsOneOfTheNamedOnesWithExactlyItsFields() throws {
+        let rules = contract.projects
+        let draft = #"{"action":"draft","type":"other","title":"Synthetic","brief":"Synthetic brief"}"#
+        for good in [#"{"action":"types"}"#, #"{"action":"list"}"#, #"{"action":"get","project":1}"#, #"{"action":"status","project":2147483647}"#, draft,
+                     #"{"action":"draft","type":"other","title":"Synthetic","brief":"Synthetic brief","constraints":""}"#] {
+            XCTAssertNotNil(rules.validate(try parse(good)), good)
+        }
+        for bad in [#"{"action":"start"}"#, #"{"action":"approve","project":1}"#, #"{"action":"get"}"#, #"{"action":"get","project":"1"}"#, #"{"action":"get","project":1.0}"#,
+                    #"{"action":"get","project":0}"#, #"{"action":"get","project":2147483648}"#, #"{"action":"get","project":true}"#, #"{"action":"types","project":1}"#,
+                    #"{"action":"draft","type":"Other","title":"x","brief":"y"}"#, #"{"action":"draft","type":"other","title":" \t","brief":"y"}"#,
+                    #"{"action":"draft","type":"other","title":"x","brief":"y","working_dir":"/x"}"#, #"{"action":"draft","type":"other","title":"x","brief":"y","constraints":null}"#,
+                    #"{"action":["types"]}"#, "[]", "\"types\""] {
+            XCTAssertNil(rules.validate(try parse(bad)), bad)
+        }
+        XCTAssertEqual(ProjectRules.reason(status: 403), "refused")
+        XCTAssertEqual(ProjectRules.reason(status: 422), "declined")
+        XCTAssertEqual(ProjectRules.reason(status: 500), "failed")
+        XCTAssertEqual(Set(rules.refusals.keys), ["refused", "declined", "failed"])
+    }
+
+    func testTheProjectEngineAddressIsThisMacOrANamedHttpsHost() throws {
+        let rules = contract.projects
+        func engine(_ address: String, _ hosts: [String: UInt16] = [:]) throws -> ProjectEngine {
+            try ProjectEngine(address: address, tokenFile: "/nonexistent/engine-token", rules: rules, testHosts: hosts)
+        }
+        XCTAssertEqual(try engine("http://127.0.0.1:8800").base, "http://127.0.0.1:8800")
+        XCTAssertEqual(try engine("http://localhost:8800/").base, "http://127.0.0.1:8800")
+        XCTAssertEqual(try engine("https://Engine.Synthetic-Net.example:9443").base, "https://engine.synthetic-net.example:9443")
+        XCTAssertEqual(try engine("https://engine.synthetic-net.example").base, "https://engine.synthetic-net.example:443")
+        XCTAssertEqual(try engine("https://engine.synthetic-net.example", ["engine.synthetic-net.example": 4321]).base, "http://127.0.0.1:4321")
+        for bad in ["http://10.0.0.2:8800", "http://engine.synthetic-net.example", "http://127.0.0.1:8800/api", "http://127.0.0.1:8800/v1", "http://127.0.0.1:8800?x=1",
+                    "http://a:b@127.0.0.1:8800", "https://engine.synthetic-net.example/x", "https://a@engine.synthetic-net.example", "https://engine_x.example", "https://single",
+                    "https://engine.synthetic-net.example:0", "https://engine.synthetic-net.example:99999", "https://engine.synthetic-net.example:1:2", "ftp://127.0.0.1", ""] {
+            XCTAssertThrowsError(try engine(bad), bad)
+        }
+        XCTAssertNil(try engine("http://127.0.0.1:8800").token(rules), "no file, no access")
+        let request = try engine("http://127.0.0.1:8800").request(JSONObject([("action", .string("types"))]), token: String(repeating: "e", count: 64), rules: rules)
+        XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8800/api/pea-projects")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer " + String(repeating: "e", count: 64))
+        XCTAssertNil(request.value(forHTTPHeaderField: "Origin"))
+        XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
+    }
 }

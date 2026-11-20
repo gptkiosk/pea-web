@@ -237,5 +237,29 @@
     "actions": ["check", "apply"],
     "commitPattern": "[a-f0-9]{40}",
     "unavailable": "Updating from the app is not set up for this PEA."
+  },
+  "projects": {
+    "about": "GET path says whether this gateway is connected to the owner's project engine (MCD) on this machine. POST path {\"action\", ...} asks it one of the named things: list its templates, list or read the owner's projects, read a project's progress, or leave a draft of a project the owner reviewed. The engine is MCD or RCD: both answer the same way. It is not a proxy: one fixed POST to upstreamPath at the one address the operator set at start (plain HTTP to a loopback address on this machine, or HTTPS with its certificate checked to a host the operator named, such as an engine on their private network), with a credential read from a private file the operator named, no redirects followed, bounded in time and size. A draft starts nothing: planning, approval, spending and every run are decided in the engine's own pages. Nothing in a request chooses the address, the path, the credential or a working folder, the credential never reaches the page, and the engine's own error words are never passed on.",
+    "path": "/v1/projects",
+    "upstreamPath": "/api/pea-projects",
+    "hostPattern": "[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?){1,8}",
+    "actions": {"types": [], "list": [], "get": ["project"], "status": ["project"], "draft": ["type", "title", "brief"]},
+    "optional": {"draft": ["constraints"]},
+    "projectMax": 2147483647,
+    "typePattern": "[a-z0-9][a-z0-9-]{0,39}",
+    "titleCharacters": 200,
+    "briefCharacters": 20000,
+    "constraintsCharacters": 10000,
+    "tokenPattern": "[A-Za-z0-9_-]{64}",
+    "answerBytes": 500000,
+    "seconds": 20,
+    "concurrent": 1,
+    "userAgent": "PEA-Gateway/1 (projects its owner reviewed)",
+    "unavailable": "Projects are not connected for this PEA.",
+    "refusals": {
+      "refused": "The project engine did not accept this PEA's access. Review it in the engine.",
+      "declined": "The project engine did not accept that request. Nothing was changed.",
+      "failed": "The project engine could not be reached or gave an answer PEA does not accept. No retry."
+    }
   }
 }

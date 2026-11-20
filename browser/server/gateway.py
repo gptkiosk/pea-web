@@ -267,6 +267,80 @@ def validate_update(raw):
     raise ValueError()
 
 
+PROJECTS = CONTRACT['projects']
+PROJECT_TYPE = re.compile(PROJECTS['typePattern'] + r'\Z')
+PROJECT_HOST = re.compile(PROJECTS['hostPattern'] + r'\Z')
+PROJECT_TOKEN = re.compile(PROJECTS['tokenPattern'] + r'\Z')
+
+
+class ProjectRefusal(Exception):
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def validate_project(raw):
+    """One named request to the owner's project engine. Nothing in it can choose an address, a path,
+    a credential or a working folder."""
+    if not isinstance(raw, dict) or not isinstance(raw.get('action'), str) or raw['action'] not in PROJECTS['actions']:
+        raise ValueError()
+    action = raw['action']
+    needed, extra = set(PROJECTS['actions'][action]), set(PROJECTS['optional'].get(action, []))
+    if not {'action'} | needed <= set(raw) <= {'action'} | needed | extra:
+        raise ValueError()
+    if 'project' in raw and (type(raw['project']) is not int or not 1 <= raw['project'] <= PROJECTS['projectMax']):
+        raise ValueError()
+    if 'type' in raw and (not isinstance(raw['type'], str) or not PROJECT_TYPE.fullmatch(raw['type'])):
+        raise ValueError()
+    for name, required in (('title', True), ('brief', True), ('constraints', False)):
+        if name in raw:
+            text = raw[name]
+            if not isinstance(text, str) or len(text) > PROJECTS[name + 'Characters'] or (required and not text.strip(' \t\n\r')):
+                raise ValueError()
+    return raw
+
+
+def projects_settings(url, token_file, test_hosts=None):
+    """What an operator sets at start to connect this gateway to their project engine (MCD or RCD):
+    its address and the private file holding the credential the engine issued. The address is plain
+    HTTP to a loopback IP on this machine, or HTTPS to a named host. Without it nothing is asked.
+    `test_hosts` maps a .example name to a local port and is for tests only."""
+    u = urlsplit(url)
+    if u.username or u.password or u.query or u.fragment or u.path not in ('', '/'):
+        raise ValueError('The project engine address must have no path, query or sign-in.')
+    try:
+        port = u.port
+    except ValueError:
+        raise ValueError('The project engine address has no usable port.') from None
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError('The project engine address has no usable port.')
+    name = (u.hostname or '').lower()
+    settings = {'token_file': Path(token_file).expanduser()}
+    if u.scheme == 'https' and PROJECT_HOST.fullmatch(name):
+        if name in (test_hosts or {}):
+            return {**settings, 'address': ('127.0.0.1', test_hosts[name]), 'tls': False}
+        return {**settings, 'address': (name, port or 443), 'tls': True}
+    host = '127.0.0.1' if name == 'localhost' else name
+    try:
+        if u.scheme != 'http' or not ipaddress.ip_address(host).is_loopback:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise ValueError('The project engine must be at http:// on a loopback IP of this machine, or at https:// on a named host.') from None
+    return {**settings, 'address': (host, port or 80), 'tls': False}
+
+
+def project_token(path):
+    """The engine's credential, read for each request so that removing the file ends the access. None if it cannot be used."""
+    try:
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_uid != os.getuid():
+            return None
+        token = path.read_text().strip(' \t\n\r')
+    except (OSError, ValueError):
+        return None
+    return token if PROJECT_TOKEN.fullmatch(token) else None
+
+
 def update_settings(checkout, label, channel='development', prerelease=False, state=None, **tests):
     """What an operator sets at start to let this gateway update its own installed copy. Without it
     the gateway cannot update anything. `tests` carries stand-ins and is never set from a command line."""
@@ -290,7 +364,7 @@ class Gateway(ThreadingHTTPServer):
     # Connections waiting to be accepted. One page load asks for about twenty files at once; the library default
     # of five refused part of that burst, a module failed to load and the app never started.
     request_queue_size = LIMITS['acceptBacklog']
-    def __init__(self, address, *, token, upstream, public_origin=None, reader_test_sites=None, reader_test_resolve=None, speech_test_ports=None, update=None):
+    def __init__(self, address, *, token, upstream, public_origin=None, reader_test_sites=None, reader_test_resolve=None, speech_test_ports=None, update=None, projects=None):
         super().__init__(address, Handler)
         # Stand-ins for public sites, for tests only: a name served in plain HTTP from a port on this
         # machine, and a name given fixed addresses in place of a DNS answer. Never set by local.py.
@@ -302,6 +376,8 @@ class Gateway(ThreadingHTTPServer):
         # None unless the operator named an installed checkout and its service at start.
         self.update = update
         self.update_lock = threading.Lock()
+        self.projects = projects
+        self.projects_lock = threading.BoundedSemaphore(PROJECTS['concurrent'])
         self.client_slots = threading.BoundedSemaphore(CLIENT_SLOTS)
         self.token_digest = hashlib.sha256(token.encode()).digest()
         self.upstream = upstream_url(upstream)
@@ -542,6 +618,50 @@ class Gateway(ThreadingHTTPServer):
         finally:
             self.update_lock.release()
 
+    def projects_status(self):
+        return {'available': bool(self.projects and project_token(self.projects['token_file']))}
+
+    def projects_call(self, request):
+        """One fixed POST to the project engine. Returns what it answered as a JSON object, or raises
+        ProjectRefusal with the kind of failure. The engine's own words are never returned."""
+        token = project_token(self.projects['token_file'])
+        if not token:
+            return None
+        if self.projects['tls']:
+            connection = http.client.HTTPSConnection(*self.projects['address'], timeout=PROJECTS['seconds'], context=ssl.create_default_context())
+        else:
+            connection = http.client.HTTPConnection(*self.projects['address'], timeout=PROJECTS['seconds'])
+        deadline = time.monotonic() + PROJECTS['seconds']
+        try:
+            connection.request('POST', PROJECTS['upstreamPath'], body=json.dumps(request).encode(),
+                               headers={'Content-Type': 'application/json', 'Accept': 'application/json',
+                                        'Authorization': 'Bearer ' + token, 'User-Agent': PROJECTS['userAgent']})
+            response = connection.getresponse()
+            if response.status in (401, 403):
+                raise ProjectRefusal('refused')
+            if response.status in (400, 404, 409, 422):
+                raise ProjectRefusal('declined')
+            if response.status != 200 or response.getheader('Content-Type', '').split(';')[0].strip().lower() != 'application/json' or response.getheader('Content-Encoding'):
+                raise ProjectRefusal('failed')
+            data = b''
+            while len(data) <= PROJECTS['answerBytes']:
+                if time.monotonic() > deadline:
+                    raise ProjectRefusal('failed')
+                chunk = response.read1(65536)
+                if not chunk:
+                    break
+                data += chunk
+            if len(data) > PROJECTS['answerBytes']:
+                raise ProjectRefusal('failed')
+            answer = strict_json(data)
+            if not isinstance(answer, dict):
+                raise ProjectRefusal('failed')
+            return answer
+        except (OSError, ValueError, TypeError, RecursionError, http.client.HTTPException):
+            raise ProjectRefusal('failed') from None
+        finally:
+            connection.close()
+
     def upstream_call(self, method, path, body=None):
         connection = http.client.HTTPConnection(*self.upstream, timeout=LIMITS['upstreamTimeoutSeconds'])
         try:
@@ -625,6 +745,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {'available': False})
         if self.path == UPDATES['path']:
             return self.reply(200, self.server.update_status())
+        if self.path == PROJECTS['path']:
+            return self.reply(200, self.server.projects_status())
         if self.path == '/v1/models':
             if not self.server.model_lock.acquire(blocking=False):
                 return self.reply(429, {'error': 'Local model busy. No automatic retry.'})
@@ -658,13 +780,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.boundary(auth=True):
             return
-        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path'], SPEECH['path'], SPEECH['voicesPath'], UPDATES['path']):
-            return self.reply(404, {'error': 'Only model listing, text chat, reminders, the page reader, speech and updates are exposed.'})
+        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path'], SPEECH['path'], SPEECH['voicesPath'], UPDATES['path'], PROJECTS['path']):
+            return self.reply(404, {'error': 'Only model listing, text chat, reminders, the page reader, speech, updates and projects are exposed.'})
         reminders = self.path == REMINDERS['path']
         reading = self.path == READER['path']
         speaking = self.path in (SPEECH['path'], SPEECH['voicesPath'])
         listing = self.path == SPEECH['voicesPath']
         updating = self.path == UPDATES['path']
+        planning = self.path == PROJECTS['path']
         try:
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json' or self.headers.get('Transfer-Encoding'):
                 raise ValueError()
@@ -672,10 +795,24 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
             parsed = strict_json(self.rfile.read(length))
-            body = validate_update(parsed) if updating else validate_speech(parsed, listing) if speaking else (validate_reminders if reminders else validate_read if reading else validate_chat)(parsed)
+            body = validate_project(parsed) if planning else validate_update(parsed) if updating else validate_speech(parsed, listing) if speaking else (validate_reminders if reminders else validate_read if reading else validate_chat)(parsed)
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
-            return self.reply(400, {'error': 'Invalid update request.' if updating else 'Invalid speech request.' if speaking else 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+            return self.reply(400, {'error': 'Invalid project request.' if planning else 'Invalid update request.' if updating else 'Invalid speech request.' if speaking else 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+        if planning:
+            if not self.server.projects:
+                return self.reply(409, {'error': PROJECTS['unavailable']})
+            if not self.server.projects_lock.acquire(blocking=False):
+                return self.reply(429, {'error': 'A project request is already running. No automatic retry.'})
+            try:
+                answer = self.server.projects_call(body)
+                if answer is None:
+                    return self.reply(409, {'error': PROJECTS['unavailable']})
+                return self.reply(200, {'result': answer})
+            except ProjectRefusal as refusal:
+                return self.reply(502, {'error': PROJECTS['refusals'][refusal.reason], 'reason': refusal.reason})
+            finally:
+                self.server.projects_lock.release()
         if updating:
             return self.reply(*self.server.update_request(body))
         if speaking:
@@ -753,6 +890,10 @@ def main():
     parser.add_argument('--update-prerelease', action='store_true', help='With the release channel: also offer signed pre-releases.')
     parser.add_argument('--speech-test-port', action='append', default=[], metavar='PROVIDER=PORT',
                         help='Tests only: reach this voice provider at plain HTTP on a port of this machine instead.')
+    parser.add_argument('--projects-url', help='Connect to your project engine (MCD or RCD): http:// on a loopback IP of this machine, for example http://127.0.0.1:8800, or https:// on a named host. Needs --projects-token-file.')
+    parser.add_argument('--projects-test-host', action='append', default=[], metavar='NAME.example=PORT',
+                        help='Tests only: reach an https project engine of this name at plain HTTP on a port of this machine.')
+    parser.add_argument('--projects-token-file', help='The private file (mode 0600) holding the access the project engine issued for PEA.')
     args = parser.parse_args()
     if args.create_token:
         p = Path(args.token_file).expanduser()
@@ -788,8 +929,24 @@ def main():
             update = update_settings(args.update_checkout, args.update_launchd_label, args.update_channel, args.update_prerelease)
         except ValueError as error:
             parser.error(str(error))
+    if bool(args.projects_url) != bool(args.projects_token_file):
+        parser.error('Give both --projects-url and --projects-token-file, or neither.')
+    projects = None
+    if args.projects_url:
+        try:
+            engines = {}
+            for entry in args.projects_test_host:
+                name, _, value = entry.partition('=')
+                if not name.endswith('.example') or not value.isdigit():
+                    parser.error('A projects test host must end in .example and name a port.')
+                engines[name] = int(value)
+            if engines:
+                print('TEST MODE: the project engine has a stand-in. Never use this option outside tests.', file=sys.stderr)
+            projects = projects_settings(args.projects_url, args.projects_token_file, engines)
+        except ValueError as error:
+            parser.error(str(error))
     server = Gateway(('127.0.0.1', args.port), token=token, upstream=args.upstream, public_origin=args.public_origin,
-                     reader_test_sites=sites, reader_test_resolve=fixed, speech_test_ports=voices, update=update)
+                     reader_test_sites=sites, reader_test_resolve=fixed, speech_test_ports=voices, update=update, projects=projects)
     print(f'PEA customer-owned UI: http://127.0.0.1:{args.port}/browser/ · private VPN/TLS required for phone access')
     try:
         server.serve_forever()

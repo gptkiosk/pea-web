@@ -35,12 +35,20 @@ var arguments = Array(CommandLine.arguments.dropFirst())
 var testSites = [String: UInt16]()
 var testResolve = [String: [String]]()
 var speechPorts = [String: UInt16]()
+var projectHosts = [String: UInt16]()
 while !arguments.isEmpty {
     let name = arguments.removeFirst()
-    guard ["--port", "--upstream", "--token-file", "--root", "--reminders-file", "--reader-test-site", "--reader-test-resolve", "--speech-test-port"].contains(name), !arguments.isEmpty else {
+    guard ["--port", "--upstream", "--token-file", "--root", "--reminders-file", "--reader-test-site", "--reader-test-resolve", "--speech-test-port", "--projects-url", "--projects-token-file", "--projects-test-host"].contains(name), !arguments.isEmpty else {
         fail("Usage: pea-gateway --root BROWSER_DIR --token-file PATH [--port N] [--upstream http://127.0.0.1:PORT]")
     }
     let value = arguments.removeFirst()
+    // A stand-in for an https project engine, for tests only: NAME.example=PORT.
+    if name == "--projects-test-host" {
+        let parts = value.split(separator: "=", maxSplits: 1).map(String.init)
+        guard parts.count == 2, parts[0].hasSuffix(".example"), let port = UInt16(parts[1]) else { fail("A projects test host must end in .example and name a port.") }
+        projectHosts[parts[0]] = port
+        continue
+    }
     // Stand-ins for the voice providers, for tests only: PROVIDER=PORT.
     if name == "--speech-test-port" {
         let parts = value.split(separator: "=", maxSplits: 1).map(String.init)
@@ -68,6 +76,10 @@ if !testSites.isEmpty || !testResolve.isEmpty {
 if !speechPorts.isEmpty {
     FileHandle.standardError.write(Data("TEST MODE: voice providers have stand-ins. Never use this option outside tests.\n".utf8))
 }
+if !projectHosts.isEmpty {
+    FileHandle.standardError.write(Data("TEST MODE: the project engine has a stand-in. Never use this option outside tests.\n".utf8))
+}
+guard (values["--projects-url"] == nil) == (values["--projects-token-file"] == nil) else { fail("Give both --projects-url and --projects-token-file, or neither.") }
 guard let rootPath = values["--root"], let tokenFile = values["--token-file"] else { fail("Both --root and --token-file are required.") }
 guard let port = UInt16(values["--port"]!), port >= 1 else { fail("Choose a valid port.") }
 
@@ -76,12 +88,16 @@ do {
     guard let rules = FileManager.default.contents(atPath: root.appendingPathComponent("server/contract.json").path) else {
         fail("The web files were not found at that --root.")
     }
-    let token = try readTokenFile((tokenFile as NSString).expandingTildeInPath, contract: try Contract(data: rules))
+    let contract = try Contract(data: rules)
+    let token = try readTokenFile((tokenFile as NSString).expandingTildeInPath, contract: contract)
     var options = Gateway.Options(port: port, token: token, upstream: values["--upstream"]!, root: root,
                                   reminders: values["--reminders-file"].map { FileReminders(path: $0) })
     options.readerTestSites = testSites
     options.readerTestResolve = testResolve
     options.speechTestPorts = speechPorts
+    if let address = values["--projects-url"], let file = values["--projects-token-file"] {
+        options.projects = try ProjectEngine(address: address, tokenFile: (file as NSString).expandingTildeInPath, rules: contract.projects, testHosts: projectHosts)
+    }
     let gateway = try Gateway(options)
     gateway.start { error in
         if let error { fail("PEA could not start on port \(port): \(error.localizedDescription)") }

@@ -6,6 +6,7 @@
   "Sources/PEAGatewayCore/Gateway.swift",
   "Sources/PEAGatewayCore/HTTP.swift",
   "Sources/PEAGatewayCore/JSON.swift",
+  "Sources/PEAGatewayCore/Projects.swift",
   "Sources/PEAGatewayCore/Reader.swift",
   "Sources/PEAGatewayCore/Rules.swift",
   "Sources/PEAGatewayCore/Speech.swift",
