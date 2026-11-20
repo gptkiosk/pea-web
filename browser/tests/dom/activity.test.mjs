@@ -277,7 +277,7 @@ test(
     );
     assert.match(
       debug.text,
-      /  - Instructions included: stories, email, documents, calendar, navigation, phone links, page reading/,
+      /  - Instructions included: stories, email, documents, calendar, navigation, phone links, choices, page reading/,
     );
     assert.match(
       debug.text,
