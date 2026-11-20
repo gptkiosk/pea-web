@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.20] - 2026-11-19
+
+### Changed
+
+- **Receipts in Harvest for approved stories and to-dos say what was done and lead to it.** An approved story's receipt now names the story ("Added to Today: …") in the reply and in Harvest, where it used to say only "Added to Today". In Harvest, a story's receipt has "Show the story board" and a to-do receipt has "Show the to-do list": each brings Today in (beside Harvest on a wide screen) and opens that card. The button only shows the card; it adds and changes nothing. Receipts last as long as the conversation is open in this tab.
+
 ## [0.1.0-rc.4.dev.19] - 2026-11-19
 
 ### Added

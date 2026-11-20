@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Harvest receipts for approved stories and to-dos — 2026-11-19
+
+**Branch `feature/harvest-receipts`, version `0.1.0-rc.4.dev.20`.** The owner asked: "Add receipts in Harvest for approved stories and to-dos". Looking first showed the earlier note was wrong: both already left a line under "Grown" (a story as a bare "Added to Today", a to-do as its list of changes). What was missing was the story's name and a way to the result.
+
+- `browser/app.mjs`: `consumed` is a `Map` from reply id to the approved story's title; the story receipt reads "Added to Today: <title>". Story and to-do receipts carry `data-shows` (`tasks-section`, `todos-section`). `renderHarvest` adds a "Show the story board" / "Show the to-do list" button to such an item: `workspace.add('today')` on a wide screen, `tab('today')` otherwise, then opens the card and scrolls to it. It changes no data. The Harvest peek reads the control (second child), not the last child.
+- Tests: `browser/tests/dom/workspace.test.mjs` (the fake model also proposes a to-do; the first Harvest test expects the named story receipt; a new test approves a story and a to-do from Harvest, checks both receipts and their words in Chat, that the buttons appear in Harvest only, bring Today in beside Harvest, open the right card, change nothing, work on a narrow screen, and that another profile sees none).
+
+Known gaps: receipts (like the proposals themselves) live in the tab; a conversation restored from the saved library shows neither. Document receipts have no "show" button. A receipt does not point at the single story or to-do, only at its card. Not tried with the owner's model or data.
+
+Next action: none pending.
+
 ## A peek panel on tucked chips, and the chips on a centred row — 2026-11-19
 
 **Branch `design/chip-peek`, version `0.1.0-rc.4.dev.19`.** The owner sent a picture of the chip row and asked: "Build the real peek panel for tucked chips and maybe drop these down a level and center them".
@@ -61,7 +72,7 @@ Next action: none pending.
 - `browser/styles.css`: the tray, the chip count, four tabs on a phone, and the bar's two-row breakpoint raised from 1279px to 1499px.
 - Tests: `browser/tests/dom/workspace.test.mjs` gains a Harvest test (empty; a plain reply gathers nothing; a proposal is counted and named on the tucked chip; nothing on the board before review; the chip brings Harvest in beside Chat and the reply keeps its button; cancel leaves it waiting; approve empties it and the story is on the board; another profile has its own). The frame test now runs at 1600px and uses the double press.
 
-Known gaps: (the peek became a real panel in `0.1.0-rc.4.dev.19`.) An approved story, to-do or document leaves nothing in "Grown" because its reply keeps no receipt; only kinds that leave a link or a receipt appear there. Harvest has no keyboard shortcut or command-palette entry. Today's at-a-glance pane from the mock-up ("Your day" beside Chat) is the existing Today workspace, unchanged. Not looked at with the owner's real conversations.
+Known gaps: (the peek became a real panel in `0.1.0-rc.4.dev.19`; the note here that approved stories and to-dos left nothing under "Grown" was wrong, see `0.1.0-rc.4.dev.20`.) Harvest has no keyboard shortcut or command-palette entry. Today's at-a-glance pane from the mock-up ("Your day" beside Chat) is the existing Today workspace, unchanged. Not looked at with the owner's real conversations.
 
 Next action: none agreed; candidates are a real peek panel, receipts for approved stories, to-dos and documents, and per-profile arrangements.
 
