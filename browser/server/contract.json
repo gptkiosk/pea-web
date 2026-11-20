@@ -4,6 +4,7 @@
   "assets": [
     "CHANGELOG.md",
     "actions.mjs",
+    "activity-ui.mjs",
     "activity.mjs",
     "app.mjs",
     "assets/pea-icon.svg",

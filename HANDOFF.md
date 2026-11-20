@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The same list for page reading, pictures and documents — 2026-11-20
+
+**Branch `feature/activity-more`, version `0.1.0-rc.4.dev.27`.** The owner asked: "Add the same list to page reading, pictures and documents".
+
+- `browser/activity.mjs`: a second kind of record for work that is not a reply. `beginWork(now)`, `workStep(work, icon, text)` (after the thing has happened; at most 20; text cleaned to one line of 200 characters), `workWaiting(work, text)` (the turning last line), `endWork(work, outcome, icon, text, now)` (once; `done`, `stopped` or `failed`), `workRows`, `workSummary`, `workActive`.
+- `browser/activity-ui.mjs` (new): the drawing moved out of `app.mjs`. `trailBox(trail)`, `workBox(work)`, `showWork(place, work)`. A list is open unless its state is `done`, or as the owner last left it.
+- Page reading, `browser/research-ui.mjs` `read()`: the record starts at the first approval and is drawn in `#page-activity`, just before `#context-page`. Steps for the approval (and where the suggestion came from), a moved page and the second approval, the read, and the characters kept. A declined second review ends it as stopped; a failed read or a refusal (no words, a credential on the page, too many moves) ends it as failed with PEA's own sentence. `clear()` removes it with the page.
+- Pictures, `browser/live-ui.mjs` `image()`: drawn in `#generated-activity`, just before `#generated-output`. Steps for the price check, the review, the provider; then the picture's type and size, or stopped (with the note that a charge may already have been made), failed, or discarded on a profile change. Cleared on a profile change.
+- Documents, `live-ui.mjs` `writeDocument(request, onWork)`: `app.mjs` keeps the record in `docTrails` by reply id and draws it under that reply (`docTrailNode`). File path: review, then prepared as a file. Google path: review, created or replaced, folder list read again; a failure says whether the document was written. `chatExport` takes `workFor(id)` and a debug file lists it as `Document · …`.
+- Tests: `browser/tests/activity.test.mjs` (9), `browser/tests/chat-export.test.mjs` (5), `browser/tests/dom/activity-work.test.mjs` (3: page reads suggested, moved and failed; a document as a file and its debug export; a picture that arrives and one that fails, against a stand-in OpenRouter). Assets are 62.
+- Known gaps: the Google path for documents has no browser test (no stand-in Google in that file), only the file path. A picture's turning line was not observed in a test because the stand-in answers at once; stopping a picture is not tested. Page and picture lists hold only the latest piece of work and are not in the chat export. Calendar, mail, GitHub, decks and project engine requests have no list. Not looked at by eye in this change.
+
 ## What PEA is doing, over each reply — 2026-11-20
 
 **Branch `feature/activity-trail`, version `0.1.0-rc.4.dev.26`.** The owner showed a list of steps with icons from another tool and asked: "Can you implement this chat output with icon method that most tools use showing what the assistant is doing in the background to the user while she does it".

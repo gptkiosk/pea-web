@@ -3827,6 +3827,12 @@ kbd {
   font-size: 13px;
   line-height: 1.5;
 }
+.work-activity {
+  margin: 10px 0;
+}
+.work-activity .activity {
+  margin: 0;
+}
 .activity summary {
   cursor: pointer;
   width: fit-content;

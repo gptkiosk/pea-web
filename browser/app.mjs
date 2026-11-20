@@ -45,15 +45,8 @@ import { installBackup } from './backup-ui.mjs';
 import { installUpdates } from './updates-ui.mjs';
 import { installProjects } from './projects-ui.mjs';
 import { claimsProject, projectGuidance, projectProposals } from './projects.mjs';
-import {
-  activityIcons,
-  endTrail,
-  firstWords,
-  startTrail,
-  trailActive,
-  trailRows,
-  trailSummary,
-} from './activity.mjs';
+import { endTrail, firstWords, startTrail } from './activity.mjs';
+import { trailBox, workBox } from './activity-ui.mjs';
 import { chatExport, chatExportName } from './chat-export.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
@@ -865,7 +858,12 @@ function proposalButton(m, surface) {
       const who = profile;
       try {
         if (!history(surface, who).some((x) => x.id === m.id) || proposals.get(m.id) !== written) return;
-        const result = await live.writeDocument(written.request);
+        const result = await live.writeDocument(written.request, (work) => {
+          docTrails.set(m.id, work);
+          if (docTrails.size > 400) docTrails.delete(docTrails.keys().next().value);
+          renderChat();
+          renderCollaboration();
+        });
         if (!result) return;
         const title = result.title;
         docDone.set(
@@ -1119,49 +1117,15 @@ function workingNode(m, surface) {
 // while it happens. Open while PEA works, folded to one line afterwards unless the owner opens
 // it. Kept for this tab only: never saved, backed up or sent to a model.
 const trails = new Map();
-function activityIcon(name) {
-  const NS = 'http://www.w3.org/2000/svg',
-    svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('class', 'activity-icon');
-  svg.setAttribute('aria-hidden', 'true');
-  for (const d of activityIcons[name] ?? activityIcons.check) {
-    const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', d);
-    svg.append(path);
-  }
-  return svg;
-}
 function trailNode(m) {
   const trail = m.role === 'assistant' ? trails.get(m.id) : null;
-  if (!trail) return null;
-  const box = document.createElement('details');
-  box.className = 'activity';
-  box.dataset.state = trailActive(trail) ? 'active' : trail.outcome;
-  box.open = trail.open ?? trailActive(trail);
-  const summary = document.createElement('summary');
-  summary.textContent = trailSummary(trail);
-  // The conversation is redrawn as a reply arrives, so the owner's choice is remembered here.
-  summary.onclick = () => {
-    trail.open = !box.open;
-  };
-  const list = document.createElement('ul');
-  for (const row of trailRows(trail)) {
-    const item = document.createElement('li');
-    item.dataset.state = row.state;
-    if (row.state === 'active') {
-      const spinner = document.createElement('span');
-      spinner.className = 'activity-spinner';
-      spinner.setAttribute('aria-hidden', 'true');
-      item.append(spinner);
-    } else item.append(activityIcon(row.icon));
-    const words = document.createElement('span');
-    words.textContent = row.text;
-    item.append(words);
-    list.append(item);
-  }
-  box.append(summary, list);
-  return box;
+  return trail ? trailBox(trail) : null;
+}
+// What PEA did to write a document a reply proposed, by reply id. Shown under that reply.
+const docTrails = new Map();
+function docTrailNode(m) {
+  const work = docTrails.get(m.id);
+  return work ? workBox(work) : null;
 }
 // Harvest: everything the conversations of this profile proposed, in one place. Each item carries
 // the very control its reply shows, built the same way, so reviewing from here is the same review
@@ -1281,6 +1245,8 @@ function renderChat() {
     if (trail) d.querySelector('.utterance-head').after(trail);
     const working = workingNode(m, 'chat');
     if (working) d.append(working);
+    const documentWork = docTrailNode(m);
+    if (documentWork) d.append(documentWork);
     const action = proposalButton(m, 'chat');
     if (action) d.append(action);
     if (!m.preview && !m.incomplete) makeMessageDraggable(d, m.id);
@@ -1439,6 +1405,8 @@ function renderCollaboration() {
     if (trail) d.querySelector('.utterance-head').after(trail);
     const working = workingNode(m, 'greenhouse');
     if (working) d.append(working);
+    const documentWork = docTrailNode(m);
+    if (documentWork) d.append(documentWork);
     const action = proposalButton(m, 'greenhouse');
     if (action) d.append(action);
     if (!m.incomplete) makeMessageDraggable(d, m.id);
@@ -1936,6 +1904,7 @@ memory = installMemory({
     todoDone.clear();
     projectDone.clear();
     docDone.clear();
+    docTrails.clear();
     openReady.clear();
     live.forgetDocument();
     voice?.stop();
@@ -2050,6 +2019,7 @@ $('chat-export-submit').onclick = () => {
     text = chatExport({
       messages: said,
       trailFor: (id) => trails.get(id) ?? null,
+      workFor: (id) => docTrails.get(id) ?? null,
       debug,
       profile,
       version: $('footer-build').textContent,

@@ -4,7 +4,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   activityIcons,
+  beginWork,
   contextSteps,
+  endWork,
   endTrail,
   firstWords,
   startTrail,
@@ -12,6 +14,11 @@ import {
   trailActive,
   trailRows,
   trailSummary,
+  workActive,
+  workRows,
+  workStep,
+  workSummary,
+  workWaiting,
 } from '../activity.mjs';
 
 const texts = (rows) => rows.map((r) => r.text);
@@ -170,4 +177,63 @@ test('nothing is taken on trust from missing or malformed input', () => {
   assert.equal(startTrail(new Array(50).fill({ icon: 'check', text: 'x' }), 0).steps.length, 20);
   assert.doesNotThrow(() => firstWords(undefined, 1));
   assert.doesNotThrow(() => endTrail(undefined, { complete: true }, 1));
+});
+
+test('other approved work is listed one finished step at a time, with what PEA is waiting on last', () => {
+  const work = beginWork(1000);
+  assert.equal(workActive(work), true);
+  assert.deepEqual(workRows(work), []);
+  workStep(work, 'shield', 'You approved reading pages.example');
+  workWaiting(work, 'Your PEA server is reading the page…');
+  assert.deepEqual(workRows(work), [
+    { icon: 'shield', text: 'You approved reading pages.example', state: 'done' },
+    { icon: 'clock', text: 'Your PEA server is reading the page…', state: 'active' },
+  ]);
+  assert.equal(workSummary(work), 'What PEA is doing');
+  workWaiting(work, '');
+  assert.equal(workRows(work).length, 1);
+  workStep(work, 'globe', 'Your PEA server read the page at pages.example');
+  endWork(work, 'done', 'file', 'Kept 120 of 4,000 characters as plain words, in this tab only', 4200);
+  assert.equal(workActive(work), false);
+  assert.deepEqual(texts(workRows(work)), [
+    'You approved reading pages.example',
+    'Your PEA server read the page at pages.example',
+    'Kept 120 of 4,000 characters as plain words, in this tab only',
+  ]);
+  assert.ok(workRows(work).every((r) => r.state === 'done' && activityIcons[r.icon]));
+  assert.equal(workSummary(work), 'What PEA did · 3 steps · 3 s');
+  // Finished work takes no more steps, waits on nothing and ends once.
+  workStep(work, 'check', 'Late');
+  workWaiting(work, 'Late…');
+  endWork(work, 'failed', 'warn', 'Late', 9999);
+  assert.equal(workRows(work).length, 3);
+  assert.equal(workSummary(work), 'What PEA did · 3 steps · 3 s');
+});
+
+test('work that was stopped or failed ends with that line, and names from elsewhere are cleaned', () => {
+  const stopped = beginWork(0);
+  workWaiting(stopped, 'Waiting for the picture…');
+  endWork(stopped, 'stopped', 'stop', 'Stopped before a picture arrived.', 2500);
+  assert.deepEqual(workRows(stopped), [
+    { icon: 'stop', text: 'Stopped before a picture arrived.', state: 'problem' },
+  ]);
+  assert.equal(workSummary(stopped), 'What PEA did · 1 step · stopped after 3 s');
+
+  const failed = beginWork(0);
+  workStep(failed, 'send', 'Sent the prompt to bad\u202eprovider\n<b>x</b> ' + 'p'.repeat(400));
+  endWork(failed, 'anything else', 'warn', 'The request did not finish.', 10);
+  const [sent, last] = workRows(failed);
+  assert.match(sent.text, /^Sent the prompt to bad provider <b>x<\/b> p+$/);
+  assert.equal([...sent.text].length, 200);
+  assert.equal(last.state, 'problem');
+  assert.equal(workSummary(failed), 'What PEA did · 2 steps · did not finish');
+
+  const full = beginWork(0);
+  for (let i = 0; i < 40; i++) workStep(full, 'check', 'Step ' + i);
+  assert.equal(workRows(full).length, 20);
+  assert.doesNotThrow(() => {
+    workStep(null, 'check', 'x');
+    workWaiting(undefined, 'x');
+    endWork(null, 'done', 'check', 'x', 1);
+  });
 });

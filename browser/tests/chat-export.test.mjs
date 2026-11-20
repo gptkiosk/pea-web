@@ -3,7 +3,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatExport, chatExportName } from '../chat-export.mjs';
-import { contextSteps, endTrail, firstWords, startTrail, trailDebug } from '../activity.mjs';
+import {
+  beginWork,
+  contextSteps,
+  endTrail,
+  endWork,
+  firstWords,
+  startTrail,
+  trailDebug,
+  workStep,
+} from '../activity.mjs';
 
 const AT = Date.UTC(2026, 10, 20, 14, 3, 0);
 const detail = {
@@ -173,4 +182,28 @@ test('only conversation messages are exported, and the file name says the day an
   assert.equal(chatExport({ messages: 'no', now: AT }).split('\n')[4], 'Messages: 0');
   assert.equal(chatExportName(AT), 'pea-chat-2026-11-20.txt');
   assert.equal(chatExportName(AT, true), 'pea-chat-2026-11-20-debug.txt');
+});
+
+test('a document a reply proposed and the owner approved is listed under that reply, in a debug file only', () => {
+  const work = beginWork(0);
+  workStep(work, 'shield', 'You reviewed the document “Synthetic plan”');
+  endWork(work, 'done', 'file', 'Prepared it as a file in this browser.', 400);
+  const options = { messages, trailFor: () => null, workFor: (id) => (id === 'a1' ? work : null), now: AT };
+  const text = chatExport({ ...options, debug: true });
+  assert.ok(
+    text.includes(
+      [
+        'A plain synthetic reply.',
+        '',
+        '  What PEA did: no record. PEA keeps one only until the page is reloaded.',
+        '  Document · What PEA did · 2 steps · under a second',
+        '  - You reviewed the document “Synthetic plan”',
+        '  - Prepared it as a file in this browser.',
+        '',
+      ].join('\n'),
+    ),
+    text,
+  );
+  assert.equal(text.split('Document · ').length - 1, 1);
+  assert.ok(!chatExport(options).includes('Document · '));
 });
