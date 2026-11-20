@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.21] - 2026-11-19
+
+### Changed
+
+- **Each profile remembers its own arrangement.** Personal, Work and Blended each keep which workspaces are open, their order and their widths, and switching profile brings that profile's arrangement back. The arrangement you already had carries on as Personal's. A profile you have not arranged yet starts from what is on screen and keeps it as its own from then on. As before, it is kept in this browser only and holds workspace names and widths, nothing else.
+
 ## [0.1.0-rc.4.dev.20] - 2026-11-19
 
 ### Changed

@@ -1298,6 +1298,7 @@ $('profile').onchange = () => {
   days?.render();
   decks?.render();
   portable?.profileChanged();
+  workspace.profileChanged();
   portable?.render();
   todos.profileChanged();
   research.profileChanged();
@@ -2213,6 +2214,7 @@ window.addEventListener('pagehide', () => voice.stop());
 renderLists();
 const workspace = installWorkspace({
   onFocus: focusChanged,
+  profile: () => profile,
   peek: peekFor,
   // Overdue and due-today counts move with the clock, so Today is redrawn as it comes into view.
   onShow: (name) => {

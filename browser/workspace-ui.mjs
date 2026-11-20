@@ -21,6 +21,7 @@ import {
   resizeSplit,
   resizeThree,
   saveLayout,
+  savedLayout,
   soloPane,
   swapPanes,
   threePaneWidth,
@@ -31,7 +32,13 @@ import {
 const titles = { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse', harvest: 'Harvest' };
 const $ = (id) => document.getElementById(id);
 
-export function installWorkspace({ onFocus, onShow = () => {}, canChange = () => true, peek = () => [] }) {
+export function installWorkspace({
+  onFocus,
+  onShow = () => {},
+  canChange = () => true,
+  peek = () => [],
+  profile = () => 'personal',
+}) {
   const wide = globalThis.matchMedia(`(min-width: ${minimumSplitWidth}px)`),
     wider = globalThis.matchMedia(`(min-width: ${threePaneWidth}px)`);
   // The width the layout rules are asked about: a tier, not the exact window.
@@ -40,7 +47,9 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
     dividers = [$('pane-divider'), $('pane-divider-2')],
     divider = dividers[0],
     toggle = $('split-toggle');
-  let layout = loadLayout();
+  // The arrangement belongs to the profile in use: each profile keeps its own.
+  const keep = (value) => saveLayout(value, undefined, profile());
+  let layout = loadLayout(undefined, profile());
   let focused = null;
 
   // Each panel gets a small bar, shown only while two workspaces are side by side.
@@ -101,7 +110,7 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
         };
         const done = () => {
           label.removeEventListener('pointermove', move);
-          saveLayout(layout);
+          keep(layout);
         };
         label.addEventListener('pointermove', move);
         label.addEventListener('pointerup', done, { once: true });
@@ -176,7 +185,7 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
     if (!canChange()) return false;
     hidePeek();
     layout = next;
-    if (save) saveLayout(layout);
+    if (save) keep(layout);
     render();
     return true;
   }
@@ -291,7 +300,7 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
       };
       const done = () => {
         bar.removeEventListener('pointermove', move);
-        saveLayout(layout);
+        keep(layout);
       };
       bar.addEventListener('pointermove', move);
       bar.addEventListener('pointerup', done, { once: true });
@@ -325,6 +334,14 @@ export function installWorkspace({ onFocus, onShow = () => {}, canChange = () =>
     shown: () => visiblePanes(layout, tier()),
     peek: (name) => showPeek($(`tab-${name}`)),
     unpeek: hidePeek,
+    // The profile changed: its own arrangement comes back. A profile with none yet starts from
+    // what is on screen, and keeps that as its own from here.
+    profileChanged() {
+      hidePeek();
+      layout = savedLayout(undefined, profile()) ?? layout;
+      keep(layout);
+      render();
+    },
     render,
   };
 }

@@ -672,3 +672,72 @@ test(
     await page.close();
   },
 );
+
+test(
+  'each profile comes back to its own arrangement, and a new one starts from what is shown',
+  options,
+  async () => {
+    const page = await stack.browser.newPage();
+    await page.setViewport(1680, 900);
+    await page.goto(stack.gateway.origin + '/');
+    await page.waitFor(`document.querySelector('[data-tab].selected')`, 'the workspace');
+    const state = async () => [await shown(page), await focused(page)];
+    const profile = async (name) => {
+      await page.fill('#profile', name);
+      await page.waitFor(`document.getElementById('profile').value === '${name}'`);
+    };
+    const keys = () =>
+      page.evaluate(`Object.keys(localStorage).filter((k) => k.startsWith('pea-workspace')).sort()`);
+    const alone = (name) =>
+      page.evaluate(
+        `document.getElementById('tab-${name}').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+      );
+
+    // Personal: Chat with Today beside it.
+    await page.click('#tab-today');
+    assert.deepEqual(await state(), [['chat', 'today'], 'today']);
+    assert.deepEqual(await keys(), ['pea-workspace-v1']);
+
+    // Work has no arrangement yet: it starts from what is on screen and keeps it as its own.
+    await profile('work');
+    assert.deepEqual(await state(), [['chat', 'today'], 'today']);
+    assert.deepEqual(await keys(), ['pea-workspace-v1', 'pea-workspace-v1:work']);
+    await alone('greenhouse');
+    await page.click('#tab-harvest');
+    assert.deepEqual(await state(), [['greenhouse', 'harvest'], 'harvest']);
+
+    // Personal is as it was left; Work's change did not touch it, and the other way round.
+    await profile('personal');
+    assert.deepEqual(await state(), [['chat', 'today'], 'today']);
+    await alone('chat');
+    assert.deepEqual(await state(), [['chat'], 'chat']);
+    await profile('work');
+    assert.deepEqual(await state(), [['greenhouse', 'harvest'], 'harvest']);
+    await profile('blended');
+    assert.deepEqual(
+      await state(),
+      [['greenhouse', 'harvest'], 'harvest'],
+      'Blended starts from what is shown',
+    );
+    await alone('today');
+    await profile('work');
+    assert.deepEqual(await state(), [['greenhouse', 'harvest'], 'harvest']);
+    assert.deepEqual(await keys(), ['pea-workspace-v1', 'pea-workspace-v1:blended', 'pea-workspace-v1:work']);
+
+    // What is kept is workspace names and widths only, for each profile.
+    const kept = await page.evaluate(
+      `Object.keys(localStorage).filter((k) => k.startsWith('pea-workspace')).map((k) => Object.keys(JSON.parse(localStorage.getItem(k))).sort().join())`,
+    );
+    for (const fields of kept) assert.match(fields, /^focus,panes,ratio(,sizes)?$/);
+
+    // A reload opens on Personal, with Personal's arrangement; Work's is there when chosen.
+    await page.goto(stack.gateway.origin + '/');
+    await page.waitFor(`document.querySelector('[data-tab].selected')`, 'the workspace again');
+    assert.equal(await page.evaluate(`document.getElementById('profile').value`), 'personal');
+    assert.deepEqual(await state(), [['chat'], 'chat']);
+    await profile('work');
+    assert.deepEqual(await state(), [['greenhouse', 'harvest'], 'harvest']);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);
