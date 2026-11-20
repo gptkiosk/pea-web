@@ -40,6 +40,8 @@
     "local-token.mjs",
     "memory-ui.mjs",
     "memory.mjs",
+    "numbered-ui.mjs",
+    "numbered.mjs",
     "policy.mjs",
     "preferences.mjs",
     "presence.mjs",

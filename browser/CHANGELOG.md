@@ -2,6 +2,24 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.30] - 2026-11-20
+
+### Added
+
+- **Numbered navigation, by voice or by typing.** A short fixed set of commands now moves through numbered lists. PEA matches your words by rule and answers on the page itself; no model reads the command or decides what it meant, so "1.2" always means the same thing. The list appears in a small panel over the page, and in the voice room, with rows you can press.
+  - **Feeds:** "list feeds", "back to feeds", or "can you give me a list of the feed names to choose from" shows Feed 1, Feed 2… from your Headlines.
+  - **Headlines:** "feed 1" or "headlines for feed 1" lists 1.1, 1.2… Jump with "1.2", "one point two", "feed 1 headline 2", "headline 2", "next headline", "previous headline", "latest headline" or "back to headlines". "Show", "podcast" and "episode" are understood as the same words, since a podcast is a feed too.
+  - **Read it:** with a headline open, "read it" opens the usual review of its exact address before anything is read.
+  - **Points:** "list points" shows the numbered points of PEA's newest reply. "Point 2", "dig into point 2" or "next point" sends your model that point's own words as your next message. Pressing a point does the same.
+  - In the voice room the answer is shown in the room and read with your device's voice when reading aloud is on, and the room stays open for the next number.
+- Your model is asked, in one more sentence of PEA's instructions, to number the points of a list.
+
+### Notes
+
+- **Not here: podcast briefs and web search.** PEA Web has neither, so there are no episode key points to walk and nothing to search. "Search point 2" and "fact check point 2" answer in plain words that PEA Web cannot search the web, and send nothing.
+- Headline titles stay in this tab, as before. A navigation command and its list are never put in a conversation or sent to a model, and lists are read aloud with the device voice only, never a provider voice.
+- A command is recognised only when the whole message is one. "What shows should I watch tonight?" is still a message to your model.
+
 ## [0.1.0-rc.4.dev.29] - 2026-11-20
 
 ### Added

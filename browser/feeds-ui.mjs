@@ -186,6 +186,8 @@ export function installHeadlines({ review, key, read, readInChat, changed = () =
   return {
     // For the summary on Today: the newest few titles already on screen, and when they were read.
     top: (count) => headlines().slice(0, count),
+    // For numbered navigation: each feed in the owner's order with the headlines last read from it.
+    groups: () => feeds.map((feed) => ({ name: feed.name, items: latest.get(feed.url)?.items ?? [] })),
     refreshedAt: () => refreshedAt,
     count: () => feeds.length,
   };

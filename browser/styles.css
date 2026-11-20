@@ -4546,3 +4546,80 @@ html:not([data-theme="dark"]) .copy-box pre .tok-keyword {
   margin-top: 0.5rem;
   opacity: 0.8;
 }
+
+/* The numbered list that answers "list feeds", "1.2" or "list points": a panel over the page and
+   the same rows in the voice room. */
+.numbered {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(60vh, 520px);
+  overflow: auto;
+  padding: 0.8rem 0.9rem;
+  color: var(--ink, inherit);
+  background: var(--card, Canvas);
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.numbered[hidden],
+.numbered-room[hidden] {
+  display: none;
+}
+.numbered-room {
+  text-align: left;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  border-radius: 14px;
+}
+.numbered-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.numbered ol,
+.numbered-room ol {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.numbered-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 40px;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  border-radius: 12px;
+}
+button.numbered-row {
+  cursor: pointer;
+}
+button.numbered-row:hover,
+button.numbered-row:focus-visible {
+  border-color: currentColor;
+}
+.numbered-label {
+  flex: none;
+  min-width: 2.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.numbered small,
+.numbered-room small {
+  display: block;
+  opacity: 0.8;
+}

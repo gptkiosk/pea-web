@@ -48,6 +48,7 @@ import { claimsProject, projectGuidance, projectProposals } from './projects.mjs
 import { endTrail, firstWords, startTrail } from './activity.mjs';
 import { trailBox, workBox } from './activity-ui.mjs';
 import { choiceProposals, choicesAloud, spokenChoice } from './choices.mjs';
+import { installNumbered } from './numbered-ui.mjs';
 import { chatExport, chatExportName } from './chat-export.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
@@ -92,7 +93,8 @@ let live,
   decks,
   projects,
   portable,
-  updates;
+  updates,
+  numbered;
 // Ends reading aloud, whichever voice is doing it.
 function stopVoices() {
   globalThis.speechSynthesis?.cancel();
@@ -1437,6 +1439,7 @@ $('profile').onchange = () => {
   portable?.render();
   todos.profileChanged();
   research.profileChanged();
+  numbered?.clear();
   memory.profileChanged();
 };
 $('theme').onclick = () =>
@@ -1474,7 +1477,8 @@ function renderCollaboration() {
   );
   renderHarvest();
 }
-async function submit(surface) {
+// `aloud` is set when the words came from the voice room with reading aloud on.
+async function submit(surface, { aloud = false } = {}) {
   voice?.stop();
   const field = surface === 'chat' ? $('thought') : $('collab-thought');
   let text = field.value.trim();
@@ -1486,6 +1490,16 @@ async function submit(surface) {
   if (picked >= 0) {
     if (text !== offered.options[picked]) notice(`Sent answer ${picked + 1}: ${offered.options[picked]}`);
     text = field.value = offered.options[picked];
+  }
+  // "List feeds", "1.2", "point 2": a move through numbered lists, matched by fixed rules and
+  // answered by this page. Only a point of the last reply goes on to the model, as its own words.
+  const moved = picked < 0 ? numbered?.command(text, surface, { aloud }) : null;
+  if (moved?.handled) {
+    if (!moved.send) {
+      field.value = '';
+      return;
+    }
+    text = field.value = moved.send;
   }
   const destination = ownerNavigation(text);
   if (destination) {
@@ -1973,6 +1987,7 @@ memory = installMemory({
     projectDone.clear();
     docDone.clear();
     docTrails.clear();
+    numbered?.clear();
     openReady.clear();
     live.forgetDocument();
     voice?.stop();
@@ -2365,7 +2380,17 @@ $('voice-room-send').onclick = async () => {
     previous = history(surface, who).at(-1)?.id,
     read = $('voice-auto-read').checked;
   voice.stop();
-  field.value = text;
+  // A move through numbered lists is answered here, in the room, so the next one can be said.
+  const moved =
+    liveChoice(surface) && spokenChoice(text, liveChoice(surface).options) >= 0
+      ? null
+      : numbered.command(text, surface, { aloud: read });
+  if (moved?.handled && !moved.send) {
+    $('voice-transcript').value = '';
+    $('voice-room-status').textContent = 'Shown below. Say the next number, or speak to PEA.';
+    return;
+  }
+  field.value = moved?.send ?? text;
   $('voice-room').close();
   await submit(surface);
   const reply = history(surface, who).at(-1);
@@ -2520,6 +2545,35 @@ research = installResearch({
   isBusy: live.isBusy,
   key: live.localKey,
   read: live.readPage,
+});
+numbered = installNumbered({
+  groups: () => headlines?.groups() ?? [],
+  lastReply: (surface) =>
+    history(surface)
+      .filter((m) => m.role === 'assistant' && !m.incomplete && !m.preview)
+      .at(-1)?.text ?? '',
+  // The same review as "Read in Chat" on a headline.
+  readInChat(address, feed) {
+    if ($('voice-room').open) $('voice-room').close();
+    tab('chat');
+    void research.read(address, 'feed', feed);
+  },
+  // Lists are read with this device's own voice only, so a headline's title goes to no provider.
+  speak(words) {
+    if (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) return;
+    stopVoices();
+    globalThis.speechSynthesis.speak(configureSpeech(new SpeechSynthesisUtterance(words)));
+  },
+  profile: () => profile,
+});
+// A pressed point is sent the way a typed message is.
+numbered.sendWith((surface, text) => {
+  const field = surface === 'chat' ? $('thought') : $('collab-thought');
+  if (live.isBusy()) return notice('Finish the current request first.');
+  if (field.value.trim()) return notice('Your typed draft is still open. Send or clear it first.');
+  if ($('voice-room').open) $('voice-room').close();
+  field.value = text;
+  void submit(surface);
 });
 headlines = installHeadlines({
   changed: () => home?.render(),
