@@ -171,7 +171,7 @@ class GatewayChecks(unittest.TestCase):
     def test_every_rule_comes_from_the_shared_contract(self):
         contract = json.loads(Path(g.__file__).with_name('contract.json').read_text())
         self.assertEqual(contract['version'], 1)
-        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders', 'reader', 'speech', 'updates'})
+        self.assertEqual(set(contract), {'version', 'about', 'assets', 'headers', 'streamHeaders', 'limits', 'chatFields', 'roles', 'reminders', 'reader', 'speech', 'updates', 'projects'})
         self.assertEqual(g.UPDATES, contract['updates'])
         self.assertEqual(g.READER, contract['reader'])
         self.assertEqual(g.SPEECH, contract['speech'])
@@ -263,6 +263,37 @@ class GatewayChecks(unittest.TestCase):
             p.chmod(0o644)
             with self.assertRaises(ValueError):
                 g.read_token(p)
+    def test_project_engine_address_and_request_rules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            token = Path(tmp) / 'engine'
+            local = g.projects_settings('http://127.0.0.1:8800', token)
+            self.assertEqual((local['address'], local['tls']), (('127.0.0.1', 8800), False))
+            self.assertEqual(g.projects_settings('http://localhost:8800/', token)['address'], ('127.0.0.1', 8800))
+            away = g.projects_settings('https://Engine.Synthetic-Net.example:9443', token)
+            self.assertEqual((away['address'], away['tls']), (('engine.synthetic-net.example', 9443), True))
+            self.assertEqual(g.projects_settings('https://engine.synthetic-net.example', token)['address'][1], 443)
+            stand_in = g.projects_settings('https://engine.synthetic-net.example', token, {'engine.synthetic-net.example': 4321})
+            self.assertEqual((stand_in['address'], stand_in['tls']), (('127.0.0.1', 4321), False))
+            for url in ['http://10.0.0.2:8800', 'http://engine.synthetic-net.example', 'http://127.0.0.1:8800/api', 'http://127.0.0.1:8800?x=1', 'http://a:b@127.0.0.1:8800',
+                        'https://engine.synthetic-net.example/x', 'https://a@engine.synthetic-net.example', 'https://engine_x.example', 'https://single', 'https://engine.synthetic-net.example:0',
+                        'https://engine.synthetic-net.example:99999', 'ftp://127.0.0.1', '']:
+                with self.assertRaises(ValueError, msg=url):
+                    g.projects_settings(url, token)
+            self.assertIsNone(g.project_token(token), 'no file')
+            token.write_text('e' * 64 + '\n')
+            token.chmod(0o600)
+            self.assertEqual(g.project_token(token), 'e' * 64)
+            token.chmod(0o640)
+            self.assertIsNone(g.project_token(token))
+        draft = {'action': 'draft', 'type': 'other', 'title': 'Synthetic', 'brief': 'Synthetic brief'}
+        for good in ({'action': 'types'}, {'action': 'list'}, {'action': 'get', 'project': 1}, {'action': 'status', 'project': 9}, draft, {**draft, 'constraints': ''}):
+            self.assertEqual(g.validate_project(good), good)
+        for bad in ({'action': 'start'}, {'action': 'get', 'project': True}, {'action': 'get', 'project': 1.0}, {**draft, 'working_dir': '/x'}, {**draft, 'title': ' \t'},
+                    {'action': 'types', 'constraints': ''}, {'action': 'toString'}, {'action': ['types']}):
+            with self.assertRaises(ValueError, msg=str(bad)):
+                g.validate_project(bad)
+        self.assertEqual(set(g.PROJECTS['actions']), {'types', 'list', 'get', 'status', 'draft'}, 'nothing here can start, approve or pay for work')
+
     def test_chat_bounds(self):
         base = {'model': 'tiny:test', 'stream': True, 'messages': [{'role': 'user', 'content': 'test'}]}
         self.assertEqual(g.validate_chat({**base, 'max_tokens': 3500})['max_tokens'], 3500)

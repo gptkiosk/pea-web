@@ -10,6 +10,7 @@ gateway and against the Mac app's Swift gateway.
     PEA_GATEWAY_COMMAND='["/path/to/pea-gateway"]' python3 browser/server/conformance/run.py
 
 The command receives: --port N --upstream http://127.0.0.1:M --token-file PATH --root BROWSER_DIR
+(and, for the projects tests, --projects-url http://127.0.0.1:P --projects-token-file PATH)
 No real model, account or network is used. The token is made for the run and deleted afterwards.
 """
 import http.client
@@ -34,6 +35,8 @@ LIMITS = CONTRACT['limits']
 READER = CONTRACT['reader']
 SPEECH = CONTRACT['speech']
 UPDATES = CONTRACT['updates']
+PROJECTS = CONTRACT['projects']
+ENGINE_TOKEN = secrets.token_urlsafe(48)
 TOKEN = secrets.token_urlsafe(32)
 
 
@@ -277,6 +280,59 @@ class Voices(BaseHTTPRequestHandler):
             self.send(200, 'audio/mpeg', self.AUDIO)
 
 
+class Engine(BaseHTTPRequestHandler):
+    """A synthetic project engine. The draft's title chooses how it misbehaves."""
+    seen = []
+    release = threading.Event()
+
+    def log_message(self, *_args):
+        pass
+
+    def do_GET(self):
+        type(self).seen.append(('GET', self.path, {k.lower(): v for k, v in self.headers.items()}, b''))
+        self.send_response(404); self.end_headers()
+
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
+        sent = {k.lower(): v for k, v in self.headers.items()}
+        type(self).seen.append(('POST', self.path, sent, body))
+        if sent.get('authorization') != 'Bearer ' + ENGINE_TOKEN:
+            return self.answer(401, b'{"detail":"SYNTHETIC ENGINE DETAIL"}')
+        asked = json.loads(body)
+        mode = asked.get('title', '')
+        if mode.startswith('fail'):
+            return self.answer(int(mode[4:7]), b'{"detail":"SYNTHETIC ENGINE DETAIL"}')
+        if mode == 'redirect':
+            self.send_response(307); self.send_header('Location', f'http://127.0.0.1:{self.server.server_port}/api/elsewhere')
+            self.send_header('Content-Length', '0'); self.end_headers(); return
+        if mode == 'wrongtype':
+            return self.answer(200, b'{"ok":true}', 'text/html')
+        if mode == 'notjson':
+            return self.answer(200, b'SYNTHETIC ENGINE DETAIL')
+        if mode == 'list':
+            return self.answer(200, b'["SYNTHETIC ENGINE DETAIL"]')
+        if mode == 'repeated':
+            return self.answer(200, b'{"a":1,"a":2}')
+        if mode == 'toolarge':
+            return self.answer(200, b'{"pad":"' + b'x' * PROJECTS['answerBytes'] + b'"}')
+        if mode == 'gzipped':
+            return self.answer(200, b'{"ok":true}', extra={'Content-Encoding': 'gzip'})
+        if mode == 'slow':
+            self.release.wait(15)
+        if asked['action'] == 'types':
+            return self.answer(200, json.dumps({'types': [{'id': 'local-website', 'label': 'Local website'}, {'id': 'other', 'label': 'Other'}]}).encode())
+        if asked['action'] == 'status':
+            return self.answer(200, json.dumps({'project': asked['project'], 'state': 'active', 'stories': [
+                {'title': 'Synthetic story', 'agent': 'claude', 'model': 'synthetic-model', 'seconds': 42, 'cost': 0.25}]}).encode(), 'application/json; charset=utf-8')
+        return self.answer(200, json.dumps({'echo': asked}).encode())
+
+    def answer(self, status, data, kind='application/json', extra=None):
+        self.send_response(status); self.send_header('Content-Type', kind); self.send_header('Content-Length', str(len(data)))
+        for name, value in (extra or {}).items():
+            self.send_header(name, value)
+        self.end_headers(); self.wfile.write(data)
+
+
 def free_port():
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 0))
@@ -301,12 +357,17 @@ class Conformance(unittest.TestCase):
         cls.voices = ThreadingHTTPServer(('127.0.0.1', 0), Voices)
         cls.voices.daemon_threads = True
         threading.Thread(target=cls.voices.serve_forever, daemon=True).start()
+        cls.engine = ThreadingHTTPServer(('127.0.0.1', 0), Engine)
+        cls.engine.daemon_threads = True
+        threading.Thread(target=cls.engine.serve_forever, daemon=True).start()
+        cls.engine_token_file = Path(cls.folder.name) / 'engine-token'
+        cls.write_engine_token(ENGINE_TOKEN)
+        cls.token_file = token_file
         cls.closed_port = free_port()
         cls.port = free_port()
-        command = json.loads(os.environ.get('PEA_GATEWAY_COMMAND') or json.dumps([sys.executable, str(SERVER / 'gateway.py')]))
         cls.process = subprocess.Popen(
-            [*command, '--port', str(cls.port), '--upstream', f'http://127.0.0.1:{cls.upstream.server_port}',
-             '--token-file', str(token_file), *(['--root', str(BROWSER)] if os.environ.get('PEA_GATEWAY_COMMAND') else []),
+            [*cls.command(cls.port),
+             '--projects-url', f'http://127.0.0.1:{cls.engine.server_port}', '--projects-token-file', str(cls.engine_token_file),
              # Stand-ins for the voice providers.
              '--speech-test-port', f'elevenlabs={cls.voices.server_port}',
              '--speech-test-port', f'fish={cls.voices.server_port}',
@@ -330,16 +391,35 @@ class Conformance(unittest.TestCase):
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         cls.host = f'127.0.0.1:{cls.port}'
         cls.origin = 'http://' + cls.host
+        cls.wait_for(cls.process, cls.port)
+
+    @classmethod
+    def command(cls, port):
+        """The start of the command for a gateway under test on a port, with the options every gateway takes."""
+        given = os.environ.get('PEA_GATEWAY_COMMAND')
+        return [*json.loads(given or json.dumps([sys.executable, str(SERVER / 'gateway.py')])), '--port', str(port),
+                '--upstream', f'http://127.0.0.1:{cls.upstream.server_port}', '--token-file', str(cls.token_file),
+                *(['--root', str(BROWSER)] if given else [])]
+
+    @staticmethod
+    def wait_for(process, port):
         for _ in range(200):
-            if cls.process.poll() is not None:
-                raise RuntimeError('The gateway under test exited: ' + cls.process.stderr.read().decode()[-400:])
+            if process.poll() is not None:
+                raise RuntimeError('The gateway under test exited: ' + process.stderr.read().decode()[-400:])
             try:
-                socket.create_connection(('127.0.0.1', cls.port), timeout=0.2).close()
-                break
+                socket.create_connection(('127.0.0.1', port), timeout=0.2).close()
+                return
             except OSError:
                 time.sleep(0.05)
-        else:
-            raise RuntimeError('The gateway under test did not start listening.')
+        raise RuntimeError('The gateway under test did not start listening.')
+
+    @classmethod
+    def write_engine_token(cls, text, mode=0o600):
+        cls.engine_token_file.unlink(missing_ok=True)
+        fd = os.open(cls.engine_token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(text + '\n')
+        os.chmod(cls.engine_token_file, mode)
 
     @classmethod
     def tearDownClass(cls):
@@ -352,6 +432,7 @@ class Conformance(unittest.TestCase):
         cls.upstream.shutdown(); cls.upstream.server_close()
         cls.site.shutdown(); cls.site.server_close()
         cls.voices.shutdown(); cls.voices.server_close()
+        cls.engine.shutdown(); cls.engine.server_close()
         cls.folder.cleanup()
 
     def setUp(self):
@@ -361,6 +442,9 @@ class Conformance(unittest.TestCase):
         Site.seen.clear()
         Voices.seen.clear()
         Voices.release.clear()
+        Engine.seen.clear()
+        Engine.release.clear()
+        self.write_engine_token(ENGINE_TOKEN)
 
     # --- helpers -------------------------------------------------------------------------
     def call(self, method, path, body=None, headers=None, token=None, timeout=10):
@@ -986,6 +1070,207 @@ class Conformance(unittest.TestCase):
         self.assertEqual(self.call('GET', UPDATES['path'], token=TOKEN, headers={'Host': 'evil.example'})[0], 403)
         for other in (UPDATES['path'] + '/', UPDATES['path'] + '/apply', '/api/update', '/v1/updates', '/v1/install'):
             self.assertIn(self.call('POST', other, token=TOKEN, body=check)[0], (401, 404), other)
+
+    # --- the owner's project engine -------------------------------------------------------------
+
+    def project(self, body, **more):
+        status, headers, data = self.call('POST', PROJECTS['path'], token=TOKEN, body=body, **more)
+        return status, headers, json.loads(data)
+
+    DRAFT = {'action': 'draft', 'type': 'local-website', 'title': 'Synthetic garden site', 'brief': 'A small synthetic site about peas.'}
+
+    def test_a_project_request_is_one_fixed_post_with_the_engines_credential_and_nothing_of_the_pages(self):
+        status, headers, body = self.call('GET', PROJECTS['path'], token=TOKEN)
+        self.assert_contract_headers(headers, 'projects status')
+        self.assertEqual((status, json.loads(body)), (200, {'available': True}))
+        self.assertEqual(Engine.seen, [], 'asking whether it is connected contacts nothing')
+
+        status, headers, answer = self.project({'action': 'types'}, headers={'Cookie': 'session=synthetic', 'Referer': self.origin + '/', 'Origin': self.origin})
+        self.assert_contract_headers(headers, 'projects answer')
+        self.assertEqual((status, answer), (200, {'result': {'types': [{'id': 'local-website', 'label': 'Local website'}, {'id': 'other', 'label': 'Other'}]}}))
+        self.assertEqual(len(Engine.seen), 1, 'one request to the engine')
+        method, path, sent, raw = Engine.seen[0]
+        self.assertEqual((method, path), ('POST', PROJECTS['upstreamPath']))
+        self.assertEqual(sent.get('authorization'), 'Bearer ' + ENGINE_TOKEN)
+        self.assertEqual(sent.get('content-type'), 'application/json')
+        self.assertEqual(sent.get('user-agent'), PROJECTS['userAgent'])
+        for private in ('cookie', 'origin', 'referer', 'forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'):
+            self.assertNotIn(private, sent, 'the engine accepts only a direct local request')
+        self.assertNotIn(TOKEN, json.dumps(sent) + raw.decode(), 'the connection token stays with the gateway')
+        self.assertEqual(json.loads(raw), {'action': 'types'})
+        self.assertNotIn(ENGINE_TOKEN, json.dumps(answer) + json.dumps(headers), 'the engine credential never reaches the page')
+
+        for body in ({'action': 'list'}, {'action': 'get', 'project': 7}, {'action': 'get', 'project': PROJECTS['projectMax']}, self.DRAFT,
+                     {**self.DRAFT, 'constraints': ''}, {**self.DRAFT, 'constraints': 'No paid models.\nZo\u00eb \U0001F331'},
+                     {**self.DRAFT, 'title': '\U0001F331' * PROJECTS['titleCharacters'], 'brief': 'x' * PROJECTS['briefCharacters'], 'constraints': 'y' * PROJECTS['constraintsCharacters']}):
+            Engine.seen.clear()
+            status, _, answer = self.project(body)
+            self.assertEqual((status, answer), (200, {'result': {'echo': body}}), str(body)[:60])
+            self.assertEqual(json.loads(Engine.seen[0][3]), body, 'exactly what was checked is sent, nothing added')
+        status, _, answer = self.project({'action': 'status', 'project': 3})
+        self.assertEqual((status, answer['result']['stories'][0]), (200, {'title': 'Synthetic story', 'agent': 'claude', 'model': 'synthetic-model', 'seconds': 42, 'cost': 0.25}))
+
+    def test_every_malformed_project_request_is_refused_before_the_engine(self):
+        d = self.DRAFT
+        bad = [[], 'text', {}, {'action': 'start'}, {'action': 'approve', 'project': 1}, {'action': 'plan', 'project': 1}, {'action': 'pause_dispatch', 'project': 1},
+               {'action': 'intake', 'title': 'x', 'brief': 'y'}, {'action': ['types']}, {'action': 'types', 'project': 1}, {'action': 'list', 'limit': 5},
+               {'action': 'get'}, {'action': 'get', 'project': '7'}, {'action': 'get', 'project': 0}, {'action': 'get', 'project': -1}, {'action': 'get', 'project': 1.5},
+               {'action': 'get', 'project': True}, {'action': 'get', 'project': PROJECTS['projectMax'] + 1}, {'action': 'status', 'project': 1, 'run': 2},
+               {k: v for k, v in d.items() if k != 'type'}, {k: v for k, v in d.items() if k != 'title'}, {k: v for k, v in d.items() if k != 'brief'},
+               {**d, 'type': 'Local Website'}, {**d, 'type': '../other'}, {**d, 'type': 'x' * 41}, {**d, 'type': 7}, {**d, 'title': ''}, {**d, 'title': '   '},
+               {**d, 'title': 'x' * (PROJECTS['titleCharacters'] + 1)}, {**d, 'title': 7}, {**d, 'brief': ' \n'}, {**d, 'brief': 'x' * (PROJECTS['briefCharacters'] + 1)},
+               {**d, 'constraints': 'x' * (PROJECTS['constraintsCharacters'] + 1)}, {**d, 'constraints': None},
+               {**d, 'working_dir': '/tmp/x'}, {**d, 'request_planning': True}, {**d, 'url': 'http://127.0.0.1:1/'}, {**d, 'token': 'x' * 64},
+               {**d, 'path': '/api/projects'}, {**d, 'agent': 'claude'}, {**d, 'model': 'x'}, {**d, 'project': 1}]
+        for body in bad:
+            status, _, answer = self.project(body)
+            self.assertEqual((status, answer), (400, {'error': 'Invalid project request.'}), repr(body)[:80])
+        status, _, data = self.call('POST', PROJECTS['path'], token=TOKEN, body=b'{"action":"types","action":"list"}', headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 400, 'a repeated key')
+        status, _, data = self.call('POST', PROJECTS['path'], token=TOKEN, body=b'{"action":"types"}', headers={'Content-Type': 'text/plain'})
+        self.assertEqual(status, 400)
+        self.assertEqual(Engine.seen, [], 'nothing reached the engine')
+
+    def test_an_engine_failure_is_reported_by_kind_and_none_of_its_words_are_passed_on(self):
+        expected = {'fail401': 'refused', 'fail403': 'refused', 'fail400': 'declined', 'fail404': 'declined', 'fail409': 'declined', 'fail422': 'declined',
+                    'fail500': 'failed', 'fail503': 'failed', 'fail204': 'failed', 'fail201': 'failed', 'redirect': 'failed', 'wrongtype': 'failed', 'notjson': 'failed',
+                    'list': 'failed', 'repeated': 'failed', 'toolarge': 'failed', 'gzipped': 'failed'}
+        for title, reason in expected.items():
+            Engine.seen.clear()
+            status, headers, data = self.call('POST', PROJECTS['path'], token=TOKEN, body={**self.DRAFT, 'title': title})
+            answer = json.loads(data)
+            self.assert_contract_headers(headers, 'projects refusal')
+            self.assertEqual((status, answer), (502, {'error': PROJECTS['refusals'][reason], 'reason': reason}), title)
+            self.assertNotIn(b'SYNTHETIC', data, 'the engine\u2019s words stay out')
+            self.assertNotIn(ENGINE_TOKEN.encode(), data)
+            self.assertEqual(len(Engine.seen), 1, title + ': one try, no retry and nothing followed')
+        self.assertEqual(self.project({'action': 'list'})[0], 200, 'and projects are free again afterwards')
+
+    def test_the_engines_credential_is_read_each_time_from_a_private_file(self):
+        other = secrets.token_urlsafe(48)
+        self.write_engine_token(other)
+        status, _, answer = self.project({'action': 'list'})
+        self.assertEqual((status, answer.get('reason')), (502, 'refused'), 'a replaced credential is the one sent')
+        self.assertEqual(Engine.seen[0][2].get('authorization'), 'Bearer ' + other)
+        for text, mode, why in (('short', 0o600, 'not a credential'), (ENGINE_TOKEN + '\nsecond', 0o600, 'two lines'), (ENGINE_TOKEN, 0o644, 'readable by others'),
+                                (ENGINE_TOKEN, 0o660, 'writable by the group')):
+            Engine.seen.clear()
+            self.write_engine_token(text, mode)
+            self.assertEqual(json.loads(self.call('GET', PROJECTS['path'], token=TOKEN)[2]), {'available': False}, why)
+            status, _, answer = self.project({'action': 'list'})
+            self.assertEqual((status, answer), (409, {'error': PROJECTS['unavailable']}), why)
+            self.assertEqual(Engine.seen, [], why + ': nothing is sent')
+        # A link is not followed, and a missing file ends the access at once.
+        target = Path(self.folder.name) / 'elsewhere'
+        target.write_text(ENGINE_TOKEN + '\n'); os.chmod(target, 0o600)
+        self.engine_token_file.unlink(); os.symlink(target, self.engine_token_file)
+        self.assertEqual(self.project({'action': 'list'})[0], 409, 'a link')
+        self.engine_token_file.unlink(); target.unlink()
+        self.assertEqual(self.project({'action': 'list'})[0], 409, 'no file')
+        self.assertEqual(Engine.seen, [])
+        self.write_engine_token(ENGINE_TOKEN)
+        self.assertEqual(self.project({'action': 'list'})[0], 200, 'and it works again when the file is back')
+
+    def test_one_project_request_runs_at_a_time(self):
+        results = []
+        slow = threading.Thread(target=lambda: results.append(self.project({**self.DRAFT, 'title': 'slow'})[0]))
+        slow.start()
+        deadline = time.monotonic() + 10
+        while not Engine.seen and time.monotonic() < deadline:
+            time.sleep(0.02)
+        try:
+            status, _, answer = self.project({'action': 'list'})
+            self.assertEqual((status, set(answer)), (429, {'error'}))
+            self.assertEqual(len(Engine.seen), 1)
+        finally:
+            Engine.release.set()
+            slow.join(30)
+        self.assertEqual(results, [200])
+        self.assertEqual(self.project({'action': 'list'})[0], 200)
+
+    def test_projects_need_the_token_and_are_not_a_way_around_the_other_checks(self):
+        ask = {'action': 'list'}
+        path = PROJECTS['path']
+        self.assertEqual(self.call('GET', path)[0], 401)
+        self.assertEqual(self.call('GET', path + '?token=' + TOKEN)[0], 401)
+        self.assertEqual(self.call('POST', path, body=ask)[0], 401)
+        self.assertEqual(self.call('POST', path, token=ENGINE_TOKEN, body=ask)[0], 401, 'the engine credential is not the connection token')
+        self.assertEqual(self.call('POST', path, token=TOKEN, body=ask, headers={'Origin': 'https://evil.example'})[0], 403)
+        self.assertEqual(self.call('POST', path, token=TOKEN, body=ask, headers={'Host': 'evil.example'})[0], 403)
+        self.assertEqual(self.call('GET', path, token=TOKEN, headers={'Host': 'evil.example'})[0], 403)
+        for other in (path + '/', path + '/7', path + '/approve', '/api/pea-projects', '/api/hermes-projects', '/api/projects', '/v1/project'):
+            self.assertIn(self.call('POST', other, token=TOKEN, body=ask)[0], (401, 404), other)
+            self.assertIn(self.call('GET', other, token=TOKEN)[0], (401, 404), other)
+        self.assertEqual(Engine.seen, [], 'nothing reached the engine')
+
+    def test_a_gateway_not_connected_to_an_engine_can_be_asked_and_contacts_nothing(self):
+        port = free_port()
+        process = subprocess.Popen(self.command(port), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        try:
+            self.wait_for(process, port)
+            def ask(method, body=None):
+                connection = http.client.HTTPConnection('127.0.0.1', port, timeout=10)
+                try:
+                    connection.request(method, PROJECTS['path'], body=json.dumps(body).encode() if body else None,
+                                       headers={'Authorization': 'Bearer ' + TOKEN, **({'Content-Type': 'application/json'} if body else {})})
+                    response = connection.getresponse()
+                    return response.status, json.loads(response.read())
+                finally:
+                    connection.close()
+            self.assertEqual(ask('GET'), (200, {'available': False}), 'projects are off unless the operator connected an engine at start')
+            for good in ({'action': 'types'}, {'action': 'status', 'project': 1}, self.DRAFT):
+                self.assertEqual(ask('POST', good), (409, {'error': PROJECTS['unavailable']}), str(good)[:40])
+            self.assertEqual(ask('POST', {'action': 'start'}), (400, {'error': 'Invalid project request.'}), 'and it checks a request the same way')
+        finally:
+            process.terminate()
+            try:
+                process.wait(5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+            process.stderr.close()
+        self.assertEqual(Engine.seen, [])
+        # The engine address is the operator's: plain HTTP only to this machine, HTTPS to a named host, and nothing more in it.
+        for url in ('http://192.0.2.1:8800', 'http://engine.pea-conformance.example:8800', 'http://127.0.0.1:8800/api', 'http://user@127.0.0.1:8800',
+                    'http://127.0.0.1:8800?x=1', 'https://engine.pea-conformance.example/api', 'https://user:pass@engine.pea-conformance.example',
+                    'https://engine.pea-conformance.example:9443#x', 'https://engine_bad.example', 'https://single', 'ftp://127.0.0.1:8800', 'engine.pea-conformance.example:9443'):
+            refused = subprocess.run([*self.command(free_port()), '--projects-url', url, '--projects-token-file', str(self.engine_token_file)],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=20)
+            self.assertNotEqual(refused.returncode, 0, url)
+        alone = subprocess.run([*self.command(free_port()), '--projects-url', f'http://127.0.0.1:{self.engine.server_port}'], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=20)
+        self.assertNotEqual(alone.returncode, 0, 'an address without a credential file')
+
+    def test_an_engine_on_another_machine_is_asked_the_same_way_over_https(self):
+        """RCD on the owner's private network: an https address with a name. The stand-in is plain HTTP on this machine."""
+        port = free_port()
+        process = subprocess.Popen([*self.command(port), '--projects-url', 'https://engine.pea-conformance.example:9443',
+                                    '--projects-test-host', f'engine.pea-conformance.example={self.engine.server_port}',
+                                    '--projects-token-file', str(self.engine_token_file)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        try:
+            self.wait_for(process, port)
+            def ask(body):
+                connection = http.client.HTTPConnection('127.0.0.1', port, timeout=10)
+                try:
+                    connection.request('POST', PROJECTS['path'], body=json.dumps(body).encode(), headers={'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json'})
+                    response = connection.getresponse()
+                    return response.status, json.loads(response.read())
+                finally:
+                    connection.close()
+            self.assertEqual(ask(self.DRAFT), (200, {'result': {'echo': self.DRAFT}}))
+            method, path, sent, raw = Engine.seen[0]
+            self.assertEqual((method, path, json.loads(raw)), ('POST', PROJECTS['upstreamPath'], self.DRAFT))
+            self.assertEqual(sent.get('authorization'), 'Bearer ' + ENGINE_TOKEN)
+            for private in ('cookie', 'origin', 'referer', 'forwarded', 'x-forwarded-for'):
+                self.assertNotIn(private, sent)
+            self.assertEqual(ask({**self.DRAFT, 'title': 'fail403'}), (502, {'error': PROJECTS['refusals']['refused'], 'reason': 'refused'}))
+            self.assertEqual(ask({**self.DRAFT, 'title': 'redirect'})[1].get('reason'), 'failed')
+            self.assertEqual(ask({'action': 'start'}), (400, {'error': 'Invalid project request.'}))
+        finally:
+            process.terminate()
+            try:
+                process.wait(5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+            process.stderr.close()
 
     def test_no_other_route_method_or_proxying_exists(self):
         self.assertEqual(self.call('GET', '/v1/other', token=TOKEN)[0], 404)

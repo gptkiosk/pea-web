@@ -21,6 +21,8 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         public var readerTestResolve = [String: [String]]()
         /// Tests only: voice providers reached at a plain HTTP port on this Mac instead. The app never sets it.
         public var speechTestPorts = [String: UInt16]()
+        /// The owner's project engine (MCD or RCD), if the operator connected one. Without it, projects are not available.
+        public var projects: ProjectEngine?
 
         public init(port: UInt16, token: String, upstream: String, root: URL, reminders: ReminderSink? = nil) {
             self.port = port
@@ -44,6 +46,8 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
     var pageReads = 0
     let speechTestPorts: [String: UInt16]
     var speechRequests = 0
+    let projects: ProjectEngine?
+    var projectRequests = 0
     let queue = DispatchQueue(label: "pea.gateway")
 
     private var listener: NWListener?
@@ -71,6 +75,7 @@ public final class Gateway: NSObject, URLSessionDataDelegate {
         readerTestSites = options.readerTestSites
         readerTestResolve = options.readerTestResolve
         speechTestPorts = options.speechTestPorts
+        projects = options.projects
         hosts = Set(["127.0.0.1", "localhost", "[::1]"].map { $0 + ":" + String(options.port) })
         origins = Set(hosts.map { "http://" + $0 })
         super.init()
@@ -247,6 +252,8 @@ final class Client {
     private var pageRead: PageRead?
     private var holdsSpeechSlot = false
     private var speechLimit: DispatchWorkItem?
+    private var holdsProjectSlot = false
+    private var projectLimit: DispatchWorkItem?
     private var call: Gateway.UpstreamCall?
 
     private var contract: Contract { gateway.contract }
@@ -303,6 +310,7 @@ final class Client {
         releaseModelSlot()
         endPageRead()
         endSpeech()
+        endProject()
         connection.stateUpdateHandler = nil
         gateway.clientClosed(self)
     }
@@ -353,6 +361,7 @@ final class Client {
             let body = buffer.subdata(in: buffer.startIndex + bodyStart..<buffer.startIndex + bodyStart + bodyLength)
             if head?.target == contract.remindersPath { remind(body) } else if head?.target == contract.reader.path { read(body) }
             else if head?.target == contract.speech.path || head?.target == contract.speech.voicesPath { speak(body, listing: head?.target == contract.speech.voicesPath) }
+            else if head?.target == contract.projects.path { project(body) }
             else if head?.target == contract.updatesPath {
                 // Checked the same way as any gateway would, then answered that it is not available here.
                 guard let parsed = try? JSON.parse(body), contract.isUpdateRequest(parsed) else { return reply(400, error: "Invalid update request.") }
@@ -396,6 +405,9 @@ final class Client {
                 listModels()
             case contract.remindersPath:
                 reply(200, body: JSON.serialize(.object(JSONObject([("available", .bool(gateway.reminders?.available == true))]))))
+            case contract.projects.path:
+                let ready = gateway.projects?.token(contract.projects) != nil
+                reply(200, body: JSON.serialize(.object(JSONObject([("available", .bool(ready))]))))
             case contract.updatesPath:
                 // This gateway runs from an app bundle, which is not updated this way.
                 reply(200, body: JSON.serialize(.object(JSONObject([("available", .bool(false))]))))
@@ -406,15 +418,15 @@ final class Client {
             guard allowed(head, needsToken: true) else { return }
             let forReminders = head.target == contract.remindersPath, forReader = head.target == contract.reader.path
             let forSpeech = head.target == contract.speech.path || head.target == contract.speech.voicesPath
-            let forUpdate = head.target == contract.updatesPath
-            guard forReminders || forReader || forSpeech || forUpdate || head.target == "/v1/chat/completions" else {
-                return reply(404, error: "Only model listing, text chat, reminders, the page reader, speech and updates are exposed.")
+            let forUpdate = head.target == contract.updatesPath, forProjects = head.target == contract.projects.path
+            guard forReminders || forReader || forSpeech || forUpdate || forProjects || head.target == "/v1/chat/completions" else {
+                return reply(404, error: "Only model listing, text chat, reminders, the page reader, speech, updates and projects are exposed.")
             }
             let type = head.headers["content-type"].map { String($0.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)[0]) }
             guard type == "application/json", head.headers["transfer-encoding"] == nil, let text = head.headers["content-length"],
                   (1...7).contains(text.count), text.allSatisfy({ ("0"..."9").contains($0) }), let length = Int(text),
                   length > 0, length <= contract.requestBytes else {
-                return reply(400, error: forUpdate ? "Invalid update request." : forSpeech ? "Invalid speech request." : forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
+                return reply(400, error: forProjects ? "Invalid project request." : forUpdate ? "Invalid update request." : forSpeech ? "Invalid speech request." : forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
             }
             bodyLength = length
             advance()
@@ -567,6 +579,65 @@ final class Client {
         call?.cancel()
         call = nil
         gateway.speechRequests -= 1
+    }
+
+    /// Asks the owner's project engine one named thing with one fixed request. A draft starts nothing
+    /// there. The credential stays in this process; nothing the engine says on failure is passed on.
+    private func project(_ raw: Data) {
+        let rules = contract.projects
+        guard let parsed = try? JSON.parse(raw), let request = rules.validate(parsed) else { return reply(400, error: "Invalid project request.") }
+        guard let engine = gateway.projects else { return reply(409, error: rules.unavailable) }
+        guard gateway.projectRequests < rules.concurrent else { return reply(429, error: "A project request is already running. No automatic retry.") }
+        guard let token = engine.token(rules) else { return reply(409, error: rules.unavailable) }
+        gateway.projectRequests += 1
+        holdsProjectSlot = true
+        deadline?.cancel()
+        idle?.cancel()
+        answered = true  // nothing more is read from the browser; the answer comes when the engine has answered
+        var status = 0, acceptable = false, tooLarge = false
+        var data = Data()
+        let call = gateway.outbound(engine.request(request, token: token, rules: rules))
+        self.call = call
+        watchForDisconnect()
+        func refuse(_ reason: String) {
+            endProject()
+            let body = JSONObject([("error", .string(rules.refusals[reason] ?? "")), ("reason", .string(reason))])
+            send(code: 502, body: JSON.serialize(.object(body)), type: "application/json")
+        }
+        // One clock for the whole request, however slowly the engine answers.
+        projectLimit = after(rules.seconds) { refuse("failed") }
+        call.onResponse = { response in
+            status = response.statusCode
+            let type = (response.value(forHTTPHeaderField: "Content-Type") ?? "").split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+                .first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+            acceptable = type == "application/json" && response.value(forHTTPHeaderField: "Content-Encoding") == nil
+            return status == 200 && acceptable
+        }
+        call.onData = { chunk in
+            data.append(chunk)
+            if data.count > rules.answerBytes {
+                tooLarge = true
+                call.task?.cancel()
+            }
+        }
+        call.onEnd = { error in
+            self.call = nil
+            guard !self.closed, self.holdsProjectSlot else { return }
+            if status != 200 { return refuse(status == 0 ? "failed" : ProjectRules.reason(status: status)) }
+            guard acceptable, !tooLarge, error == nil, let answer = try? JSON.parse(data), case .object = answer else { return refuse("failed") }
+            self.endProject()
+            self.send(code: 200, body: JSON.serialize(.object(JSONObject([("result", answer)]))), type: "application/json")
+        }
+    }
+
+    private func endProject() {
+        guard holdsProjectSlot else { return }
+        holdsProjectSlot = false
+        projectLimit?.cancel()
+        projectLimit = nil
+        call?.cancel()
+        call = nil
+        gateway.projectRequests -= 1
     }
 
     private func endPageRead() {

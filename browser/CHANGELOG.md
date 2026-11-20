@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.22] - 2026-11-19
+
+### Added
+
+- **A gateway connection to your project engine (MCD or RCD), off unless you start the gateway with it.** This is the plumbing only: nothing in the app uses it yet, and neither engine answers it yet. A gateway started with `--projects-url` and `--projects-token-file` can be asked five named things at `/v1/projects`: list templates, list or read projects, read a project's progress, and leave a draft. It cannot plan, approve, start, pause or pay for anything; those stay in the engine's own pages. The engine may be on this machine (plain HTTP to a loopback address) or on another machine you name (HTTPS, certificate checked). The engine's credential is read from a private file for each request and never reaches the browser. Both gateways follow the same rules in `contract.json` and pass the same new conformance tests against a stand-in engine.
+
 ## [0.1.0-rc.4.dev.21] - 2026-11-19
 
 ### Changed

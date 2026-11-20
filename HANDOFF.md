@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Project engine connection, step one: the gateway contract — 2026-11-19
+
+**Branch `feature/projects-contract`, version `0.1.0-rc.4.dev.22`.** The owner asked whether PEA could use "the same backend project engine we build in the MCD app", approved the design ("Yes, design it", then "Yes, start it" for step one: the PEA-side contract tested against a fake engine), and added: "Make sure it works with MCD and RCD the same", RCD being on another machine reached over HTTPS. The design: PEA drafts and watches; the engine plans, approves and runs. PEA's "no unattended workers" rule is unchanged.
+
+- `browser/server/contract.json`: new `projects` section. `GET /v1/projects` answers `{"available"}`; `POST /v1/projects` takes exactly one of `types`, `list`, `get {project}`, `status {project}`, `draft {type, title, brief, constraints?}`. One fixed POST to `/api/pea-projects` at the operator's address, bearer credential from a private file, 20 seconds, 500,000 bytes, one at a time. Failures are `refused` (401/403), `declined` (400/404/409/422) or `failed`, in the contract's own words.
+- `browser/server/gateway.py`, `local.py`: `validate_project`, `projects_settings` (http on a loopback IP, or https on a named host), `project_token` (regular file, this user, mode 0600, 64 URL-safe characters, read per request), `Gateway.projects_call`. Options `--projects-url`, `--projects-token-file`, and for tests `--projects-test-host NAME.example=PORT`.
+- `mac/Sources/PEAGatewayCore/Projects.swift` (new, in `mac/MAC-FILES.json`): `ProjectRules`, `ProjectEngine`; `Gateway.Options.projects`; `Client.project`. `pea-gateway` takes the same three options.
+- Tests: `browser/server/conformance/run.py` has a stand-in `Engine` and eight new tests (the fixed request and what it carries, every malformed request, failure kinds with none of the engine's words, the credential file, one at a time, token and origin checks, a gateway with no engine, an HTTPS engine by name); 43 pass on both gateways. `browser/server/test_gateway.py` (59) and `mac/Tests/PEAGatewayCoreTests/RulesTests.swift` (22) cover the address and request rules.
+- Docs: `browser/docs/SELF-HOSTING.md` (the connection and what an engine must answer).
+
+Known gaps: neither MCD nor RCD has `/api/pea-projects` or a PEA grant yet, so this talks to nothing real; their bridge today is tied to a Discord identity and accepts only local requests, which RCD on another machine would refuse. No page in the app uses `/v1/projects`. The Mac app's launcher has no setting for it (only `pea-gateway` and the Python gateway take the options). The installed copy's launchd job is not started with the options. The shape of `status` (agent, model, time, cost per story) is a proposal, not confirmed against the engines. Not run against the owner's MCD or RCD; no request was made to either.
+
+Next action: the engine side in the MCD and RCD repositories (a PEA grant and `/api/pea-projects` with these five actions), then the app's pages (propose a project, a read-only board lane, a Harvest receipt).
+
 ## The arrangement is remembered per profile — 2026-11-19
 
 **Branch `feature/profile-arrangements`, version `0.1.0-rc.4.dev.21`.** The owner asked: "Remember the arrangement per profile".

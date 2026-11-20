@@ -8,7 +8,7 @@ import secrets
 import stat
 import sys
 
-from gateway import Gateway, read_token, update_settings
+from gateway import Gateway, projects_settings, read_token, update_settings
 
 
 def token_path(directory):
@@ -42,6 +42,8 @@ def main(argv=None):
     parser.add_argument('--update-launchd-label', help='The launchd job of this user that runs PEA; an update restarts it.')
     parser.add_argument('--update-channel', choices=('development', 'release'), default='release', help='release: signed published releases only. development: the main branch, unsigned.')
     parser.add_argument('--update-prerelease', action='store_true', help='With the release channel: also offer signed pre-releases.')
+    parser.add_argument('--projects-url', help='Connect to your project engine (MCD or RCD): http:// on a loopback IP of this machine, for example http://127.0.0.1:8800, or https:// on a named host. Needs --projects-token-file.')
+    parser.add_argument('--projects-token-file', help='The private file (mode 0600) holding the access the project engine issued for PEA.')
     args = parser.parse_args(argv)
     try:
         if args.command == 'setup':
@@ -57,7 +59,10 @@ def main(argv=None):
         if bool(args.update_checkout) != bool(args.update_launchd_label):
             raise ValueError('Give both --update-checkout and --update-launchd-label, or neither.')
         update = update_settings(args.update_checkout, args.update_launchd_label, args.update_channel, args.update_prerelease) if args.update_checkout else None
-        server = Gateway(('127.0.0.1', args.port), token=read_token(token_path(args.config_dir)), upstream=args.upstream, public_origin=args.public_origin, update=update)
+        if bool(args.projects_url) != bool(args.projects_token_file):
+            raise ValueError('Give both --projects-url and --projects-token-file, or neither.')
+        projects = projects_settings(args.projects_url, args.projects_token_file) if args.projects_url else None
+        server = Gateway(('127.0.0.1', args.port), token=read_token(token_path(args.config_dir)), upstream=args.upstream, public_origin=args.public_origin, update=update, projects=projects)
         print(f'PEA Web: http://127.0.0.1:{args.port}/browser/ · foreground process; press Ctrl-C to stop', flush=True)
         try:
             server.serve_forever()

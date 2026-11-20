@@ -35,6 +35,7 @@ public struct Contract {
     public let reader: ReaderRules
     public let speech: SpeechRules
     /// Updating the installed copy from the app. This gateway serves an app bundle, so it only ever says it is not available.
+    public let projects: ProjectRules
     public let updatesPath: String
     public let updatesUnavailable: String
     let updateCommit: NSRegularExpression
@@ -131,6 +132,7 @@ public struct Contract {
         reminderID = expression
         reader = try ReaderRules(root["reader"])
         speech = try SpeechRules(root["speech"])
+        projects = try ProjectRules(root["projects"])
         guard case .object(let updates)? = root["updates"], let updatesPath = updates["path"]?.string, updatesPath.hasPrefix("/v1/"),
               case .array(let actions)? = updates["actions"], actions.compactMap({ $0.string }) == ["check", "apply"],
               let unavailable = updates["unavailable"]?.string, !unavailable.isEmpty,
