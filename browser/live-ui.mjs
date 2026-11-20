@@ -9,6 +9,7 @@ import { presenceAt } from './presence.mjs';
 import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
 import { openGuidance } from './handoff.mjs';
 import { choiceGuidance } from './choices.mjs';
+import { pointsGuidance } from './numbered.mjs';
 import { readGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
 import { canonContext } from './canon.mjs';
@@ -589,6 +590,8 @@ export function installConnections(hooks) {
       openGuidance +
       '\n' +
       choiceGuidance +
+      '\n' +
+      pointsGuidance +
       // Reading a page needs this server's reader, so it is offered only when the server is connected.
       (surface === 'chat' && localKey() ? '\n' + readGuidance : '') +
       '\nText for the owner to copy, such as an outline, a message to paste or code, goes in a plain fenced block; the app shows it with a Copy button and never reads it aloud.';
@@ -685,6 +688,7 @@ export function installConnections(hooks) {
         'navigation',
         'phone links',
         'choices',
+        'numbered points',
         ...(surface === 'chat' && localKey() ? ['page reading'] : []),
         ...(todoText ? ['to-dos'] : []),
         ...(projectText ? ['projects'] : []),
