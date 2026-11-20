@@ -198,18 +198,29 @@ export function peekLines(lines, { limit = 4, length = 96 } = {}) {
   return [...clean.slice(0, limit - 1), `and ${clean.length - limit + 1} more`];
 }
 
-export function loadLayout(storage = globalThis.localStorage) {
+// Each profile keeps its own arrangement. Personal uses the first key, so an arrangement saved
+// before profiles had their own carries on as Personal's.
+const keyFor = (profile) =>
+  profile === 'work' || profile === 'blended' ? `${storageKey}:${profile}` : storageKey;
+
+// The arrangement saved for a profile, or null when there is none or it cannot be read.
+export function savedLayout(storage = globalThis.localStorage, profile = 'personal') {
   try {
-    return normalizeLayout(JSON.parse(storage.getItem(storageKey) || 'null'));
+    const kept = storage.getItem(keyFor(profile));
+    return kept ? normalizeLayout(JSON.parse(kept)) : null;
   } catch {
-    return initialLayout();
+    return null;
   }
 }
 
+export function loadLayout(storage = globalThis.localStorage, profile = 'personal') {
+  return savedLayout(storage, profile) ?? initialLayout();
+}
+
 // Returns false when the browser refuses storage; the layout then lasts for this tab only.
-export function saveLayout(layout, storage = globalThis.localStorage) {
+export function saveLayout(layout, storage = globalThis.localStorage, profile = 'personal') {
   try {
-    storage.setItem(storageKey, JSON.stringify(normalizeLayout(layout)));
+    storage.setItem(keyFor(profile), JSON.stringify(normalizeLayout(layout)));
     return true;
   } catch {
     return false;

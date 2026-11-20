@@ -13,6 +13,7 @@ import {
   peekLines,
   resizeSplit,
   saveLayout,
+  savedLayout,
   swapPanes,
   visiblePanes,
   addPane,
@@ -249,4 +250,36 @@ test('a peek is a few short single lines, and the rest is only counted', () => {
   assert.deepEqual(peekLines(['a', 'b', 'c'], { limit: 2, length: 10 }), ['a', 'and 2 more']);
   assert.deepEqual(peekLines('not a list'), []);
   assert.deepEqual(peekLines(undefined), []);
+});
+
+test('each profile keeps its own arrangement, and Personal keeps the one saved before', () => {
+  const storage = store();
+  const mine = resizeSplit(openBeside(initialLayout(), 'today'), 0.6);
+  const works = openWorkspace(initialLayout(), 'greenhouse');
+  assert.equal(savedLayout(storage, 'work'), null, 'nothing saved yet');
+  assert.equal(saveLayout(mine, storage), true);
+  assert.equal(saveLayout(works, storage, 'work'), true);
+  assert.deepEqual(Object.keys(storage.data).sort(), ['pea-workspace-v1', 'pea-workspace-v1:work']);
+  assert.deepEqual(loadLayout(storage), mine);
+  assert.deepEqual(loadLayout(storage, 'personal'), mine, 'Personal is the first key');
+  assert.deepEqual(loadLayout(storage, 'work'), works);
+  assert.deepEqual(savedLayout(storage, 'work'), works);
+  assert.equal(savedLayout(storage, 'blended'), null);
+  assert.deepEqual(loadLayout(storage, 'blended'), initialLayout());
+  // A name that is not a profile cannot make a key of its own.
+  assert.equal(saveLayout(works, storage, 'vault:../x'), true);
+  assert.deepEqual(Object.keys(storage.data).sort(), ['pea-workspace-v1', 'pea-workspace-v1:work']);
+  assert.deepEqual(loadLayout(storage), works);
+  assert.equal(savedLayout(store({ 'pea-workspace-v1:work': '{not json' }), 'work'), null);
+  assert.equal(
+    savedLayout(
+      {
+        getItem() {
+          throw new Error('refused');
+        },
+      },
+      'work',
+    ),
+    null,
+  );
 });

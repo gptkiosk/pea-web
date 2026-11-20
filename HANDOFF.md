@@ -23,6 +23,19 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The arrangement is remembered per profile — 2026-11-19
+
+**Branch `feature/profile-arrangements`, version `0.1.0-rc.4.dev.21`.** The owner asked: "Remember the arrangement per profile".
+
+- `browser/workspace.mjs`: `savedLayout(storage, profile)` (null when nothing is saved or it cannot be read); `loadLayout` and `saveLayout` take a profile. Personal keeps the key `pea-workspace-v1`, so the arrangement saved before this carries on as Personal's; Work and Blended use `pea-workspace-v1:work` and `pea-workspace-v1:blended`. Any other name falls back to Personal's key.
+- `browser/workspace-ui.mjs`: `installWorkspace` takes `profile()`; every save goes to that profile's key. New `profileChanged()` loads the profile's saved arrangement, or keeps what is shown and saves it as that profile's.
+- `browser/app.mjs`: passes `profile` and calls `workspace.profileChanged()` in the profile switch.
+- Tests: `browser/tests/workspace.test.mjs` (keys, fallback, refusal, damage); `browser/tests/dom/workspace.test.mjs` (three profiles keep separate arrangements, a new profile starts from what is shown, only names and widths are stored, a reload opens Personal's and Work's is there when chosen).
+
+Known gaps: the arrangement is still per browser, not part of the saved library or a backup. The page always opens on Personal, so Personal's arrangement is what a reload shows. Not tried on the owner's screen.
+
+Next action: none pending.
+
 ## Harvest receipts for approved stories and to-dos — 2026-11-19
 
 **Branch `feature/harvest-receipts`, version `0.1.0-rc.4.dev.20`.** The owner asked: "Add receipts in Harvest for approved stories and to-dos". Looking first showed the earlier note was wrong: both already left a line under "Grown" (a story as a bare "Added to Today", a to-do as its list of changes). What was missing was the story's name and a way to the result.
