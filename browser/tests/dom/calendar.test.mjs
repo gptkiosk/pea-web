@@ -101,6 +101,8 @@ async function openWithGoogle() {
     if (request.method === 'OPTIONS') return { status: 204, text: '' };
     if (at.pathname === '/oauth2/v3/userinfo') return { body: { email: 'owner@example.invalid' } };
     if (at.pathname === '/drive/v3/files') return { body: { files: [] } };
+    // Mail answers only once a test gives it something to say.
+    if (at.pathname.startsWith('/gmail/') && calendar.mail) return calendar.mail(url);
     // One event by its id: read, change or delete, the last two only for the version named.
     if (at.pathname.startsWith(new URL(events).pathname + '/')) {
       const id = at.pathname.split('/').pop(),
@@ -164,6 +166,19 @@ async function connectGoogle(page, { write = false, read = false, grant = '' } =
 const posts = (page) => page.intercepted.filter((r) => r.url.startsWith(events) && r.method === 'POST');
 const receipt = (page) =>
   page.evaluate(`document.querySelector('#messages .event-receipt')?.textContent ?? ''`);
+// The list of what PEA did at `selector`: null when there is none.
+const worked = (page, selector = '#messages .utterance.assistant details.activity:not(:first-of-type)') =>
+  page.evaluate(`(() => {
+    const box = [...document.querySelectorAll(${JSON.stringify(selector)})].at(-1);
+    if (!box) return null;
+    return {
+      open: box.open,
+      state: box.dataset.state,
+      summary: box.querySelector('summary').textContent,
+      rows: [...box.querySelectorAll('li')].map((li) => li.querySelector('span:last-child').textContent),
+      problems: box.querySelectorAll('li[data-state="problem"]').length,
+    };
+  })()`);
 const onlyStandIns = (page) =>
   assert.deepEqual(
     page.outsideRequests().filter((url) => !url.startsWith(signIn) && !url.startsWith(google)),
@@ -199,11 +214,22 @@ test(
     await page.waitFor(`!document.querySelector('#review').open`);
     assert.equal(posts(page).length, 0, 'cancel adds nothing');
     assert.equal(await receipt(page), '');
+    assert.equal(await worked(page), null, 'nothing is listed before an approval');
 
     await openReview(page, 'Review calendar event: Synthetic event');
     await page.click('#review-approve');
     await page.waitFor(`document.querySelector('#messages .event-receipt')`, 'the receipt');
     assert.match(await receipt(page), /Added to your Google calendar · Open in Google Calendar/);
+    const did = await worked(page);
+    assert.equal(did.state, 'done');
+    assert.equal(did.open, false, 'finished work folds to one line');
+    assert.match(did.summary, /^What PEA did · 3 steps · /);
+    assert.deepEqual(did.rows, [
+      'You approved adding “Synthetic event” to your main Google calendar',
+      'Google added the event',
+      'Nobody was invited, and Google was asked to send no notices.',
+    ]);
+    assert.doesNotMatch(did.rows.join(' '), /example\.invalid/, 'no account address is in the list');
     assert.equal(
       await page.evaluate(`document.querySelector('#messages .event-receipt a').href`),
       'https://www.google.com/calendar/event?eid=synthetic',
@@ -378,6 +404,15 @@ test(
     await page.click('#review-approve');
     await page.waitFor(`document.querySelector('#messages .event-receipt')`, 'the receipt');
     assert.match(await receipt(page), /Event changed in your Google calendar/);
+    const did = await worked(page);
+    assert.equal(did.state, 'done');
+    assert.deepEqual(did.rows, [
+      'Read the event as it is in your calendar now, for your review',
+      'You approved changing “Synthetic lunch” in your main Google calendar',
+      'The event is the same as the one you reviewed',
+      'Google changed the title and times. Its notes stay as they were.',
+      'Google was asked to send no notices.',
+    ]);
     const sent = changes(page, 'PATCH');
     assert.equal(sent.length, 1);
     assert.match(sent[0].url, /\/events\/pea00000000000000000000000000000001\?/);
@@ -439,6 +474,12 @@ test('an event that changed after the review opened is left alone', { skip, time
   assert.equal(changes(page, 'DELETE').length, 0, 'nothing is sent for a version the owner did not see');
   assert.equal(calendar.added.length, 3);
   assert.equal(await receipt(page), '');
+  const did = await worked(page);
+  assert.equal(did.state, 'failed');
+  assert.equal(did.open, true, 'work that did not finish stays open');
+  assert.equal(did.problems, 1);
+  assert.equal(did.rows.at(-1), 'The event changed after you reviewed it. Nothing was changed.');
+  assert.match(did.summary, /did not finish$/);
 
   // A guest added meanwhile makes it no longer PEA's to change at all.
   calendar.added[0].attendees = [{ email: 'guest@example.invalid' }];
@@ -484,5 +525,59 @@ test(
     assert.equal(quiet.calendar.added.length, 3);
     assert.equal(calendar.added.length, 3);
     await quiet.page.close();
+  },
+);
+
+test(
+  'refreshing calendar and mail lists what was read, and names a source that could not be read',
+  { skip, timeout: 60000 },
+  async () => {
+    const { page, calendar } = await openWithGoogle();
+    calendar.added.push(...seeded(await page.evaluate(`document.querySelector('#profile').value`)));
+    const today = '#today-activity details.activity';
+    assert.equal(await page.evaluate(`document.querySelector('#today-activity').hidden`), true);
+    await page.evaluate(`document.querySelector('#google-mail-access').checked = true`);
+    await connectGoogle(page, { read: true });
+    await page.waitFor(`document.querySelector('${today}')?.dataset.state === 'failed'`, 'the list');
+    let did = await worked(page, today);
+    // The stand-in Google has a calendar and no mail, so mail is the source that fails.
+    assert.equal(did.open, true);
+    assert.equal(did.rows.length, 3);
+    assert.match(did.rows[0], /^Read \d+ coming events? from your Google calendar$/);
+    assert.equal(did.rows[1], 'Gmail could not be read. It is left out of what a model sees.');
+    assert.equal(did.rows[2], 'Some of it could not be refreshed. PEA did not try again.');
+    assert.equal(did.problems, 2);
+    assert.doesNotMatch(did.rows.join(' '), /Synthetic lunch|example\.invalid/, 'counts only');
+
+    // With mail answering, the same button ends well and folds away.
+    calendar.mail = (url) =>
+      url.includes('/messages?')
+        ? { body: { messages: [{ id: 'abc123' }] } }
+        : {
+            body: {
+              id: 'abc123',
+              snippet: 'Synthetic preview',
+              labelIds: ['UNREAD'],
+              payload: {
+                headers: [
+                  { name: 'From', value: 'Synthetic Sender <sender@example.invalid>' },
+                  { name: 'Subject', value: 'Synthetic subject' },
+                ],
+              },
+            },
+          };
+    await page.evaluate(`document.querySelector('#today-refresh').click()`);
+    await page.waitFor(`document.querySelector('${today}')?.dataset.state === 'done'`, 'the second list');
+    did = await worked(page, today);
+    assert.equal(did.open, false);
+    assert.equal(did.problems, 0);
+    assert.equal(did.rows[1], 'Read 1 newest inbox item from Gmail: sender, subject and a short preview');
+    assert.equal(
+      did.rows[2],
+      'Kept in this tab only. A model sees it only when you share it, after the usual review.',
+    );
+    assert.doesNotMatch(did.rows.join(' '), /Synthetic (subject|preview|Sender)/, 'no mail words are listed');
+    onlyStandIns(page);
+    await page.close();
   },
 );

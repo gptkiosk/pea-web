@@ -2,6 +2,22 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.28] - 2026-11-20
+
+### Added
+
+- **The list of what PEA did, for calendar, mail, GitHub and decks.** The same list with icons now appears for four more kinds of work:
+  - **Calendar changes:** under the reply that proposed the event. Your approval, Google adding, changing or removing the event, and the note that nobody was invited and no notices were asked for. For a change or removal it also shows the check that the event is still the one you reviewed, and stops there if it is not.
+  - **Calendar and mail refresh:** under **Refresh connected services** in Upcoming on Today. How many coming events and newest inbox items were read, as counts only, and a plain line for any source that could not be read.
+  - **GitHub delivery:** under the delivery button in Connections. The repository check, your review, the second check that the repository has not changed, the new branch, the files added and the draft pull request. If it stops part way the list says a branch, files or a pull request may exist.
+  - **Deck projects:** under the deck form in Greenhouse. Your review, the model it was sent to, how long the answer took, the outline or slides read from it, and whether you kept them.
+- A debug chat export lists calendar work under its reply as `Calendar · …`, as it already does for documents.
+
+### Notes
+
+- The lists hold counts and names PEA already showed you in the review. No account address, mail sender, subject or preview, event from the refresh, source file text, token or model wording is put in a list, and a service's own error words never are.
+- Nothing about what is sent to Google, GitHub or a model changed.
+
 ## [0.1.0-rc.4.dev.27] - 2026-11-20
 
 ### Added

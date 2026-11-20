@@ -103,7 +103,7 @@ test('with debug detail each reply carries its steps and the fuller record, or s
   });
   assert.match(text, /^Debug detail: included$/m);
   const first = text.slice(text.indexOf('A plain synthetic reply.'), text.indexOf('And again.'));
-  assert.deepEqual(first.split("\n").slice(1, -5), [
+  assert.deepEqual(first.split('\n').slice(1, -5), [
     '',
     '  What PEA did · 6 steps · 5 s',
     '  - Recalled 2 memories of yours',
@@ -206,4 +206,6 @@ test('a document a reply proposed and the owner approved is listed under that re
   );
   assert.equal(text.split('Document · ').length - 1, 1);
   assert.ok(!chatExport(options).includes('Document · '));
+  work.label = 'Calendar';
+  assert.match(chatExport({ ...options, debug: true }), /\n  Calendar · What PEA did · 2 steps/);
 });

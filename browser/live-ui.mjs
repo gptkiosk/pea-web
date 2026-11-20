@@ -12,7 +12,7 @@ import { readGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
 import { canonContext } from './canon.mjs';
 import { noteGuidance } from './days.mjs';
-import { beginWork, contextSteps, endWork, workStep, workWaiting } from './activity.mjs';
+import { beginWork, contextSteps, endWork, took, workStep, workWaiting } from './activity.mjs';
 import { showWork } from './activity-ui.mjs';
 import {
   Services,
@@ -735,7 +735,8 @@ export function installConnections(hooks) {
   // One reviewed request outside the conversation, for the Chat model of this profile. Nothing from
   // the chat, the interview or any service is added: the model gets exactly `system` and `user`,
   // and the reply is handed back to the caller instead of being shown. Reviewed every time.
-  async function compose({ title, about, system, user }) {
+  // `trail` is the caller's list of what PEA did, and `redraw` shows it again after each step.
+  async function compose({ title, about, system, user, trail = null, redraw = () => {} }) {
     const s = state(),
       who = p(),
       ticket = nonce;
@@ -765,6 +766,15 @@ export function installConnections(hooks) {
     busy(true);
     controller = new AbortController();
     let text = '';
+    const sentAt = performance.now();
+    workStep(trail, 'shield', 'You reviewed exactly what is sent');
+    workStep(
+      trail,
+      'send',
+      `Sent to ${model.name} ${model.local ? 'on your own server' : 'through OpenRouter'}`,
+    );
+    workWaiting(trail, 'Waiting for your model’s reply…');
+    redraw();
     try {
       await (model.local ? local : service).stream(
         model.local ? s.localKey : s.key,
@@ -774,12 +784,36 @@ export function installConnections(hooks) {
         },
         controller.signal,
       );
+    } catch (error) {
+      const stopped = error?.name === 'AbortError';
+      endWork(
+        trail,
+        stopped ? 'stopped' : 'failed',
+        stopped ? 'stop' : 'warn',
+        stopped
+          ? 'Stopped before the reply was finished. Nothing was kept.'
+          : 'The request did not finish. PEA did not retry or use another model. Nothing was kept.',
+        performance.now(),
+      );
+      redraw();
+      throw error;
     } finally {
       controller = null;
       busy(false);
       render();
     }
-    if (ticket !== nonce || who !== p()) throw new ServiceError('Profile changed. Nothing was kept.');
+    workWaiting(trail, '');
+    workStep(
+      trail,
+      'pen',
+      `Your model answered in ${took(performance.now() - sentAt)} (${text.length.toLocaleString('en-US')} characters)`,
+    );
+    redraw();
+    if (ticket !== nonce || who !== p()) {
+      endWork(trail, 'failed', 'warn', 'The profile changed. Nothing was kept.', performance.now());
+      redraw();
+      throw new ServiceError('Profile changed. Nothing was kept.');
+    }
     return { started: true, text };
   }
   async function googleConnect() {
@@ -876,16 +910,86 @@ export function installConnections(hooks) {
       ? s.ownEvents.slice(0, 8)
       : [];
   }
+  // What the last refresh of calendar and mail did, for the profile that asked.
+  let todayWork = null;
+  const showToday = () => showWork($('today-activity'), todayWork?.profile === p() ? todayWork.trail : null);
   async function refreshToday() {
     const s = state(),
-      g = googleSession(),
-      who = p();
+      who = p(),
+      trail = beginWork(performance.now());
+    todayWork = { profile: who, trail };
+    let g;
+    try {
+      g = googleSession();
+    } catch (error) {
+      endWork(
+        trail,
+        'failed',
+        'warn',
+        'Google is not connected for this profile, so nothing was asked.',
+        performance.now(),
+      );
+      showToday();
+      throw error;
+    }
+    const wanted = [
+      g.calendar && 'your next calendar events',
+      g.mail && 'your newest inbox items',
+      g.calendarWrite && 'the events PEA added',
+    ].filter(Boolean);
+    workWaiting(trail, wanted.length ? `Asking Google for ${wanted.join(', ')}…` : '');
+    showToday();
     const responses = await Promise.allSettled([
       g.calendar ? service.calendar(g.token, who) : Promise.resolve([]),
       g.mail ? service.mail(g.token, who) : Promise.resolve([]),
       g.calendarWrite ? service.ownEvents(g.token, who) : Promise.resolve([]),
     ]);
+    workWaiting(trail, '');
+    const read = (on, i, icon, one, many, failed) => {
+      if (!on) return;
+      const r = responses[i];
+      if (r.status === 'fulfilled')
+        workStep(trail, icon, `Read ${r.value.length} ${r.value.length === 1 ? one : many}`);
+      else workStep(trail, 'warn', failed, true);
+    };
+    read(
+      g.calendar,
+      0,
+      'calendar',
+      'coming event from your Google calendar',
+      'coming events from your Google calendar',
+      'Your Google calendar could not be read. It is left out of what a model sees.',
+    );
+    read(
+      g.mail,
+      1,
+      'mail',
+      'newest inbox item from Gmail: sender, subject and a short preview',
+      'newest inbox items from Gmail: sender, subject and a short preview',
+      'Gmail could not be read. It is left out of what a model sees.',
+    );
+    read(
+      g.calendarWrite,
+      2,
+      'calendar',
+      'event that PEA added',
+      'events that PEA added',
+      'The events PEA added could not be read, so none can be changed from Chat for now.',
+    );
+    const missed = responses.filter((r) => r.status === 'rejected').length;
+    endWork(
+      trail,
+      missed ? 'failed' : 'done',
+      missed ? 'warn' : 'check',
+      !wanted.length
+        ? 'Calendar and mail are not connected for this profile, so nothing was asked.'
+        : missed
+          ? 'Some of it could not be refreshed. PEA did not try again.'
+          : 'Kept in this tab only. A model sees it only when you share it, after the usual review.',
+      performance.now(),
+    );
     if (who !== p()) return;
+    showToday();
     s.ownEvents = (responses[2].status === 'fulfilled' ? responses[2].value : []).map((e, i) => ({
       ...e,
       ref: 'e' + (i + 1),
@@ -1224,13 +1328,46 @@ export function installConnections(hooks) {
     if (!/^[a-f0-9]{40}$/.test(ref.object?.sha)) throw new ServiceError('Default branch is not ready.');
     return { repo: r.full_name, private: r.private, branch: r.default_branch, sha: ref.object.sha, token };
   }
+  // What the last GitHub delivery did, for the profile that asked.
+  let githubWork = null;
+  const showGithub = () =>
+    showWork($('github-activity'), githubWork?.profile === p() ? githubWork.trail : null);
   async function githubDeliver() {
     const s = state(),
       g = s.github,
       who = p();
     if (!g || !s.artifacts.length)
       throw new ServiceError('Configure GitHub and ask the Greenhouse coding model for source files first.');
+    const work = beginWork(performance.now()),
+      files = (n) => `${n} ${n === 1 ? 'file' : 'files'}`,
+      end = (outcome, icon, text) => {
+        endWork(work, outcome, icon, text, performance.now());
+        showGithub();
+      };
+    githubWork = { profile: who, trail: work };
+    workWaiting(work, 'Asking GitHub about the repository…');
+    showGithub();
+    try {
+      await githubSend(s, g, who, work, files, end);
+    } catch (error) {
+      // A step that had already ended the list said why; this covers the rest.
+      end(
+        error?.name === 'AbortError' ? 'stopped' : 'failed',
+        error?.name === 'AbortError' ? 'stop' : 'warn',
+        'The delivery did not start. Nothing was written to GitHub.',
+      );
+      throw error;
+    }
+  }
+  async function githubSend(s, g, who, work, count, end) {
     const fresh = await githubInspect(g.repo, g.token);
+    workStep(
+      work,
+      'shield',
+      `GitHub confirmed the repository: ${fresh.private ? 'private' : 'PUBLIC'}, and its main branch`,
+    );
+    workWaiting(work, '');
+    showGithub();
     const files = s.artifacts;
     if (files.some((f) => !validCode(f)) || new Set(files.map((f) => f.path)).size !== files.length)
       throw new ServiceError('Check the source paths and remove credentials.');
@@ -1242,18 +1379,29 @@ export function installConnections(hooks) {
       `${fresh.repo} · ${fresh.private ? 'private' : 'PUBLIC — output will be visible to others'}\nNew branch: ${branch}\nNew directory: ${directory}\nDraft PR into: ${fresh.branch}\nExisting code is not overwritten; nothing is merged or executed by PEA. Existing repository CI may run.\n\n${files.map((f) => `FILE: ${f.path}\n${f.text}`).join('\n\n')}`,
       { publicRepo: !fresh.private },
     );
-    if (!ok) return;
+    if (!ok) return end('stopped', 'stop', 'You did not approve it. Nothing was written to GitHub.');
     if (who !== p()) throw new ServiceError('Profile changed.');
+    workStep(work, 'shield', `You reviewed ${count(files.length)} and where they go`);
+    workWaiting(work, 'Checking that the repository has not changed since your review…');
+    showGithub();
     busy(true);
     const latest = await githubInspect(g.repo, g.token);
-    if (latest.sha !== fresh.sha || latest.private !== fresh.private)
+    if (latest.sha !== fresh.sha || latest.private !== fresh.private) {
+      end('failed', 'warn', 'The repository changed after your review. Nothing was written to GitHub.');
       throw new ServiceError('Repository changed. Review again.');
+    }
+    workStep(work, 'check', 'The repository is the same as the one you reviewed');
+    workWaiting(work, 'Creating a new branch…');
+    showGithub();
     try {
       await service.call('github', `/repos/${fresh.repo}/git/refs`, {
         token: g.token,
         method: 'POST',
         body: { ref: 'refs/heads/' + branch, sha: fresh.sha },
       });
+      workStep(work, 'send', 'Created a new branch for this delivery');
+      workWaiting(work, `Adding ${count(files.length)} to a new folder on that branch…`);
+      showGithub();
       for (const file of files)
         await service.call(
           'github',
@@ -1270,6 +1418,9 @@ export function installConnections(hooks) {
             },
           },
         );
+      workStep(work, 'file', `Added ${count(files.length)} in a new folder. No existing file was changed.`);
+      workWaiting(work, 'Opening a draft pull request…');
+      showGithub();
       const pr = await service.call('github', `/repos/${fresh.repo}/pulls`, {
         token: g.token,
         method: 'POST',
@@ -1285,6 +1436,7 @@ export function installConnections(hooks) {
       if (url.origin !== 'https://github.com' || !url.pathname.startsWith('/' + fresh.repo + '/pull/'))
         throw new Error('Unexpected PR');
       note('Created a draft PR. Nothing was merged.');
+      end('done', 'check', 'Opened a draft pull request. Nothing was merged and PEA ran no code.');
       const link = document.createElement('a');
       link.href = url.href;
       link.target = '_blank';
@@ -1292,6 +1444,11 @@ export function installConnections(hooks) {
       link.textContent = 'Open draft PR';
       $('generated-output').append(link);
     } catch {
+      end(
+        'failed',
+        'warn',
+        'It stopped part way. A branch, some files or a draft pull request may exist. Check GitHub; PEA did not try again.',
+      );
       throw new ServiceError(
         'A branch, partial delivery or draft PR may exist. Check GitHub; no automatic retry or merge.',
       );
@@ -1701,15 +1858,51 @@ export function installConnections(hooks) {
       return g && g.expires > Date.now() && g.calendarWrite ? g.account : null;
     },
     // Adds an event the owner has just approved. Returns null if it could not be added.
-    addEvent(draft, id) {
-      const who = p();
+    addEvent(draft, id, onWork = () => {}) {
+      const who = p(),
+        work = beginWork(performance.now(), 'Calendar');
+      workStep(work, 'shield', `You approved adding “${draft.title}” to your main Google calendar`);
+      workWaiting(work, 'Asking Google to add the event…');
+      onWork(work);
       return run(async () => {
-        const g = googleSession();
-        if (!g.calendarWrite) throw new ServiceError('Calendar changes are not connected for this profile.');
-        const added = await service.addEvent(g.token, who, draft, id);
-        // The Upcoming card should show it; a failed refresh does not undo the event.
-        if (who === p()) await refreshToday().catch(() => {});
-        return added;
+        try {
+          const g = googleSession();
+          if (!g.calendarWrite)
+            throw new ServiceError('Calendar changes are not connected for this profile.');
+          const added = await service.addEvent(g.token, who, draft, id);
+          workStep(
+            work,
+            'calendar',
+            added.already
+              ? 'Google answered that this event was already there from an earlier try'
+              : 'Google added the event',
+          );
+          workWaiting(work, 'Reading your coming events again…');
+          onWork(work);
+          // The Upcoming card should show it; a failed refresh does not undo the event.
+          if (who === p()) await refreshToday().catch(() => {});
+          endWork(
+            work,
+            'done',
+            'check',
+            added.already
+              ? 'Nothing was added twice. Nobody was invited.'
+              : 'Nobody was invited, and Google was asked to send no notices.',
+            performance.now(),
+          );
+          onWork(work);
+          return added;
+        } catch (error) {
+          endWork(
+            work,
+            'failed',
+            'warn',
+            'The event may not have been added. Trying again is safe: it cannot be added twice.',
+            performance.now(),
+          );
+          onWork(work);
+          throw error;
+        }
       });
     },
     // The event a ref meant in the list the model was last given, or null.
@@ -1724,22 +1917,73 @@ export function installConnections(hooks) {
       });
     },
     // Carries out a reviewed change or removal on exactly the version the owner saw.
-    editEvent(event, edit) {
-      const who = p();
+    editEvent(event, edit, onWork = () => {}) {
+      const who = p(),
+        removing = edit.op === 'delete',
+        work = beginWork(performance.now(), 'Calendar');
+      workStep(work, 'calendar', 'Read the event as it is in your calendar now, for your review');
+      workStep(
+        work,
+        'shield',
+        `You approved ${removing ? 'removing' : 'changing'} “${event.title}” in your main Google calendar`,
+      );
+      workWaiting(work, 'Checking that the event has not changed since your review…');
+      onWork(work);
       return run(async () => {
-        const g = googleSession();
-        if (!g.calendarWrite) throw new ServiceError('Calendar changes are not connected for this profile.');
-        const now = await service.ownEventNow(g.token, who, event.id);
-        if (now.etag !== event.etag)
-          throw new ServiceError(
-            'The event changed after you reviewed it. Nothing was changed. Review it again.',
-          );
-        const done =
-          edit.op === 'delete'
+        let asked = false;
+        try {
+          const g = googleSession();
+          if (!g.calendarWrite)
+            throw new ServiceError('Calendar changes are not connected for this profile.');
+          const now = await service.ownEventNow(g.token, who, event.id);
+          if (now.etag !== event.etag) {
+            endWork(
+              work,
+              'failed',
+              'warn',
+              'The event changed after you reviewed it. Nothing was changed.',
+              performance.now(),
+            );
+            onWork(work);
+            throw new ServiceError(
+              'The event changed after you reviewed it. Nothing was changed. Review it again.',
+            );
+          }
+          workStep(work, 'check', 'The event is the same as the one you reviewed');
+          workWaiting(work, removing ? 'Asking Google to remove it…' : 'Asking Google to change it…');
+          onWork(work);
+          asked = true;
+          const done = removing
             ? await service.deleteEvent(g.token, who, now)
             : await service.changeEvent(g.token, who, now, edit);
-        if (who === p()) await refreshToday().catch(() => {});
-        return done;
+          workStep(
+            work,
+            'calendar',
+            removing
+              ? done.already
+                ? 'Google answered that the event was already gone'
+                : 'Google removed the event'
+              : 'Google changed the title and times. Its notes stay as they were.',
+          );
+          workWaiting(work, 'Reading your coming events again…');
+          onWork(work);
+          if (who === p()) await refreshToday().catch(() => {});
+          endWork(work, 'done', 'check', 'Google was asked to send no notices.', performance.now());
+          onWork(work);
+          return done;
+        } catch (error) {
+          endWork(
+            work,
+            'failed',
+            'warn',
+            asked
+              ? 'Google did not confirm it. Look in your calendar before trying again.'
+              : 'The event could not be checked. Nothing was changed.',
+            performance.now(),
+          );
+          onWork(work);
+          throw error;
+        }
       });
     },
     currentDocument: () => state().currentDoc?.draft ?? null,
@@ -1787,6 +2031,8 @@ export function installConnections(hooks) {
       $('generated-output').replaceChildren();
       pictureWork = null;
       showWork($('generated-activity'), null);
+      showToday();
+      showGithub();
       $('connection-note').textContent = '';
       $('role-suggestion').hidden = true;
       $('router-key').value = '';

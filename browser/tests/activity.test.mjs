@@ -237,3 +237,17 @@ test('work that was stopped or failed ends with that line, and names from elsewh
     endWork(null, 'done', 'check', 'x', 1);
   });
 });
+
+test('a step that went wrong is marked while the work carries on, and a label names the work', () => {
+  const work = beginWork(0, 'Calendar\n' + 'x'.repeat(40));
+  assert.equal([...work.label].length, 20);
+  assert.equal(beginWork(0).label, '');
+  workStep(work, 'calendar', 'Read 2 coming events from your Google calendar');
+  workStep(work, 'warn', 'Gmail could not be read.', true);
+  endWork(work, 'failed', 'warn', 'Some of it could not be refreshed.', 900);
+  assert.deepEqual(
+    workRows(work).map((r) => r.state),
+    ['done', 'problem', 'problem'],
+  );
+  assert.equal(workSummary(work), 'What PEA did · 3 steps · did not finish');
+});

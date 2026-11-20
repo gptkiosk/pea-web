@@ -510,8 +510,11 @@ class Page {
         { name: 'Content-Type', value: type },
         { name: 'Access-Control-Allow-Origin', value: '*' },
         // A request with a sign-in header is asked about first; the stand-in allows it.
-        { name: 'Access-Control-Allow-Headers', value: 'authorization, content-type, if-match' },
-        { name: 'Access-Control-Allow-Methods', value: 'GET, POST, PATCH, DELETE' },
+        {
+          name: 'Access-Control-Allow-Headers',
+          value: 'authorization, content-type, if-match, x-github-api-version',
+        },
+        { name: 'Access-Control-Allow-Methods', value: 'GET, POST, PATCH, PUT, DELETE' },
         { name: 'Cache-Control', value: 'no-store' },
       ],
       body: Buffer.from(text).toString('base64'),
