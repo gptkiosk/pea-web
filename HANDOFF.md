@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Set answers to press or say by number — 2026-11-20
+
+**Branch `feature/choices` (on top of `feature/activity-services`), version `0.1.0-rc.4.dev.29`.** The owner asked for "visual popups that allow selection that feeds the choice back into chat to directly communicate the answer the way the chat wants it eliminates the guess work on the answer when voice is being used."
+
+- `browser/choices.mjs` (new, no DOM): `choiceGuidance` (the paragraph the model is given), `choiceProposals(raw)` (exactly `{"op":"choose","question","options"}` in the reply's only `pea-` block; 2 to 6 answers of at most 80 characters, one line each, all different), `spokenChoice(text, options)` (the position a number or the answer's own words names, or -1), `choicesAloud(choice)`.
+- `browser/live-ui.mjs` `chat()`: `choiceGuidance` joins the instructions after the phone-link paragraph; the debug record lists it as `choices`.
+- `browser/app.mjs`: `finishReply` keeps `{ kind: 'choices', question, options }` in `proposals` when nothing else was offered. `liveChoice(surface)` is the newest reply's choice; `choiceBox` draws the numbered buttons (through `proposalButton`, so Chat and Greenhouse both have them); `pickChoice` puts the answer in the composer and calls `submit`. `submit` swaps a said or typed number for the answer's words before anything else looks at the text. `openVoiceRoom` fills `#voice-room-choices`; the read-aloud handler appends `choicesAloud`.
+- Tests: `browser/tests/choices.test.mjs` (3), `browser/tests/dom/choices.test.mjs` (4: buttons and a press; numbers, ordinals and own words; malformed or mixed blocks and look-alike text; the voice room and reading aloud with a stand-in device voice). Assets are 63.
+- Known gaps: no test speaks into a real microphone, so the path from recognised speech to the swap is covered only from the transcript field on. Greenhouse has the buttons through shared code but no test of its own. A provider voice reading the answers is not tested. Whether a given model offers answers well, or too often, was not measured. Answers are not kept with a saved conversation, so they are gone after a reload. Not looked at by eye.
+
 ## The same list for calendar, mail, GitHub and decks — 2026-11-20
 
 **Branch `feature/activity-services`, version `0.1.0-rc.4.dev.28`.** The owner asked: "Add the same list to calendar, mail, GitHub and decks." (The same message also asked for choice popups that answer in chat and for numbered voice navigation; those are separate changes.)

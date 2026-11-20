@@ -17,6 +17,7 @@
     "canon.mjs",
     "chat-export.mjs",
     "chat-format.mjs",
+    "choices.mjs",
     "commands-ui.mjs",
     "commands.mjs",
     "connections.mjs",
