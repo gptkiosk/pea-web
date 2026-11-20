@@ -187,6 +187,17 @@ export function visiblePanes(layout, width) {
   return at === 0 ? current.panes.slice(0, 2) : current.panes.slice(at - 1, at + 1);
 }
 
+// The few short lines a tucked chip shows about its workspace. Whatever is passed in is flattened to
+// one line each, cut to length, and capped; the rest is counted, not shown.
+export function peekLines(lines, { limit = 4, length = 96 } = {}) {
+  const clean = (Array.isArray(lines) ? lines : [])
+    .map((line) => (typeof line === 'string' ? line.replace(/\s+/g, ' ').trim() : ''))
+    .filter(Boolean)
+    .map((line) => (line.length > length ? line.slice(0, length - 1).trimEnd() + '…' : line));
+  if (clean.length <= limit) return clean;
+  return [...clean.slice(0, limit - 1), `and ${clean.length - limit + 1} more`];
+}
+
 export function loadLayout(storage = globalThis.localStorage) {
   try {
     return normalizeLayout(JSON.parse(storage.getItem(storageKey) || 'null'));

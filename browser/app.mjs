@@ -1078,6 +1078,29 @@ function workingNode(m, surface) {
 // Harvest: everything the conversations of this profile proposed, in one place. Each item carries
 // the very control its reply shows, built the same way, so reviewing from here is the same review
 // and nothing here can approve, add, write or send anything by itself.
+let harvestPeek = ['Nothing gathered yet.'];
+// What a tucked chip's peek says about its workspace: a few words already on this page, for the
+// person looking at it. Nothing is fetched, sent or given to a model for it.
+function conversationPeek(surface) {
+  const said = history(surface).filter((m) => !m.preview);
+  if (!said.length) return ['No conversation yet.'];
+  const last = said.at(-1),
+    count = `${said.length} message${said.length === 1 ? '' : 's'} in this conversation`;
+  if (workingOn === surface && last.incomplete) return [count, 'PEA is working on an answer…'];
+  // A reply's layout marks are left out of the one line shown.
+  const words = String(last.text ?? '').replace(/[#*_`>|]+/g, ' ');
+  return [count, `${last.role === 'user' ? 'You' : 'PEA'}: ${words}`];
+}
+function peekFor(name) {
+  if (name === 'chat') return conversationPeek('chat');
+  if (name === 'harvest') return harvestPeek;
+  if (name === 'greenhouse')
+    return [...(selected?.name ? [`Open: ${selected.name}`] : []), ...conversationPeek('greenhouse')];
+  const lines = [...$('home-lines').querySelectorAll('.home-line')].map((line) =>
+    [...line.children].map((part) => part.textContent).join(': '),
+  );
+  return lines.length ? lines : ['Nothing to show yet.'];
+}
 function renderHarvest() {
   const waiting = [],
     done = [];
@@ -1103,16 +1126,16 @@ function renderHarvest() {
   $('harvest-waiting-group').hidden = !waiting.length;
   $('harvest-done-group').hidden = !done.length;
   $('harvest-empty').hidden = waiting.length + done.length > 0;
-  // The chip shows how much is waiting, and says what when it is pointed at.
+  // The chip shows how much is waiting; its peek says what.
   const count = $('harvest-count');
   count.hidden = !waiting.length;
   count.textContent = waiting.length ? String(waiting.length) : '';
-  $('tab-harvest').title = waiting.length
-    ? `Waiting for your review: ${waiting.map((item) => item.lastChild.textContent).join(' · ')}`.slice(
-        0,
-        400,
-      )
-    : '';
+  harvestPeek = [
+    ...waiting.map((item) => item.lastChild.textContent),
+    ...(done.length ? [`${done.length} grown from these conversations`] : []),
+  ];
+  if (!harvestPeek.length) harvestPeek = ['Nothing gathered yet.'];
+  else if (waiting.length) harvestPeek.unshift(`${waiting.length} waiting for your review:`);
   $('tab-harvest').setAttribute(
     'aria-label',
     waiting.length ? `Harvest, ${waiting.length} waiting for your review` : 'Harvest',
@@ -2170,6 +2193,7 @@ window.addEventListener('pagehide', () => voice.stop());
 renderLists();
 const workspace = installWorkspace({
   onFocus: focusChanged,
+  peek: peekFor,
   // Overdue and due-today counts move with the clock, so Today is redrawn as it comes into view.
   onShow: (name) => {
     if (name === 'today') home?.render();

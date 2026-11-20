@@ -10,6 +10,7 @@ import {
   openBeside,
   openWorkspace,
   partnerFor,
+  peekLines,
   resizeSplit,
   saveLayout,
   swapPanes,
@@ -228,8 +229,24 @@ test('with three panes a divider changes only the two panes beside it, within li
   // Damaged widths fall back to even shares, and nothing but names and widths is kept.
   assert.deepEqual(normalizeLayout({ ...start, sizes: [9, -1, 'x'] }).sizes, [0.3, 0.4, 0.3]);
   assert.deepEqual(normalizeLayout({ ...start, sizes: [0.9, 0.05, 0.05] }).sizes, [0.3, 0.4, 0.3]);
-  assert.deepEqual(normalizeLayout({ ...start, sizes: [2, 5, 3] }).sizes, [0.2, 0.5, 0.3], 'shares are scaled to add up to one');
+  assert.deepEqual(
+    normalizeLayout({ ...start, sizes: [2, 5, 3] }).sizes,
+    [0.2, 0.5, 0.3],
+    'shares are scaled to add up to one',
+  );
   const saved = [];
   saveLayout({ ...start, note: 'private' }, { setItem: (k, v) => saved.push(v) });
   assert.deepEqual(Object.keys(JSON.parse(saved[0])).sort(), ['focus', 'panes', 'ratio', 'sizes']);
+});
+
+test('a peek is a few short single lines, and the rest is only counted', () => {
+  assert.deepEqual(peekLines(['  One\n line  ', '', null, 7, 'Two']), ['One line', 'Two']);
+  const long = peekLines(['x'.repeat(300)])[0];
+  assert.equal(long.length, 96);
+  assert.ok(long.endsWith('…'));
+  assert.deepEqual(peekLines(['a', 'b', 'c', 'd']), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(peekLines(['a', 'b', 'c', 'd', 'e', 'f']), ['a', 'b', 'c', 'and 3 more']);
+  assert.deepEqual(peekLines(['a', 'b', 'c'], { limit: 2, length: 10 }), ['a', 'and 2 more']);
+  assert.deepEqual(peekLines('not a list'), []);
+  assert.deepEqual(peekLines(undefined), []);
 });
