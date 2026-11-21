@@ -4663,3 +4663,11 @@ button.numbered-row:focus-visible {
   gap: 0.35rem;
   margin-top: 0.5rem;
 }
+
+.numbered-row small {
+  display: block;
+  opacity: 0.75;
+}
+.numbered-footer {
+  margin: 0.2rem 0 0.4rem;
+}

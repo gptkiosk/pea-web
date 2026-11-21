@@ -57,6 +57,7 @@
     "research-ui.mjs",
     "research.mjs",
     "shared-config.mjs",
+    "shownav.mjs",
     "speech-ui.mjs",
     "speech.mjs",
     "styles.css",

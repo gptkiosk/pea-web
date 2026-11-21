@@ -1479,8 +1479,10 @@ function renderCollaboration() {
   );
   renderHarvest();
 }
-// `aloud` is set when the words came from the voice room with reading aloud on.
-async function submit(surface, { aloud = false } = {}) {
+// `aloud` is set when the words came from the voice room with reading aloud on. `plain` is set
+// for a message PEA itself made from a navigation move, which is sent as it is and never read as
+// another command, whatever numbers its quoted words hold.
+async function submit(surface, { aloud = false, plain = false } = {}) {
   voice?.stop();
   const field = surface === 'chat' ? $('thought') : $('collab-thought');
   let text = field.value.trim();
@@ -1495,7 +1497,7 @@ async function submit(surface, { aloud = false } = {}) {
   }
   // "List feeds", "1.2", "point 2": a move through numbered lists, matched by fixed rules and
   // answered by this page. Only a point of the last reply goes on to the model, as its own words.
-  const moved = picked < 0 ? numbered?.command(text, surface, { aloud }) : null;
+  const moved = picked < 0 && !plain ? numbered?.command(text, surface, { aloud }) : null;
   if (moved?.handled) {
     if (!moved.send) {
       field.value = '';
@@ -2394,7 +2396,7 @@ $('voice-room-send').onclick = async () => {
   }
   field.value = moved?.send ?? text;
   $('voice-room').close();
-  await submit(surface);
+  await submit(surface, { plain: Boolean(moved?.send) });
   const reply = history(surface, who).at(-1);
   if (who === profile && reply?.id !== previous && reply?.role === 'assistant') {
     voiceDrafts.delete(who + ':' + surface);
@@ -2550,6 +2552,8 @@ research = installResearch({
 });
 numbered = installNumbered({
   groups: () => headlines?.groups() ?? [],
+  shows: () => curated?.shows() ?? [],
+  quiet: () => stopVoices(),
   lastReply: (surface) =>
     history(surface)
       .filter((m) => m.role === 'assistant' && !m.incomplete && !m.preview)
@@ -2575,7 +2579,7 @@ numbered.sendWith((surface, text) => {
   if (field.value.trim()) return notice('Your typed draft is still open. Send or clear it first.');
   if ($('voice-room').open) $('voice-room').close();
   field.value = text;
-  void submit(surface);
+  void submit(surface, { plain: true });
 });
 // Curated sources fetch nothing until the owner browses; every file is checked before use.
 curated = installCurated({ review: live.review });
