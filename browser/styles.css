@@ -4623,3 +4623,43 @@ button.numbered-row:focus-visible {
   display: block;
   opacity: 0.8;
 }
+
+/* Curated sources on Today. */
+.curated-list {
+  list-style: none;
+  margin: 0.6rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.curated-source {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.6rem;
+  align-items: start;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  border-radius: 14px;
+}
+.curated-source > p,
+.curated-source > ul,
+.curated-source > small {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.curated-source > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.curated-newest {
+  padding-left: 1.1rem;
+  opacity: 0.9;
+}
+.curated-banner {
+  font-weight: 600;
+}
+#curated-request-form {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
