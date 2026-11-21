@@ -2,6 +2,29 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.31] - 2026-11-21
+
+### Added
+
+- **Curated sources, on Today.** The podcasts a curator has prepared for PEA, as the iPhone app has them. Each new episode comes with a short brief.
+  - **Browse:** nothing is fetched until you approve. Then PEA reads the curator's one list, the same file for everyone, and shows each source's name, description, how often it publishes, its newest titles and its terms.
+  - **Follow:** following a show fetches its list of episodes and the briefs of its five newest. They are kept in this tab only; the shows you follow are remembered in this browser.
+  - **Checked before use:** every file must match the size and SHA-256 fingerprint the curator's list promised, be strict JSON in the stated form, and hold no markup, link, hidden character or instruction. A file that fails is not shown, not kept and never put in a prompt, and a list that fails leaves the last good one in place.
+  - **Paused and removed sources:** a paused source says so and fetches nothing new. A source the curator removed is unfollowed with a plain note.
+  - **What PEA did:** the same list of steps as elsewhere, with counts.
+- **Request a podcast.** Under Curated sources. You type the show's name and its feed or website; PEA prepares a filled-in request on the catalog's GitHub page for you to open and submit. Nothing is sent from PEA, and nothing about you or your chats is included.
+
+### Changed
+
+- The page and both servers now allow one more address, the catalog's (`https://gptkiosk.github.io`). It is contacted only after you approve browsing.
+
+### Notes
+
+- **Not yet:** briefs are not used in conversation, and numbered navigation still walks Headlines, not these shows. Those come next. Digests, whole transcripts from the publisher, topics, scientific citations and the storage settings of the iPhone app are not on the web.
+- The published catalog is format 1.3. A newer minor version is read with its unknown members ignored, so briefs that later carry citations will still read; the citations will not be shown until the web reader learns them.
+- The request form on GitHub is the catalog project's own. If that project has not published its form yet, GitHub opens a plain new issue with the title filled in.
+- The host of the catalog (GitHub Pages) sees your internet address and which shows' files it asked for. The review says so before the first request.
+
 ## [0.1.0-rc.4.dev.30] - 2026-11-20
 
 ### Added

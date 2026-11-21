@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark"><meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' blob:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com https://openrouter.ai https://api.github.com https://accounts.google.com https://www.googleapis.com https://docs.googleapis.com https://forms.googleapis.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' blob:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com https://openrouter.ai https://api.github.com https://accounts.google.com https://www.googleapis.com https://docs.googleapis.com https://forms.googleapis.com https://gptkiosk.github.io; frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>PEA · A little room to grow</title>
 <link rel="icon" href="assets/pea-icon.svg"><link rel="stylesheet" href="styles.css">
 <script type="module" src="app.mjs"></script>
@@ -40,6 +40,14 @@
 <ul id="weather-places" class="todo-list" aria-label="Matching places"></ul>
 <p class="muted" id="weather-note"></p>
 <div id="weather-credit" hidden><p class="weather-actions"><button id="weather-refresh" class="text-button" type="button">Refresh</button><button id="weather-off" class="text-button" type="button">Turn weather off</button></p><p class="muted"><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Weather data by Open-Meteo.com</a>, CC BY 4.0, rounded here.</p></div>
+</div></details>
+<details class="card today-section" id="curated-section"><summary><span><strong>Curated sources</strong><small id="curated-peek">Off until you browse</small></span><span class="pill" id="curated-status">Off</span></summary><div class="section-content">
+<p class="muted">Podcasts a curator has prepared for PEA: each new episode comes with a short brief that PEA checks before using. Follow a show to keep its newest briefs in this tab.</p>
+<p class="weather-actions"><button id="curated-browse" class="text-button" type="button">Browse curated sources…</button> <button id="curated-off" class="text-button" type="button" hidden>Turn off and forget</button> <small class="muted" id="curated-checked"></small></p>
+<div id="curated-activity" class="work-activity" hidden></div>
+<ul id="curated-list" class="curated-list" aria-label="Curated sources"></ul>
+<p class="muted" id="curated-note" role="status"></p>
+<details class="settings-group" id="curated-request" hidden><summary>Request a podcast</summary><form id="curated-request-form"><p class="muted">Ask the curator to add a show. PEA only fills in a request form on GitHub for you to submit; nothing is sent from here, and nothing about you or your chats is included.</p><label for="curated-request-name">Podcast name</label><input id="curated-request-name" maxlength="120" autocomplete="off" required><label for="curated-request-feed">Feed address (best)</label><input id="curated-request-feed" maxlength="2000" inputmode="url" autocomplete="off" placeholder="https://…"><label for="curated-request-site">Or its website</label><input id="curated-request-site" maxlength="2000" inputmode="url" autocomplete="off" placeholder="https://…"><label for="curated-request-notes">Notes, such as where its transcripts are (optional)</label><textarea id="curated-request-notes" rows="2" maxlength="600"></textarea><button class="primary" id="curated-request-make">Prepare the request</button> <a id="curated-request-open" class="text-button" target="_blank" rel="noopener noreferrer" hidden>Open the request on GitHub</a><p class="muted" id="curated-request-note" role="status"></p></form></details>
 </div></details>
 <details class="card today-section" id="headlines-section"><summary><span><strong>Headlines</strong><small id="headline-peek">Off until you add a feed</small></span><span class="pill" id="headline-status">Off</span></summary><div class="section-content">
 <ul id="headline-list" class="headline-list" aria-label="Headlines"></ul>

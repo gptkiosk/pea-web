@@ -49,6 +49,7 @@ import { endTrail, firstWords, startTrail } from './activity.mjs';
 import { trailBox, workBox } from './activity-ui.mjs';
 import { choiceProposals, choicesAloud, spokenChoice } from './choices.mjs';
 import { installNumbered } from './numbered-ui.mjs';
+import { installCurated } from './knowledge-ui.mjs';
 import { chatExport, chatExportName } from './chat-export.mjs';
 import { claimsRead, ownerRead, readProposals, sourcedNotice } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
@@ -94,7 +95,8 @@ let live,
   projects,
   portable,
   updates,
-  numbered;
+  numbered,
+  curated;
 // Ends reading aloud, whichever voice is doing it.
 function stopVoices() {
   globalThis.speechSynthesis?.cancel();
@@ -2575,6 +2577,8 @@ numbered.sendWith((surface, text) => {
   field.value = text;
   void submit(surface);
 });
+// Curated sources fetch nothing until the owner browses; every file is checked before use.
+curated = installCurated({ review: live.review });
 headlines = installHeadlines({
   changed: () => home?.render(),
   review: live.review,

@@ -33,6 +33,9 @@
     "handoff.mjs",
     "home-ui.mjs",
     "home.mjs",
+    "knowledge-schema.mjs",
+    "knowledge-ui.mjs",
+    "knowledge.mjs",
     "honesty.mjs",
     "index.html",
     "live-ui.mjs",
@@ -75,7 +78,7 @@
     "X-Frame-Options": "DENY",
     "Cross-Origin-Resource-Policy": "same-origin",
     "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' blob:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com https://openrouter.ai https://api.github.com https://accounts.google.com https://www.googleapis.com https://docs.googleapis.com https://forms.googleapis.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' blob:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com https://openrouter.ai https://api.github.com https://accounts.google.com https://www.googleapis.com https://docs.googleapis.com https://forms.googleapis.com https://gptkiosk.github.io; frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     "Permissions-Policy": "camera=(), geolocation=(), microphone=(self)"
   },
   "limits": {
