@@ -47,8 +47,8 @@ const ORDER = {
 };
 const N = `(\\d{1,2}|${Object.keys(COUNT).join('|')})`;
 const NTH = `(${Object.keys(ORDER).join('|')}|\\d{1,2}(?:st|nd|rd|th))`;
-const GROUP = '(?:feeds?|shows?|podcasts?|sources?)';
-const ITEM = '(?:headlines?|episodes?|stor(?:y|ies)|articles?|items?)';
+const GROUP = '(?:feeds?|sources?)';
+const ITEM = '(?:headlines?|stor(?:y|ies)|articles?|items?)';
 // Words that may come before a command without changing it, as speech often adds them.
 const LEAD =
   '(?:(?:please|ok|okay|hey|pea|um|uh|now|and|then|any|can you|could you|would you|will you|i want to|i d like to|let s|lets|go to|go|open|show me|show|give me|read me|read|play|jump to|take me to|switch to)\\s+)*';

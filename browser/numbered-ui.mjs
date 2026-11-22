@@ -3,14 +3,26 @@
 // model reads them, and nothing here is put in a conversation or given to a model. Headline
 // titles shown here stay in this tab, as they do in the Headlines card.
 import { numberedCommand, numberedMove, replyPoints } from './numbered.mjs';
+import { idle, showCommand, showMove } from './shownav.mjs';
 
 const $ = (id) => document.getElementById(id);
 
 // `groups()` gives the owner's feeds in their order, each { name, items: [{ title, link }] }.
 // `lastReply(surface)` gives the newest finished reply's words. `readInChat(link, name)` opens the
 // usual review for one page. `speak(words)` reads with the device's own voice.
-export function installNumbered({ groups, lastReply, readInChat, speak, profile }) {
+// `shows()` gives the followed shows of Curated sources with their kept episodes, and `quiet()`
+// stops anything being read aloud.
+export function installNumbered({
+  groups,
+  shows = () => [],
+  lastReply,
+  readInChat,
+  speak,
+  quiet = () => {},
+  profile,
+}) {
   let at = { group: null, item: null, point: null },
+    showAt = idle(),
     shown = null,
     whose = null;
 
@@ -41,6 +53,11 @@ export function installNumbered({ groups, lastReply, readInChat, speak, profile 
           label.className = 'numbered-label';
           label.textContent = row.label;
           words.textContent = row.text;
+          if (row.sub) {
+            const sub = document.createElement('small');
+            sub.textContent = row.sub;
+            words.append(sub);
+          }
           if (row.go) {
             const b = document.createElement('button');
             b.type = 'button';
@@ -73,6 +90,19 @@ export function installNumbered({ groups, lastReply, readInChat, speak, profile 
         open.rel = 'noopener noreferrer';
         actions.append(read, open);
         place.append(actions);
+      }
+      if (mine.footer?.length) {
+        const footer = document.createElement('div');
+        footer.className = 'filters numbered-footer';
+        for (const button of mine.footer) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'text-button';
+          b.textContent = button.label;
+          b.onclick = () => press(button.go);
+          footer.append(b);
+        }
+        place.append(footer);
       }
       const note = document.createElement('small');
       note.textContent = mine.note;
@@ -117,21 +147,45 @@ export function installNumbered({ groups, lastReply, readInChat, speak, profile 
     draw();
     return { handled: true, send: move.send, say: move.say };
   }
+  // One move through the followed shows.
+  function runShow(command, followed) {
+    const move = showMove(command, { shows: followed, at: showAt });
+    showAt = move.at;
+    whose = profile();
+    shown = {
+      title: move.title,
+      rows: move.rows.map((row) => ({ ...row, go: row.say ? { say: row.say } : null })),
+      footer: move.footer.map((button) => ({ label: button.label, go: { say: button.say } })),
+      link: null,
+      note: move.level === 'none' ? move.say : move.hint,
+    };
+    draw();
+    return { handled: true, send: move.send, say: move.say };
+  }
+  // The owner's words as a move, through shows first and then feeds and reply points; null when
+  // they are not a command. A bare "1.2" means a show's episode once a show is followed.
+  function handle(text, surface) {
+    const followed = shows(),
+      inShows = showCommand(text, { at: showAt, shows: followed }),
+      other = numberedCommand(text);
+    if (inShows && (followed.length || !other)) return runShow(inShows, followed);
+    return other ? run(other, surface) : null;
+  }
   let surfaceNow = 'chat',
     onSend = () => {};
-  // A pressed row does what saying its number does.
+  // A pressed row or button does what saying its words does, and ends any reading aloud first.
   function press(go) {
-    const done = run(go, surfaceNow);
-    if (done.send) onSend(surfaceNow, done.send);
+    quiet();
+    const done = go.say ? handle(go.say, surfaceNow) : run(go, surfaceNow);
+    if (done?.send) onSend(surfaceNow, done.send);
   }
 
   return {
     // The owner's submitted words. Not a command: { handled: false }.
     command(text, surface, { aloud = false } = {}) {
-      const command = numberedCommand(text);
-      if (!command) return { handled: false, send: null, say: '' };
       surfaceNow = surface;
-      const done = run(command, surface);
+      const done = handle(text, surface);
+      if (!done) return { handled: false, send: null, say: '' };
       if (aloud && done.say && !done.send) speak(done.say);
       return done;
     },
@@ -144,6 +198,7 @@ export function installNumbered({ groups, lastReply, readInChat, speak, profile 
     },
     clear() {
       at = { group: null, item: null, point: null };
+      showAt = idle();
       clear();
     },
     draw,

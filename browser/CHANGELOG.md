@@ -2,6 +2,28 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.32] - 2026-11-21
+
+### Added
+
+- **Numbered navigation through your shows: Show, Episode, Section.** With a show followed in Curated sources, the same fixed commands the iPhone app uses now work on the web, typed or spoken. PEA matches your words by rule and answers on the page; no model reads the command.
+  - **Shows:** "list shows", "back to shows", "Show 1", "first podcast", "episodes for show 2", or "list episodes for" a show's name.
+  - **Episodes:** "1.2", "one point two", "show 1 episode 2", "episode 2", "next episode", "previous episode", "latest", "oldest episode", "more episodes", "back to episodes". Five to a page, newest first.
+  - **Sections:** an episode's sections are the points of its checked brief, six at most. "1.2.3", "one point two point three", "section 2", "next section", "back to episode". An address is also found inside a sentence, as in "No, this would be 2.4.3, is there a section there?"; a version number such as "version 1.2.3" is left alone.
+  - **Where am I:** says the section, episode and show you are on, with the way back.
+  - **Digging in:** opening a section sends your model that section's own words, with the episode's title, show and date, as your next message.
+  - The numbered panel now has buttons under it for the usual next moves, and each row shows a second line. Pressing anything stops reading aloud first.
+
+### Changed
+
+- "Show", "podcast" and "episode" now mean your followed shows. Headlines keep "feed" and "headline". A bare "1.2" means an episode once you follow a show with briefs, and a headline otherwise.
+
+### Notes
+
+- **Not here:** citations and web search. "1.2.3.c.1", "list citations" and "search 1.2.3" are recognised and answered in plain words that PEA Web cannot do them yet; nothing is sent.
+- A brief is not yet shared with your model as background. Only the one section you open is sent, inside your message.
+- Episode titles and section text stay on the page until you open a section.
+
 ## [0.1.0-rc.4.dev.31] - 2026-11-21
 
 ### Added
