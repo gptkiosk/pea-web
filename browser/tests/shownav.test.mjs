@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dayOf, idle, plainAddress, sectionsOf, showCommand, showMove } from '../shownav.mjs';
+import { briefInPlay, dayOf, idle, plainAddress, sectionsOf, showCommand, showMove } from '../shownav.mjs';
 import { numberedCommand } from '../numbered.mjs';
 
 const brief = (n) => ({
@@ -214,4 +214,49 @@ test('moves walk shows, episodes and sections, each row carrying the words it st
   assert.equal(dayOf('2026-02-03'), '3 February 2026');
   assert.equal(dayOf('nonsense'), '');
   assert.deepEqual(sectionsOf(null), []);
+});
+
+test('the open episode’s brief is laid out as labelled evidence, and there is none when no episode is open', () => {
+  const full = {
+    brief_kind: 'model',
+    covers: 'partial',
+    covers_note: 'The first hour only.',
+    headline: 'A headline.',
+    claims: [{ text: 'First claim.' }, { text: 'Second claim.' }],
+    new: 'Something new.',
+    quotes: [{ speaker: 'Mara', text: 'Her own words.' }],
+  };
+  const held = [
+    {
+      id: 'harbor',
+      name: 'Harbor Voices',
+      episodes: [
+        { item: { id: 'a', title: 'The lamp', date: '2026-11-11', brief: { sha256: 'abc' } }, brief: full },
+      ],
+    },
+  ];
+  const got = briefInPlay(held, { show: 1, episode: 1, section: 2, offset: 0 });
+  assert.equal(got.label, '“The lamp” (Harbor Voices, 11 November 2026)');
+  assert.equal(got.key, 'harbor/a/abc');
+  assert.equal(
+    got.text,
+    [
+      'Show 1: Harbor Voices. Episode 1.1: “The lamp”, 11 November 2026.',
+      'Written by a model from the transcript, then checked by the curator’s pipeline.',
+      'It covers part of the episode: The first hour only.',
+      'Headline: A headline.',
+      'Section 1.1.1: First claim.',
+      'Section 1.1.2: Second claim.',
+      'New: Something new.',
+      'Quote (Mara): “Her own words.”',
+    ].join('\n'),
+  );
+  const plain = briefInPlay(shows, { show: 1, episode: 2, section: null, offset: 0 });
+  assert.match(
+    plain.text,
+    /^Show 1: Harbor Voices\. Episode 1\.2: “The lamp”, 11 November 2026\.\nSentences picked from the episode’s digest; no model wrote it\.\nHeadline: Headline 8\nSection 1\.2\.1: Claim 1 of 8\./,
+  );
+  assert.equal(plain.text.split('\n').filter((l) => l.startsWith('Section ')).length, 6);
+  for (const at of [idle(), { ...idle(), show: 1 }, { show: 9, episode: 1 }, { show: 1, episode: 9 }, null])
+    assert.equal(briefInPlay(shows, at), null);
 });

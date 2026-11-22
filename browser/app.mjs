@@ -1715,6 +1715,7 @@ live = installConnections({
   },
 
   page: () => research?.current() ?? null,
+  brief: () => numbered?.brief() ?? null,
   beginReply(surface, text, { sourced = false, steps = null, detail = null } = {}) {
     const reply = addReply(surface, text);
     if (sourced) sourcedReplies.add(reply.id);

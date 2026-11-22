@@ -407,3 +407,32 @@ export function showMove(command, { shows = [], at = idle() } = {}) {
       return none('');
   }
 }
+
+// The brief of the episode the owner has open, as the quoted evidence that goes with a Chat
+// message: its label, the exact words, and a key that changes when the brief does. Sections carry
+// their addresses so the owner and the model can name the same one. Null when no episode is open.
+export function briefInPlay(shows, at) {
+  if (!at || at.show === null || at.episode === null) return null;
+  const show = shows[at.show - 1],
+    episode = show?.episodes[at.episode - 1],
+    b = episode?.brief;
+  if (!b) return null;
+  const address = `${at.show}.${at.episode}`,
+    lines = [
+      `Show ${at.show}: ${show.name}. Episode ${address}: “${episode.item.title}”, ${dayOf(episode.item.date)}.`,
+      b.brief_kind === 'model'
+        ? 'Written by a model from the transcript, then checked by the curator’s pipeline.'
+        : 'Sentences picked from the episode’s digest; no model wrote it.',
+    ];
+  if (b.covers === 'partial' && b.covers_note) lines.push(`It covers part of the episode: ${b.covers_note}`);
+  if (b.headline) lines.push(`Headline: ${b.headline}`);
+  sectionsOf(b).forEach((text, i) => lines.push(`Section ${address}.${i + 1}: ${text}`));
+  if (b.new) lines.push(`New: ${b.new}`);
+  for (const q of b.quotes ?? []) lines.push(`Quote (${q.speaker}): “${q.text}”`);
+  return {
+    label: `“${episode.item.title}” (${show.name}, ${dayOf(episode.item.date)})`,
+    title: episode.item.title,
+    text: lines.join('\n'),
+    key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}`,
+  };
+}
