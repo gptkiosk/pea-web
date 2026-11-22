@@ -10,6 +10,11 @@ import {
   forgetThread,
   searchThreads,
   memoryContext,
+  takeNotes,
+  forgetNotes,
+  notesOf,
+  notesContext,
+  noteLimits,
   emptyIntroduction,
   introductionLimits,
   validIntroduction,
@@ -38,6 +43,27 @@ export function installMemory(hooks) {
   let source = null,
     editingMemory = null;
   const profile = hooks.profile;
+  // Notes on the owner's life: a switch per profile, kept on this browser and off until chosen.
+  // Only messages sent after it was turned on, or after this page loaded, are looked at.
+  const notesKey = 'pea-life-notes-v1';
+  const noting = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(notesKey) ?? '{}');
+      return new Map(profiles.map((p) => [p, saved?.[p] === true]));
+    } catch {
+      return new Map();
+    }
+  })();
+  const notingSince = new Map(profiles.map((p) => [p, Date.now()])),
+    removedNotes = new Set();
+  const keepsNotes = (who = profile()) => noting.get(who) === true;
+  function saveNoting() {
+    try {
+      localStorage.setItem(notesKey, JSON.stringify(Object.fromEntries(noting)));
+    } catch {
+      // Without storage the choice lasts for this tab.
+    }
+  }
   const fields = Object.keys(introductionLimits);
   const eligible = () => profiles.includes(profile());
   function idle() {
@@ -108,6 +134,32 @@ export function installMemory(hooks) {
       ? `${profile()} · this browser only`
       : 'Choose Work or Personal';
     $('memory-share').disabled = !eligible();
+    $('notes-keep').disabled = !eligible();
+    $('notes-keep').checked = eligible() && keepsNotes();
+    const told = eligible() ? notesOf(library, profile()) : [];
+    $('notes-status').textContent = !eligible()
+      ? 'Choose Work or Personal.'
+      : !keepsNotes() && !told.length
+        ? 'Off. Nothing is kept.'
+        : `${told.length} of up to ${noteLimits.kept} kept for this profile` +
+          (saved ? ', encrypted on this browser.' : ', in this tab only until encrypted saving is on.');
+    $('notes-clear').hidden = !told.length;
+    const notes = $('notes-list');
+    notes.replaceChildren();
+    for (const n of told) {
+      const card = document.createElement('article');
+      card.className = 'memory-card';
+      const said = document.createElement('p'),
+        date = document.createElement('small');
+      said.textContent = n.text;
+      date.textContent = `You said this on ${new Date(n.created).toLocaleDateString()} · forgotten after ${new Date(n.expires).toLocaleDateString()}`;
+      card.append(
+        said,
+        date,
+        button('Forget this', () => removeNote(n)),
+      );
+      notes.append(card);
+    }
     const list = $('library-threads');
     list.replaceChildren();
     for (const t of searchThreads(library, profile(), $('library-search').value)) {
@@ -205,10 +257,26 @@ export function installMemory(hooks) {
     if (!profiles.includes(who) || !surfaces.includes(surface)) return false;
     const key = who + ':' + surface;
     try {
-      const next = captureThread(library, who, surface, hooks.history(surface, who), active.get(key));
+      const said = hooks.history(surface, who);
+      const next = captureThread(library, who, surface, said, active.get(key));
       library = next.library;
       active.set(key, next.threadID);
       unsaved.delete(key);
+      if (surface === 'chat' && keepsNotes(who)) {
+        try {
+          const since = notingSince.get(who);
+          library = takeNotes(
+            library,
+            who,
+            next.threadID,
+            new Set(said.filter((m) => m.at >= since).map((m) => m.id)),
+            Date.now(),
+            removedNotes,
+          );
+        } catch {
+          // A library with no room keeps the conversation and takes no note.
+        }
+      }
       void persist();
       return true;
     } catch (error) {
@@ -301,6 +369,62 @@ export function installMemory(hooks) {
     invalidate();
     await persist();
   }
+  async function removeNote(note) {
+    ensure();
+    if (note.profile !== profile()) throw new ServiceError('Profile changed.');
+    removedNotes.add(note.text.toLocaleLowerCase());
+    library = forgetNotes(library, note.profile, note.id);
+    invalidate();
+    await persist();
+  }
+  $('notes-keep').onchange = () =>
+    Promise.resolve()
+      .then(async () => {
+        const box = $('notes-keep'),
+          who = profile(),
+          on = box.checked;
+        box.checked = keepsNotes();
+        ensure();
+        if (
+          on &&
+          !(await hooks.review(
+            'Keep notes on what you tell her',
+            `PEA will keep a few of your own sentences from Chat in the ${who} profile: statements about your life, such as “My sister visits on Friday.” PEA picks them by a fixed rule (English only); no model chooses or writes them, and nothing a model says is kept.\n\nEach note is kept for ${noteLimits.days} days, up to ${noteLimits.kept} at a time. You see every one under “What you have told her” and can forget any of them.\n\nUp to ${noteLimits.sent} that fit what you are talking about go to your chosen model with a Chat message, in your own words. The review before sharing lists them.\n\nThey are stored with your saved conversations: encrypted when encrypted saving is on, otherwise in this tab only. They are in an encrypted library backup and in no other file.${
+              vault?.key && library.version < 3
+                ? '\n\nThe first note upgrades this browser library to version 3. Older versions of PEA Web cannot open the upgraded library. Prepare an encrypted backup first if you may roll back.'
+                : ''
+            }`,
+          ))
+        )
+          return;
+        if (who !== profile()) throw new ServiceError('Profile changed.');
+        noting.set(who, on);
+        if (on) notingSince.set(who, Date.now());
+        saveNoting();
+        invalidate();
+        render();
+      })
+      .catch(say);
+  $('notes-clear').onclick = () =>
+    Promise.resolve()
+      .then(async () => {
+        ensure();
+        const who = profile();
+        if (
+          !(await hooks.review(
+            'Forget every note',
+            `Remove all ${notesOf(library, who).length} notes kept for the ${who} profile? Your saved conversations stay. This cannot undo provider retention or copies elsewhere.`,
+          ))
+        )
+          return;
+        ensure();
+        if (who !== profile()) throw new ServiceError('Profile changed.');
+        for (const n of notesOf(library, who)) removedNotes.add(n.text.toLocaleLowerCase());
+        library = forgetNotes(library, who);
+        invalidate();
+        await persist();
+      })
+      .catch(say);
   async function removeMemory(memory) {
     ensure();
     const who = profile();
@@ -454,7 +578,11 @@ export function installMemory(hooks) {
       ensure();
       if (who !== profile() || before !== library)
         throw new ServiceError('Profile or library changed. Review and save again.');
-      library = { ...library, version: 2, introductions: { ...library.introductions, [profile()]: value } };
+      library = {
+        ...library,
+        version: Math.max(2, library.version),
+        introductions: { ...library.introductions, [profile()]: value },
+      };
       fillInterview();
       invalidate();
       void persist();
@@ -664,7 +792,11 @@ export function installMemory(hooks) {
         $('profile-import-mode').value !== mode
       )
         throw new ServiceError('Profile or import choice changed. Nothing was imported.');
-      library = { ...library, version: 2, introductions: { ...library.introductions, [who]: plan.next } };
+      library = {
+        ...library,
+        version: Math.max(2, library.version),
+        introductions: { ...library.introductions, [who]: plan.next },
+      };
       fillInterview();
       invalidate();
       $('profile-import-dialog').close();
@@ -921,7 +1053,11 @@ export function installMemory(hooks) {
       const who = profile();
       let next = library;
       if (introduction)
-        next = { ...next, version: 2, introductions: { ...next.introductions, [who]: introduction } };
+        next = {
+          ...next,
+          version: Math.max(2, next.version),
+          introductions: { ...next.introductions, [who]: introduction },
+        };
       next = bringInMemories(next, who, memories);
       library = next;
       fillInterview();
@@ -942,6 +1078,14 @@ export function installMemory(hooks) {
         assistantHome: value.assistantHome ?? '',
         presence: presence.get(profile()) ?? false,
         memories: memoryContext(library, profile(), query, share.get(profile()) ?? false),
+        notes: notesContext(
+          library,
+          profile(),
+          query,
+          eligible() && keepsNotes(),
+          Date.now(),
+          surfaces.map((s) => active.get(profile() + ':' + s)).filter(Boolean),
+        ),
       };
     },
   };
