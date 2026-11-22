@@ -501,7 +501,8 @@ export function installConnections(hooks) {
       hooks.busyChanged?.();
     }
   }
-  async function chat(surface, text, onDispatch = () => {}) {
+  // `spoken` says the reply will be read aloud (voice chat with reading on, or I type, you talk).
+  async function chat(surface, text, onDispatch = () => {}, { spoken = false } = {}) {
     const s = state(),
       who = p(),
       ticket = nonce,
@@ -554,6 +555,7 @@ export function installConnections(hooks) {
         allowData: s.allowData,
         persona,
         delivery: delivery.style,
+        spoken,
         introduction: intro,
         attachment,
         sources,
@@ -688,6 +690,7 @@ export function installConnections(hooks) {
         'navigation',
         'phone links',
         'choices',
+        ...(spoken ? ['spoken reply'] : []),
         'numbered points',
         ...(surface === 'chat' && localKey() ? ['page reading'] : []),
         ...(todoText ? ['to-dos'] : []),

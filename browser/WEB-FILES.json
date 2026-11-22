@@ -128,6 +128,7 @@
   "tests/dom/speech.test.mjs",
   "tests/dom/stability.test.mjs",
   "tests/dom/todos.test.mjs",
+  "tests/dom/type-and-listen.test.mjs",
   "tests/dom/updates.test.mjs",
   "tests/dom/weather.test.mjs",
   "tests/dom/workspace.test.mjs",
