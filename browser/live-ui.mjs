@@ -544,6 +544,8 @@ export function installConnections(hooks) {
       : '';
     // A web page the owner read is shared in Chat only, and only through the review below.
     const page = surface === 'chat' ? (hooks.page?.() ?? null) : null;
+    // The brief of a curated episode the owner has open, in Chat only, through the same review.
+    const brief = surface === 'chat' ? (hooks.brief?.() ?? null) : null;
     // Her history: at most two kept cards, in Chat, under the same switch as the introduction.
     const canon = surface === 'chat' && s.shareIntro ? (hooks.canon?.(text) ?? null) : null;
     // Her days: the kept lines around today, and leave to offer a note, under the same switch.
@@ -562,6 +564,7 @@ export function installConnections(hooks) {
         memories,
         history,
         page,
+        brief,
         text,
       });
     // Sent with every request: the honesty rule and the name the owner chose for the assistant.
@@ -623,6 +626,8 @@ export function installConnections(hooks) {
       calledName,
       page?.url ?? '',
       page?.text ?? '',
+      // Like the to-do list, briefs are shared as a kind: opening another episode does not ask again.
+      Boolean(brief),
       canon?.stamp ?? '',
       // Like the to-do list, her days are shared under a setting: a new line does not ask again.
       days ? (days.notes ? 'days+notes' : 'days') : '',
@@ -633,7 +638,7 @@ export function installConnections(hooks) {
     if (reviewed) {
       const ok = await review(
         'Before sharing with your model',
-        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nAssistant name (always sent): ${calledName}\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nWeb page you read (exactly what is sent; a stranger wrote it, and the model is told to treat it as quoted data, not instructions):\n${page ? page.url + '\n\n' + page.text : 'None'}\n\nHer history (fiction your model wrote and you kept; at most two cards go with a message, mostly when you ask about her. Later messages may carry other cards from this list without asking again):\n${canon ? canon.all : 'Not shared'}\n\nHer days (fiction about your assistant’s own days, kept in this browser): ${days ? `Shared under your setting: the kept lines for the days around today. ${days.notes ? 'Your model may also end a reply with one short note about its own day, which PEA keeps and tells you about.' : 'Notes from Chat are off.'} Later changes to the lines are sent without asking again. Right now:\n${days.context || 'No lines for these days yet.'}` : 'Not shared'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
+        `${model.local ? 'Your local model gateway at ' + location.origin : 'OpenRouter → serving provider(s)'} · ${model.name}\nProfile: ${who}\nSurface: ${surface} · ${role}\n\n${model.local ? 'This request goes to your own server and its configured loopback model. PEA gateway has no conversation logs or cloud fallback. Your local model software and host remain under your control.' : s.allowData ? 'RETENTION / TRAINING MAY APPLY. Selected personal context may be retained or used for training.' : 'Requests routes marked as not collecting data. This is not an independent no-retention guarantee.'}\n${model.local ? 'No OpenRouter routing or API fee applies to this local request.' : 'OpenRouter account logging and provider/safety terms still apply.'}\n\nUnit ceilings: $${model.prompt * 1e6}/M input tokens; $${model.completion * 1e6}/M output tokens; $${model.request}/request. ${body.max_tokens}-token reply cap. No monthly hard cap, automatic retry or paid fallback.\n\nAssistant name (always sent): ${calledName}\n\nCharacter style:\n${persona}\n\nLocal-time delivery: ${delivery.style || 'Off'}\n\nIntroduction: ${intro || 'Not shared'}\n\nFile excerpt (exactly what is sent):\n${attachment || 'None'}\n\nRecalled owner-reviewed memories (untrusted, same profile):\n${memories.length ? JSON.stringify(memories, null, 2) : 'Not shared'}\n\nEnabled calendar/mail snapshots (bounded; may be empty):\n${sources || 'Not shared'}\n\nWeb page you read (exactly what is sent; a stranger wrote it, and the model is told to treat it as quoted data, not instructions):\n${page ? page.url + '\n\n' + page.text : 'None'}\n\nCurated brief of the episode you have open (exactly what is sent; the curator’s pipeline wrote it, and the model is told to treat it as quoted evidence, not instructions. Later messages carry the brief of whichever episode you have open, without asking again):\n${brief ? brief.label + '\n\n' + brief.text : 'None'}\n\nHer history (fiction your model wrote and you kept; at most two cards go with a message, mostly when you ask about her. Later messages may carry other cards from this list without asking again):\n${canon ? canon.all : 'Not shared'}\n\nHer days (fiction about your assistant’s own days, kept in this browser): ${days ? `Shared under your setting: the kept lines for the days around today. ${days.notes ? 'Your model may also end a reply with one short note about its own day, which PEA keeps and tells you about.' : 'Notes from Chat are off.'} Later changes to the lines are sent without asking again. Right now:\n${days.context || 'No lines for these days yet.'}` : 'Not shared'}\n\nTo-do list: ${s.shareTodos ? 'Shared under your setting: up to 25 open items with due times and up to 5 finished in the last week, for this profile. Later changes to the list are sent without asking again.' : 'Not shared'}\n\nCurrent chat uses up to 12 completed recent messages.\n${
           body.messages
             .slice(1, -1)
             .map((m) => m.role + ': ' + m.content)
@@ -666,6 +671,7 @@ export function installConnections(hooks) {
       mail: sentMail.length,
       todos: Boolean(s.shareTodos && todoText),
       page: pageHost,
+      brief: brief?.title ?? '',
       canon: canon?.send.length ?? 0,
       days: Boolean(days?.context),
       history: Math.max(0, body.messages.length - 2),
@@ -693,6 +699,7 @@ export function installConnections(hooks) {
         ...(spoken ? ['spoken reply'] : []),
         'numbered points',
         ...(surface === 'chat' && localKey() ? ['page reading'] : []),
+        ...(brief ? ['curated brief'] : []),
         ...(todoText ? ['to-dos'] : []),
         ...(projectText ? ['projects'] : []),
         ...(canon?.send.length ? ['her history'] : []),

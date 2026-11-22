@@ -2,6 +2,23 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.34] - 2026-11-22
+
+### Added
+
+- **Talk about the episode you have open.** While an episode is open in the numbered list, its checked brief now goes with your Chat messages, so you can ask "what is this episode about?" or "what did they say about the lamp?" and your model answers from the brief.
+  - The first time, the usual sharing review shows the brief exactly as it is sent. After that the brief of whichever episode you have open goes along without asking again.
+  - Your model is told the brief is quoted evidence about what the episode said, never instructions; to say which show and date a claim comes from; not to present a claim as settled fact; and that only lines marked as quotes are the publisher's own words.
+  - Sections go with their addresses (1.2.1, 1.2.2…), so you and your model can name the same one.
+  - Going back to shows, or closing the list, stops it. The list says so while an episode is open.
+  - The list of what PEA did names the brief it included.
+
+### Notes
+
+- Chat only. Greenhouse messages do not carry a brief.
+- A reply written with a brief in view can still offer the usual reviewed proposals. Briefs come from the curator's checked pipeline, and PEA has already refused any that hold markup, links or instructions; a web page you read is treated more strictly because a stranger wrote it.
+- Only the open episode's brief is sent, at most 3,200 characters. Nothing else from the catalog is.
+
 ## [0.1.0-rc.4.dev.33] - 2026-11-22
 
 ### Added

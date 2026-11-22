@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The open episode's brief in Chat — 2026-11-22
+
+**Branch `feature/brief-in-chat` (on top of `feature/type-and-listen`), version `0.1.0-rc.4.dev.34`.** The owner said "go ahead and continue with the work to match to the apps chat flow and functionality." This is the web's version of putting a brief in the prompt as quoted, labelled evidence (the catalog's `APP-CONTRACT.md` sections 6 and 10; the handoff's brief block), for one brief at a time.
+
+- `browser/shownav.mjs` `briefInPlay(shows, at)`: label, exact text (show, episode address, title, date, how it was made, a partial-coverage note, headline, sections with addresses, what is new, quotes with speakers) and a key.
+- `browser/numbered-ui.mjs`: `brief()` gives it for the profile that opened the episode. The close button now also leaves the episode. A line under the list says the brief goes with Chat messages.
+- `browser/connections.mjs` `body({ brief })`: appended to the system message after the page words, framed as quoted evidence, at most 3,200 characters, and included in the credential check. `browser/live-ui.mjs` `chat()`: Chat only; shown in the sharing review; the approval's fingerprint holds only whether a brief is shared, so another episode does not ask again; `contextSteps` gets the title; the debug record lists `curated brief`. `browser/app.mjs`: the `brief` hook.
+- Decision to review: a reply written with a brief in view is **not** treated like one written with a web page in view (which offers no proposals). The brief has passed the catalog's checks for markup, links and instructions.
+- Tests: `browser/tests/shownav.test.mjs` (3) and `browser/tests/dom/shownav.test.mjs` (2): the review text, the system message, the row in the list of what PEA did, another episode without a second review, and nothing sent after going back to shows or closing the list.
+- Known gaps against the handoff: one brief at a time, not up to three chosen by search; no opening of an episode by topic or name from a chat message; no digest or transcript to go deeper; citations and scholarly lookups not built; no hint banner. Whether a model follows the framing was not measured. Not looked at by eye.
+
 ## I type, you talk — 2026-11-22
 
 **Branch `feature/type-and-listen`, version `0.1.0-rc.4.dev.33`.** The owner asked for "a mode called \"I type you talk\" mode (ITYT). This mode allows me to type an you talk back to me using voice... This would not be the default but just a mode that can be used when I have headphones in and can listen to PEA but can't speak to it."

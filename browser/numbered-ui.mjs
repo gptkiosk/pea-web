@@ -3,7 +3,7 @@
 // model reads them, and nothing here is put in a conversation or given to a model. Headline
 // titles shown here stay in this tab, as they do in the Headlines card.
 import { numberedCommand, numberedMove, replyPoints } from './numbered.mjs';
-import { idle, showCommand, showMove } from './shownav.mjs';
+import { briefInPlay, idle, showCommand, showMove } from './shownav.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -41,7 +41,11 @@ export function installNumbered({
       close.className = 'icon';
       close.textContent = '×';
       close.setAttribute('aria-label', 'Close the numbered list');
-      close.onclick = clear;
+      // Putting the list away also leaves the open episode, so its brief stops going with messages.
+      close.onclick = () => {
+        showAt = idle();
+        clear();
+      };
       head.append(title, close);
       place.append(head);
       if (mine.rows.length) {
@@ -157,7 +161,11 @@ export function installNumbered({
       rows: move.rows.map((row) => ({ ...row, go: row.say ? { say: row.say } : null })),
       footer: move.footer.map((button) => ({ label: button.label, go: { say: button.say } })),
       link: null,
-      note: move.level === 'none' ? move.say : move.hint,
+      note:
+        (move.level === 'none' ? move.say : move.hint) +
+        (showAt.episode !== null && move.level !== 'none'
+          ? ' While this episode is open, its brief goes with your Chat messages, after the usual review. Close this list or go back to shows to stop.'
+          : ''),
     };
     draw();
     return { handled: true, send: move.send, say: move.say };
@@ -202,5 +210,7 @@ export function installNumbered({
       clear();
     },
     draw,
+    // The open episode's brief, for a Chat request of the profile that opened it. Null otherwise.
+    brief: () => (whose === profile() ? briefInPlay(shows(), showAt) : null),
   };
 }

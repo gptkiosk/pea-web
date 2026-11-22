@@ -63,6 +63,8 @@ export function contextSteps(sent = {}) {
   if (sent.todos) add('list', 'Included your to-do list');
   const page = line(sent.page, 80);
   if (page) add('globe', `Included the page you read at ${page}`);
+  const brief = line(sent.brief, 80);
+  if (brief) add('book', `Included the curated brief of “${brief}”`);
   if (count(sent.canon)) add('book', `Included ${some(sent.canon, 'card', 'cards')} of her history`);
   if (sent.days) add('book', 'Included her days around today');
   if (count(sent.history))
