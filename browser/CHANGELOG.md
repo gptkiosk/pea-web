@@ -2,6 +2,27 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.39] - 2026-11-22
+
+### Added
+
+- **Curated sources keep what they fetched.** The checked briefs of your followed shows now stay in this browser, so after a reload they are ready without pressing Refresh and without asking the catalog for anything. Each kept file is checked again, exactly as a fetched one is, before it is used; one that no longer passes is left out until the next Refresh.
+- **Stay current.** A new switch, off until you turn it on. With it on, PEA checks the catalog for your followed shows by itself while it is open, at most every six hours, and again when you come back to the tab if a check is due.
+- **A switch on each followed show: Use in conversation.** Off, the show keeps its number and its briefs but is not fetched and is not offered when you say "list shows" or walk by number. On again, it is back at once and is checked.
+- **Topic buttons** above the list filter it by the curator's topics. They work on the list already here and fetch nothing.
+- **What PEA has learned lately:** the ten newest kept episodes across the shows in use, each with a link to the original that only you can open.
+- Each card now shows the publisher and kind, how many episodes the curator has and about how long they run, its topics, an **Added** mark on followed shows and the date of the newest kept episode.
+
+### Changed
+
+- A show the curator lists with nothing to talk about yet is no longer offered. A show you already follow always stays listed.
+- The review before browsing now says that briefs are kept in this browser in plain form, since they are public files, and describes Stay current.
+
+### Not included
+
+- From the iPhone app's Knowledge sources screen, not yet on the web: the source detail page (pin an episode, rename a show, check one show), a storage limit with eviction, another catalog address, digests and transcripts, the Talk from briefs, Web briefs and Scholarly papers switches, and the built-in lookups and health topics shown on that screen.
+- The public catalog publishes format 1.3 today. Format 1.4 files (citations) are not read yet.
+
 ## [0.1.0-rc.4.dev.38] - 2026-11-22
 
 ### Added

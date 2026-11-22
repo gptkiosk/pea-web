@@ -4693,3 +4693,36 @@ button.numbered-row:focus-visible {
   grid-column: 1 / -1;
   font-size: 0.9em;
 }
+
+.curated-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+}
+.curated-topics button {
+  border: 1px solid var(--line, currentColor);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  padding: 0.2rem 0.7rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.curated-topics button[aria-pressed='true'] {
+  background: var(--leaf, #2f6b3a);
+  border-color: var(--leaf, #2f6b3a);
+  color: #fff;
+}
+.curated-use {
+  display: block;
+  margin-top: 0.4rem;
+}
+.curated-lately {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0;
+  display: grid;
+  gap: 0.5rem;
+}

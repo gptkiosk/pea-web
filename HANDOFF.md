@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Knowledge sources, first slice: kept briefs, Stay current, per-show switch — 2026-11-22
+
+**Branch `feature/knowledge-sources`, version `0.1.0-rc.4.dev.39`.** The owner asked "to implement the knowledge sources feature in PEA web that is implemented in the iOS app", fed by the public catalog the processor publishes. Source of behaviour: the owner's description (Section 9 of their handoff, read as a description only) and the live public catalog, which on this date serves format 1.3 with `Access-Control-Allow-Origin: *`; `briefs-index.json` exists there and is not read.
+
+- `browser/knowledge-ui.mjs` only (no new file, no gateway change):
+  - **Kept across reloads.** `localStorage` `pea-curated-kept-v1` holds the catalog files as text exactly as they arrived (`store`, and per show `items` and `briefs` by item id), at most 3,000,000 characters or nothing. `restore()` runs them through `checkStore`, `checkItems` and `checkBrief` again; whatever fails is left out. `pea-curated-v1` gains `off`, `current` and `checked`.
+  - **Stay current** (`#curated-current`, off by default): `due()` allows a check by itself when on, a followed show is in use, the last good check is six hours old (`currentEvery`) and the last attempt 30 minutes old (`currentRetry`); tried after restore and on `visibilitychange`.
+  - **Per-show switch** (`.curated-use`): `off` ids keep number and briefs, are skipped by `refresh` and left out of `shows()`, so numbered navigation and the open-episode brief never offer them.
+  - **Topic buttons** (`#curated-topics`), **What PEA has learned lately** (`#curated-lately`, ten newest, https links only, `noopener noreferrer`), richer cards, and unfollowed shows with `item_count` 0 hidden.
+- Tests: `browser/tests/dom/knowledge.test.mjs` (5; one new): kept files equal the fetched text, a reload asks nothing and brings them back, an altered kept brief is left out, the switch, the filter, and Stay current off / not due / due.
+- Known gaps, in the order I would take them: source detail (pin, rename, check one show, open the show's page); storage limit and eviction; digests; format 1.4 and citations once published; another catalog address; the Talk from briefs switch. Built-in lookups, health topics, Web briefs and OpenAlex are separate features that need their own decisions (OpenAlex is a new outside service). Kept files are plain in `localStorage`: public content, but they show which shows this browser follows, as the followed list already did. Not looked at by eye.
+
 ## Notes on what the owner tells her — 2026-11-22
 
 **Branch `feature/life-notes` (on top of `feature/her-life`), version `0.1.0-rc.4.dev.38`.** The owner asked: "give her a way of tracking the users life by what is shared and helper her retain for a time what she is told so she has a reasonable level of recall for the users life and interests", and chose the encrypted library as the place to keep it.

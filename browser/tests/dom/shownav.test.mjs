@@ -70,7 +70,7 @@ async function following(page) {
     `document.querySelector('#curated-list button[aria-label="Follow Harbor Voices"]').click()`,
   );
   await page.waitFor(
-    `/briefs kept in this tab/.test(document.querySelector('#curated-list .curated-held')?.textContent ?? '') && !document.getElementById('curated-browse').disabled`,
+    `/briefs kept in this browser/.test(document.querySelector('#curated-list .curated-held')?.textContent ?? '') && !document.getElementById('curated-browse').disabled`,
     'the followed show',
   );
   await page.click('#tab-chat');
