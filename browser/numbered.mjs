@@ -171,7 +171,38 @@ const blank = () => ({ group: null, item: null, point: null });
 //   open  is { group, item } when an item was opened;
 //   send  is a message to send to the model as the owner's own (only for a point of a reply);
 //   read  is true when the owner asked to read the open item's page.
-export function numberedMove(command, { groups = [], points = [], at = blank(), noun = {} } = {}) {
+export function numberedMove(command, options = {}) {
+  const move = plainMove(command, options),
+    here = move.at,
+    groups = options.groups ?? [],
+    points = options.points ?? [];
+  // Every move the answer names is also a button: { label, go } where `go` is the command.
+  move.footer =
+    move.level === 'items'
+      ? [{ label: 'Back to feeds', go: { kind: 'groups' } }]
+      : move.level === 'item'
+        ? [
+            { label: 'Next headline', go: { kind: 'item-step', step: 1 } },
+            ...(here.item > 0 ? [{ label: 'Previous headline', go: { kind: 'item-step', step: -1 } }] : []),
+            { label: 'Back to headlines', go: { kind: 'items' } },
+            { label: 'Feeds', go: { kind: 'groups' } },
+          ]
+        : move.level === 'point'
+          ? [
+              { label: 'Next point', go: { kind: 'point-step', step: 1 } },
+              ...(here.point > 0 ? [{ label: 'Previous point', go: { kind: 'point-step', step: -1 } }] : []),
+              { label: 'List points', go: { kind: 'points' } },
+            ]
+          : move.level === 'none'
+            ? [
+                ...(here.group !== null ? [{ label: 'Back to headlines', go: { kind: 'items' } }] : []),
+                ...(groups.length ? [{ label: 'Feeds', go: { kind: 'groups' } }] : []),
+                ...(points.length ? [{ label: 'List points', go: { kind: 'points' } }] : []),
+              ]
+            : [];
+  return move;
+}
+function plainMove(command, { groups = [], points = [], at = blank(), noun = {} } = {}) {
   const group = noun.group ?? 'Feed',
     item = noun.item ?? 'Headline',
     here = { ...blank(), ...at },

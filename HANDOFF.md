@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Enter sends, and a button for every spoken move — 2026-11-22
+
+**Branch `feature/enter-and-choices`, version `0.1.0-rc.4.dev.36`.** The owner asked: "Make enter send chat by default and shift + enter for newline in chat window", and "All voice navigation options presented by voice should also be reflected and selectable in chat with the the clickable / touchable choice windows."
+
+- `browser/app.mjs`: a `keydown` listener on `#thought` and `#collab-thought`. Enter with no modifier calls `submit`; Shift+Enter is left to the browser; nothing is sent while `isComposing` (or key code 229).
+- `browser/shownav.mjs`: `showMove` now wraps `plainMove` and sets the footer by level and place: an episode, a section, and any answer with no list (`none`) get the moves their words name. `browser/numbered.mjs`: `numberedMove` wraps `plainMove` the same way for headlines, an open headline, a point and `none`; its buttons carry a command (`go`), the show ones carry words (`say`). `browser/numbered-ui.mjs` draws the feed footers too.
+- Tests: `browser/tests/dom/enter-sends.test.mjs` (1, real key presses: Shift+Enter, a composing Enter, Enter, an empty box). `browser/tests/shownav.test.mjs` (5) and `browser/tests/numbered.test.mjs` (4) check the buttons at each level and that each button's words or command are understood. `browser/tests/dom/shownav.test.mjs` presses a button offered by a refusal.
+- Known gaps: the voice transcript box in the voice room still needs its Send button. Options named only inside the hint sentence of a list of shows or episodes ("say 1.1 for the latest") are covered by the rows themselves, not by extra buttons. A phone's on-screen Enter key now sends, so a new line there needs the keyboard's Shift. Not looked at by eye.
+
 ## Permanent show numbers and the episode limit — 2026-11-22
 
 **Branch `feature/show-numbers` (on top of `feature/brief-in-chat`), version `0.1.0-rc.4.dev.35`.** From the handoff file's addendum of 2026-11-22 (read as a description only): permanent show numbering and "default 3, max 5" kept episodes.

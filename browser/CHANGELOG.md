@@ -2,6 +2,26 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.36] - 2026-11-22
+
+### Changed
+
+- **Enter sends.** In Chat and Greenhouse, Enter now sends your message and Shift+Enter makes a new line, as in other chats. Enter still finishes a word you are composing with an input method (Japanese, Chinese and others) without sending.
+
+### Added
+
+- **Every navigation option PEA says can also be pressed.** The numbered list now carries a button for each next move it names, so you can press instead of saying or typing:
+  - An open episode: Next episode, Previous episode, Episodes, Shows, Where am I.
+  - An open section: Next section, Previous section, Back to episode, Episodes, Shows, Where am I.
+  - An open headline: Next headline, Previous headline, Back to headlines, Feeds, beside Read in Chat.
+  - A list of headlines: Back to feeds. A point of a reply: Next point, Previous point, List points.
+  - An answer such as "where am I", a refusal, or "there is no episode 1.9" offers the ways back as buttons too.
+- The same buttons show in the voice room, where the options are also read aloud.
+
+### Notes
+
+- A button does exactly what its words do: it runs through the same fixed rules, and a move is still answered on the page without asking a model.
+
 ## [0.1.0-rc.4.dev.35] - 2026-11-22
 
 ### Added

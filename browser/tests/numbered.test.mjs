@@ -155,3 +155,23 @@ test('moves walk feeds, headlines and points, and say plainly when a number is n
     /1 point 8: T7\. And 4 more on screen\.$/,
   );
 });
+
+test('feeds, headlines and points offer their next moves as buttons', () => {
+  const labels = (said, at) => move(said, at).footer.map((b) => b.label);
+  assert.deepEqual(labels('list feeds'), []);
+  assert.deepEqual(labels('feed 1'), ['Back to feeds']);
+  assert.deepEqual(labels('1.1'), ['Next headline', 'Back to headlines', 'Feeds']);
+  assert.deepEqual(labels('1.2'), ['Next headline', 'Previous headline', 'Back to headlines', 'Feeds']);
+  assert.deepEqual(labels('point 2'), ['Next point', 'Previous point', 'List points']);
+  assert.deepEqual(labels('point 1'), ['Next point', 'List points']);
+  assert.deepEqual(labels('feed 9'), ['Feeds', 'List points']);
+  assert.deepEqual(labels('next headline', { group: 0, item: 1, point: null }), [
+    'Back to headlines',
+    'Feeds',
+    'List points',
+  ]);
+  // Each button carries a command the mover understands.
+  const item = move('1.1');
+  for (const b of item.footer)
+    assert.notEqual(numberedMove(b.go, { groups, points, at: item.at }).say, '', b.label);
+});
