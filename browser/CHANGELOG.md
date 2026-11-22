@@ -2,6 +2,24 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.35] - 2026-11-22
+
+### Added
+
+- **A show keeps its number.** The first show you follow is Show 1, the next Show 2, and so on, and each keeps that number for good: when new episodes arrive, when you refresh, when you follow more shows, and when you unfollow a show and follow it again. So "Show 2" always means the same show. Numbers can have gaps.
+- **Clear and refresh all shows…** in Curated sources is the one way to renumber: after a review that says a number may change, it removes the kept briefs, numbers your followed shows 1 upward, and fetches them again.
+- **Choose how many episodes to keep.** Each followed show has a small menu: none, or 1 to 5 of its newest. Keeping fewer takes effect at once with no fetch; keeping more fetches that show again.
+
+### Changed
+
+- A followed show now keeps its **three** newest episodes unless you choose another number, as on the iPhone. It was five.
+- When a show number does not exist, PEA says which numbers your shows have.
+
+### Notes
+
+- Show numbers and the number of episodes to keep are saved in this browser with your followed shows. Turning Curated sources off forgets them.
+- Episode numbers still follow the episodes kept, newest first, so 1.1 is always the newest kept episode of Show 1.
+
 ## [0.1.0-rc.4.dev.34] - 2026-11-22
 
 ### Added

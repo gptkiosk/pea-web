@@ -33,7 +33,7 @@ How to read the status columns:
 | PEA Drive folder | Built | Built, with PDF and richer import | Web has no PDF import. Web trusts only its own private mark on files; files the iPhone app created show as not confirmed until the owner confirms them |
 | Simple forms | Built | Built | None known |
 | Sheets and Slides editing, receipt ledger | Not yet, after 0.2 | Built | |
-| Curated sources and briefs | Partly built: browse the curator's list, follow a show, keep the checked briefs of its five newest episodes in the tab, and prepare a podcast request | Built | Web uses a brief in conversation only for the episode open in the numbered list. No digests, publisher transcripts, topics, citations, retention settings or background refresh. See "Curated sources" below |
+| Curated sources and briefs | Partly built: browse the curator's list, follow a show, keep the checked briefs of its three newest episodes in the tab (none to five by choice), with a permanent number for each show, and prepare a podcast request | Built | Web uses a brief in conversation only for the episode open in the numbered list. No digests, publisher transcripts, topics, citations, retention settings or background refresh. See "Curated sources" below |
 | Story board | Built, with model proposals (`pea-story`) | Built | Web-only block name |
 | GitHub draft pull request and image specialist | Built | Built | None known |
 | Model configuration export and import | Built | Built | Same portable format |
