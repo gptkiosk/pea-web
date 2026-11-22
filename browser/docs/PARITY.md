@@ -78,7 +78,7 @@ The browser is not yet feature-complete against native. A public release must la
 
 ## I type, you talk
 
-Web has a mode, off by default, in which the owner types and every reply is read aloud with the voice already chosen. It never uses the microphone, reads a long reply whole with the device voice, and keeps reading while the page is hidden. Whether the iPhone app has the same mode is not recorded here.
+Both apps have this mode (the iPhone side as its owner described it; its code was not read). It is off on every launch; the owner types and every reply is read aloud with the voice already chosen; the microphone is never used; a Stop speaking control appears while PEA talks; a new message ends the reading; and the model is told the reply will be heard. Differences on Web: the reading does not stop when headphones are unplugged, because a page cannot see that; only numbered navigation lists are spoken among PEA's own fixed replies; a long reply is read whole by the device voice, while a provider voice still asks about length; and the reading continues while the page is hidden.
 
 ## Set answers and numbers
 

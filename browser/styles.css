@@ -4680,3 +4680,11 @@ button.numbered-row:focus-visible {
 .listen-mode[aria-pressed='true']::after {
   content: ' · on';
 }
+
+.stop-speaking {
+  color: #c0392b;
+  border-color: currentColor;
+}
+.stop-speaking[hidden] {
+  display: none;
+}

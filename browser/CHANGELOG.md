@@ -24,17 +24,20 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 ### Added
 
 - **I type, you talk.** A mode for when you can listen but not speak, such as working with headphones in. You type as usual and PEA reads each reply aloud.
-  - Turn it on with the **I type, you talk** button beside Read reply, in Chat or Greenhouse. It is off until you turn it on, and the choice is remembered in this browser.
+  - Turn it on with the **I type, you talk** button beside Read reply, in Chat or Greenhouse. It is off every time you open PEA, so PEA never talks out loud unexpectedly. While it is on the box you type in says "Type — PEA will answer aloud…".
   - It never listens. The microphone is not used and no permission is asked for.
   - It uses the voice you already chose: your device's voice, or your provider voice if you set one up.
   - A long reply is read whole by the device voice without the usual question about length. A provider voice charges by length, so that question is still asked for it.
-  - Reading carries on while you work in another window. Sending a new message, pressing Stop, or turning the mode off ends it.
+  - While PEA is speaking, a red **Stop speaking** button appears. It ends the reading and leaves the mode on.
+  - Reading carries on while you work in another window. Sending a new message or turning the mode off ends it.
+  - Your model is told the reply will be heard, so it writes for listening: plain sentences, no tables. Text to copy still goes in a box that is shown and not read. Voice chat with reading on tells it the same.
   - Answers a reply offers are read after it with their numbers, and numbered lists from navigation are read too.
 
 ### Notes
 
 - Outside this mode nothing changed: a reply is read only when you press Read reply or use voice chat, and reading stops when the page is hidden.
 - A browser may refuse to speak in a tab it has put to sleep. That is the browser's choice and PEA cannot override it.
+- Unlike the iPhone app, a browser cannot tell PEA that headphones were unplugged, so the reading does not stop by itself when they are.
 
 ## [0.1.0-rc.4.dev.32] - 2026-11-21
 
