@@ -76,6 +76,10 @@ Gmail drafts through the API, Sheets documents from a model, resume import, food
 
 The browser is not yet feature-complete against native. A public release must label these gaps rather than present source checks as full parity. No developer-host relay, Open WebUI owner login, bundled provider key, membership-token workaround or customer runtime data is required. Background/locked-screen browser microphone reliability is not promised.
 
+## I type, you talk
+
+Web has a mode, off by default, in which the owner types and every reply is read aloud with the voice already chosen. It never uses the microphone, reads a long reply whole with the device voice, and keeps reading while the page is hidden. Whether the iPhone app has the same mode is not recorded here.
+
 ## Set answers and numbers
 
 When a reply needs the owner to pick between a few set answers, Web shows them as numbered buttons under the newest reply and in the voice room. A pressed button, a number said or typed, or the answer's own words all send that answer's exact words as the owner's next message; anything else is sent as the owner's own answer. The number is matched by fixed rules in `browser/choices.mjs`, never by a model, and picking an answer approves nothing. What the iPhone app does here is not recorded.

@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## I type, you talk — 2026-11-22
+
+**Branch `feature/type-and-listen`, version `0.1.0-rc.4.dev.33`.** The owner asked for "a mode called \"I type you talk\" mode (ITYT). This mode allows me to type an you talk back to me using voice... This would not be the default but just a mode that can be used when I have headphones in and can listen to PEA but can't speak to it."
+
+- `browser/voice.mjs`: `loadTypeAndListen`, `saveTypeAndListen` (`localStorage` key `pea-type-and-listen-v1`, present only when on).
+- `browser/app.mjs`: `listenMode`, toggled by `#chat-listen` and `#collab-listen` (one mode, two buttons, `aria-pressed`). `submit(surface, { aloud, plain, room })`: with the mode on and not from the voice room, a send stops any reading, treats navigation answers as spoken (`aloud`), and after a finished reply presses that workspace's Read reply. `listenAuto` lets that one press skip the length question for the device voice only. `listenReading` keeps the reading going when the page is hidden; Stop, the next send and turning the mode off clear it.
+- Because the reading goes through Read reply, a pressed answer and a pressed section are read as well, and so is a provider voice when one is chosen.
+- Tests: `browser/tests/dom/type-and-listen.test.mjs` (1) with a stand-in device voice and a microphone that counts every attempt: off by default, the notice, the saved choice, a short and a long reply, the page hidden, the next send ending the reading, a reply with answers, a pressed answer, no microphone use, reload, and turning it off.
+- Known gaps: no test with a provider voice in this mode. Whether a real browser keeps speaking in a hidden or sleeping tab was not checked; the test uses a stand-in voice. Reading starts when the reply is complete, not while it is being written. Greenhouse shares the code but the test drives Chat only. Not heard by ear.
+
 ## Show, Episode, Section navigation — 2026-11-21
 
 **Branch `feature/show-navigation` (on top of `feature/curated-sources`), version `0.1.0-rc.4.dev.32`.** Follows the navigation section of the owner's handoff file (levels 1 to 3 of its four) as a description of behaviour; no iPhone code was read.

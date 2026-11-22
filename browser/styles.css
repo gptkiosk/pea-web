@@ -4671,3 +4671,12 @@ button.numbered-row:focus-visible {
 .numbered-footer {
   margin: 0.2rem 0 0.4rem;
 }
+
+/* "I type, you talk": the button shows plainly when the mode is on. */
+.listen-mode[aria-pressed='true'] {
+  border-color: currentColor;
+  font-weight: 700;
+}
+.listen-mode[aria-pressed='true']::after {
+  content: ' · on';
+}

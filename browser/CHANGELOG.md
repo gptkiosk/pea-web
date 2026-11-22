@@ -2,6 +2,23 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.33] - 2026-11-22
+
+### Added
+
+- **I type, you talk.** A mode for when you can listen but not speak, such as working with headphones in. You type as usual and PEA reads each reply aloud.
+  - Turn it on with the **I type, you talk** button beside Read reply, in Chat or Greenhouse. It is off until you turn it on, and the choice is remembered in this browser.
+  - It never listens. The microphone is not used and no permission is asked for.
+  - It uses the voice you already chose: your device's voice, or your provider voice if you set one up.
+  - A long reply is read whole by the device voice without the usual question about length. A provider voice charges by length, so that question is still asked for it.
+  - Reading carries on while you work in another window. Sending a new message, pressing Stop, or turning the mode off ends it.
+  - Answers a reply offers are read after it with their numbers, and numbered lists from navigation are read too.
+
+### Notes
+
+- Outside this mode nothing changed: a reply is read only when you press Read reply or use voice chat, and reading stops when the page is hidden.
+- A browser may refuse to speak in a tab it has put to sleep. That is the browser's choice and PEA cannot override it.
+
 ## [0.1.0-rc.4.dev.32] - 2026-11-21
 
 ### Added

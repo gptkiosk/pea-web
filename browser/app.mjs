@@ -26,6 +26,8 @@ import {
   loadVoicePreferences,
   saveVoicePreferences,
   speechReadPlan,
+  loadTypeAndListen,
+  saveTypeAndListen,
 } from './voice.mjs';
 import { installBoard } from './board-ui.mjs';
 import { installWorkspace } from './workspace-ui.mjs';
@@ -1479,11 +1481,51 @@ function renderCollaboration() {
   );
   renderHarvest();
 }
+// "I type, you talk": while it is on, every reply to a message sent from the page is read aloud.
+// The microphone is not used. `listenReading` is set while a reply is being read for it, so the
+// reading is not cut off when the owner looks at another window.
+let listenMode = loadTypeAndListen(),
+  listenReading = false,
+  // Set only for the one press of Read reply that the mode itself makes.
+  listenAuto = false;
+function showListenMode() {
+  for (const id of ['chat-listen', 'collab-listen']) {
+    $(id).setAttribute('aria-pressed', String(listenMode));
+    $(id).classList.toggle('on', listenMode);
+  }
+}
+for (const id of ['chat-listen', 'collab-listen'])
+  $(id).onclick = () => {
+    listenMode = !listenMode;
+    const kept = saveTypeAndListen(listenMode);
+    if (!listenMode) {
+      listenReading = false;
+      stopVoices();
+    }
+    showListenMode();
+    notice(
+      listenMode
+        ? 'I type, you talk is on: PEA reads each reply aloud. It does not listen; the microphone is not used.' +
+            (kept ? '' : ' This browser would not save the choice, so it lasts until you reload.')
+        : 'I type, you talk is off.',
+    );
+  };
+showListenMode();
 // `aloud` is set when the words came from the voice room with reading aloud on. `plain` is set
 // for a message PEA itself made from a navigation move, which is sent as it is and never read as
 // another command, whatever numbers its quoted words hold.
-async function submit(surface, { aloud = false, plain = false } = {}) {
+// `room` is set by the voice room, which reads its own replies.
+async function submit(surface, { aloud = false, plain = false, room = false } = {}) {
   voice?.stop();
+  const listening = listenMode && !room,
+    who = profile,
+    previous = history(surface, who).at(-1)?.id;
+  // A new message ends whatever was being read.
+  if (listening) {
+    listenReading = false;
+    stopVoices();
+    aloud = true;
+  }
   const field = surface === 'chat' ? $('thought') : $('collab-thought');
   let text = field.value.trim();
   if (!text) return;
@@ -1552,8 +1594,24 @@ async function submit(surface, { aloud = false, plain = false } = {}) {
   field.value = '';
   renderChat();
   renderCollaboration();
+  const reply = history(surface, who).at(-1);
+  if (
+    listening &&
+    listenMode &&
+    who === profile &&
+    activeTab === surface &&
+    reply?.id !== previous &&
+    reply?.role === 'assistant' &&
+    !reply.incomplete &&
+    !reply.preview
+  ) {
+    listenReading = listenAuto = true;
+    $(surface === 'chat' ? 'chat-read' : 'collab-read').click();
+    listenAuto = false;
+  }
 }
 $('chat-stop').onclick = () => {
+  listenReading = false;
   if ($('speech-length').open) $('speech-length').close();
   voice?.stop();
   stopVoices();
@@ -2396,7 +2454,7 @@ $('voice-room-send').onclick = async () => {
   }
   field.value = moved?.send ?? text;
   $('voice-room').close();
-  await submit(surface, { plain: Boolean(moved?.send) });
+  await submit(surface, { plain: Boolean(moved?.send), room: true });
   const reply = history(surface, who).at(-1);
   if (who === profile && reply?.id !== previous && reply?.role === 'assistant') {
     voiceDrafts.delete(who + ':' + surface);
@@ -2483,7 +2541,9 @@ for (const [id, surface] of [
     }
     const plan = speechReadPlan(spoken),
       selection = { profile, surface, id: reply.id, text: reply.text, spoken, excerpt: plan.excerpt };
-    if (plan.long) {
+    // In I type, you talk a long reply is read whole by the device voice without asking. A
+    // provider voice costs by length, so its question about length is still asked.
+    if (plan.long && !(listenAuto && !speech?.chosen())) {
       pendingSpeech = selection;
       $('speech-excerpt').textContent = plan.excerpt;
       $('speech-length').showModal();
@@ -2492,7 +2552,8 @@ for (const [id, surface] of [
     playReply(selection);
   };
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
+  // A reply being read for I type, you talk keeps going while the owner works in another window.
+  if (document.hidden && !(listenMode && listenReading)) {
     if ($('speech-length').open) $('speech-length').close();
     voice.stop();
     stopVoices();
