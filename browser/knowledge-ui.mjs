@@ -17,12 +17,14 @@ import { showWork } from './activity-ui.mjs';
 
 const $ = (id) => document.getElementById(id);
 const storageKey = 'pea-curated-v1';
-// How many of a show's newest episodes are fetched and kept.
-const kept = 5;
+// How many of a show's newest episodes are fetched and kept: three unless the owner chooses
+// another number for that show, and never more than five.
+export const keepDefault = 3,
+  keepMost = 5;
 export const curatedHost = new URL(catalogBase).host;
 
 export function describeBrowse() {
-  return `If you approve, this browser asks ${curatedHost} (GitHub Pages) for the curator’s list of sources: one file, the same for everyone, so asking for it says nothing about what interests you. As with any website, the host sees your internet address. No cookie, no account and nothing about you or your chats is sent.\n\nNothing more is fetched until you follow a show. Following a show fetches that show’s list of episodes and the briefs of its ${kept} newest, so the host can tell which shows this address follows. PEA checks every file against the size and fingerprint the curator’s list promised before using it.\n\nBriefs are kept in this tab only. The shows you follow are remembered in this browser by name, for every profile. PEA asks again only when you press Refresh. It never opens an episode’s own page by itself.`;
+  return `If you approve, this browser asks ${curatedHost} (GitHub Pages) for the curator’s list of sources: one file, the same for everyone, so asking for it says nothing about what interests you. As with any website, the host sees your internet address. No cookie, no account and nothing about you or your chats is sent.\n\nNothing more is fetched until you follow a show. Following a show fetches that show’s list of episodes and the briefs of its ${keepDefault} newest (you can keep up to ${keepMost}, or none), so the host can tell which shows this address follows. PEA checks every file against the size and fingerprint the curator’s list promised before using it.\n\nBriefs are kept in this tab only. The shows you follow are remembered in this browser by name, for every profile. PEA asks again only when you press Refresh. It never opens an episode’s own page by itself.`;
 }
 
 // One file from the catalog, as bytes, or a typed failure. Never more than `limit` bytes.
@@ -76,26 +78,60 @@ export function installCurated({ review, changed = () => {} }) {
     work = null;
   // What is held for each followed show, by id: { listing, episodes: [{ item, brief }], refused }.
   const held = new Map();
+  // The number each show was given when it was first followed. A show keeps its number when new
+  // episodes arrive, when it is unfollowed and followed again, and when other shows come and go.
+  let numbers = {},
+    // How many episodes to keep for a show, where the owner chose a number.
+    keeps = {};
+  const validId = (id) => typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(id);
   try {
     const saved = JSON.parse(globalThis.localStorage.getItem(storageKey) || 'null');
     if (saved && saved.on === true && Array.isArray(saved.followed)) {
       allowed = true;
-      followed = saved.followed
-        .filter((id) => typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(id))
-        .slice(0, 40);
+      followed = saved.followed.filter(validId).slice(0, 40);
+      const whole = (value, least, most) =>
+        Object.fromEntries(
+          Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {})
+            .filter(([id, n]) => validId(id) && Number.isInteger(n) && n >= least && n <= most)
+            .slice(0, 200),
+        );
+      numbers = whole(saved.numbers, 1, 999);
+      keeps = whole(saved.keep, 0, keepMost);
+      // Two shows never share a number, whatever was saved.
+      const seen = new Set();
+      for (const [id, n] of Object.entries(numbers)) {
+        if (seen.has(n)) delete numbers[id];
+        seen.add(n);
+      }
     }
   } catch {
     // Nothing usable was saved; the card starts off.
   }
   const save = () => {
     try {
-      if (allowed) globalThis.localStorage.setItem(storageKey, JSON.stringify({ on: true, followed }));
+      if (allowed)
+        globalThis.localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            on: true,
+            followed,
+            numbers,
+            ...(Object.keys(keeps).length ? { keep: keeps } : {}),
+          }),
+        );
       else globalThis.localStorage.removeItem(storageKey);
     } catch {
       // Private browsing may refuse storage; the choice then lasts for this tab.
     }
   };
   const say = (text) => ($('curated-note').textContent = text);
+  const keepOf = (id) => keeps[id] ?? keepDefault;
+  // Gives a show its number the first time it is followed: one more than the highest ever given.
+  const number = (id) => {
+    if (!numbers[id]) numbers[id] = Math.max(0, ...Object.values(numbers)) + 1;
+    return numbers[id];
+  };
+  for (const id of followed) number(id);
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -128,6 +164,17 @@ export function installCurated({ review, changed = () => {} }) {
       row.append(newest);
     }
     row.append(el('small', '', `${s.attribution} · ${s.terms_summary}`));
+    if (follows) {
+      const label = el('label', 'curated-keep', `Show ${numbers[s.id]} · keep the newest `),
+        select = document.createElement('select');
+      for (let n = 0; n <= keepMost; n++) select.add(new Option(n === 0 ? 'none' : String(n), String(n)));
+      select.value = String(keepOf(s.id));
+      select.disabled = busy;
+      select.setAttribute('aria-label', `Episodes to keep for ${s.name}`);
+      select.onchange = () => void keep(s.id, Number(select.value));
+      label.append(select);
+      row.append(label);
+    }
     if (follows)
       row.append(
         el(
@@ -163,6 +210,8 @@ export function installCurated({ review, changed = () => {} }) {
     $('curated-browse').disabled = busy;
     $('curated-off').hidden = !allowed;
     $('curated-off').disabled = busy;
+    $('curated-renumber').hidden = !allowed || !followed.length;
+    $('curated-renumber').disabled = busy;
     $('curated-request').hidden = !allowed;
     $('curated-list').replaceChildren(
       ...(store
@@ -205,7 +254,7 @@ export function installCurated({ review, changed = () => {} }) {
     const before = held.get(s.id),
       episodes = [];
     let refused = 0;
-    for (const item of items.value.items.filter((i) => i.brief).slice(0, kept)) {
+    for (const item of items.value.items.filter((i) => i.brief).slice(0, keepOf(s.id))) {
       const old = before?.episodes.find(
         (e) => e.item.id === item.id && e.item.brief.sha256 === item.brief.sha256,
       );
@@ -315,8 +364,39 @@ export function installCurated({ review, changed = () => {} }) {
     if (busy || !s || s.state !== 'active' || followed.includes(id)) return;
     if (followed.length >= 40) return say('PEA follows up to 40 shows. Unfollow one first.');
     followed = [...followed, id];
+    number(id);
     save();
     await refresh(id);
+  }
+  // Changes how many episodes a show keeps. Fewer takes effect at once; more needs a fetch.
+  async function keep(id, n) {
+    if (busy || !followed.includes(id) || !Number.isInteger(n) || n < 0 || n > keepMost) return render();
+    if (n === keepDefault) delete keeps[id];
+    else keeps[id] = n;
+    save();
+    const have = held.get(id);
+    if (have && have.episodes.length >= n) {
+      have.episodes = have.episodes.slice(0, n);
+      say(`Keeping the newest ${n === 0 ? 'none' : n} for ${have.listing.name}. Nothing was fetched.`);
+      return render();
+    }
+    await refresh(id);
+  }
+  // Clears every kept brief and gives the followed shows fresh numbers, 1 upward in their order.
+  async function renumber() {
+    if (busy || !followed.length) return;
+    if (
+      !(await review(
+        'Clear and refresh all shows?',
+        `This removes every brief kept in this tab and gives your ${followed.length} followed ${followed.length === 1 ? 'show' : 'shows'} new numbers, 1 upward in the order you followed them. A show’s number may change, so “Show 2” may mean a different show afterwards. Then PEA fetches the curator’s list and each followed show again from ${curatedHost}.`,
+      ))
+    )
+      return say('Nothing was changed.');
+    held.clear();
+    numbers = {};
+    for (const id of followed) number(id);
+    save();
+    await refresh();
   }
   function unfollow(id) {
     if (busy) return;
@@ -328,9 +408,12 @@ export function installCurated({ review, changed = () => {} }) {
   }
 
   $('curated-browse').onclick = () => void browse();
+  $('curated-renumber').onclick = () => void renumber();
   $('curated-off').onclick = () => {
     if (busy) return;
     allowed = false;
+    numbers = {};
+    keeps = {};
     followed = [];
     store = null;
     checkedAt = 0;
@@ -386,10 +469,12 @@ export function installCurated({ review, changed = () => {} }) {
         .filter(Boolean)
         .map((h) => ({
           id: h.listing.id,
+          number: numbers[h.listing.id],
           name: h.listing.name,
           state: h.listing.state,
           episodes: h.episodes,
-        })),
+        }))
+        .sort((a, b) => a.number - b.number),
     count: () => followed.length,
   };
 }

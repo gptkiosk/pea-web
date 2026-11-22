@@ -162,6 +162,9 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
   ) {
     const wanted = nameOf(m[1]).replace(/^the /, ''),
       found = shows.findIndex((s) => nameOf(s.name).replace(/^the /, '') === wanted);
+    // A show keeps the number it was given, so its number is not always its place in the list.
+    if (found >= 0 && Number.isInteger(shows[found].number))
+      return { kind: 'show', show: shows[found].number };
     if (found >= 0) return { kind: 'show', show: found + 1 };
   }
   if (inShow) {
@@ -185,6 +188,10 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
   }
   return null;
 }
+
+// A show's number: the permanent one it was given when first followed, or its place in the list.
+const numberOf = (show, index) => (Number.isInteger(show.number) ? show.number : index + 1);
+const showNumbered = (shows, n) => shows.find((s, i) => numberOf(s, i) === n);
 
 // Where the owner is: positions from 1, or null. `offset` is how far "more episodes" has gone.
 export function idle() {
@@ -238,9 +245,10 @@ export function showMove(command, { shows = [], at = idle() } = {}) {
       'You follow no shows with briefs in this tab. Follow one in Curated sources on Today, or press Refresh there.',
       idle(),
     );
-  const show = (s) => shows[s - 1],
+  const show = (s) => showNumbered(shows, s),
     episodeAt = (s, e) => show(s)?.episodes[e - 1],
-    noShow = (s) => none(`There is no show ${s}. You follow ${shows.length}.`),
+    noShow = (s) =>
+      none(`There is no show ${s}. Your shows are ${shows.map((x, i) => numberOf(x, i)).join(', ')}.`),
     noEpisode = (s, e) =>
       none(
         `There is no episode ${s}.${e}. Show ${s} has ${count(show(s).episodes.length, 'episode', 'episodes')} kept.`,
@@ -250,14 +258,14 @@ export function showMove(command, { shows = [], at = idle() } = {}) {
     level: 'shows',
     title: 'Your shows',
     rows: shows.map((s, i) => ({
-      label: String(i + 1),
+      label: String(numberOf(s, i)),
       text: s.name,
       sub: count(s.episodes.length, 'episode', 'episodes'),
-      say: `show ${i + 1}`,
+      say: `show ${numberOf(s, i)}`,
     })),
-    hint: 'Say “Show 1” for episodes, “1.1” for the latest, or press a show.',
+    hint: `Say “Show ${numberOf(shows[0], 0)}” for episodes, “${numberOf(shows[0], 0)}.1” for the latest, or press a show.`,
     footer: [],
-    say: shows.map((s, i) => `Show ${i + 1}: ${s.name}.`).join(' '),
+    say: shows.map((s, i) => `Show ${numberOf(s, i)}: ${s.name}.`).join(' '),
     send: null,
   });
   const listEpisodes = (s, offset = 0) => {
@@ -413,7 +421,7 @@ export function showMove(command, { shows = [], at = idle() } = {}) {
 // their addresses so the owner and the model can name the same one. Null when no episode is open.
 export function briefInPlay(shows, at) {
   if (!at || at.show === null || at.episode === null) return null;
-  const show = shows[at.show - 1],
+  const show = showNumbered(shows, at.show),
     episode = show?.episodes[at.episode - 1],
     b = episode?.brief;
   if (!b) return null;

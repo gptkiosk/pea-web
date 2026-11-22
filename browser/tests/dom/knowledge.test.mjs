@@ -117,8 +117,8 @@ test(
     assert.equal(await page.evaluate(`document.getElementById('curated-status').textContent`), '1 followed');
     assert.equal(
       await page.evaluate(`localStorage.getItem('pea-curated-v1')`),
-      '{"on":true,"followed":["harbor-voices"]}',
-      'only the choice and the show’s id are saved',
+      '{"on":true,"followed":["harbor-voices"],"numbers":{"harbor-voices":1}}',
+      'only the choice, the show’s id and its number are saved',
     );
 
     // Requests carry no cookie, no sign-in and no referrer.
@@ -210,7 +210,10 @@ test(
       'the removal',
     );
     assert.equal((await cards(page)).length, 4);
-    assert.equal(await page.evaluate(`localStorage.getItem('pea-curated-v1')`), '{"on":true,"followed":[]}');
+    assert.equal(
+      await page.evaluate(`localStorage.getItem('pea-curated-v1')`),
+      '{"on":true,"followed":[],"numbers":{"harbor-voices":1}}',
+    );
     await page.close();
   },
 );
@@ -270,6 +273,111 @@ test(
     await page.fill('#curated-request-name', 'Another');
     await page.evaluate(`document.getElementById('curated-request-name').dispatchEvent(new Event('input'))`);
     assert.equal(await page.evaluate(`document.getElementById('curated-request-open').hidden`), true);
+    await page.close();
+  },
+);
+
+test(
+  'a show keeps its number for good, and keeps three episodes unless the owner chooses another number',
+  options,
+  async () => {
+    const { page } = await openToday();
+    await browse(page);
+    const follow = async (name) => {
+      await press(page, 'Follow ' + name);
+      await page.waitFor(
+        `[...document.querySelectorAll('#curated-list > li')].some((li) => li.querySelector('strong').textContent === ${JSON.stringify(name)} && /kept in this tab/.test(li.querySelector('.curated-held')?.textContent ?? '')) && ${idle}`,
+        'following ' + name,
+      );
+    };
+    const keeping = (name) =>
+      page.evaluate(`(() => {
+        const li = [...document.querySelectorAll('#curated-list > li')].find((x) => x.querySelector('strong').textContent === ${JSON.stringify(name)});
+        return li ? { label: li.querySelector('.curated-keep')?.firstChild.textContent ?? '', keep: li.querySelector('select')?.value ?? '', held: li.querySelector('.curated-held')?.textContent ?? '' } : null;
+      })()`);
+    const shows = async () => {
+      await page.click('#tab-chat');
+      await page.fill('#thought', 'list shows');
+      await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+      await page.waitFor(`!document.getElementById('numbered').hidden`, 'the list of shows');
+      const rows = await page.evaluate(
+        `[...document.querySelectorAll('#numbered ol > li')].map((li) => li.querySelector('.numbered-label').textContent + ' ' + li.querySelector('.numbered-label').nextElementSibling.firstChild.textContent)`,
+      );
+      await page.click('#tab-today');
+      return rows;
+    };
+    await follow('Harbor Voices');
+    await follow('Tide Tables');
+    assert.deepEqual(await keeping('Harbor Voices'), {
+      label: 'Show 1 · keep the newest ',
+      keep: '3',
+      held: '3 briefs kept in this tab',
+    });
+    // Tide Tables has four episodes; three are kept unless the owner asks for more.
+    assert.deepEqual(await keeping('Tide Tables'), {
+      label: 'Show 2 · keep the newest ',
+      keep: '3',
+      held: '3 briefs kept in this tab',
+    });
+    assert.deepEqual(await shows(), ['1 Harbor Voices', '2 Tide Tables']);
+
+    // Unfollowing Show 1 leaves Show 2 as Show 2, and following it again gives it back its number.
+    await press(page, 'Unfollow Harbor Voices');
+    assert.deepEqual(await shows(), ['2 Tide Tables']);
+    await page.fill('#thought', '2.1');
+    await page.click('#tab-chat');
+    await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+    await page.waitFor(
+      `document.querySelector('#numbered .numbered-head strong')?.textContent.startsWith('Episode 2.1')`,
+      'episode 2.1 of the show that kept its number',
+    );
+    await page.click('#tab-today');
+    await follow('The Lamp Room');
+    await follow('Harbor Voices');
+    assert.deepEqual(await shows(), ['1 Harbor Voices', '2 Tide Tables', '3 The Lamp Room']);
+
+    // Fewer episodes takes effect at once with no fetch; more fetches that show again.
+    const choose = async (name, n) => {
+      await page.evaluate(`(() => {
+        const select = document.querySelector('#curated-list select[aria-label=${JSON.stringify('Episodes to keep for ' + name)}]');
+        select.value = ${JSON.stringify(String(n))};
+        select.dispatchEvent(new Event('change'));
+      })()`);
+    };
+    let before = asked(page).length;
+    await choose('Tide Tables', 1);
+    await page.waitFor(
+      `/Keeping the newest 1 for Tide Tables\\. Nothing was fetched\\./.test(document.getElementById('curated-note').textContent)`,
+      'the note',
+    );
+    assert.equal((await keeping('Tide Tables')).held, '1 brief kept in this tab');
+    assert.equal(asked(page).length, before, 'keeping fewer fetches nothing');
+    await choose('Tide Tables', 5);
+    await page.waitFor(
+      `[...document.querySelectorAll('#curated-list .curated-held')].some((n) => n.textContent === '4 briefs kept in this tab') && ${idle}`,
+      'all four episodes',
+    );
+    assert.ok(asked(page).length > before, 'keeping more asks for that show again');
+    assert.deepEqual(JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`)), {
+      on: true,
+      followed: ['tide-tables', 'lamp-room', 'harbor-voices'],
+      numbers: { 'harbor-voices': 1, 'tide-tables': 2, 'lamp-room': 3 },
+      keep: { 'tide-tables': 5 },
+    });
+
+    // Only the explicit action gives new numbers, and it says a number may change.
+    await page.evaluate(`document.getElementById('curated-renumber').click()`);
+    await page.waitFor(reviewOpen, 'the review');
+    assert.match(
+      await page.text('#review-body'),
+      /A show’s number may change, so “Show 2” may mean a different show afterwards/,
+    );
+    await page.click('#review-approve');
+    await page.waitFor(
+      `!${reviewOpen} && ${idle} && [...document.querySelectorAll('#curated-list .curated-held')].filter((n) => /kept in this tab/.test(n.textContent)).length === 3`,
+      'the refresh',
+    );
+    assert.deepEqual(await shows(), ['1 Tide Tables', '2 The Lamp Room', '3 Harbor Voices']);
     await page.close();
   },
 );

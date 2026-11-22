@@ -196,7 +196,7 @@ test('moves walk shows, episodes and sections, each row carrying the words it st
     showMove(ask('1.9'), { shows }).say,
     /^There is no episode 1\.9\. Show 1 has 3 episodes kept\.$/,
   );
-  assert.match(showMove(ask('9.1'), { shows }).say, /^There is no show 9\. You follow 2\.$/);
+  assert.match(showMove(ask('9.1'), { shows }).say, /^There is no show 9\. Your shows are 1, 2\.$/);
   assert.match(
     showMove(ask('1.1.9'), { shows }).say,
     /^There is no section 1\.1\.9\. Episode 1\.1 has 3 sections\.$/,
@@ -259,4 +259,32 @@ test('the open episode’s brief is laid out as labelled evidence, and there is 
   assert.equal(plain.text.split('\n').filter((l) => l.startsWith('Section ')).length, 6);
   for (const at of [idle(), { ...idle(), show: 1 }, { show: 9, episode: 1 }, { show: 1, episode: 9 }, null])
     assert.equal(briefInPlay(shows, at), null);
+});
+
+test('a show is found by the number it was given, not by its place in the list', () => {
+  const numbered = [
+    { ...shows[1], number: 2 },
+    { ...shows[0], number: 5 },
+  ];
+  const listed = showMove({ kind: 'shows' }, { shows: numbered });
+  assert.deepEqual(
+    listed.rows.map((r) => [r.label, r.text, r.say]),
+    [
+      ['2', 'The Quay Notes', 'show 2'],
+      ['5', 'Harbor Voices', 'show 5'],
+    ],
+  );
+  assert.equal(listed.say, 'Show 2: The Quay Notes. Show 5: Harbor Voices.');
+  assert.match(listed.hint, /^Say “Show 2” for episodes, “2\.1” for the latest/);
+  assert.equal(showMove(showCommand('5.2'), { shows: numbered }).title, 'Episode 5.2: The lamp');
+  assert.match(
+    showMove(showCommand('1.1'), { shows: numbered }).say,
+    /^There is no show 1\. Your shows are 2, 5\.$/,
+  );
+  assert.deepEqual(showCommand('episodes for harbor voices', { shows: numbered }), { kind: 'show', show: 5 });
+  assert.match(
+    briefInPlay(numbered, { show: 5, episode: 2, section: null, offset: 0 }).text,
+    /^Show 5: Harbor Voices\. Episode 5\.2: /,
+  );
+  assert.equal(briefInPlay(numbered, { show: 1, episode: 1, section: null, offset: 0 }), null);
 });

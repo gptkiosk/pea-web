@@ -4688,3 +4688,8 @@ button.numbered-row:focus-visible {
 .stop-speaking[hidden] {
   display: none;
 }
+
+.curated-keep {
+  grid-column: 1 / -1;
+  font-size: 0.9em;
+}

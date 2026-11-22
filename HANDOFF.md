@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Permanent show numbers and the episode limit — 2026-11-22
+
+**Branch `feature/show-numbers` (on top of `feature/brief-in-chat`), version `0.1.0-rc.4.dev.35`.** From the handoff file's addendum of 2026-11-22 (read as a description only): permanent show numbering and "default 3, max 5" kept episodes.
+
+- `browser/knowledge-ui.mjs`: `numbers` (source id to show number, given once as highest ever plus one, kept after an unfollow and after the curator removes a show), `keeps` (source id to 0 through 5, saved only when not the default), `keepDefault` 3 and `keepMost` 5, `keep(id, n)`, `renumber()` behind a review, and a menu on each followed card. Saved under `pea-curated-v1` as `{ on, followed, numbers, keep }`; saved numbers that repeat are dropped on load. `shows()` now carries `number` and is ordered by it.
+- `browser/shownav.mjs`: a show is found by its `number` (`showNumbered`), falling back to its place when it has none; the list, the hint, a show asked for by name and `briefInPlay` use it.
+- Tests: `browser/tests/shownav.test.mjs` (4, one new for numbers with gaps), `browser/tests/dom/knowledge.test.mjs` (4, one new: numbers kept across unfollow and refollow, the default of three, fewer without a fetch, more with one, what is saved, and the renumber review).
+- Known gaps against the addendum: the numbered summary of all shows is not put in the prompt (only the open episode's own address is); pinned items do not exist on Web; the catalog's `suggested_keep` is not used. Not looked at by eye.
+
 ## The open episode's brief in Chat — 2026-11-22
 
 **Branch `feature/brief-in-chat` (on top of `feature/type-and-listen`), version `0.1.0-rc.4.dev.34`.** The owner said "go ahead and continue with the work to match to the apps chat flow and functionality." This is the web's version of putting a brief in the prompt as quoted, labelled evidence (the catalog's `APP-CONTRACT.md` sections 6 and 10; the handoff's brief block), for one brief at a time.
