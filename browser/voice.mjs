@@ -101,23 +101,3 @@ export class Dictation {
     this.onState(false);
   }
 }
-
-// "I type, you talk": the owner types and every reply is read aloud. Off unless the owner turns
-// it on; remembered in this browser. It never listens: the microphone is not used by this mode.
-const listenKey = 'pea-type-and-listen-v1';
-export function loadTypeAndListen() {
-  try {
-    return globalThis.localStorage.getItem(listenKey) === 'on';
-  } catch {
-    return false;
-  }
-}
-export function saveTypeAndListen(on) {
-  try {
-    if (on) globalThis.localStorage.setItem(listenKey, 'on');
-    else globalThis.localStorage.removeItem(listenKey);
-    return true;
-  } catch {
-    return false;
-  }
-}

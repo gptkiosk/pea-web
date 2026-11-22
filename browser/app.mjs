@@ -26,8 +26,6 @@ import {
   loadVoicePreferences,
   saveVoicePreferences,
   speechReadPlan,
-  loadTypeAndListen,
-  saveTypeAndListen,
 } from './voice.mjs';
 import { installBoard } from './board-ui.mjs';
 import { installWorkspace } from './workspace-ui.mjs';
@@ -1482,31 +1480,42 @@ function renderCollaboration() {
   renderHarvest();
 }
 // "I type, you talk": while it is on, every reply to a message sent from the page is read aloud.
-// The microphone is not used. `listenReading` is set while a reply is being read for it, so the
-// reading is not cut off when the owner looks at another window.
-let listenMode = loadTypeAndListen(),
+// The microphone is not used. It is off whenever the page is opened, so PEA never talks out loud
+// unexpectedly. `listenReading` is set while a reply is being read for it: the reading is then not
+// cut off when the owner looks at another window, and a button to stop it is shown.
+let listenMode = false,
   listenReading = false,
+  // Counts readings, so the end of one that was cut off is not taken for the end of the next.
+  listenTurn = 0,
   // Set only for the one press of Read reply that the mode itself makes.
   listenAuto = false;
+const typedHints = { thought: $('thought').placeholder, 'collab-thought': $('collab-thought').placeholder };
 function showListenMode() {
   for (const id of ['chat-listen', 'collab-listen']) {
     $(id).setAttribute('aria-pressed', String(listenMode));
     $(id).classList.toggle('on', listenMode);
   }
+  for (const id of ['chat-quiet', 'collab-quiet']) $(id).hidden = !(listenMode && listenReading);
+  for (const [id, usual] of Object.entries(typedHints))
+    $(id).placeholder = listenMode ? 'Type — PEA will answer aloud…' : usual;
 }
+// Ends the reading without leaving the mode.
+function quietListening() {
+  listenTurn++;
+  listenReading = false;
+  if ($('speech-length').open) $('speech-length').close();
+  stopVoices();
+  showListenMode();
+}
+for (const id of ['chat-quiet', 'collab-quiet']) $(id).onclick = quietListening;
 for (const id of ['chat-listen', 'collab-listen'])
   $(id).onclick = () => {
     listenMode = !listenMode;
-    const kept = saveTypeAndListen(listenMode);
-    if (!listenMode) {
-      listenReading = false;
-      stopVoices();
-    }
+    if (!listenMode) quietListening();
     showListenMode();
     notice(
       listenMode
-        ? 'I type, you talk is on: PEA reads each reply aloud. It does not listen; the microphone is not used.' +
-            (kept ? '' : ' This browser would not save the choice, so it lasts until you reload.')
+        ? 'I type, you talk is on until you turn it off or reload: PEA reads each reply aloud. It does not listen; the microphone is not used.'
         : 'I type, you talk is off.',
     );
   };
@@ -1514,16 +1523,15 @@ showListenMode();
 // `aloud` is set when the words came from the voice room with reading aloud on. `plain` is set
 // for a message PEA itself made from a navigation move, which is sent as it is and never read as
 // another command, whatever numbers its quoted words hold.
-// `room` is set by the voice room, which reads its own replies.
-async function submit(surface, { aloud = false, plain = false, room = false } = {}) {
+// `room` is set by the voice room, which reads its own replies, and `spoken` when it will.
+async function submit(surface, { aloud = false, plain = false, room = false, spoken = false } = {}) {
   voice?.stop();
   const listening = listenMode && !room,
     who = profile,
     previous = history(surface, who).at(-1)?.id;
   // A new message ends whatever was being read.
   if (listening) {
-    listenReading = false;
-    stopVoices();
+    quietListening();
     aloud = true;
   }
   const field = surface === 'chat' ? $('thought') : $('collab-thought');
@@ -1579,7 +1587,9 @@ async function submit(surface, { aloud = false, plain = false, room = false } = 
     return;
   }
   // From here until the request ends, the reply being written shows PEA at work.
-  const used = await atWork(surface, () => live.run(() => live.chat(surface, text)));
+  const used = await atWork(surface, () =>
+    live.run(() => live.chat(surface, text, undefined, { spoken: listening || spoken })),
+  );
   if (used === false) {
     history(surface).push(
       message('user', text),
@@ -1608,10 +1618,13 @@ async function submit(surface, { aloud = false, plain = false, room = false } = 
     listenReading = listenAuto = true;
     $(surface === 'chat' ? 'chat-read' : 'collab-read').click();
     listenAuto = false;
+    showListenMode();
   }
 }
 $('chat-stop').onclick = () => {
+  listenTurn++;
   listenReading = false;
+  showListenMode();
   if ($('speech-length').open) $('speech-length').close();
   voice?.stop();
   stopVoices();
@@ -2454,7 +2467,7 @@ $('voice-room-send').onclick = async () => {
   }
   field.value = moved?.send ?? text;
   $('voice-room').close();
-  await submit(surface, { plain: Boolean(moved?.send), room: true });
+  await submit(surface, { plain: Boolean(moved?.send), room: true, spoken: read });
   const reply = history(surface, who).at(-1);
   if (who === profile && reply?.id !== previous && reply?.role === 'assistant') {
     voiceDrafts.delete(who + ':' + surface);
@@ -2486,11 +2499,19 @@ function playReply(selection, short = false) {
     return;
   }
   const text = short ? selection.excerpt : (selection.spoken ?? selection.text);
+  // When this reading ends by itself, the stop-speaking button of I type, you talk goes away.
+  const turn = ++listenTurn,
+    ended = () => {
+      if (turn !== listenTurn) return;
+      listenReading = false;
+      showListenMode();
+    };
   if (speech?.chosen()) {
-    void speech.read(text);
+    void Promise.resolve(speech.read(text)).then(ended, ended);
     return;
   }
   const utterance = configureSpeech(new SpeechSynthesisUtterance(text), presenceAt(memory.presence()));
+  utterance.onend = utterance.onerror = ended;
   globalThis.speechSynthesis.speak(utterance);
   notice('Reading with your browser/device voice. Stop ends playback.');
 }
