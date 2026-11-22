@@ -513,9 +513,12 @@ test(
         saved.checked = Date.now() - ${hours} * 3600000;
         ${current ? 'saved.current = true;' : 'delete saved.current;'}
         localStorage.setItem('pea-curated-v1', JSON.stringify(saved));
+        // Marks this document, so that a wait cannot be satisfied by the page being left.
+        window.leaving = true;
         location.reload();
       })()`);
-    const back = `document.getElementById('curated-peek')?.textContent === '6 briefs ready' && ${idle}`;
+    const fresh = `!window.leaving && document.getElementById('curated-browse') && document.getElementById('curated-activity')`;
+    const back = `${fresh} && document.getElementById('curated-peek').textContent === '6 briefs ready' && ${idle}`;
     await age(7, false);
     await page.waitFor(back, 'the reload');
     assert.equal(await page.evaluate(`document.getElementById('curated-current').checked`), false);
@@ -529,7 +532,7 @@ test(
     // On and due: one check by itself, of the list and the followed shows.
     await age(7, true);
     await page.waitFor(
-      `/6 briefs are kept in this browser/.test(document.getElementById('curated-activity').textContent) && ${idle}`,
+      `${fresh} && /6 briefs are kept in this browser/.test(document.getElementById('curated-activity').textContent) && ${idle}`,
       'the check by itself',
     );
     const own = asked(page).slice(before);
