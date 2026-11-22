@@ -2,6 +2,23 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.40] - 2026-11-22
+
+### Added
+
+- **A detail page for each curated show.** Every card has a **Details** button. Opening it fetches nothing.
+  - **Status and About:** whether you follow it and its number, the curator's overview, who publishes it, how often, what the curator publishes for it, its terms and credit, and a link to the show's own page that only you can open.
+  - **Kept in this browser:** each kept episode with its date and a link to the original.
+  - **Pin an episode.** A pinned episode stays kept while the curator still lists it, even when you keep fewer or newer episodes arrive. Up to five per show.
+  - **Check this show now** asks the catalog for the curator's list and this one show.
+  - **Your name for it.** Rename a show for yourself. Its number, its briefs and the curator's own name are unchanged, and an empty name gives the curator's name back.
+  - **Follow** or **Unfollow** from the same page.
+
+### Not included
+
+- A pin lasts only while the curator lists the episode. The catalog lists a show's few newest episodes, so a pinned one goes when it leaves that list.
+- Still not on the web: a storage limit with eviction, another catalog address, digests and transcripts, and the Talk from briefs, Web briefs and Scholarly papers switches.
+
 ## [0.1.0-rc.4.dev.39] - 2026-11-22
 
 ### Added

@@ -23,6 +23,15 @@ const storageKey = 'pea-curated-v1',
 // check that failed.
 export const currentEvery = 6 * 3600000,
   currentRetry = 30 * 60000;
+// How many episodes of one show can be pinned, and how long the owner's own name for a show can be.
+const pinMost = 5,
+  nameMost = 60;
+const cleanName = (value) =>
+  String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, nameMost);
 // The most text kept in this browser for all shows together.
 const keptMost = 3000000;
 // How many of a show's newest episodes are fetched and kept: three unless the owner chooses
@@ -89,7 +98,12 @@ export function installCurated({ review, changed = () => {} }) {
     current = false,
     triedAt = 0,
     topic = '',
-    storeText = '';
+    storeText = '',
+    // Episodes the owner pinned, by show: kept while the curator lists them, whatever the count.
+    pins = {},
+    // The owner's own name for a show. The show's id, number and briefs are unchanged by it.
+    names = {},
+    detailOf = '';
   // What is held for each followed show, by id: { listing, episodes: [{ item, brief }], refused }.
   const held = new Map();
   // The number each show was given when it was first followed. A show keeps its number when new
@@ -110,6 +124,25 @@ export function installCurated({ review, changed = () => {} }) {
             .slice(0, 200),
         );
       off = (Array.isArray(saved.off) ? saved.off : []).filter((id) => followed.includes(id));
+      const record = (value) =>
+        Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {}).filter(
+          ([id]) => followed.includes(id),
+        );
+      pins = Object.fromEntries(
+        record(saved.pins)
+          .map(([id, list]) => [
+            id,
+            (Array.isArray(list) ? list : [])
+              .filter((x) => typeof x === 'string' && /^[A-Za-z0-9._-]{1,80}$/.test(x))
+              .slice(0, pinMost),
+          ])
+          .filter(([, list]) => list.length),
+      );
+      names = Object.fromEntries(
+        record(saved.names)
+          .filter(([, name]) => typeof name === 'string' && cleanName(name) === name && name)
+          .slice(0, 40),
+      );
       current = saved.current === true;
       checkedAt = Number.isSafeInteger(saved.checked) && saved.checked <= Date.now() ? saved.checked : 0;
       numbers = whole(saved.numbers, 1, 999);
@@ -135,6 +168,8 @@ export function installCurated({ review, changed = () => {} }) {
             numbers,
             ...(Object.keys(keeps).length ? { keep: keeps } : {}),
             ...(off.length ? { off } : {}),
+            ...(Object.keys(pins).length ? { pins } : {}),
+            ...(Object.keys(names).length ? { names } : {}),
             ...(current ? { current: true } : {}),
             ...(checkedAt ? { checked: checkedAt } : {}),
           }),
@@ -170,6 +205,10 @@ export function installCurated({ review, changed = () => {} }) {
     }
   }
   const isOn = (id) => !off.includes(id);
+  const pinned = (id, itemID) => pins[id]?.includes(itemID) ?? false;
+  const nameOf = (s) => names[s.id] ?? s.name;
+  // Of a show's episodes, newest first: the newest few, and any the owner pinned.
+  const wanted = (id, list, itemID) => list.filter((x, i) => i < keepOf(id) || pinned(id, itemID(x)));
   const bytesOf = (text) => new TextEncoder().encode(text);
   const textOf = (bytes) => new TextDecoder().decode(bytes);
   const say = (text) => ($('curated-note').textContent = text);
@@ -195,7 +234,7 @@ export function installCurated({ review, changed = () => {} }) {
       have = held.get(s.id),
       button = el('button', follows ? 'text-button' : 'primary', follows ? 'Unfollow' : 'Follow');
     row.dataset.state = s.state;
-    row.append(el('strong', '', s.name), el('span', 'pill', s.state === 'active' ? s.cadence : s.state));
+    row.append(el('strong', '', nameOf(s)), el('span', 'pill', s.state === 'active' ? s.cadence : s.state));
     if (follows) row.append(el('span', 'pill curated-added', 'Added'));
     row.append(el('small', 'curated-by', `${s.publisher} · ${s.kind}`));
     row.append(el('p', '', s.description));
@@ -267,6 +306,11 @@ export function installCurated({ review, changed = () => {} }) {
     button.setAttribute('aria-label', `${follows ? 'Unfollow' : 'Follow'} ${s.name}`);
     button.onclick = () => void (follows ? unfollow(s.id) : follow(s.id));
     row.append(button);
+    const more = el('button', 'text-button', 'Details');
+    more.type = 'button';
+    more.setAttribute('aria-label', `Details of ${s.name}`);
+    more.onclick = () => openDetail(s.id);
+    row.append(' ', more);
     return row;
   }
   const dayText = (date) => {
@@ -296,7 +340,7 @@ export function installCurated({ review, changed = () => {} }) {
   function lately() {
     const rows = [...held]
       .filter(([id]) => followed.includes(id) && isOn(id))
-      .flatMap(([, h]) => h.episodes.map((e) => ({ e, name: h.listing.name })))
+      .flatMap(([, h]) => h.episodes.map((e) => ({ e, name: nameOf(h.listing) })))
       .sort((a, b) => (a.e.item.date < b.e.item.date ? 1 : a.e.item.date > b.e.item.date ? -1 : 0))
       .slice(0, 10);
     $('curated-lately').hidden = !rows.length;
@@ -352,6 +396,7 @@ export function installCurated({ review, changed = () => {} }) {
     chips(shown);
     $('curated-list').replaceChildren(...shown.filter((s) => !topic || s.topics.includes(topic)).map(card));
     lately();
+    if ($('curated-detail').open) detail();
     const at = new Date(checkedAt);
     $('curated-checked').textContent = checkedAt
       ? `Checked ${at.toDateString() === new Date().toDateString() ? '' : at.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', '}${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
@@ -390,7 +435,11 @@ export function installCurated({ review, changed = () => {} }) {
     const before = held.get(s.id),
       episodes = [];
     let refused = 0;
-    for (const item of items.value.items.filter((i) => i.brief).slice(0, keepOf(s.id))) {
+    for (const item of wanted(
+      s.id,
+      items.value.items.filter((i) => i.brief),
+      (i) => i.id,
+    )) {
       const old = before?.episodes.find(
         (e) => e.item.id === item.id && e.item.brief.sha256 === item.brief.sha256,
       );
@@ -512,12 +561,13 @@ export function installCurated({ review, changed = () => {} }) {
   // Changes how many episodes a show keeps. Fewer takes effect at once; more needs a fetch.
   async function keep(id, n) {
     if (busy || !followed.includes(id) || !Number.isInteger(n) || n < 0 || n > keepMost) return render();
+    const was = keepOf(id);
     if (n === keepDefault) delete keeps[id];
     else keeps[id] = n;
     save();
     const have = held.get(id);
-    if (have && have.episodes.length >= n) {
-      have.episodes = have.episodes.slice(0, n);
+    if (have && (n <= was || have.episodes.length >= n)) {
+      have.episodes = wanted(id, have.episodes, (e) => e.item.id);
       say(`Keeping the newest ${n === 0 ? 'none' : n} for ${have.listing.name}. Nothing was fetched.`);
       saveKept();
       return render();
@@ -544,10 +594,167 @@ export function installCurated({ review, changed = () => {} }) {
     if (busy) return;
     followed = followed.filter((x) => x !== id);
     off = off.filter((x) => x !== id);
+    delete pins[id];
+    delete names[id];
     held.delete(id);
     save();
     say('Unfollowed. Its briefs were removed from this browser, and PEA will not ask for that show again.');
     render();
+  }
+  // A pinned episode stays kept while the curator still lists it, whatever the count kept.
+  function pin(id, itemID) {
+    if (busy || !followed.includes(id)) return;
+    const have = held.get(id);
+    if (pinned(id, itemID)) {
+      pins[id] = pins[id].filter((x) => x !== itemID);
+      if (!pins[id].length) delete pins[id];
+      if (have) have.episodes = wanted(id, have.episodes, (e) => e.item.id);
+      say('Unpinned. It stays only while it is among the newest kept.');
+    } else if ((pins[id]?.length ?? 0) >= pinMost) {
+      return say(`PEA pins up to ${pinMost} episodes of a show. Unpin one first.`);
+    } else if (have?.episodes.some((e) => e.item.id === itemID)) {
+      pins[id] = [...(pins[id] ?? []), itemID];
+      say('Pinned. It stays kept while the curator lists it, even when newer episodes arrive.');
+    }
+    save();
+    render();
+  }
+  function rename(id, value) {
+    const s = listing(id);
+    if (busy || !s || !followed.includes(id)) return;
+    const name = cleanName(value);
+    if (containsCredential(name)) return say('That looks like a key or password. The name was not changed.');
+    if (!name || name === s.name) delete names[id];
+    else names[id] = name;
+    save();
+    say(
+      names[id]
+        ? `PEA now calls it “${name}”. Its number, its briefs and the curator’s own name for it are unchanged.`
+        : `It is called ${s.name} again.`,
+    );
+    render();
+  }
+  function openDetail(id) {
+    detailOf = id;
+    detail();
+    if (!$('curated-detail').open) $('curated-detail').showModal();
+  }
+  // The detail of one show: what the curator says about it, what is kept here, and the owner's
+  // choices for it. Everything shown comes from the checked list and briefs; opening it fetches nothing.
+  function detail() {
+    const dialog = $('curated-detail'),
+      s = listing(detailOf);
+    if (!s) return dialog.open && dialog.close();
+    const follows = followed.includes(s.id),
+      have = held.get(s.id),
+      body = $('curated-detail-body'),
+      heading = (text) => el('h3', '', text),
+      act = (label, run, className = 'text-button') => {
+        const b = el('button', className, label);
+        b.type = 'button';
+        b.disabled = busy;
+        b.onclick = run;
+        return b;
+      },
+      outside = (address, label, about) => {
+        let link = null;
+        try {
+          link = new URL(address);
+        } catch {
+          return null;
+        }
+        if (link.protocol !== 'https:') return null;
+        const a = el('a', 'text-button', label);
+        a.href = link.href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.setAttribute('aria-label', `${label}: ${about} at ${link.host}`);
+        return a;
+      };
+    $('curated-detail-name').textContent = nameOf(s);
+    const status =
+      s.state === 'paused'
+        ? 'Paused by the curator'
+        : s.state === 'withdrawn'
+          ? 'Removed by the curator'
+          : !follows
+            ? 'Not followed'
+            : !isOn(s.id)
+              ? 'Followed · switched off'
+              : have
+                ? 'Followed · in use'
+                : 'Followed · nothing loaded yet';
+    const parts = [
+      heading('Status'),
+      el(
+        'p',
+        '',
+        `${status}${follows ? ` · Show ${numbers[s.id]}` : ''}${names[s.id] ? ` · the curator calls it ${s.name}` : ''}`,
+      ),
+    ];
+    if (s.state !== 'active' && s.message) parts.push(el('p', 'curated-banner', s.message));
+    parts.push(heading('About this source'), el('p', '', s.overview || s.description));
+    parts.push(
+      el(
+        'p',
+        '',
+        `${s.publisher} · ${s.kind} · ${s.cadence} · ${s.item_count} ${s.item_count === 1 ? 'episode' : 'episodes'} with the curator. ${
+          s.publish === 'digest_only'
+            ? 'The curator publishes a brief of each episode with a link to the original.'
+            : 'The curator publishes a brief of each episode, and its text where the publisher allows.'
+        }`,
+      ),
+      el('p', 'muted', `${s.terms_summary} Credit: ${s.attribution}.`),
+    );
+    const site = outside(s.site, 'Open the show’s page', s.name);
+    if (site) parts.push(el('p', '', ''), site);
+    if (follows) {
+      parts.push(heading('Kept in this browser'));
+      const list = el('ul', 'curated-lately');
+      for (const e of have?.episodes ?? []) {
+        const row = el('li'),
+          on = pinned(s.id, e.item.id),
+          toggle = act(on ? 'Pinned' : 'Pin', () => pin(s.id, e.item.id));
+        toggle.setAttribute('aria-pressed', String(on));
+        toggle.setAttribute('aria-label', `${on ? 'Unpin' : 'Pin'} ${e.item.title}`);
+        row.append(el('strong', '', e.item.title), el('small', '', ` ${dayText(e.item.date)} `), toggle);
+        const original = outside(e.item.link, 'Open the original', e.item.title);
+        if (original) row.append(' ', original);
+        list.append(row);
+      }
+      parts.push(
+        have?.episodes.length
+          ? list
+          : el('p', 'muted', isOn(s.id) ? 'Nothing is kept yet.' : 'Switched off. Nothing new is fetched.'),
+      );
+      if (s.state === 'active' && isOn(s.id))
+        parts.push(
+          act('Check this show now', () => void refresh(s.id)),
+          el('small', 'muted', ` Asks ${curatedHost} for the curator’s list and this show only.`),
+        );
+      parts.push(heading('Your name for it'));
+      const input = document.createElement('input'),
+        label = el('label', '', 'Name ');
+      input.id = 'curated-detail-rename';
+      input.maxLength = nameMost;
+      input.autocomplete = 'off';
+      input.value = nameOf(s);
+      label.append(input);
+      parts.push(
+        label,
+        act('Save name', () => rename(s.id, input.value)),
+        el('small', 'muted', ' Changes what PEA calls it here. Its number and briefs stay.'),
+      );
+    }
+    parts.push(heading('Options'));
+    if (follows)
+      parts.push(
+        act('Unfollow and remove its briefs', () => {
+          unfollow(s.id);
+        }),
+      );
+    else if (s.state === 'active') parts.push(act('Follow', () => void follow(s.id), 'primary'));
+    body.replaceChildren(...parts);
   }
   // Switches a followed show off or on. Off: kept and numbered, but not fetched and not offered in
   // conversation. On: what was kept is used again at once, and the show is checked.
@@ -609,7 +816,11 @@ export function installCurated({ review, changed = () => {} }) {
       const items = await checkItems(bytesOf(show.items), s, store.topics ?? []);
       if (!items.value) continue;
       const episodes = [];
-      for (const item of items.value.items.filter((i) => i.brief).slice(0, keepOf(id))) {
+      for (const item of wanted(
+        id,
+        items.value.items.filter((i) => i.brief),
+        (i) => i.id,
+      )) {
         const text = show.briefs?.[item.id];
         if (typeof text !== 'string') continue;
         const brief = await checkBrief(bytesOf(text), s, item, store.topics ?? []);
@@ -628,6 +839,9 @@ export function installCurated({ review, changed = () => {} }) {
     keeps = {};
     followed = [];
     off = [];
+    pins = {};
+    names = {};
+    $('curated-detail').close();
     current = false;
     topic = '';
     storeText = '';
@@ -698,7 +912,7 @@ export function installCurated({ review, changed = () => {} }) {
         .map((h) => ({
           id: h.listing.id,
           number: numbers[h.listing.id],
-          name: h.listing.name,
+          name: nameOf(h.listing),
           state: h.listing.state,
           episodes: h.episodes,
         }))

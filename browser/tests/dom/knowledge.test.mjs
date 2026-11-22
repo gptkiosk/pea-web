@@ -551,3 +551,152 @@ test(
     await page.close();
   },
 );
+
+test(
+  'a show’s detail shows what the curator says and what is kept; a pinned episode outlasts the count kept, and a show can be renamed and checked alone',
+  options,
+  async () => {
+    const { page } = await openToday();
+    await browse(page);
+    const body = () => page.evaluate(`document.getElementById('curated-detail-body').textContent`);
+    const open = async (name) => {
+      await page.evaluate(
+        `document.querySelector('#curated-list button[aria-label=${JSON.stringify('Details of ' + name)}]').click()`,
+      );
+      await page.waitFor(`document.getElementById('curated-detail').open`, 'the detail');
+    };
+    const kept = () =>
+      page.evaluate(
+        `[...document.querySelectorAll('#curated-detail-body ul li')].map((li) => li.querySelector('strong').textContent + (li.querySelector('button').getAttribute('aria-pressed') === 'true' ? ' (pinned)' : ''))`,
+      );
+    const act = (label) =>
+      page.evaluate(
+        `[...document.querySelectorAll('#curated-detail-body button')].find((b) => b.textContent === ${JSON.stringify(label)}).click()`,
+      );
+    const heldText = (name) =>
+      page.evaluate(
+        `[...document.querySelectorAll('#curated-list > li')].find((li) => li.querySelector('strong').textContent === ${JSON.stringify(name)})?.querySelector('.curated-held')?.textContent ?? ''`,
+      );
+
+    // The detail of a show not followed: what the curator says, and nothing is fetched to show it.
+    let before = asked(page).length;
+    await open('Tide Tables');
+    assert.equal(
+      await page.evaluate(`document.getElementById('curated-detail-name').textContent`),
+      'Tide Tables',
+    );
+    assert.match(await body(), /Status\s*Not followed/);
+    assert.match(await body(), /About this source/);
+    assert.match(await body(), /Credit: /);
+    assert.equal(asked(page).length, before, 'opening the detail asks nothing');
+    await act('Follow');
+    await page.waitFor(
+      `/Followed · in use · Show 1/.test(document.getElementById('curated-detail-body').textContent) && ${idle}`,
+      'the show to be followed from its detail',
+    );
+    const three = await kept();
+    assert.equal(three.length, 3);
+    const links = await page.evaluate(
+      `[...document.querySelectorAll('#curated-detail-body a')].map((a) => [a.textContent, new URL(a.href).protocol, a.rel, a.target])`,
+    );
+    assert.ok(links.length >= 3);
+    assert.ok(links.every((l) => l[1] === 'https:' && l[2] === 'noopener noreferrer' && l[3] === '_blank'));
+
+    // Pin the oldest kept, then keep only one: the newest and the pinned one stay, with no fetch.
+    before = asked(page).length;
+    await page.evaluate(
+      `document.querySelectorAll('#curated-detail-body ul li')[2].querySelector('button').click()`,
+    );
+    assert.deepEqual(await kept(), [three[0], three[1], three[2] + ' (pinned)']);
+    await page.evaluate(`(() => {
+      const select = document.querySelector('#curated-list select[aria-label="Episodes to keep for Tide Tables"]');
+      select.value = '1';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(
+      `document.querySelectorAll('#curated-detail-body ul li').length === 2`,
+      'the count to take effect',
+    );
+    assert.deepEqual(await kept(), [three[0], three[2] + ' (pinned)']);
+    assert.equal(asked(page).length, before, 'pinning and keeping fewer ask nothing');
+    assert.equal(await heldText('Tide Tables'), '2 briefs kept in this browser');
+
+    // The pin survives a reload and a fresh check of the show.
+    await page.reload();
+    await page.click('#tab-today');
+    await page.waitFor(
+      `document.getElementById('curated-peek').textContent === '2 briefs ready' && ${idle}`,
+      'the kept briefs back',
+    );
+    await open('Tide Tables');
+    assert.deepEqual(await kept(), [three[0], three[2] + ' (pinned)']);
+    before = asked(page).length;
+    await act('Check this show now');
+    await page.waitFor(
+      `/Tide Tables: 2 briefs checked/.test(document.getElementById('curated-activity').textContent) && ${idle}`,
+      'the check of this show',
+    );
+    assert.deepEqual(
+      asked(page).slice(before),
+      ['store.json', 'sources/tide-tables/items.json'],
+      'only the list and this show; both briefs were already here',
+    );
+    assert.deepEqual(await kept(), [three[0], three[2] + ' (pinned)']);
+
+    // Unpinned, it goes, since it is not among the newest kept.
+    await page.evaluate(
+      `document.querySelectorAll('#curated-detail-body ul li')[1].querySelector('button').click()`,
+    );
+    assert.deepEqual(await kept(), [three[0]]);
+    assert.equal(JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`)).pins, undefined);
+
+    // Her own name for it is used on the card and in the list of shows; the number stays.
+    await page.fill('#curated-detail-rename', '  Tides   with Mara  ');
+    await act('Save name');
+    assert.equal(
+      await page.evaluate(`document.getElementById('curated-detail-name').textContent`),
+      'Tides with Mara',
+    );
+    assert.match(await body(), /Show 1 · the curator calls it Tide Tables/);
+    assert.equal(await heldText('Tides with Mara'), '1 brief kept in this browser');
+    assert.deepEqual(JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`)).names, {
+      'tide-tables': 'Tides with Mara',
+    });
+    await page.evaluate(`document.getElementById('curated-detail').close()`);
+    await page.click('#tab-chat');
+    await page.fill('#thought', 'list shows');
+    await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+    await page.waitFor(`!document.getElementById('numbered').hidden`, 'the list of shows');
+    assert.match(
+      await page.evaluate(`document.querySelector('#numbered ol > li').textContent`),
+      /Tides with Mara/,
+    );
+    await page.click('#tab-today');
+
+    // A key-like name is refused; an empty one gives the curator's name back.
+    await open('Tide Tables');
+    await page.fill('#curated-detail-rename', 'sk-or-v1-' + 'a'.repeat(64));
+    await act('Save name');
+    assert.match(await note(page), /looks like a key or password/);
+    await page.fill('#curated-detail-rename', '');
+    await act('Save name');
+    assert.equal(
+      await page.evaluate(`document.getElementById('curated-detail-name').textContent`),
+      'Tide Tables',
+    );
+
+    // Unfollowing from the detail removes its briefs and its choices.
+    await act('Unfollow and remove its briefs');
+    await page.waitFor(
+      `/Status\\s*Not followed/.test(document.getElementById('curated-detail-body').textContent)`,
+      'the show to be unfollowed',
+    );
+    const left = JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`));
+    assert.deepEqual([left.followed, left.pins, left.names], [[], undefined, undefined]);
+    assert.deepEqual(
+      page.outsideRequests().filter((url) => !url.startsWith(base)),
+      [],
+    );
+    await page.close();
+  },
+);
