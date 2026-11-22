@@ -434,6 +434,24 @@ class Page {
       `(() => { window.peaNotices = []; const n = document.querySelector('#notice'); if (n) new MutationObserver(() => n.textContent && window.peaNotices.push(n.textContent)).observe(n, { childList: true, characterData: true, subtree: true }); })()`,
     );
   }
+  // Reloads the page and returns once the new document has loaded. A plain `location.reload()`
+  // from a test can be answered by the page being left, or fail as it goes away.
+  async reload() {
+    await this.evaluate('window.peaLeaving = true');
+    await this.send('Page.reload');
+    const until = Date.now() + 15000;
+    for (;;) {
+      const ready = await this.evaluate('document.readyState === "complete" && !window.peaLeaving').catch(
+        () => false,
+      );
+      if (ready) break;
+      if (Date.now() > until) throw new Error('Timed out waiting for the page to reload');
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+    await this.evaluate(
+      `(() => { window.peaNotices = []; const n = document.querySelector('#notice'); if (n) new MutationObserver(() => n.textContent && window.peaNotices.push(n.textContent)).observe(n, { childList: true, characterData: true, subtree: true }); })()`,
+    );
+  }
   async evaluate(expression) {
     const result = await this.send('Runtime.evaluate', {
       expression,
