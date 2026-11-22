@@ -36,6 +36,7 @@
     "knowledge-schema.mjs",
     "knowledge-ui.mjs",
     "knowledge.mjs",
+    "life.mjs",
     "honesty.mjs",
     "index.html",
     "live-ui.mjs",

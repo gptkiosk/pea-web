@@ -2,6 +2,23 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.37] - 2026-11-22
+
+### Added
+
+- **A more varied life for your assistant.** She used to drift toward one hobby and return to it in every conversation. Now PEA deals her a set of five interests and five people from a wider list of twenty and twelve, such as bouldering, film photography, a quiz team, a garden plot, learning Portuguese, a neighbour whose dog she walks and a friend abroad who sends voice notes.
+  - Each day a different interest and a different person are on her mind, so a week covers all of them and no day repeats the last.
+  - Your model is told to say nothing about her own life in most replies, to mention one thing only when it fits or when you ask, not to return to an interest it already raised in the conversation, not to make one hobby her whole personality, and to be more curious about your life than talkative about hers.
+  - The cards of her history and the lines of her week are now written around the same set, spread across it, with no interest, food or person on more than two.
+  - You see her set under **Her history** and can deal her a different one. It is fiction made by PEA itself: no request is made for it, and nothing about you is in it.
+  - It goes with Chat messages only in the Personal profile and only while you share her story, under the same switch as before. The sharing review shows it.
+- **A plainer way of writing.** In Chat your model is now asked to write the way a person talks to someone they know: commas and full stops instead of long dashes; no emoji or symbols unless you use them first; no headings, bullets or bold in ordinary talk; no praise for the question, no summing up at the end, no stock phrases such as "I'm here to help" or "As an AI". Greenhouse work is laid out as before.
+
+### Notes
+
+- **What did not change:** PEA still never claims to be human, and still answers plainly, in one sentence, when you sincerely ask whether it is a person or an AI. It already did not volunteer this, and the new style rule also keeps "As an AI" out of ordinary replies.
+- These are instructions to your model. How closely a given model follows them was not measured.
+
 ## [0.1.0-rc.4.dev.36] - 2026-11-22
 
 ### Changed

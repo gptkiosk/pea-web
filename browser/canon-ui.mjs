@@ -3,6 +3,7 @@
 // second review of every card before any is kept. Personal profile only. Kept cards stay in this
 // browser; in Chat at most two go with a message, under the owner's introduction-sharing switch.
 import { containsCredential } from './connections.mjs';
+import { describeLife, lifeBrief, lifeOf, validSeed } from './life.mjs';
 import { describeRead, pageAddress, pageText } from './research.mjs';
 import {
   canonLimits,
@@ -18,6 +19,7 @@ import {
 
 const $ = (id) => document.getElementById(id);
 const storageKey = 'pea-canon-v1';
+const lifeKey = 'pea-life-v1';
 
 export function installCanon({ profile, interview, review, run, compose, isBusy, key, read }) {
   let saved = { made: 0, cards: [] },
@@ -38,10 +40,46 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     }
   };
   const say = (text) => ($('canon-note').textContent = text);
+  // Her hand of interests and people: dealt once for this browser from a number kept here, so it
+  // stays the same from day to day. No request is made for it and nothing about the owner is in it.
+  let seed = 0;
+  const newSeed = () => globalThis.crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+  try {
+    seed = JSON.parse(globalThis.localStorage.getItem(lifeKey) || 'null')?.seed;
+  } catch {
+    // Nothing usable was saved; she is dealt a hand now.
+  }
+  const keepSeed = () => {
+    try {
+      globalThis.localStorage.setItem(lifeKey, JSON.stringify({ seed }));
+    } catch {
+      // Private browsing may refuse storage; the hand then lasts for this tab.
+    }
+  };
+  if (!validSeed(seed)) {
+    seed = newSeed();
+    keepSeed();
+  }
+  $('life-deal').onclick = async () => {
+    if (working || isBusy()) return say('Finish the current request first.');
+    if (
+      !(await review(
+        'Give her a different set of interests and friends?',
+        `Now: ${describeLife(lifeOf(seed))}\n\nA new set is dealt from PEA’s own list. No request is made and nothing is sent anywhere.${saved.cards.length ? '\n\nHer history cards and her days were written around the present set and may no longer fit. Delete and write them again if you want them to match.' : ''}`,
+      ))
+    )
+      return;
+    seed = newSeed();
+    keepSeed();
+    render();
+    say('She has a new set of interests and friends.');
+  };
   const personal = () => profile() === 'personal';
 
   function render() {
     const count = saved.cards.length;
+    $('life-hand').textContent = personal() ? describeLife(lifeOf(seed)) : '';
+    $('life-deal').hidden = !personal();
     $('canon-status').textContent = !personal()
       ? 'Her history belongs to the Personal profile. It is never used in Work or Blended.'
       : count
@@ -151,7 +189,12 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
             source: place.source,
             existing: saved.cards.length,
           }),
-          system: historyPrompt({ home, persona: answers.persona, facts: place.facts }),
+          system: historyPrompt({
+            home,
+            persona: answers.persona,
+            facts: place.facts,
+            life: lifeBrief(lifeOf(seed)),
+          }),
           user: historyRequest,
         }),
       );
@@ -208,6 +251,9 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
       sinceLast = count ? 0 : sinceLast + 1;
     },
     count: () => saved.cards.length,
+    // Her interests and people, in Personal only: the hand itself, and as a block for a prompt.
+    life: () => (personal() ? lifeOf(seed) : null),
+    lifeBrief: () => (personal() ? lifeBrief(lifeOf(seed)) : ''),
     // For other parts of her story, such as her days: the kept cards, in Personal only.
     cards: () => (personal() ? saved.cards : []),
     // Cards from a reviewed backup, added under new local ids. Gives how many were added.

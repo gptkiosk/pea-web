@@ -1718,6 +1718,7 @@ live = installConnections({
   selected: () => selected,
   context: (text) => memory.context(text),
   canon: (text) => canon?.pick(text) ?? null,
+  life: () => canon?.life() ?? null,
   canonSent: (count) => canon?.sent(count),
   days: () => days?.pick() ?? null,
   // The board's own buttons follow the request too; without this they stay as they were last drawn.
@@ -2153,6 +2154,7 @@ days = installDays({
   profile: () => profile,
   interview: () => memory.context(''),
   cards: () => canon.cards(),
+  life: () => canon.lifeBrief(),
   review: live.review,
   run: live.run,
   compose: live.compose,
