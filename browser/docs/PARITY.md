@@ -32,7 +32,8 @@ How to read the status columns:
 | Calendar and Gmail glance | Built, read-only | Built | None known |
 | PEA Drive folder | Built | Built, with PDF and richer import | Web has no PDF import. Web trusts only its own private mark on files; files the iPhone app created show as not confirmed until the owner confirms them |
 | Simple forms | Built | Built | None known |
-| Sheets and Slides editing, briefs, receipt ledger | Not yet, after 0.2 | Built | |
+| Sheets and Slides editing, receipt ledger | Not yet, after 0.2 | Built | |
+| Curated sources and briefs | Partly built: browse the curator's list, follow a show, keep the checked briefs of its five newest episodes in the tab, and prepare a podcast request | Built | Web does not yet use briefs in conversation or navigation. No digests, publisher transcripts, topics, citations, retention settings or background refresh. See "Curated sources" below |
 | Story board | Built, with model proposals (`pea-story`) | Built | Web-only block name |
 | GitHub draft pull request and image specialist | Built | Built | None known |
 | Model configuration export and import | Built | Built | Same portable format |
@@ -78,6 +79,10 @@ The browser is not yet feature-complete against native. A public release must la
 ## Set answers and numbers
 
 When a reply needs the owner to pick between a few set answers, Web shows them as numbered buttons under the newest reply and in the voice room. A pressed button, a number said or typed, or the answer's own words all send that answer's exact words as the owner's next message; anything else is sent as the owner's own answer. The number is matched by fixed rules in `browser/choices.mjs`, never by a model, and picking an answer approves nothing. What the iPhone app does here is not recorded.
+
+## Curated sources
+
+Both apps read the same public catalog (`gptkiosk/pea-knowledge-processor`, format 1.3) and must apply the reader's contract in that project's `docs/APP-CONTRACT.md`. Web applies its checks to `store.json`, a followed source's `items.json` and briefs (`browser/knowledge.mjs`), and runs that project's golden brief corpus and its hostile store and brief files. Web fetches only after the owner approves, only on Browse, Follow or Refresh, and keeps briefs in the tab. Web has **Request a podcast**, which prepares a filled-in request on the catalog's GitHub page. Not on Web: briefs in conversation, digests, transcripts from the publisher, topics, scientific citations and live scholarly lookups, the briefs index, retention and storage settings, refresh in the background, and the option to download every source. The iPhone side is as its owner described it; its code was not read.
 
 ## Numbered navigation
 
