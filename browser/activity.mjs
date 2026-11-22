@@ -55,6 +55,7 @@ export function contextSteps(sent = {}) {
   const add = (icon, text) => steps.push({ icon, text });
   if (sent.introduction) add('person', 'Included your introduction');
   if (count(sent.memories)) add('memory', `Recalled ${some(sent.memories, 'memory', 'memories')} of yours`);
+  if (count(sent.notes)) add('memory', `Recalled ${some(sent.notes, 'thing', 'things')} you told her`);
   const file = line(sent.file, 80);
   if (file) add('file', `Included an excerpt of ${file}`);
   const events = count(sent.calendar) + count(sent.ownEvents);

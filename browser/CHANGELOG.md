@@ -2,6 +2,26 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.38] - 2026-11-22
+
+### Added
+
+- **She can remember what you tell her, for a while.** Under Past chats & memory there is a new section, **What you have told her**, with one switch: *Keep short notes of what I tell her in Chat*. It is off until you turn it on, separately for Personal and Work.
+  - With it on, PEA keeps a few of your own sentences from Chat: statements about your life, such as "My sister is visiting on Friday." PEA picks them by a fixed rule. No model chooses or writes them, and nothing a model says is ever kept.
+  - Each note is kept for 60 days, up to 60 at a time for a profile. You see every one, with the day you said it and the day it will be forgotten, and can forget one or all of them.
+  - In a later conversation, up to four notes that fit what you are talking about go to your chosen model with a Chat message, in your own words, so she can ask how something went. The review before sharing lists them. Notes from the conversation you are in are not repeated into it.
+  - Notes are stored with your saved conversations: encrypted when encrypted saving is on, otherwise in this tab only. They are in an encrypted library backup and in no other file. Forgetting a conversation forgets its notes.
+
+### Changed
+
+- **The saved library has a version 3.** The first note kept in an unlocked library upgrades it, after the review that turns the switch on says so. Older versions of PEA Web cannot open an upgraded library. A library with no notes stays exactly as it was.
+
+### Not included
+
+- The rule that picks sentences reads English only and is simple: a first-person statement that is not a question or a request. It will sometimes keep a sentence that is not about your life and miss one that is.
+- Notes are not in the one-file profile backup, and they do not move between devices.
+- Whether a model uses the notes with tact was not measured against a real model.
+
 ## [0.1.0-rc.4.dev.37] - 2026-11-22
 
 ### Added

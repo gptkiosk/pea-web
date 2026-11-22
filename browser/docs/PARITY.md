@@ -80,6 +80,10 @@ The browser is not yet feature-complete against native. A public release must la
 
 Web deals the assistant's character a set of five interests and five people from its own list (`browser/life.mjs`), turns a different one up each day, tells the model to use them rarely and never the same one twice running, and writes her history and week around the same set. In Chat the model is also asked for plain human writing: no long dashes, no emoji unless the owner uses them, no lists in ordinary talk, no stock phrases. Both apps keep the same line on what PEA is: it does not volunteer that it is an AI, never claims to be human, and answers a sincere question plainly. What the iPhone app does for her life and style is not recorded here.
 
+## What the owner tells her
+
+With a switch the owner turns on, Web keeps a few of the owner's own Chat sentences about their life for 60 days in the saved library (version 3), picked by a fixed rule with no model involved, and gives up to four that fit to a later Chat conversation (`browser/memory.mjs`, `browser/memory-ui.mjs`). This is Web's own design; nothing here was taken from or checked against the iPhone app.
+
 ## I type, you talk
 
 Both apps have this mode (the iPhone side as its owner described it; its code was not read). It is off on every launch; the owner types and every reply is read aloud with the voice already chosen; the microphone is never used; a Stop speaking control appears while PEA talks; a new message ends the reading; and the model is told the reply will be heard. Differences on Web: the reading does not stop when headphones are unplugged, because a page cannot see that; only numbered navigation lists are spoken among PEA's own fixed replies; a long reply is read whole by the device voice, while a provider voice still asks about length; and the reading continues while the page is hidden.
