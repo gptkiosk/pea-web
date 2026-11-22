@@ -135,7 +135,7 @@ test(
     assert.equal(await hint(), usual);
     await page.evaluate(`document.getElementById('chat-listen').click()`);
     assert.equal(await pressed(page), 'true');
-    await page.evaluate(`location.reload()`);
+    await page.reload();
     await page.waitFor(
       `document.getElementById('chat-listen')?.getAttribute('aria-pressed') === 'false' && document.getElementById('thought').placeholder === ${JSON.stringify(usual)}`,
       'the reload, with the mode off',

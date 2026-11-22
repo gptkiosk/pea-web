@@ -142,7 +142,7 @@ test(
 
     // After a reload the choice and the kept briefs are back, checked again, and nothing is asked.
     const before = asked(page).length;
-    await page.evaluate(`location.reload()`);
+    await page.reload();
     await page.waitFor(
       `document.getElementById('curated-status')?.textContent === '1 followed'`,
       'the reload',
@@ -169,8 +169,8 @@ test(
       const id = Object.keys(kept.shows['harbor-voices'].briefs)[0];
       kept.shows['harbor-voices'].briefs[id] = kept.shows['harbor-voices'].briefs[id].replace('"', ' "');
       localStorage.setItem('pea-curated-kept-v1', JSON.stringify(kept));
-      location.reload();
     })()`);
+    await page.reload();
     await page.waitFor(
       `document.getElementById('curated-peek')?.textContent === '2 briefs ready' && ${idle}`,
       'the altered brief to be left out',
@@ -507,18 +507,16 @@ test(
     assert.equal(asked(page).length, before, 'filtering asks nothing');
 
     // Stay current is off until chosen: an old check and a reload ask nothing.
-    const age = (hours, current) =>
-      page.evaluate(`(() => {
+    const age = async (hours, current) => {
+      await page.evaluate(`(() => {
         const saved = JSON.parse(localStorage.getItem('pea-curated-v1'));
         saved.checked = Date.now() - ${hours} * 3600000;
         ${current ? 'saved.current = true;' : 'delete saved.current;'}
         localStorage.setItem('pea-curated-v1', JSON.stringify(saved));
-        // Marks this document, so that a wait cannot be satisfied by the page being left.
-        window.leaving = true;
-        location.reload();
       })()`);
-    const fresh = `!window.leaving && document.getElementById('curated-browse') && document.getElementById('curated-activity')`;
-    const back = `${fresh} && document.getElementById('curated-peek').textContent === '6 briefs ready' && ${idle}`;
+      await page.reload();
+    };
+    const back = `document.getElementById('curated-peek').textContent === '6 briefs ready' && ${idle}`;
     await age(7, false);
     await page.waitFor(back, 'the reload');
     assert.equal(await page.evaluate(`document.getElementById('curated-current').checked`), false);
@@ -532,7 +530,7 @@ test(
     // On and due: one check by itself, of the list and the followed shows.
     await age(7, true);
     await page.waitFor(
-      `${fresh} && /6 briefs are kept in this browser/.test(document.getElementById('curated-activity').textContent) && ${idle}`,
+      `/6 briefs are kept in this browser/.test(document.getElementById('curated-activity').textContent) && ${idle}`,
       'the check by itself',
     );
     const own = asked(page).slice(before);
