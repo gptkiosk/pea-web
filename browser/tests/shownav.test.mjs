@@ -151,7 +151,8 @@ test('moves walk shows, episodes and sections, each row carrying the words it st
   assert.equal(m.send, null, 'opening an episode sends nothing');
   assert.deepEqual(
     m.footer.map((b) => b.say),
-    ['next episode', 'back to episodes', 'list shows'],
+    ['next episode', 'previous episode', 'back to episodes', 'list shows', 'where am I'],
+    'every move the answer names is a button',
   );
 
   const section = showMove(ask('section 2', m.at), { shows, at: m.at });
@@ -287,4 +288,26 @@ test('a show is found by the number it was given, not by its place in the list',
     /^Show 5: Harbor Voices\. Episode 5\.2: /,
   );
   assert.equal(briefInPlay(numbered, { show: 1, episode: 1, section: null, offset: 0 }), null);
+});
+
+test('every answer offers its next moves as buttons, including a refusal and where am I', () => {
+  const labels = (said, at) => showMove(ask(said, at), { shows, at }).footer.map((b) => b.label);
+  assert.deepEqual(labels('1.1'), ['Next episode', 'Episodes', 'Shows', 'Where am I']);
+  assert.deepEqual(labels('1.2.2'), [
+    'Next section',
+    'Previous section',
+    'Back to episode',
+    'Episodes',
+    'Shows',
+    'Where am I',
+  ]);
+  assert.deepEqual(labels('1.2.1'), ['Next section', 'Back to episode', 'Episodes', 'Shows', 'Where am I']);
+  assert.deepEqual(labels('where am I', open), ['Back to episode', 'Episodes', 'Shows']);
+  assert.deepEqual(labels('search 1.2.3'), ['Shows']);
+  assert.deepEqual(labels('9.1'), ['Shows']);
+  assert.deepEqual(showMove({ kind: 'shows' }, { shows: [] }).footer, []);
+  // Each button's words are a command the same parser reads.
+  for (const at of [open, { ...open, section: 2 }])
+    for (const b of showMove({ kind: 'where' }, { shows, at }).footer)
+      assert.ok(showCommand(b.say, { at, shows }), b.say);
 });

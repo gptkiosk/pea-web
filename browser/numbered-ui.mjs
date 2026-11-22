@@ -135,6 +135,7 @@ export function installNumbered({
     shown = {
       title: move.title,
       rows: move.rows,
+      footer: move.footer,
       link: item?.link ?? null,
       note: move.level === 'none' ? move.say : hints[move.level],
     };

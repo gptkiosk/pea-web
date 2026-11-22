@@ -1635,6 +1635,18 @@ $('composer').onsubmit = (e) => {
   void submit('chat');
 };
 $('collab-send').onclick = () => void submit('greenhouse');
+// Enter sends, as in other chats; Shift+Enter makes a new line. Not while a word is still being
+// composed (as with Japanese or Chinese input), where Enter finishes the word.
+for (const [id, surface] of [
+  ['thought', 'chat'],
+  ['collab-thought', 'greenhouse'],
+])
+  $(id).addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    void submit(surface);
+  });
 $('attach-open').onclick = () => tab('greenhouse');
 $('discuss').onclick = () => {
   if (!selected) return;

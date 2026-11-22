@@ -230,6 +230,33 @@ const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 // where each row and footer button carries the words that pressing it stands for, `say` is the
 // answer in words, and `send` a message to pass to the model as the owner's own (a section only).
 export function showMove(command, { shows = [], at = idle() } = {}) {
+  const move = plainMove(command, { shows, at }),
+    here = move.at,
+    back = [
+      ...(here.episode !== null ? [{ label: 'Back to episode', say: 'back to episode' }] : []),
+      ...(here.show !== null ? [{ label: 'Episodes', say: 'back to episodes' }] : []),
+      ...(shows.length ? [{ label: 'Shows', say: 'list shows' }] : []),
+    ];
+  // Every move the answer names aloud is also a button, so it can be pressed instead of said.
+  if (move.level === 'episode')
+    move.footer = [
+      { label: 'Next episode', say: 'next episode' },
+      ...(here.episode > 1 ? [{ label: 'Previous episode', say: 'previous episode' }] : []),
+      { label: 'Episodes', say: 'back to episodes' },
+      { label: 'Shows', say: 'list shows' },
+      { label: 'Where am I', say: 'where am I' },
+    ];
+  else if (move.level === 'section')
+    move.footer = [
+      { label: 'Next section', say: 'next section' },
+      ...(here.section > 1 ? [{ label: 'Previous section', say: 'previous section' }] : []),
+      ...back,
+      { label: 'Where am I', say: 'where am I' },
+    ];
+  else if (move.level === 'none') move.footer = back;
+  return move;
+}
+function plainMove(command, { shows = [], at = idle() } = {}) {
   const none = (say, here = at) => ({
     at: here,
     level: 'none',

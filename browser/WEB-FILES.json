@@ -108,6 +108,7 @@
   "tests/dom/decks.test.mjs",
   "tests/dom/documents.test.mjs",
   "tests/dom/dragdrop.test.mjs",
+  "tests/dom/enter-sends.test.mjs",
   "tests/dom/headlines.test.mjs",
   "tests/dom/handoff.test.mjs",
   "tests/dom/harness.mjs",

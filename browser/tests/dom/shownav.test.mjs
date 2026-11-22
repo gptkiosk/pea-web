@@ -110,7 +110,7 @@ test(
       '1.1.1',
       'The Grey Point Trust voted on it in March, and the old lamp won by 42 votes to nine.',
     ]);
-    assert.deepEqual(seen.footer, ['Next episode', 'Episodes', 'Shows']);
+    assert.deepEqual(seen.footer, ['Next episode', 'Episodes', 'Shows', 'Where am I']);
 
     await type(page, 'where am I');
     await noted(
@@ -121,6 +121,12 @@ test(
     await noted(page, /cannot search the web, so section 1\.1\.2 was not searched/);
     await type(page, 'list citations');
     await noted(page, /No scientific citations are kept/);
+    // What a refusal or "where am I" names aloud can be pressed too.
+    assert.deepEqual((await panel(page)).footer, ['Back to episode', 'Episodes', 'Shows']);
+    await page.evaluate(
+      `[...document.querySelectorAll('#numbered .numbered-footer button')].find((b) => b.textContent === 'Episodes').click()`,
+    );
+    await titled(page, 'Show 1: Harbor Voices');
     // A footer button does what its words do.
     await type(page, '1.1');
     await titled(page, 'Episode 1.1');
