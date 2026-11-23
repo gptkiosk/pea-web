@@ -106,6 +106,8 @@ export function installCurated({ review, changed = () => {} }) {
     topic = '',
     storeText = '',
     room = roomDefault,
+    // Talk from briefs: whether the open episode's brief and digest go with a Chat message.
+    talk = true,
     stored = { chars: 0, digestsOut: 0, episodesOut: 0, kept: false },
     // Episodes the owner pinned, by show: kept while the curator lists them, whatever the count.
     pins = {},
@@ -152,6 +154,7 @@ export function installCurated({ review, changed = () => {} }) {
           .slice(0, 40),
       );
       current = saved.current === true;
+      talk = saved.talk !== false;
       room = roomChoices.includes(saved.room) ? saved.room : roomDefault;
       checkedAt = Number.isSafeInteger(saved.checked) && saved.checked <= Date.now() ? saved.checked : 0;
       numbers = whole(saved.numbers, 1, 999);
@@ -180,6 +183,7 @@ export function installCurated({ review, changed = () => {} }) {
             ...(Object.keys(pins).length ? { pins } : {}),
             ...(Object.keys(names).length ? { names } : {}),
             ...(current ? { current: true } : {}),
+            ...(talk ? {} : { talk: false }),
             ...(room !== roomDefault ? { room } : {}),
             ...(checkedAt ? { checked: checkedAt } : {}),
           }),
@@ -446,6 +450,8 @@ export function installCurated({ review, changed = () => {} }) {
     $('curated-renumber').disabled = busy;
     $('curated-request').hidden = !allowed;
     $('curated-current-row').hidden = !allowed;
+    $('curated-talk-row').hidden = !allowed || !followed.length;
+    $('curated-talk').checked = talk;
     $('curated-storage').hidden = !allowed || !followed.length;
     const pick = $('curated-room');
     if (pick.options.length !== roomChoices.length)
@@ -866,6 +872,16 @@ export function installCurated({ review, changed = () => {} }) {
     save();
     await refresh(id);
   }
+  $('curated-talk').onchange = () => {
+    talk = $('curated-talk').checked;
+    save();
+    say(
+      talk
+        ? 'Talk from briefs is on. With an episode open, its brief and digest go with a Chat message, after the usual review.'
+        : 'Talk from briefs is off. Nothing from a curated episode goes with a Chat message. You can still walk shows and episodes by number.',
+    );
+    render();
+  };
   $('curated-room').onchange = () => {
     const n = Number($('curated-room').value);
     if (busy || !roomChoices.includes(n)) return render();
@@ -957,6 +973,7 @@ export function installCurated({ review, changed = () => {} }) {
     names = {};
     $('curated-detail').close();
     current = false;
+    talk = true;
     room = roomDefault;
     topic = '';
     storeText = '';
@@ -1033,5 +1050,6 @@ export function installCurated({ review, changed = () => {} }) {
         }))
         .sort((a, b) => a.number - b.number),
     count: () => followed.length,
+    talks: () => talk,
   };
 }

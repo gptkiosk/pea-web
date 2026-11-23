@@ -209,6 +209,32 @@ test(
     // Another episode's brief goes without asking again; leaving the episode stops it.
     assert.match(system(), /Episode 1\.1: “Who counts the ships at Grey Point\?”/);
     assert.equal(await page.evaluate(`document.getElementById('review').open`), false);
+
+    // Talk from briefs is on until the owner switches it off. Off: nothing of the open episode
+    // goes with a message, and walking by number still works. On again: it goes as before.
+    assert.equal(await page.evaluate(`document.getElementById('curated-talk').checked`), true);
+    assert.equal(await page.evaluate(`document.getElementById('curated-talk-row').hidden`), false);
+    await page.evaluate(`document.getElementById('curated-talk').click()`);
+    assert.match(
+      await page.evaluate(`document.getElementById('curated-note').textContent`),
+      /^Talk from briefs is off\. Nothing from a curated episode goes with a Chat message\./,
+    );
+    assert.equal(JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`)).talk, false);
+    await askModel(stack, page, 'What else is there to say?');
+    assert.doesNotMatch(
+      system(),
+      /A curated brief of the podcast episode|From the episode’s digest|Grey Point/,
+    );
+    await type(page, '1.2');
+    await titled(page, 'Episode 1.2');
+    await type(page, '1.1');
+    await titled(page, 'Episode 1.1');
+    await page.evaluate(`document.getElementById('curated-talk').click()`);
+    assert.equal(JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`)).talk, undefined);
+    await askModel(stack, page, 'And with the brief again?');
+    assert.match(system(), /A curated brief of the podcast episode the owner has open/);
+    assert.match(system(), /Episode 1\.1: “Who counts the ships at Grey Point\?”/);
+
     await type(page, 'back to shows');
     await titled(page, 'Your shows');
     await askModel(stack, page, 'And now something else.');

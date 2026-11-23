@@ -23,6 +23,14 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Knowledge sources, fifth slice: Talk from briefs — 2026-11-22
+
+**Branch `feature/talk-from-briefs`, version `0.1.0-rc.4.dev.43`.** The owner said "Yes, build it" to the Talk from briefs switch.
+
+- `browser/knowledge-ui.mjs`: `talk` (on by default, saved as `talk: false` in `pea-curated-v1` only when off), `#curated-talk` in `#curated-talk-row` (shown when a show is followed), `talks()` returned to the app. `browser/app.mjs`: the `brief` hook gives nothing when `curated.talks()` is false, so neither brief nor digest is sent and the review and activity list do not name one.
+- Tests: `browser/tests/dom/shownav.test.mjs` (extended): on by default, off sends nothing of the episode and numbered moves still work, on again sends it.
+- Known gaps: the iPhone switch also routes show and topic questions to a brief with no episode open; the web has no such routing. Pressing a section still sends that section's own sentence as the owner's message, switch or not, because that is the owner's explicit choice of words. Remaining from the screen: another catalog address; format 1.4 and citations once published; Web briefs, OpenAlex, built-in lookups and health topics need the owner's decisions. Not looked at by eye.
+
 ## Knowledge sources, fourth slice: storage limit — 2026-11-22
 
 **Branch `feature/storage-limit`, version `0.1.0-rc.4.dev.42`.** The owner said "Yes, build it" to the storage limit.
