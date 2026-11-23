@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Settings button from a mislabelled block — 2026-11-23
+
+**Branch `fix/settings-button-label`, version `0.1.0-rc.4.dev.54`.** The owner sent a picture of their installed copy: asked how to connect Google, the model wrote `{"op":"settings","place":"connections"}` in a block labelled `json`, which was shown as code with no button.
+
+- `browser/actions.mjs`: `relabelNavigation(raw)` rewrites the block to `pea-nav` only when the reply has no `pea-` block, and exactly one fenced block labelled `json` or unlabelled whose whole content is one of the two navigation shapes for a known place or workspace. `navigationProposals` and `visibleReply` both read through it. `browser/app.mjs`: the notice on a reply written with a stranger's page in view counts such a block too (no button is offered there, as before). `browser/settings.mjs`: the guidance names the label and asks for the most exact place.
+- Tests: `browser/tests/settings.test.mjs` (one new), `browser/tests/dom/settings-links.test.mjs` (a mislabelled reply gives the button and shows no code).
+- Known gaps: other action blocks are not read under a wrong label, on purpose. A model that writes the JSON with no fence at all still shows it as text.
+- Next action: the owner's go to merge.
+
 ## Transcript deep-dive — 2026-11-23
 
 **Branch `feature/transcripts`, version `0.1.0-rc.4.dev.53`.** From the owner's description of the iPhone app ("Digging into a section… fetches and indexes the full transcript on-device once… selects up to 3 verbatim passages"). No iPhone file was read.

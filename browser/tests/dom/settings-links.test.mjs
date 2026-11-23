@@ -18,9 +18,15 @@ before(
         ? 'It is in Connections.\n```pea-nav\n' +
           JSON.stringify({ op: 'settings', place: 'google' }) +
           '\n```'
-        : said.includes('sneaky')
-          ? 'Here.\n```pea-nav\n' + JSON.stringify({ op: 'settings', place: 'google', value: 'x' }) + '\n```'
-          : 'A plain synthetic reply.',
+        : said.includes('mislabel')
+          ? 'Start under connections.\n\n```json\n' +
+            JSON.stringify({ op: 'settings', place: 'local-model' }) +
+            '\n```\n\nJust click it.'
+          : said.includes('sneaky')
+            ? 'Here.\n```pea-nav\n' +
+              JSON.stringify({ op: 'settings', place: 'google', value: 'x' }) +
+              '\n```'
+            : 'A plain synthetic reply.',
     );
   },
   { timeout: 60000 },
@@ -127,6 +133,19 @@ test(
       1,
     );
 
+    // A model that labels the block "json" still gives a button, and the JSON is not shown as code.
+    await askModel(stack, page, 'Now mislabel one.');
+    await page.waitFor(
+      `[...document.querySelectorAll('#messages button')].some((b) => b.textContent === 'Open Local model settings')`,
+      'the button from a mislabelled block',
+    );
+    assert.equal(
+      await page.evaluate(
+        `/"op"|settings","place/.test([...document.querySelectorAll('#messages .utterance.assistant')].at(-1).textContent)`,
+      ),
+      false,
+    );
+
     // The owner's own words: another panel takes the place beside the page. No model is asked.
     const before = stack.model.requests.length;
     await type(page, 'open privacy settings');
@@ -142,7 +161,7 @@ test(
     assert.equal((await shown(page, 'connections')).open, false);
     assert.equal(await page.evaluate(`document.getElementById('thought').value`), '');
     assert.equal(stack.model.requests.length, before);
-    assert.equal(await page.evaluate(`document.querySelectorAll('#messages .utterance.user').length`), 3);
+    assert.equal(await page.evaluate(`document.querySelectorAll('#messages .utterance.user').length`), 4);
 
     // Closing it gives the page its width back, and the model is no longer told of it.
     await page.evaluate(`document.getElementById('preferences').close()`);

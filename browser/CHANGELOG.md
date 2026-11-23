@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.54] - 2026-11-23
+
+### Fixed
+
+- **The settings button now appears when your model mislabels it.** Asked how to connect Google, a model offered the button as a block labelled "json", so PEA showed the raw code and nothing to press. When a reply holds exactly one such block, labelled "json" or not labelled, and it is exactly a navigation offer and nothing else, PEA now reads it as the button and no longer shows the code. Only navigation is read this way, because it can do no more than open a panel; every other kind of action still needs its exact label.
+- Your model is now told the exact label to use, and to name the most exact place (Google, not Connections, for Gmail or Calendar).
+
 ## [0.1.0-rc.4.dev.53] - 2026-11-23
 
 ### Added

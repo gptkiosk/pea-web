@@ -14,7 +14,7 @@ import {
   settingsPlace,
   settingsPlaces,
 } from '../settings.mjs';
-import { navigationProposals } from '../actions.mjs';
+import { navigationProposals, relabelNavigation, visibleReply } from '../actions.mjs';
 
 const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const nav = (value) => '```pea-nav\n' + JSON.stringify(value) + '\n```';
@@ -166,4 +166,46 @@ test('the model is told the places by name, and what is open beside the chat', (
   assert.match(settingsOpenLine('google'), /^The owner has PEA’s “Google” settings open beside this chat\./);
   assert.match(settingsOpenLine('google'), /you cannot see or change it/);
   assert.equal(settingsOpenLine('nowhere'), '');
+});
+
+test('a navigation block a model labelled json, or did not label, is still the button it was meant to be', () => {
+  const said = (label, value) =>
+    'It is under connections.\n\n```' + label + '\n' + JSON.stringify(value) + '\n```\n\nJust click it.';
+  for (const label of ['json', 'JSON', '']) {
+    const raw = said(label, { op: 'settings', place: 'connections' });
+    assert.deepEqual(navigationProposals(raw), [{ place: 'connections' }], label || 'no label');
+    assert.equal(
+      visibleReply(raw),
+      'It is under connections.\n\n\n\nJust click it.',
+      'and it is not shown as code',
+    );
+  }
+  assert.deepEqual(navigationProposals(said('json', { op: 'navigate', tab: 'today' })), [{ tab: 'today' }]);
+  // Anything that is not exactly a navigation shape stays what it was: code the owner can read.
+  for (const value of [
+    { op: 'settings', place: 'nowhere' },
+    { op: 'settings', place: 'google', value: 'x' },
+    { op: 'story', title: 'x' },
+    { op: 'read', url: 'https://example.org/' },
+    [{ op: 'settings', place: 'google' }],
+  ]) {
+    const raw = said('json', value);
+    assert.deepEqual(navigationProposals(raw), [], JSON.stringify(value));
+    assert.equal(relabelNavigation(raw), raw);
+    assert.match(visibleReply(raw), /```json/);
+  }
+  // Two such blocks, a block in another language, or a real PEA block beside it: left alone.
+  const two =
+    said('json', { op: 'settings', place: 'google' }) + said('json', { op: 'navigate', tab: 'chat' });
+  assert.deepEqual(navigationProposals(two), []);
+  assert.deepEqual(navigationProposals(said('js', { op: 'settings', place: 'google' })), []);
+  const beside =
+    said('json', { op: 'settings', place: 'google' }) +
+    '\n```pea-nav\n' +
+    JSON.stringify({ op: 'navigate', tab: 'chat' }) +
+    '\n```';
+  assert.deepEqual(navigationProposals(beside), [{ tab: 'chat' }]);
+  assert.match(visibleReply(beside), /```json/);
+  assert.equal(relabelNavigation(null), null);
+  assert.match(settingsGuidance, /followed by pea-nav, never json/);
 });
