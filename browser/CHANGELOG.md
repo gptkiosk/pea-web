@@ -2,6 +2,23 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.53] - 2026-11-23
+
+### Added
+
+- **Go deeper: the publisher's own words for a section.** A brief gives you the claims; the publisher's transcript gives you what was actually said. Where the catalog says where a publisher keeps its transcript, a section now has a **Go deeper** button (or say "go deeper", "read the transcript", "what exactly did they say").
+  - **Review first.** PEA shows the one address and its size. Nothing is read until you approve, and declining asks nobody.
+  - **One request, through your PEA server,** to the publisher's own file. The curator's catalog does not carry transcripts; it only says where they are.
+  - **What you see:** up to three passages nearest the section, word for word, with the time and the speaker where the publisher gives them.
+  - **With Chat:** while that section is open, those passages go with your message as labelled quotation, after the usual review, in place of the digest. Your model is told to quote them exactly and not to claim knowledge of the rest.
+  - **The rest of the episode is instant.** The transcript is kept in this tab, so going deeper on another section of the same episode asks nobody. It is not saved, is in no backup, and a reload forgets it.
+  - **Kinds of file:** captions (WebVTT, SubRip), plain text, Markdown, and web pages, including pages that write the transcript as loose lines.
+- Your PEA server's reader now accepts caption and Markdown files as well as pages. This is in the shared contract, and both the Python and the Mac server pass the same tests for it.
+
+### Changed
+
+- The most of one episode that goes with a Chat message is now 4,200 characters, up from 3,200, to make room for passages.
+
 ## [0.1.0-rc.4.dev.51] - 2026-11-23
 
 ### Changed

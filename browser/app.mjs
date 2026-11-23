@@ -36,6 +36,7 @@ import { installTodos } from './todos-ui.mjs';
 import { installWeather } from './weather-ui.mjs';
 import { installResearch } from './research-ui.mjs';
 import { installSettings, present } from './settings-ui.mjs';
+import { installTranscripts } from './transcript-ui.mjs';
 import { ownerSettings, placeInAddress, placeInMessage, settingsPlace } from './settings.mjs';
 import { installHeadlines } from './feeds-ui.mjs';
 import { installHome } from './home-ui.mjs';
@@ -2740,6 +2741,8 @@ research = installResearch({
   secrets: () => memory?.secrets ?? null,
 });
 numbered = installNumbered({
+  // A publisher's transcript, read once the owner approves its address; kept in this tab only.
+  transcripts: installTranscripts({ review: live.review, key: live.localKey, read: live.readPage, notice }),
   groups: () => headlines?.groups() ?? [],
   shows: () => curated?.shows() ?? [],
   quiet: () => stopVoices(),

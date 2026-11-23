@@ -6,6 +6,7 @@
 // ("where am I"). No model reads the words or chooses the move. This parser receives the owner's
 // submitted words only, never a model's output.
 import { catalogAddress, digestLines, knowledgeLimits, textReason } from './knowledge.mjs';
+import { clock, passageLines, passagesFor, transcriptLimits } from './transcript.mjs';
 
 export const showLimits = { said: 180, sections: 6, page: 5, aloud: 6, snippet: 120 };
 
@@ -131,6 +132,13 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
       return { kind: 'citation', ...here, number: null, step: { next: 1, previous: -1, first: 0 }[m[1]] };
     if ((m = is(`(?:citation|c|paper|study)\\s*(?:number\\s+)?${N}`)))
       return { kind: 'citation', ...here, number: +m[1] };
+    // The publisher's own transcript, for the passages behind the open section.
+    if (
+      is(
+        '(?:go|dig|look)\\s+deeper|(?:read|get|fetch|open)\\s+(?:the\\s+)?(?:full\\s+)?transcript|what\\s+(?:exactly\\s+)?(?:did\\s+they\\s+say|was\\s+said)|(?:the\\s+)?exact\\s+words|(?:show\\s+)?(?:the\\s+)?passages',
+      )
+    )
+      return { kind: 'deeper', ...here };
     // Looking for studies behind the open section, or searching the web for it.
     if (
       is(
@@ -289,6 +297,29 @@ export function citationsOf(claim) {
       link: c.link,
     }));
 }
+// An episode's claims, counted as sectionsOf counts its sections.
+export const sectionClaims = (brief) =>
+  (brief?.claims ?? []).filter((c) => typeof c?.text === 'string' && c.text).slice(0, showLimits.sections);
+// Where the publisher keeps the transcript of an item, when the catalog says and PEA can read it:
+// { link, format, extract }. The catalog's own check has already passed the address.
+export function sourceOf(item) {
+  const source = item?.transcript_source;
+  return source &&
+    typeof source === 'object' &&
+    transcriptLimits.formats.includes(source.format) &&
+    catalogAddress(source.link) &&
+    (!Number.isFinite(source.bytes) || source.bytes <= transcriptLimits.bytes)
+    ? {
+        link: source.link,
+        format: source.format,
+        bytes: Number.isFinite(source.bytes) ? source.bytes : null,
+        extract:
+          source.format === 'html' && source.extract && typeof source.extract === 'object'
+            ? source.extract
+            : {},
+      }
+    : null;
+}
 // The citations of one section of a brief, counted as sectionsOf counts its sections.
 export function sectionCitations(brief, section) {
   const claims = (brief?.claims ?? []).filter((c) => typeof c?.text === 'string' && c.text);
@@ -321,8 +352,8 @@ const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 //   { at, level, title, rows: [{ label, text, say }], hint, footer: [{ label, say }], say, send }
 // where each row and footer button carries the words that pressing it stands for, `say` is the
 // answer in words, and `send` a message to pass to the model as the owner's own (a section only).
-export function showMove(command, { shows = [], at = idle() } = {}) {
-  const move = plainMove(command, { shows, at }),
+export function showMove(command, { shows = [], at = idle(), transcriptOf = () => null } = {}) {
+  const move = plainMove(command, { shows, at, transcriptOf }),
     here = move.at,
     back = [
       ...(here.episode !== null ? [{ label: 'Back to episode', say: 'back to episode' }] : []),
@@ -343,11 +374,12 @@ export function showMove(command, { shows = [], at = idle() } = {}) {
       { label: 'Next section', say: 'next section' },
       ...(here.section > 1 ? [{ label: 'Previous section', say: 'previous section' }] : []),
       ...(move.cited ? [{ label: `Citations (${move.cited})`, say: 'list citations' }] : []),
+      ...(move.deep ? [{ label: move.deep === 'kept' ? 'Passages' : 'Go deeper', say: 'go deeper' }] : []),
       { label: 'Check studies', say: 'check studies' },
       ...back,
       { label: 'Where am I', say: 'where am I' },
     ];
-  else if (move.level === 'citations' || move.level === 'citation')
+  else if (move.level === 'citations' || move.level === 'citation' || move.level === 'passages')
     move.footer = [
       ...(move.level === 'citation' && move.cited > 1
         ? [
@@ -362,7 +394,7 @@ export function showMove(command, { shows = [], at = idle() } = {}) {
   else if (move.level === 'none') move.footer = back;
   return move;
 }
-function plainMove(command, { shows = [], at = idle() } = {}) {
+function plainMove(command, { shows = [], at = idle(), transcriptOf = () => null } = {}) {
   const none = (say, here = at) => ({
     at: here,
     level: 'none',
@@ -484,6 +516,8 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
       title: `Section ${s}.${e}.${p}`,
       rows: [{ label: `${s}.${e}.${p}`, text, sub: `${found.name} · ${episode.item.title}`, say: null }],
       cited: sectionCitations(episode.brief, p).length,
+      // Whether the publisher's transcript can be read for this episode, or is already kept.
+      deep: transcriptOf(found, episode) ? 'kept' : sourceOf(episode.item) ? 'can' : null,
       hint:
         'Sent to your model as your next message. Say “next section”, “back to episode” or “where am I”.' +
         (sectionCitations(episode.brief, p).length
@@ -513,6 +547,8 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
     return {
       at: { show: s, episode: e, section: p, offset: at.show === s ? at.offset : 0 },
       address: `${s}.${e}.${p}`,
+      show: found,
+      episode,
       text,
       papers: sectionCitations(episode.brief, p),
     };
@@ -559,6 +595,53 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
           place.at,
         ),
         lookup: { kind: studies ? 'papers' : 'search', query },
+      };
+    }
+    case 'deeper': {
+      const place = section(command);
+      if (place.refusal) return place.refusal;
+      const lines = transcriptOf(place.show, place.episode);
+      if (!lines) {
+        const source = sourceOf(place.episode.item);
+        if (!source)
+          return none(
+            `The publisher gives no transcript PEA can read for this episode, so section ${place.address} is all there is.`,
+            place.at,
+          );
+        // Nothing is asked here: the page reviews the one address with the owner first.
+        return {
+          ...none(
+            `Review reading the publisher’s transcript for episode ${command.show}.${command.episode}.`,
+            place.at,
+          ),
+          deeper: { show: command.show, episode: command.episode, section: command.section, source },
+        };
+      }
+      const claim = sectionClaims(place.episode.brief)[command.section - 1],
+        found = passagesFor(lines, place.text, claim?.ref ?? null);
+      if (!found.length)
+        return none(
+          `The transcript is kept, but no passage of it matches section ${place.address} closely enough to quote.`,
+          place.at,
+        );
+      return {
+        at: place.at,
+        level: 'passages',
+        deep: 'kept',
+        cited: place.papers.length,
+        title: `Section ${place.address}, in the publisher’s words`,
+        rows: found.map((p) => ({
+          label: p.t === null ? '…' : clock(p.t),
+          text: p.text,
+          sub: p.who || null,
+          say: null,
+        })),
+        hint: 'Word for word from the publisher’s transcript, the passages nearest this section. They go with your next Chat message, after the usual review.',
+        footer: [],
+        say:
+          `${count(found.length, 'passage', 'passages')} for section ${place.address}. ` +
+          found.map((p) => p.text).join(' '),
+        send: null,
       };
     }
     case 'citations': {
@@ -652,12 +735,12 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
 }
 
 // The most text of one episode that goes with a Chat message: its brief, then its digest.
-export const briefShared = 3200;
+export const briefShared = 4200;
 
 // The brief of the episode the owner has open, as the quoted evidence that goes with a Chat
 // message: its label, the exact words, and a key that changes when the brief does. Sections carry
 // their addresses so the owner and the model can name the same one. Null when no episode is open.
-export function briefInPlay(shows, at) {
+export function briefInPlay(shows, at, transcriptOf = () => null) {
   if (!at || at.show === null || at.episode === null) return null;
   const show = showNumbered(shows, at.show),
     episode = show?.episodes[at.episode - 1],
@@ -675,6 +758,15 @@ export function briefInPlay(shows, at) {
   sectionsOf(b).forEach((text, i) => lines.push(`Section ${address}.${i + 1}: ${text}`));
   if (b.new) lines.push(`New: ${b.new}`);
   for (const q of b.quotes ?? []) lines.push(`Quote (${q.speaker}): “${q.text}”`);
+  // The open section in the publisher's own words, when the owner had the transcript read. With
+  // these in hand the digest is left out: they are the same ground, word for word.
+  const spoken = at.section ? transcriptOf(show, episode) : null,
+    claim = at.section ? sectionClaims(b)[at.section - 1] : null,
+    deep =
+      spoken && claim
+        ? passageLines(passagesFor(spoken, claim.text, claim.ref ?? null), `${address}.${at.section}`)
+        : [];
+  lines.push(...deep);
   // The open section's citations, within their own limit: the open one first when one is open.
   const papers = at.section ? sectionCitations(b, at.section) : [],
     cited = [];
@@ -695,20 +787,22 @@ export function briefInPlay(shows, at) {
       );
   }
   // The episode's digest, when it is kept: what it adds to the brief, within its own limit.
-  const more = episode.digest
-    ? digestLines(
-        episode.digest,
-        [b.headline, b.new, ...sectionsOf(b), ...(b.quotes ?? []).map((q) => q.text)],
-        Math.max(0, Math.min(knowledgeLimits.digestShared, briefShared - lines.join('\n').length - 1)),
-      )
-    : [];
+  const more =
+    episode.digest && !deep.length
+      ? digestLines(
+          episode.digest,
+          [b.headline, b.new, ...sectionsOf(b), ...(b.quotes ?? []).map((q) => q.text)],
+          Math.max(0, Math.min(knowledgeLimits.digestShared, briefShared - lines.join('\n').length - 1)),
+        )
+      : [];
   lines.push(...more);
   return {
     digest: more.length > 0,
+    passages: Math.max(0, deep.length - 1),
     citations: cited.length,
     label: `“${episode.item.title}” (${show.name}, ${dayOf(episode.item.date)})`,
     title: episode.item.title,
     text: lines.join('\n'),
-    key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}${more.length ? '/' + (episode.item.digest?.sha256 ?? '') : ''}${cited.length ? `/c${at.section}.${at.citation ?? 0}` : ''}`,
+    key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}${more.length ? '/' + (episode.item.digest?.sha256 ?? '') : ''}${cited.length ? `/c${at.section}.${at.citation ?? 0}` : ''}${deep.length ? `/t${at.section}` : ''}`,
   };
 }
