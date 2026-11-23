@@ -44,6 +44,7 @@ Not checked yet: whether macOS allows notifications from the unsigned developmen
 
 - `Sources/PEAGatewayCore`: the gateway. It listens on `127.0.0.1` only, serves the web files named in `browser/server/contract.json`, and passes text chat to a model server on the same Mac. It keeps no log of requests or conversations and cannot be pointed at another machine.
 - `Sources/PEAGatewayCore/Reader.swift`: the page reader behind `/v1/read`. It looks a name up once, refuses it if any address is private or local, connects to one of those checked addresses with the certificate verified against the name, and reports a redirect without following it.
+- `Sources/PEAGatewayCore/Search.swift`: the search rules behind `/v1/search`. A request names one of the providers from the rules file, the owner's key and the search words; the one request it is sent, its host, path and options all come from the rules file. It shares the one provider slot with speech.
 - `Sources/PEAGatewayCore/Speech.swift`: the speech rules behind `/v1/speak` and `/v1/voices`. A request names one of two providers from the rules file, and the one request sent to it is built only from those rules. The sending is in `Gateway.swift`, through the same session that never follows a redirect.
 - `Sources/pea-gateway`: a command-line tool around the core, for development and tests.
 - `Sources/PEALauncherCore`: what the app does apart from drawing: the Keychain token, remembered port and model address, starting and stopping the gateway, finding a free port, `Updates.swift`, which compares this build with the latest published release, and `Reminders.swift`, which decides whether reminders handed over by the page become notifications.
@@ -74,7 +75,7 @@ PEA_GATEWAY_COMMAND="[\"$PWD/mac/.build/debug/pea-gateway\"]" python3 browser/se
 PEA_GATEWAY=swift node --test browser/tests/dom/*.test.mjs
 ```
 
-`pea-gateway` also takes `--speech-test-port PROVIDER=PORT`, for tests only: a stand-in for a voice provider on this Mac. It also takes `--reader-test-site NAME.example=PORT` and `--reader-test-resolve NAME.example=ADDRESS`, for tests only: stand-ins for public sites so the page reader can be tested without the internet. The app never sets them.
+`pea-gateway` also takes `--speech-test-port PROVIDER=PORT`, for tests only: a stand-in for a voice or search provider on this Mac. It also takes `--reader-test-site NAME.example=PORT` and `--reader-test-resolve NAME.example=ADDRESS`, for tests only: stand-ins for public sites so the page reader can be tested without the internet. The app never sets them.
 
 `pea-gateway` also takes `--reminders-file PATH`, for tests only: accepted reminders are written to that file in place of being shown.
 

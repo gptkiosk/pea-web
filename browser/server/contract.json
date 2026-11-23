@@ -245,6 +245,42 @@
       }
     }
   },
+  "search": {
+    "about": "POST path {provider, key, query} asks one named search provider one question with the owner's own key, after the owner reviewed the exact words in the page. It is not a proxy: one fixed HTTPS request to the provider's own host on port 443 with its certificate checked, no redirects followed, bounded in time and size. Nothing in a request chooses the host, the path or any option. The key is used for that one request and is never kept or logged, and the provider's own error words are never passed on. It shares the one provider slot with speech: one such request at a time.",
+    "path": "/v1/search",
+    "fields": [
+      "provider",
+      "key",
+      "query"
+    ],
+    "queryCharacters": 200,
+    "keyPattern": "[A-Za-z0-9_-]{16,200}",
+    "bodyBytes": 600000,
+    "seconds": 45,
+    "userAgent": "PEA-Gateway/1 (asks one search its owner approved)",
+    "providers": {
+      "brave": {
+        "host": "api.search.brave.com",
+        "method": "GET",
+        "path": "/res/v1/llm/context?count=5&maximum_number_of_urls=5&maximum_number_of_tokens=2048&maximum_number_of_tokens_per_url=1024&q={query}",
+        "keyHeader": "X-Subscription-Token",
+        "keyPrefix": ""
+      },
+      "browserbase": {
+        "host": "api.browserbase.com",
+        "method": "POST",
+        "path": "/v1/search",
+        "queryField": "query",
+        "body": {
+          "numResults": 5,
+          "excerpts": true,
+          "mode": "fast"
+        },
+        "keyHeader": "X-BB-API-Key",
+        "keyPrefix": ""
+      }
+    }
+  },
   "updates": {
     "about": "GET path says whether this gateway can update its own installed copy and what happened last time. POST path {\"action\":\"check\"} looks for an update; POST path {\"action\":\"apply\",\"commit\"} installs exactly the commit the owner reviewed. Only a gateway its operator started with an installed checkout and service named can do either; any other answers that it is not available. Nothing in a request chooses the checkout, the channel, the service or the source of the update.",
     "path": "/v1/update",

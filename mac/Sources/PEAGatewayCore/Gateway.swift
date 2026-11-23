@@ -361,6 +361,7 @@ final class Client {
             let body = buffer.subdata(in: buffer.startIndex + bodyStart..<buffer.startIndex + bodyStart + bodyLength)
             if head?.target == contract.remindersPath { remind(body) } else if head?.target == contract.reader.path { read(body) }
             else if head?.target == contract.speech.path || head?.target == contract.speech.voicesPath { speak(body, listing: head?.target == contract.speech.voicesPath) }
+            else if head?.target == contract.search.path { search(body) }
             else if head?.target == contract.projects.path { project(body) }
             else if head?.target == contract.updatesPath {
                 // Checked the same way as any gateway would, then answered that it is not available here.
@@ -419,14 +420,15 @@ final class Client {
             let forReminders = head.target == contract.remindersPath, forReader = head.target == contract.reader.path
             let forSpeech = head.target == contract.speech.path || head.target == contract.speech.voicesPath
             let forUpdate = head.target == contract.updatesPath, forProjects = head.target == contract.projects.path
-            guard forReminders || forReader || forSpeech || forUpdate || forProjects || head.target == "/v1/chat/completions" else {
-                return reply(404, error: "Only model listing, text chat, reminders, the page reader, speech, updates and projects are exposed.")
+            let forSearch = head.target == contract.search.path
+            guard forReminders || forReader || forSpeech || forSearch || forUpdate || forProjects || head.target == "/v1/chat/completions" else {
+                return reply(404, error: "Only model listing, text chat, reminders, the page reader, speech, search, updates and projects are exposed.")
             }
             let type = head.headers["content-type"].map { String($0.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)[0]) }
             guard type == "application/json", head.headers["transfer-encoding"] == nil, let text = head.headers["content-length"],
                   (1...7).contains(text.count), text.allSatisfy({ ("0"..."9").contains($0) }), let length = Int(text),
                   length > 0, length <= contract.requestBytes else {
-                return reply(400, error: forProjects ? "Invalid project request." : forUpdate ? "Invalid update request." : forSpeech ? "Invalid speech request." : forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
+                return reply(400, error: forProjects ? "Invalid project request." : forUpdate ? "Invalid update request." : forSearch ? "Invalid search request." : forSpeech ? "Invalid speech request." : forReminders ? "Invalid reminder list." : forReader ? "Invalid read request." : "Invalid or oversized text chat request.")
             }
             bodyLength = length
             advance()
@@ -568,6 +570,59 @@ final class Client {
             }
             self.endSpeech()
             self.send(code: 200, body: data, type: rules.audioType)
+        }
+    }
+
+    /// Asks one search provider one question the owner reviewed, with one fixed request.
+    /// The key lives only in this request; the provider's answer is passed on as text, its errors never.
+    /// It shares the one provider slot with speech.
+    private func search(_ raw: Data) {
+        let rules = contract.search
+        guard let parsed = try? JSON.parse(raw), let request = try? rules.validate(parsed),
+              let out = rules.outbound(request, testPort: gateway.speechTestPorts[request.provider]) else {
+            return reply(400, error: "Invalid search request.")
+        }
+        guard gateway.speechRequests < contract.speech.concurrent else { return reply(429, error: "A provider request is already running. No automatic retry.") }
+        gateway.speechRequests += 1
+        holdsSpeechSlot = true
+        deadline?.cancel()
+        idle?.cancel()
+        answered = true  // nothing more is read from the browser; the answer comes when the provider has answered
+        var status = 0, acceptable = false, tooLarge = false
+        var data = Data()
+        let call = gateway.outbound(out)
+        self.call = call
+        watchForDisconnect()
+        func refuse(_ reason: String) {
+            endSpeech()
+            let body = JSONObject([("error", .string(SearchRules.refusals[reason] ?? "")), ("reason", .string(reason))])
+            send(code: 502, body: JSON.serialize(.object(body)), type: "application/json")
+        }
+        // One clock for the whole request, however slowly the provider answers.
+        speechLimit = after(rules.seconds) { refuse("failed") }
+        call.onResponse = { response in
+            status = response.statusCode
+            let type = (response.value(forHTTPHeaderField: "Content-Type") ?? "").split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+                .first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+            let encoding = (response.value(forHTTPHeaderField: "Content-Encoding") ?? "identity").trimmingCharacters(in: .whitespaces).lowercased()
+            acceptable = encoding == "identity" && type == "application/json"
+            return status == 200 && acceptable
+        }
+        call.onData = { chunk in
+            data.append(chunk)
+            if data.count > rules.bodyBytes {
+                tooLarge = true
+                call.task?.cancel()
+            }
+        }
+        call.onEnd = { error in
+            self.call = nil
+            guard !self.closed, self.holdsSpeechSlot else { return }
+            if status != 200 { return refuse(status == 0 ? "failed" : SearchRules.reason(status: status)) }
+            guard acceptable, !tooLarge, error == nil, !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return refuse("failed") }
+            self.endSpeech()
+            let body = JSONObject([("outcome", .string("results")), ("provider", .string(request.provider)), ("text", .string(text))])
+            self.send(code: 200, body: JSON.serialize(.object(body)), type: "application/json")
         }
     }
 

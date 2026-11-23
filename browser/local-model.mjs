@@ -1,6 +1,7 @@
 import { ServiceError, consumeStream } from './connections.mjs';
 import { readFailure } from './research.mjs';
 import { speechFailure, speechLimits } from './speech.mjs';
+import { searchFailure } from './research.mjs';
 // Same-origin gateway only: no arbitrary URL proxy, credential forwarding or cloud fallback.
 export class LocalModel {
   constructor(origin = globalThis.location?.origin, transport = globalThis.fetch.bind(globalThis)) {
@@ -26,6 +27,7 @@ export class LocalModel {
         '/v1/read',
         '/v1/speak',
         '/v1/voices',
+        '/v1/search',
         '/v1/update',
         '/v1/projects',
       ].includes(path) ||
@@ -117,6 +119,30 @@ export class LocalModel {
     }
     if (r.ok && Array.isArray(answer?.voices)) return answer;
     throw new ServiceError(speechFailure(provider, r.ok ? 0 : r.status, answer?.reason));
+  }
+  // Asks this server to make one web search with the owner's own provider key. `providerKey` goes
+  // only to this server, which uses it for that one request. Resolves with the provider's answer
+  // as text; a failure is told in PEA's own words.
+  async search(key, provider, providerKey, query) {
+    const r = await this.request('/v1/search', key, {
+      body: { provider, key: providerKey, query },
+      signal: AbortSignal.timeout(60000),
+      anyStatus: true,
+    });
+    let answer = null;
+    try {
+      answer = JSON.parse((await r.text()).slice(0, 1200000));
+    } catch {
+      // Handled as a failure below.
+    }
+    if (
+      r.ok &&
+      answer?.outcome === 'results' &&
+      answer.provider === provider &&
+      typeof answer.text === 'string'
+    )
+      return answer.text;
+    throw new ServiceError(searchFailure(provider, r.ok ? 0 : r.status, answer?.reason));
   }
   // Asks this server to speak reviewed text with a provider voice. Resolves with the sound.
   async speak(key, { provider, key: providerKey, voice, text }, signal) {

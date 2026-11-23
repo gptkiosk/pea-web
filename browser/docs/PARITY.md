@@ -88,6 +88,10 @@ The iPhone app looks up papers in OpenAlex alongside its web search and attaches
 
 The iPhone app has built-in lookups for weather, local news, TV shows and Wikipedia, each with a switch and a health dot (as the owner described it; its code was not read). Web already had weather and news feeds. It now also has Wikipedia and TV shows as reviewed lookups in Chat (`browser/research.mjs`): "wikipedia …" or "tv show …", or a button the model offers; one request each through the PEA server to `en.wikipedia.org` or `api.tvmaze.com`; the answer kept as plain words with its source and licence and shared only with the next reviewed message. Web has no per-lookup switch or health dot, no list of followed TV shows, and nothing is looked up unasked.
 
+## Web search
+
+The iPhone app searches the web with the owner's own Brave or Browserbase key and summarises pages into web briefs (as the owner described it; its code was not read). Web has one reviewed search at a time with either key (`browser/research.mjs`, `browser/research-ui.mjs`, gateway route `/v1/search`): "search for …" in Chat or a button the model offers, a review of the exact words and provider, one request through the PEA server, and up to five results with their extracts kept as plain words in the tab until the next reviewed Chat message. Brave is asked through its LLM Context endpoint, which Brave names for results a model will read; Browserbase through its Search endpoint with excerpts. Web makes no separate "web brief" by a model, fetches no result page by itself, and keeps no result beyond the tab.
+
 ## What the owner tells her
 
 With a switch the owner turns on, Web keeps a few of the owner's own Chat sentences about their life for 60 days in the saved library (version 3), picked by a fixed rule with no model involved, and gives up to four that fit to a later Chat conversation (`browser/memory.mjs`, `browser/memory-ui.mjs`). This is Web's own design; nothing here was taken from or checked against the iPhone app.

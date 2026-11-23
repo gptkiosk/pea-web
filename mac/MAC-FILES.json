@@ -9,6 +9,7 @@
   "Sources/PEAGatewayCore/Projects.swift",
   "Sources/PEAGatewayCore/Reader.swift",
   "Sources/PEAGatewayCore/Rules.swift",
+  "Sources/PEAGatewayCore/Search.swift",
   "Sources/PEAGatewayCore/Speech.swift",
   "Sources/PEALauncherCore/Launcher.swift",
   "Sources/PEALauncherCore/Reminders.swift",

@@ -780,11 +780,11 @@ export async function startStack(
       for (const [name, addresses] of Object.entries(site.resolve ?? {}))
         reader.push('--reader-test-resolve', `${name}=${addresses}`);
     }
-    // `voices` answers for both voice providers in place of the real ones.
+    // `voices` answers for the voice and search providers in place of the real ones.
     if (voices) {
       parts.voices = await startFakeVoices(voices);
       if (abandoned) return;
-      for (const provider of ['elevenlabs', 'fish'])
+      for (const provider of ['elevenlabs', 'fish', 'brave', 'browserbase'])
         reader.push('--speech-test-port', `${provider}=${parts.voices.port}`);
     }
     // `engine` answers as the owner's project engine would.

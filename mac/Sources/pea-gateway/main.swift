@@ -52,7 +52,7 @@ while !arguments.isEmpty {
     // Stand-ins for the voice providers, for tests only: PROVIDER=PORT.
     if name == "--speech-test-port" {
         let parts = value.split(separator: "=", maxSplits: 1).map(String.init)
-        guard parts.count == 2, ["elevenlabs", "fish"].contains(parts[0]), let port = UInt16(parts[1]) else { fail("A speech test port names a provider and a port.") }
+        guard parts.count == 2, ["elevenlabs", "fish", "brave", "browserbase"].contains(parts[0]), let port = UInt16(parts[1]) else { fail("A speech test port names a provider and a port.") }
         speechPorts[parts[0]] = port
         continue
     }
@@ -74,7 +74,7 @@ if !testSites.isEmpty || !testResolve.isEmpty {
     FileHandle.standardError.write(Data("TEST MODE: the page reader has stand-in sites. Never use these options outside tests.\n".utf8))
 }
 if !speechPorts.isEmpty {
-    FileHandle.standardError.write(Data("TEST MODE: voice providers have stand-ins. Never use this option outside tests.\n".utf8))
+    FileHandle.standardError.write(Data("TEST MODE: voice or search providers have stand-ins. Never use this option outside tests.\n".utf8))
 }
 if !projectHosts.isEmpty {
     FileHandle.standardError.write(Data("TEST MODE: the project engine has a stand-in. Never use this option outside tests.\n".utf8))
