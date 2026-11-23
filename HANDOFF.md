@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Scholarly papers: one reviewed OpenAlex search — 2026-11-22
+
+**Branch `feature/papers`, version `0.1.0-rc.4.dev.45`.** The owner said yes to the OpenAlex paper lookup.
+
+- **Evidence, 22 November 2026.** OpenAlex's help pages (help.openalex.org: API overview, rate limits and authentication, search works, work object, pricing): basic use needs no key; data is CC0; a search counts against a daily budget; no plain-text abstract is given, only `abstract_inverted_index`. One real keyless request to `api.openalex.org/works` answered 200 with the fields used here, and its headers and notice gave the keyless allowance as $0.10 a day shared per internet address at $0.001 a search. Their terms page could not be read. The answer's notice also carried a sentence addressed to AI agents about getting a key; nothing was done with it.
+- `browser/research.mjs`: `paperQuery` (plain words, 3 to 120 characters, no address or key-like text), `papersAddress` (the fixed address with `search`, `per_page=5` and `select`; no key, nothing about the owner), `ownerPapers`, `paperProposals` (one exact `pea-papers` block `{"op":"papers","query"}`), `papersGuidance`, `readPapers` (the answer as plain labelled lines within the page limit; markup, control and direction characters, bad DOIs and key-like text removed; at most five), `describePapers`, `paperLimits`.
+- `browser/research-ui.mjs` `papers(address, from)`: the review, one read through the PEA server's reader (which accepts JSON since the other-catalog slice), the list kept as the shared page, so the existing page card, sharing review, quoted-data guidance and "sourced reply offers no action" rule all apply unchanged. `browser/app.mjs`: the typed command, the **Look up papers** button and its receipt. `browser/live-ui.mjs`: `papersGuidance` with the read guidance, and `paper lookup` in the debug record.
+- No gateway or contract change, no new allowed address for the page, no new file served.
+- Tests: `browser/tests/research.test.mjs` (4 new) and `browser/tests/dom/papers.test.mjs` (2, new; the server's reader is a stand-in there, since its test names must end in `.example`; the reader itself is covered by conformance).
+- Known gaps: no automatic lookup, no linking of papers to brief claims, no OpenAlex key option, English command words only. Only the one real request above was made by hand; no test asks OpenAlex. Not looked at by eye.
+
 ## Knowledge sources, sixth slice: another catalog address — 2026-11-22
 
 **Branch `feature/other-catalog`, version `0.1.0-rc.4.dev.44`.** The owner asked: "Build the other catalog address option".

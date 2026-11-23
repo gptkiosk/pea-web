@@ -123,6 +123,7 @@
   "tests/dom/model-filter.test.mjs",
   "tests/dom/numbered.test.mjs",
   "tests/dom/other-catalog.test.mjs",
+  "tests/dom/papers.test.mjs",
   "tests/dom/preferences.test.mjs",
   "tests/dom/projects.test.mjs",
   "tests/dom/releases.test.mjs",

@@ -2,7 +2,14 @@
 // the plain words are kept in this tab only. They are shown here and reach a model only through
 // the model-sharing review of the next message. Nothing here is saved, and nothing is read unasked.
 import { ServiceError, containsCredential } from './connections.mjs';
-import { describeRead, pageAddress, pageText, researchLimits } from './research.mjs';
+import {
+  describePapers,
+  describeRead,
+  pageAddress,
+  pageText,
+  readPapers,
+  researchLimits,
+} from './research.mjs';
 import { beginWork, endWork, workStep, workWaiting } from './activity.mjs';
 import { showWork } from './activity-ui.mjs';
 
@@ -146,9 +153,90 @@ export function installResearch(hooks) {
     }
   }
 
+  // Reviews and makes one search of the public index of papers. `address` comes from
+  // papersAddress(); `from` is 'owner' or 'model'. Returns true when a list was kept.
+  async function papers(address, from) {
+    if (reading || hooks.isBusy()) {
+      hooks.notice('Finish the current request first.');
+      return false;
+    }
+    const who = hooks.profile();
+    if (who === 'blended') {
+      hooks.notice('Choose Work or Personal before looking up papers.');
+      return false;
+    }
+    if (!hooks.key()) {
+      hooks.notice(
+        'Looking up papers needs your PEA server. Connect it in Connections → Local model, then try again.',
+      );
+      return false;
+    }
+    reading = true;
+    let trail = null;
+    const finish = (outcome, icon, text) => {
+      if (trail) endWork(trail, outcome, icon, text, performance.now());
+      render();
+    };
+    try {
+      if (!(await hooks.review('Look up papers on this?', describePapers(address, { profile: who, from }))))
+        return false;
+      if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the search again.');
+      trail = beginWork(performance.now());
+      work = { profile: who, trail };
+      workStep(
+        trail,
+        'shield',
+        `You approved a search of OpenAlex for “${address.papers}”` +
+          (from === 'model' ? ', which PEA’s reply suggested' : ''),
+      );
+      workWaiting(trail, 'Your PEA server is asking OpenAlex…');
+      render();
+      const answer = await hooks.run(() => hooks.read(hooks.key(), address.url));
+      if (!answer) {
+        finish(
+          'failed',
+          'warn',
+          'The search could not be made. Nothing was kept, and PEA did not try again.',
+        );
+        return false;
+      }
+      if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the search again.');
+      workWaiting(trail, '');
+      const kept = answer.outcome === 'page' ? readPapers(answer.text, address.papers) : null;
+      if (!kept) throw new ServiceError('OpenAlex did not answer with a list of papers. Nothing was kept.');
+      if (!kept.count) throw new ServiceError('OpenAlex lists no papers for those words. Nothing was kept.');
+      page = {
+        profile: who,
+        url: address.url,
+        host: address.host,
+        title: kept.title,
+        text: kept.text,
+        length: kept.length,
+      };
+      workStep(trail, 'globe', `Your PEA server asked OpenAlex once`);
+      finish(
+        'done',
+        'file',
+        `Kept ${kept.count} ${kept.count === 1 ? 'paper' : 'papers'} as plain words, in this tab only`,
+      );
+      hooks.notice(
+        `${kept.count} ${kept.count === 1 ? 'paper is' : 'papers are'} listed and kept in this tab; your model sees them only after you review your next message.`,
+      );
+      return true;
+    } catch (error) {
+      const said = error instanceof ServiceError ? error.message : 'The search could not be made.';
+      finish('failed', 'warn', said);
+      hooks.notice(said);
+      return false;
+    } finally {
+      reading = false;
+    }
+  }
+
   render();
   return {
     read,
+    papers,
     clear,
     render,
     // What the next Chat message would share, or null.
