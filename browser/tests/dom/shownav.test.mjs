@@ -117,10 +117,8 @@ test(
       page,
       /^Episode 1\.1\. Show 1: Harbor Voices, Episode 1\.1: “Who counts the ships at Grey Point\?” \(12 November 2026\)\./,
     );
-    await type(page, 'search section 2');
-    await noted(page, /cannot search the web, so section 1\.1\.2 was not searched/);
     await type(page, 'list citations');
-    await noted(page, /No scientific citations are kept/);
+    await noted(page, /^Open a section first/);
     // What a refusal or "where am I" names aloud can be pressed too.
     assert.deepEqual((await panel(page)).footer, ['Back to episode', 'Episodes', 'Shows']);
     await page.evaluate(

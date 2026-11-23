@@ -11,7 +11,8 @@ const $ = (id) => document.getElementById(id);
 // `lastReply(surface)` gives the newest finished reply's words. `readInChat(link, name)` opens the
 // usual review for one page. `speak(words)` reads with the device's own voice.
 // `shows()` gives the followed shows of Curated sources with their kept episodes, and `quiet()`
-// stops anything being read aloud.
+// stops anything being read aloud. `lookup({ kind, query })` opens the usual review for one search
+// of published papers or of the web; nothing is asked before the owner approves it.
 export function installNumbered({
   groups,
   shows = () => [],
@@ -19,6 +20,7 @@ export function installNumbered({
   readInChat,
   speak,
   quiet = () => {},
+  lookup = () => {},
   profile,
 }) {
   let at = { group: null, item: null, point: null },
@@ -95,6 +97,18 @@ export function installNumbered({
         actions.append(read, open);
         place.append(actions);
       }
+      if (mine.open) {
+        const actions = document.createElement('div'),
+          open = document.createElement('a');
+        actions.className = 'filters';
+        open.className = 'text-button';
+        open.textContent = 'Open the paper in your browser';
+        open.href = mine.open;
+        open.target = '_blank';
+        open.rel = 'noopener noreferrer';
+        actions.append(open);
+        place.append(actions);
+      }
       if (mine.footer?.length) {
         const footer = document.createElement('div');
         footer.className = 'filters numbered-footer';
@@ -162,6 +176,7 @@ export function installNumbered({
       rows: move.rows.map((row) => ({ ...row, go: row.say ? { say: row.say } : null })),
       footer: move.footer.map((button) => ({ label: button.label, go: { say: button.say } })),
       link: null,
+      open: move.open ?? null,
       note:
         (move.level === 'none' ? move.say : move.hint) +
         (showAt.episode !== null && move.level !== 'none'
@@ -169,6 +184,7 @@ export function installNumbered({
           : ''),
     };
     draw();
+    if (move.lookup) lookup(move.lookup);
     return { handled: true, send: move.send, say: move.say };
   }
   // The owner's words as a move, through shows first and then feeds and reply points; null when

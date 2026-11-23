@@ -1,11 +1,11 @@
 // Numbered navigation through the shows the owner follows in Curated sources, as pure functions:
-//   Show S  →  Episode S.E  →  Section S.E.P
+//   Show S  →  Episode S.E  →  Section S.E.P  →  Citation S.E.P.c.K
 // Shows are in the owner's order, episodes newest first, and an episode's sections are the claims
 // of its checked brief. The owner's own words are matched against a fixed grammar, most specific
 // address first, so "1.2.3" always means the same place and every place can be traced back up
 // ("where am I"). No model reads the words or chooses the move. This parser receives the owner's
 // submitted words only, never a model's output.
-import { digestLines, knowledgeLimits } from './knowledge.mjs';
+import { catalogAddress, digestLines, knowledgeLimits, textReason } from './knowledge.mjs';
 
 export const showLimits = { said: 180, sections: 6, page: 5, aloud: 6, snippet: 120 };
 
@@ -90,9 +90,17 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
     return { kind: 'where' };
   // 2 and 3. A citation by its address, or the citations of a section.
   if (
-    (m = said.match(/(?<![\d.])(\d{1,2})\.(\d{1,2})\.(\d{1,2})[ .]?(?:c|cite|citation)[ .]?\d{1,2}(?![\d.])/))
+    (m = said.match(
+      /(?<![\d.])(\d{1,2})\.(\d{1,2})\.(\d{1,2})[ .]?(?:c|cite|citation)[ .]?(\d{1,2})(?![\d.])/,
+    ))
   )
-    return { kind: 'citations', show: +m[1], episode: +m[2], section: +m[3] };
+    return { kind: 'citation', show: +m[1], episode: +m[2], section: +m[3], number: +m[4] };
+  if (
+    (m = said.match(
+      /\b(?:check|find|look up)(?: the)?(?: scientific)? (?:studies|papers|research) (?:for|on|behind)(?: section)? (\d{1,2})\.(\d{1,2})\.(\d{1,2})(?![\d.])/,
+    ))
+  )
+    return { kind: 'studies', show: +m[1], episode: +m[2], section: +m[3] };
   if (
     (m = said.match(
       /\b(?:citations|studies|papers|evidence) (?:for|on) (\d{1,2})\.(\d{1,2})\.(\d{1,2})(?![\d.])/,
@@ -116,12 +124,22 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
     if ((m = is(`(?:search|fact check|verify|look up)\\s+(?:section|point|claim)\\s+${N}`)))
       return { kind: 'search', show: at.show, episode: at.episode, section: +m[1] };
     // 8. Citations of the open section.
+    const here = { show: at.show, episode: at.episode, section: at.section };
+    if (is('(?:list\\s+|show\\s+)?(?:the\\s+)?(?:citations|studies|papers)|back to\\s+(?:the\\s+)?citations'))
+      return { kind: 'citations', ...here };
+    if ((m = is('(?:the\\s+)?(next|previous|first)\\s+citation')))
+      return { kind: 'citation', ...here, number: null, step: { next: 1, previous: -1, first: 0 }[m[1]] };
+    if ((m = is(`(?:citation|c|paper|study)\\s*(?:number\\s+)?${N}`)))
+      return { kind: 'citation', ...here, number: +m[1] };
+    // Looking for studies behind the open section, or searching the web for it.
     if (
-      is('(?:list\\s+|show\\s+)?(?:citations|studies|papers)') ||
-      is('(?:next|previous|first)\\s+citation') ||
-      is(`(?:citation|c|paper|study)\\s*${N}`)
+      is(
+        '(?:check|find|look up)\\s+(?:the\\s+)?(?:scientific\\s+)?(?:studies|papers|research)(?:\\s+(?:for|on|behind)\\s+(?:this|the)\\s+(?:section|point|claim))?',
+      )
     )
-      return { kind: 'citations', show: at.show, episode: at.episode, section: at.section };
+      return { kind: 'studies', ...here };
+    if (is('(?:search|fact check|verify|look up)\\s+(?:this|the)\\s+(?:section|point|claim)'))
+      return { kind: 'search', ...here };
     // 9. Sections of the open episode.
     if (
       is('(?:back to\\s+(?:the\\s+)?(?:episode|section)|(?:list|repeat)\\s+(?:the\\s+)?(?:sections|points))')
@@ -223,6 +241,79 @@ export function sectionsOf(brief) {
   const claims = (brief?.claims ?? []).map((c) => c.text).filter((t) => typeof t === 'string' && t);
   return (claims.length ? claims : [brief?.headline].filter(Boolean)).slice(0, showLimits.sections);
 }
+// What the curator's pipeline may say about how a paper bears on a claim, in plain words.
+export const stances = {
+  supports: 'supports the claim',
+  mixed: 'mixed evidence',
+  limited_human_evidence: 'limited evidence in people',
+  contradicts: 'contradicts the claim',
+  related: 'related, not a direct test of the claim',
+};
+export const citationLimits = {
+  each: 4,
+  title: 180,
+  journal: 100,
+  summary: 220,
+  correlation: 220,
+  shared: 1200,
+};
+// One claim's citations that are exactly in the expected form. The published schema does not
+// describe them yet, so each is checked here and one that is not in this form is left out whole.
+export function citationsOf(claim) {
+  if (!Array.isArray(claim?.citations)) return [];
+  const words = (v, max) => typeof v === 'string' && v.trim() && [...v].length <= max && !textReason(v);
+  return claim.citations
+    .filter(
+      (c) =>
+        c &&
+        typeof c === 'object' &&
+        !Array.isArray(c) &&
+        Object.hasOwn(stances, c.stance) &&
+        words(c.title, citationLimits.title) &&
+        words(c.journal, citationLimits.journal) &&
+        words(c.summary, citationLimits.summary) &&
+        words(c.correlation, citationLimits.correlation) &&
+        catalogAddress(c.link) &&
+        (c.year == null || (Number.isInteger(c.year) && c.year >= 1800 && c.year <= 2100)) &&
+        (c.cited_by == null || (Number.isInteger(c.cited_by) && c.cited_by >= 0)),
+    )
+    .slice(0, citationLimits.each)
+    .map((c) => ({
+      title: c.title,
+      journal: c.journal,
+      year: c.year ?? null,
+      cited: c.cited_by ?? null,
+      stance: c.stance,
+      summary: c.summary,
+      correlation: c.correlation,
+      link: c.link,
+    }));
+}
+// The citations of one section of a brief, counted as sectionsOf counts its sections.
+export function sectionCitations(brief, section) {
+  const claims = (brief?.claims ?? []).filter((c) => typeof c?.text === 'string' && c.text);
+  return section >= 1 && section <= showLimits.sections ? citationsOf(claims[section - 1]) : [];
+}
+const paperLine = (c) =>
+  [c.journal, c.year, c.cited === null ? null : `cited by ${c.cited}`].filter((x) => x !== null).join(' · ');
+// A section's claim as words to search with: the speaker's lead dropped, marks a search cannot
+// carry removed, and cut at a word within the limit. The owner reviews the exact words first.
+export function claimQuery(text, max = 120) {
+  if (typeof text !== 'string') return '';
+  let words = text
+    .replace(/^[^,]{0,60}?\b(?:says|said|argues|claims|explains|notes|reports|describes)\b(?: that)?,? /i, '')
+    .replace(/[^\p{L}\p{N} ,.'’:()+&/-]+/gu, ' ')
+    .replace(/\/\/|www\./gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.?!,:]+$/, '');
+  if (words.length > max)
+    words = words
+      .slice(0, max + 1)
+      .replace(/\s+\S*$/, '')
+      .replace(/[,:(]+$/, '');
+  return words;
+}
 const clip = (text, max) => ([...text].length > max ? [...text].slice(0, max - 1).join('') + '…' : text);
 const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -251,6 +342,20 @@ export function showMove(command, { shows = [], at = idle() } = {}) {
     move.footer = [
       { label: 'Next section', say: 'next section' },
       ...(here.section > 1 ? [{ label: 'Previous section', say: 'previous section' }] : []),
+      ...(move.cited ? [{ label: `Citations (${move.cited})`, say: 'list citations' }] : []),
+      { label: 'Check studies', say: 'check studies' },
+      ...back,
+      { label: 'Where am I', say: 'where am I' },
+    ];
+  else if (move.level === 'citations' || move.level === 'citation')
+    move.footer = [
+      ...(move.level === 'citation' && move.cited > 1
+        ? [
+            { label: 'Next citation', say: 'next citation' },
+            { label: 'Citations', say: 'list citations' },
+          ]
+        : []),
+      { label: 'Back to section', say: `${here.show}.${here.episode}.${here.section}` },
       ...back,
       { label: 'Where am I', say: 'where am I' },
     ];
@@ -378,7 +483,12 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
       level: 'section',
       title: `Section ${s}.${e}.${p}`,
       rows: [{ label: `${s}.${e}.${p}`, text, sub: `${found.name} · ${episode.item.title}`, say: null }],
-      hint: 'Sent to your model as your next message. Say “next section”, “back to episode” or “where am I”.',
+      cited: sectionCitations(episode.brief, p).length,
+      hint:
+        'Sent to your model as your next message. Say “next section”, “back to episode” or “where am I”.' +
+        (sectionCitations(episode.brief, p).length
+          ? ` The curator’s pipeline found ${count(sectionCitations(episode.brief, p).length, 'paper', 'papers')} for it: say “list citations”.`
+          : ' Say “check studies” to look for papers on it.'),
       footer: [
         { label: 'Back to episode', say: 'back to episode' },
         { label: 'Episodes', say: 'back to episodes' },
@@ -386,6 +496,25 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
       ],
       say: `Section ${s}.${e}.${p}: ${text}`,
       send: `Tell me more about section ${p} of the episode “${episode.item.title}” (${found.name}, ${dayOf(episode.item.date)}). Its curated brief says: “${text}”`,
+    };
+  };
+  // One section by a command's address: where it is, its words and its citations, or a refusal.
+  const section = ({ show: s, episode: e, section: p }) => {
+    if (p === null || p === undefined) return { refusal: none('Open a section first, for example “1.1.1”.') };
+    const found = show(s);
+    if (!found) return { refusal: noShow(s) };
+    const episode = episodeAt(s, e);
+    if (!episode) return { refusal: noEpisode(s, e) };
+    const text = sectionsOf(episode.brief)[p - 1];
+    if (!text)
+      return {
+        refusal: none(`There is no section ${s}.${e}.${p}.`, { ...at, show: s, episode: e, section: null }),
+      };
+    return {
+      at: { show: s, episode: e, section: p, offset: at.show === s ? at.offset : 0 },
+      address: `${s}.${e}.${p}`,
+      text,
+      papers: sectionCitations(episode.brief, p),
     };
   };
   const needShow = () => none('Say which show first, for example “Show 1”.');
@@ -414,13 +543,86 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
       if (at.episode === null) return needEpisode();
       return openSection(at.show, at.episode, at.section === null ? 1 : at.section + command.step);
     case 'search':
-      return none(
-        `PEA Web cannot search the web, so section ${command.show}.${command.episode}.${command.section} was not searched. Say “${command.show}.${command.episode}.${command.section}” to ask your model about it.`,
-      );
-    case 'citations':
-      return none(
-        'No scientific citations are kept for this section. PEA Web does not read or look up citations yet.',
-      );
+    case 'studies': {
+      const place = section(command);
+      if (place.refusal) return place.refusal;
+      const query = claimQuery(place.text),
+        studies = command.kind === 'studies';
+      if (query.length < 3)
+        return none(`Section ${place.address} has no words PEA can search with.`, place.at);
+      // Nothing is asked here: the page shows the exact words for the owner to approve first.
+      return {
+        ...none(
+          studies
+            ? `Review the search for papers on section ${place.address}.`
+            : `Review the web search for section ${place.address}.`,
+          place.at,
+        ),
+        lookup: { kind: studies ? 'papers' : 'search', query },
+      };
+    }
+    case 'citations': {
+      const place = section(command);
+      if (place.refusal) return place.refusal;
+      if (!place.papers.length)
+        return none(
+          `No citations are kept for section ${place.address}. Say “check studies” to look for papers on it.`,
+          place.at,
+        );
+      return {
+        at: place.at,
+        level: 'citations',
+        cited: place.papers.length,
+        title: `Citations for section ${place.address}`,
+        rows: place.papers.map((c, i) => ({
+          label: `${place.address}.c.${i + 1}`,
+          text: c.title,
+          sub: `${paperLine(c)} · ${stances[c.stance]}`,
+          say: `${place.address}.c.${i + 1}`,
+        })),
+        hint: `Found by the curator’s pipeline in a search of published papers; the episode did not name them. Say “citation 1” or press one.`,
+        footer: [],
+        say:
+          `${count(place.papers.length, 'paper', 'papers')} for section ${place.address}. ` +
+          place.papers.map((c, i) => `Citation ${i + 1}: ${c.title}.`).join(' '),
+        send: null,
+      };
+    }
+    case 'citation': {
+      const place = section(command);
+      if (place.refusal) return place.refusal;
+      const number = command.number ?? (command.step === 0 ? 1 : (at.citation ?? 0) + (command.step ?? 1)),
+        c = place.papers[number - 1];
+      if (!c)
+        return none(
+          place.papers.length
+            ? `There is no citation ${place.address}.c.${number}. Section ${place.address} has ${count(place.papers.length, 'citation', 'citations')}.`
+            : `No citations are kept for section ${place.address}. Say “check studies” to look for papers on it.`,
+          place.at,
+        );
+      const address = `${place.address}.c.${number}`;
+      return {
+        at: { ...place.at, citation: number },
+        level: 'citation',
+        cited: place.papers.length,
+        title: `Citation ${address}`,
+        rows: [
+          { label: address, text: c.title, sub: paperLine(c), say: null },
+          { label: 'Found', text: c.summary, sub: null, say: null },
+          {
+            label: 'Bears on it',
+            text: c.correlation,
+            sub: `The pipeline’s reading: ${stances[c.stance]}`,
+            say: null,
+          },
+        ],
+        open: c.link,
+        hint: 'Found by the curator’s pipeline in a search of published papers; the episode did not name it, and nobody checked the match by hand. It goes with your next Chat message, after the usual review.',
+        footer: [],
+        say: `Citation ${number}: ${c.title}. ${paperLine(c).replaceAll(' · ', ', ')}. ${c.summary} ${c.correlation}`,
+        send: null,
+      };
+    }
     case 'where': {
       const found = show(at.show);
       if (!found) return noShow(at.show);
@@ -435,6 +637,11 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
           `Episode ${at.show}.${at.episode}. ${place}. Say “${at.show}.${at.episode}.1” for section 1, “back to episodes”, or “back to shows”.`,
         );
       const text = sectionsOf(episode.brief)[at.section - 1] ?? '';
+      const paper = at.citation ? sectionCitations(episode.brief, at.section)[at.citation - 1] : null;
+      if (paper)
+        return none(
+          `Citation ${at.show}.${at.episode}.${at.section}.c.${at.citation}: ${clip(paper.title, showLimits.snippet)} It is a paper found for section ${at.show}.${at.episode}.${at.section}. ${place}. Say “list citations”, “back to episode”, or “back to shows”.`,
+        );
       return none(
         `Section ${at.show}.${at.episode}.${at.section}. ${place}. ${clip(text, showLimits.snippet)} Say “back to episode”, “back to episodes”, or “back to shows”.`,
       );
@@ -468,20 +675,40 @@ export function briefInPlay(shows, at) {
   sectionsOf(b).forEach((text, i) => lines.push(`Section ${address}.${i + 1}: ${text}`));
   if (b.new) lines.push(`New: ${b.new}`);
   for (const q of b.quotes ?? []) lines.push(`Quote (${q.speaker}): “${q.text}”`);
+  // The open section's citations, within their own limit: the open one first when one is open.
+  const papers = at.section ? sectionCitations(b, at.section) : [],
+    cited = [];
+  if (papers.length) {
+    const order = papers.map((c, i) => [c, i + 1]);
+    if (at.citation && order[at.citation - 1]) order.unshift(...order.splice(at.citation - 1, 1));
+    let room = citationLimits.shared;
+    for (const [c, n] of order) {
+      const line = `Citation ${address}.${at.section}.c.${n}: “${c.title}” (${paperLine(c).replaceAll(' · ', ', ')}). What it found: ${c.summary} How it bears on the section: ${c.correlation} The pipeline’s reading: ${stances[c.stance]}.`;
+      if (line.length > room) break;
+      room -= line.length;
+      cited.push(line);
+    }
+    if (cited.length)
+      lines.push(
+        `Papers the curator’s pipeline found for section ${address}.${at.section} by searching published research. The episode did not name them and nobody checked the match by hand:`,
+        ...cited,
+      );
+  }
   // The episode's digest, when it is kept: what it adds to the brief, within its own limit.
   const more = episode.digest
     ? digestLines(
         episode.digest,
         [b.headline, b.new, ...sectionsOf(b), ...(b.quotes ?? []).map((q) => q.text)],
-        Math.min(knowledgeLimits.digestShared, briefShared - lines.join('\n').length - 1),
+        Math.max(0, Math.min(knowledgeLimits.digestShared, briefShared - lines.join('\n').length - 1)),
       )
     : [];
   lines.push(...more);
   return {
     digest: more.length > 0,
+    citations: cited.length,
     label: `“${episode.item.title}” (${show.name}, ${dayOf(episode.item.date)})`,
     title: episode.item.title,
     text: lines.join('\n'),
-    key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}${more.length ? '/' + (episode.item.digest?.sha256 ?? '') : ''}`,
+    key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}${more.length ? '/' + (episode.item.digest?.sha256 ?? '') : ''}${cited.length ? `/c${at.section}.${at.citation ?? 0}` : ''}`,
   };
 }

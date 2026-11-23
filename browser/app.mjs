@@ -61,7 +61,9 @@ import {
   searchProposals,
   ownerRead,
   paperProposals,
+  papersAddress,
   readProposals,
+  searchRequest,
   sourcedNotice,
 } from './research.mjs';
 import { labelledPEA, madeByPEA, newEventId } from './connections.mjs';
@@ -2694,6 +2696,15 @@ numbered = installNumbered({
     if ($('voice-room').open) $('voice-room').close();
     tab('chat');
     void research.read(address, 'feed', feed);
+  },
+  // "Check studies" or "search this section": the same review as the typed commands, with the
+  // section's own words as the search. Nothing is asked until the owner approves the exact words.
+  lookup({ kind, query }) {
+    const wanted = kind === 'papers' ? papersAddress(query) : searchRequest(query);
+    if (!wanted) return notice('This section has no words PEA can search with.');
+    if ($('voice-room').open) $('voice-room').close();
+    tab('chat');
+    void research.lookup(wanted, 'owner');
   },
   // Lists are read with this device's own voice only, so a headline's title goes to no provider.
   speak(words) {

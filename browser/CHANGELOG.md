@@ -2,6 +2,22 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.48] - 2026-11-23
+
+### Added
+
+- **Citations for a section, by address.** The curator's catalog now attaches published papers to some sections of an episode. Where a section has them, PEA shows them as a fourth level under the section: `6.2.1.c.1`.
+  - Open a section and press **Citations (2)**, or say "list citations", "citation 1", "next citation", "citations for 6.2.1" or the address itself. "Where am I" names the citation you have open.
+  - A citation shows the paper's title, journal, year and how often it is cited, what it found, how it bears on the section, and a link that opens the paper in your browser.
+  - Every citation is labelled for what it is: a paper the curator's pipeline found by searching, which the episode did not name and nobody checked by hand. PEA says the pipeline's reading of it ("supports the claim", "mixed evidence", "related, not a direct test of the claim" and so on) as the pipeline's, not as fact.
+  - While a section is open, its citations go with your Chat messages as labelled lines alongside the brief, after the usual review. Your model is told what they are and not to say the episode cited them.
+  - The catalog's published schema does not describe citations yet, so PEA checks each one itself and leaves out any that is not exactly in the expected form.
+- **Check studies, from a section.** A section now has a **Check studies** button (or say "check studies", or "check studies for 6.2.1"). It opens the same review as "papers on …", with the section's own sentence as the search words; nothing is asked until you approve. It is free and needs no key.
+
+### Changed
+
+- **"Search 6.2.1" now searches.** It used to answer that PEA Web cannot search the web. It now opens the web search review with the section's sentence as the words, using the search key you entered under Connections. Without a key it says so.
+
 ## [0.1.0-rc.4.dev.47] - 2026-11-22
 
 ### Added
