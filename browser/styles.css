@@ -5066,3 +5066,54 @@ summary + .settings-step {
   font-size: 14px;
   font-weight: 700;
 }
+
+/* Saved chats on an empty Chat: one press picks one up. */
+.recent-chats {
+  width: min(560px, 100%);
+  margin: 22px auto 0;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+.recent-chats > strong {
+  font-size: 14px;
+  opacity: 0.8;
+}
+#recent-chats-list {
+  display: grid;
+  gap: 8px;
+}
+.recent-chat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.recent-chat strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+.recent-chat small {
+  flex: none;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.recent-chat:hover,
+.recent-chat:focus-visible {
+  border-color: var(--green);
+  background: var(--tint);
+}
+#recent-chats-all {
+  justify-self: start;
+}

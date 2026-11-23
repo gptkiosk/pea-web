@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Chats saved automatically under a key the browser keeps — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.58`. Owner report: a refresh loses the chat; chats must be saved and listed when a new one is started. Owner decision: automatic, no passphrase.
+
+- `browser/memory.mjs` (`ConversationVault`): `device` flag; `hasDeviceKey()`; `unlockDevice(current)` (makes a non-extractable AES-256-GCM key, stored as `device-key` beside the library, and the first record; never opens or replaces a passphrase record); `setPassphrase(passphrase, library)` (writes under the passphrase, then removes the browser's key); `forgetDevice()` (removes record and key; refuses a passphrase library). `unlock` refuses a record that has a browser key; `exportEncrypted` refuses while one exists. The record format is unchanged.
+- `browser/memory-ui.mjs`: `autoOpen()` at start and on a page restored from the browser's cache; `reopen()` puts back the thread that was open, from `pea-open-threads-v1` in `localStorage` (thread ids only, set in `record`, cleared by a fresh chat); `drawRecent()` on an empty Chat; the `library-save` switch (`pea-save-chats-v1` = `off`); `library-storage` is "Set a passphrase…" under the browser's key; restore of a backup is allowed over an empty browser-key library, which it replaces; the interview's format review is skipped for a browser-key library; `secrets.open` and `secrets.read` are false under the browser's key.
+- `browser/index.html`, `browser/styles.css`: `recent-chats`, `library-save-row`, `memory-status-line`, new wording in Past chats & memory, Privacy & voice and the passphrase dialog.
+- Tests: two more in `browser/tests/memory.test.mjs`, two more in `browser/tests/dom/stability.test.mjs`; the leaving-the-page test now expects the chat back; wording in `life-notes` and `router-key` tests.
+- Security notes for a reviewer: the key is not extractable but lives in the same browser database as the record, so this is protection against reading the stored file, not against a person or script with this origin. Provider keys are deliberately kept out of it. `localStorage` gains two small non-secret values.
+- Known gaps: the story board still needs its own passphrase; no list of recent Greenhouse threads; a chat is recorded at the moments it was before (when a message is sent and when a reply ends), not on every keystroke; the Swift gateway serves the same files and was tested, but the Mac app has not been opened; not tried on the owner's copy, whose browser may already hold a passphrase library.
+- Next action: owner reloads their copy mid-chat.
+
 ## Chat knows the knowledge sources exist, and a show asked by name is listed to press — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.57`. Owner report: asked "what do you have from the AI daily brief podcast?", the model said it had never heard of it and suggested other podcasts. Owner instruction: while discussing these sources, list the shows or episodes in the clickable interface.

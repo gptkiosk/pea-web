@@ -1642,7 +1642,7 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     return;
   }
   if (history(surface).length >= 199) {
-    notice('Start a fresh conversation from Conversations & memory. This thread has reached 200 messages.');
+    notice('Start a fresh conversation from Past chats & memory. This thread has reached 200 messages.');
     return;
   }
   // From here until the request ends, the reply being written shows PEA at work.
@@ -2116,6 +2116,7 @@ todos = installTodos({
 });
 memory = installMemory({
   libraryChanged: (unlocked) => live.libraryChanged(unlocked),
+  goPlace: (id) => settings.go(id),
   profile: () => profile,
   history,
   busy: () => live.isBusy(),

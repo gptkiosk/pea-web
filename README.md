@@ -51,7 +51,7 @@ For iPhone/Android/VPN access, use your own valid HTTPS reverse proxy and exact 
 - Responsive Chat / Today / Greenhouse with independent collaboration, coding and image choices, reviewed provider/privacy/price boundaries.
 - Optional Google Calendar/Gmail previews and an app-enforced PEA Drive folder, reviewed Docs/simple Forms and recoverable cleanup.
 - Reviewed story board, optional encrypted browser-local story persistence, safe source/diagram/image views, and optional GitHub draft-PR delivery.
-- Searchable profile-bound conversations, structured interview and reviewed sourced memories, with optional passphrase-encrypted browser-local saving. Keys and grants remain tab-only. [Memory and recovery guide](browser/docs/MEMORY.md). Automatic device sync and richer native document tools remain unfinished.
+- Searchable profile-bound conversations, structured interview and reviewed sourced memories, saved on this browser as you go under a key the browser keeps, with an optional passphrase. Keys and grants remain tab-only. [Memory and recovery guide](browser/docs/MEMORY.md). Automatic device sync and richer native document tools remain unfinished.
 - Browser dictation may use an online browser/OS service; locked-screen microphone/AirPods reliability is not promised. Native iPhone is the primary Walk target.
 - Explicit version/changelog/feedback controls and a tested signed-package/rollback manager. The release signer's public key is in `browser/server/allowed_signers` (fingerprint in the releases guide); the first signed release is the pre-release `v0.1.0-rc.1`; no stable release, finished dependency bundle or signed public installer is published yet. Never trust a signing key merely because it accompanies an archive.
 

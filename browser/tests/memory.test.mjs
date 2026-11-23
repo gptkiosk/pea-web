@@ -64,7 +64,8 @@ function store() {
     named,
     getAt: async (name) => structuredClone(named.get(name)),
     putAt: async (name, value) => void named.set(name, structuredClone(value)),
-    deleteAt: async (name) => void named.delete(name),
+    // The real store keeps the library beside the named records, so its name removes it too.
+    deleteAt: async (name) => void (name === 'library' ? (record = undefined) : named.delete(name)),
   };
 }
 
@@ -562,4 +563,55 @@ test('a kept key is sealed beside the library, opens only with that library, and
     await assert.rejects(v.keepSecret(name, secret), /cannot be kept/, name);
   await assert.rejects(v.keepSecret('openrouter:work', ''), /cannot be kept/);
   await assert.rejects(v.keepSecret('openrouter:work', 'x'.repeat(513)), /cannot be kept/);
+});
+
+test('a library under the browser’s own key opens by itself, and never mixes with a passphrase', async () => {
+  const storage = store(),
+    vault = new ConversationVault(storage),
+    s = sample();
+  assert.equal(await vault.hasDeviceKey(), false);
+  const first = await vault.unlockDevice(s.library);
+  assert.equal(vault.device, true);
+  assert.equal(await vault.hasDeviceKey(), true);
+  assert.deepEqual(first, s.library);
+  // The record holds no readable words, and the key cannot be taken out of the browser.
+  const record = await storage.get();
+  assert.equal(new TextDecoder().decode(record.data).includes(s.messages[0].text), false);
+  const key = await storage.getAt('device-key');
+  assert.equal(key.extractable, false);
+  await assert.rejects(() => crypto.subtle.exportKey('raw', key));
+
+  // Another session on the same browser opens it with no passphrase.
+  const again = new ConversationVault(storage);
+  assert.deepEqual(await again.unlockDevice(), s.library);
+  // A passphrase does not open it, a backup of it is refused, and nothing is overwritten.
+  const other = new ConversationVault(storage);
+  await assert.rejects(
+    () => other.unlock('synthetic passphrase 0001'),
+    /browser’s own key, not a passphrase/,
+  );
+  await assert.rejects(() => again.exportEncrypted(), /Set a passphrase first/);
+  assert.deepEqual((await storage.get()).revision, record.revision);
+
+  // Moved under a passphrase: the browser's key goes, and only the passphrase opens it.
+  await again.setPassphrase('synthetic passphrase 0001', s.library);
+  assert.equal(again.device, false);
+  assert.equal(await again.hasDeviceKey(), false);
+  const locked = new ConversationVault(storage);
+  await assert.rejects(() => locked.unlockDevice(), /saved under a passphrase/);
+  assert.deepEqual(await locked.unlock('synthetic passphrase 0001'), s.library);
+  await assert.rejects(() => locked.setPassphrase('synthetic passphrase 0002', s.library), /Nothing to move/);
+  await assert.rejects(() => locked.forgetDevice(), /Nothing saved under this browser/);
+  assert.ok(await storage.get(), 'a passphrase library is never removed by forgetDevice');
+});
+
+test('forgetting what the browser saved removes the record and the key', async () => {
+  const storage = store(),
+    vault = new ConversationVault(storage);
+  await vault.unlockDevice(sample().library);
+  await vault.forgetDevice();
+  assert.equal(vault.key, null);
+  assert.equal(await storage.get(), undefined);
+  assert.equal(await vault.hasDeviceKey(), false);
+  await assert.rejects(() => vault.save(sample().library), /Unlock the library before saving/);
 });

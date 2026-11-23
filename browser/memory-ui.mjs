@@ -107,10 +107,10 @@ export function installMemory(hooks) {
       : failed
         ? 'Your last encrypted save failed. Resolve the library warning before relying on it.'
         : saved
-          ? 'Encrypted saving is enabled on this browser. Save your answers to keep them here.'
+          ? 'Saving is on for this browser. Save your answers to keep them here.'
           : hasSaved
             ? 'Your saved library is locked. Unlock it in Past chats & memory before changing saved answers.'
-            : 'Answers last only in this tab unless you enable encrypted saving in Past chats & memory.';
+            : 'Answers last only in this tab while saving is off in Past chats & memory.';
     $('memory-status').textContent = initializing
       ? 'Checking local storage…'
       : failed
@@ -120,13 +120,25 @@ export function installMemory(hooks) {
           : pending
             ? 'Encrypting changes…'
             : saved
-              ? 'Encrypted saving · unlocked'
+              ? vault.device
+                ? 'Saved on this browser'
+                : 'Encrypted saving · unlocked'
               : hasSaved
                 ? 'Saved library locked · current chats tab-only'
-                : 'Tab-only · encrypted saving optional';
+                : 'Tab-only · saving is off';
+    $('memory-status-line').textContent = $('memory-status').textContent;
     $('library-storage').textContent = saved
-      ? 'Lock & clear unlocked context'
-      : 'Unlock / enable encrypted saving…';
+      ? vault.device
+        ? 'Set a passphrase…'
+        : 'Lock & clear unlocked context'
+      : hasSaved
+        ? 'Unlock with your passphrase…'
+        : 'Set a passphrase…';
+    // The switch is for saving with this browser's own key. Under a passphrase it has no part.
+    $('library-save-row').hidden = hasSaved && !vault?.device;
+    $('library-save').checked = !!vault?.device;
+    $('library-save').disabled = initializing || !!pending || porting || hooks.busy();
+    drawRecent();
     $('library-storage').disabled = initializing || !!pending || porting || hooks.busy();
     $('library-backup').disabled =
       initializing || !!pending || porting || failed || hooks.busy() || !hasSaved;
@@ -143,7 +155,7 @@ export function installMemory(hooks) {
       : !keepsNotes() && !told.length
         ? 'Off. Nothing is kept.'
         : `${told.length} of up to ${noteLimits.kept} kept for this profile` +
-          (saved ? ', encrypted on this browser.' : ', in this tab only until encrypted saving is on.');
+          (saved ? ', saved on this browser.' : ', in this tab only while saving is off.');
     $('notes-clear').hidden = !told.length;
     const notes = $('notes-list');
     notes.replaceChildren();
@@ -228,6 +240,114 @@ export function installMemory(hooks) {
     if (!facts.childNodes.length)
       facts.textContent = 'No reviewed memories. Use “Remember from my message” after a conversation.';
   }
+  // Which saved thread was open on each surface, so a reload shows it again. Ids only.
+  const openKey = 'pea-open-threads-v1',
+    savingKey = 'pea-save-chats-v1';
+  const opened = () => {
+    try {
+      const value = JSON.parse(localStorage.getItem(openKey) ?? '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch {
+      return {};
+    }
+  };
+  function mark(key, threadID) {
+    try {
+      const value = opened();
+      if (threadID) value[key] = threadID;
+      else delete value[key];
+      localStorage.setItem(openKey, JSON.stringify(value));
+    } catch {
+      // Without storage a reload starts on an empty chat; the thread is still in Past chats.
+    }
+  }
+  // Puts the thread that was open back on each surface of this profile that is still empty.
+  function reopen() {
+    if (!eligible() || !vault?.key) return;
+    const value = opened();
+    for (const surface of surfaces) {
+      const key = profile() + ':' + surface,
+        thread = library.threads.find(
+          (t) => t.id === value[key] && t.profile === profile() && t.surface === surface,
+        );
+      if (!thread || hooks.history(surface, profile()).length) continue;
+      active.set(key, thread.id);
+      hooks.replace(surface, structuredClone(thread.messages));
+    }
+  }
+  // The newest saved chats, on an empty Chat: one press continues one.
+  function drawRecent() {
+    const threads =
+      eligible() && vault?.key
+        ? library.threads
+            .filter((t) => t.profile === profile() && t.surface === 'chat')
+            .sort((a, b) => b.updated - a.updated)
+            .slice(0, 5)
+        : [];
+    $('recent-chats').hidden = !threads.length;
+    $('recent-chats-list').replaceChildren(
+      ...threads.map((t) => {
+        const row = document.createElement('button'),
+          title = document.createElement('strong'),
+          when = document.createElement('small');
+        row.type = 'button';
+        row.className = 'recent-chat';
+        row.setAttribute('role', 'listitem');
+        title.textContent = t.title;
+        when.textContent = `${new Date(t.updated).toLocaleDateString()} · ${t.messages.length} messages`;
+        row.append(title, when);
+        row.onclick = () => restore(t, false).catch(say);
+        return row;
+      }),
+    );
+  }
+  $('recent-chats-all').onclick = () => hooks.goPlace?.('past-chats');
+  // Opens what this browser saved under its own key, or starts saving that way. A library under
+  // a passphrase is left locked for its owner to unlock.
+  async function autoOpen() {
+    if (!vault || vault.key) return;
+    const device = await vault.hasDeviceKey();
+    if (hasSaved ? !device : localStorage.getItem(savingKey) === 'off') return;
+    library = await vault.unlockDevice(library);
+    hasSaved = true;
+    failed = false;
+    fillInterview();
+    invalidate();
+    reopen();
+    hooks.libraryChanged?.(true);
+  }
+  $('library-save').onchange = async () => {
+    const on = $('library-save').checked;
+    try {
+      idle();
+      if (on) {
+        localStorage.removeItem(savingKey);
+        await autoOpen();
+        hooks.notice('Saving is on. Chats are kept on this browser from now on.');
+      } else {
+        if (
+          !(await hooks.review(
+            'Stop saving on this browser',
+            'This deletes the chats, interview answers and memories saved on this browser and stops saving new ones. What is open now stays in this tab until you reload. It cannot be undone. Continue?',
+          ))
+        )
+          return;
+        idle();
+        await vault.forgetDevice();
+        localStorage.setItem(savingKey, 'off');
+        localStorage.removeItem(openKey);
+        hasSaved = false;
+        hooks.libraryChanged?.(false);
+        hooks.notice(
+          'Saving is off. Nothing is kept on this browser; this tab keeps what is open until you reload.',
+        );
+      }
+    } catch (error) {
+      say(error);
+    } finally {
+      render();
+    }
+  };
   function button(label, action) {
     const b = document.createElement('button');
     b.className = 'text-button';
@@ -262,6 +382,7 @@ export function installMemory(hooks) {
       const next = captureThread(library, who, surface, said, active.get(key));
       library = next.library;
       active.set(key, next.threadID);
+      mark(key, next.threadID);
       unsaved.delete(key);
       if (surface === 'chat' && keepsNotes(who)) {
         try {
@@ -299,6 +420,7 @@ export function installMemory(hooks) {
         'The current thread was not saved. Resolve the library warning before replacing it.',
       );
     active.delete(profile() + ':' + surface);
+    mark(profile() + ':' + surface, null);
     hooks.replace(surface, []);
     invalidate();
     render();
@@ -309,17 +431,18 @@ export function installMemory(hooks) {
     if (
       !(await hooks.review(
         'Start a fresh conversation',
-        `The current ${surface} conversation stays in your local library if eligible. Encrypted saving is ${vault?.key ? 'enabled' : 'off; the library lasts only in this tab'}. A new thread sends no earlier messages. Continue?`,
+        `The current ${surface} conversation stays in your local library if eligible. Saving is ${vault?.key ? 'on' : 'off; the library lasts only in this tab'}. A new thread sends no earlier messages. Continue?`,
       ))
     )
       return;
     if (who !== profile()) throw new ServiceError('Profile changed. Review again.');
     await clearSurface(surface);
   }
-  async function restore(thread) {
+  async function restore(thread, ask = true) {
     ensure();
     const who = profile();
     if (
+      ask &&
       !(await hooks.review(
         'Continue a saved conversation',
         `Restore “${thread.title}” in ${thread.surface}? It stays in ${who}. Future model requests may include up to 12 completed recent messages, shown in a new provider review. This does not send anything now.`,
@@ -339,6 +462,7 @@ export function installMemory(hooks) {
         'The current thread was not saved. Resolve the library warning before replacing it.',
       );
     active.set(who + ':' + thread.surface, thread.id);
+    mark(who + ':' + thread.surface, thread.id);
     hooks.replace(thread.surface, structuredClone(thread.messages));
     invalidate();
     hooks.tab(thread.surface);
@@ -584,6 +708,8 @@ export function installMemory(hooks) {
         throw new ServiceError('Keep interview answers within the field limits and remove credentials.');
       if (
         vault?.key &&
+        // A library under this browser's own key is new: no earlier PEA Web could open it anyway.
+        !vault.device &&
         library.version === 1 &&
         !(await hooks.review(
           'Update the saved interview format',
@@ -604,7 +730,7 @@ export function installMemory(hooks) {
       void persist();
       $('interview-note').textContent = vault?.key
         ? 'Saved locally when encryption finishes. Sharing still needs your connection setting and provider review.'
-        : 'Kept in this tab. Enable encrypted saving in Conversations & memory to retain it after reload.';
+        : 'Kept in this tab. Turn on saving in Past chats & memory to retain it after reload.';
     } catch (error) {
       say(error);
     }
@@ -662,7 +788,8 @@ export function installMemory(hooks) {
   $('library-storage').onclick = async () => {
     try {
       idle();
-      if (vault?.key) {
+      if (vault?.key && vault.device) $('library-unlock').showModal();
+      else if (vault?.key) {
         await vault.chain.catch(() => {});
         vault.lock();
         library = emptyLibrary();
@@ -862,7 +989,7 @@ export function installMemory(hooks) {
   $('library-import-open').onclick = () => {
     try {
       idle();
-      if (hasSaved || vault?.key || !emptyCurrent())
+      if (((hasSaved || vault?.key) && !vault?.device) || !emptyCurrent())
         throw new ServiceError(
           'Restore requires an empty browser library and no tab-only conversations or interview answers. Nothing was changed.',
         );
@@ -882,7 +1009,7 @@ export function installMemory(hooks) {
     input.value = '';
     try {
       idle();
-      if (hasSaved || vault?.key || !emptyCurrent())
+      if (((hasSaved || vault?.key) && !vault?.device) || !emptyCurrent())
         throw new ServiceError('Restore requires an empty browser library. Nothing was changed.');
       if (!file || file.size > 2700000) throw new ServiceError('Choose a PEA encrypted backup under 2.7 MB.');
       if (
@@ -899,6 +1026,12 @@ export function installMemory(hooks) {
       render();
       $('library-import-submit').disabled = true;
       const serialized = await file.text();
+      // An empty library under this browser's own key gives way to the backup and its passphrase.
+      if (vault.device) {
+        await vault.forgetDevice();
+        hasSaved = false;
+        localStorage.removeItem(openKey);
+      }
       await vault.importEncrypted(
         serialized,
         password,
@@ -933,6 +1066,18 @@ export function installMemory(hooks) {
     try {
       idle();
       if (!vault) vault = await ConversationVault.open();
+      if (vault.key && vault.device) {
+        unlocking = true;
+        $('library-unlock-submit').disabled = true;
+        await vault.setPassphrase(password, library);
+        unlocking = false;
+        $('library-unlock').close();
+        hooks.notice(
+          'Passphrase set. PEA will ask for it after each reload; there is no recovery if it is lost.',
+        );
+        hooks.libraryChanged?.(true);
+        return;
+      }
       if (
         hasSaved &&
         !(await hooks.review(
@@ -993,8 +1138,16 @@ export function installMemory(hooks) {
     $('memory-share').checked = share.get(profile()) ?? false;
     $('interview-note').textContent = '';
     fillInterview();
+    reopen();
     render();
   }
+  // A page brought back from the browser's own cache was locked when it was put away.
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted)
+      autoOpen()
+        .catch(() => {})
+        .finally(render);
+  });
   // No automatic hide timeout: hiding is common on mobile. Explicit Lock or page disposal clears context.
   window.addEventListener('pagehide', () => {
     if (backupURL) URL.revokeObjectURL(backupURL);
@@ -1028,6 +1181,7 @@ export function installMemory(hooks) {
     try {
       vault = await ConversationVault.open();
       hasSaved = !!(await vault.storage.get());
+      await autoOpen();
     } catch {
       hooks.notice('Local library storage is unavailable. Conversations remain in this tab.');
     } finally {
@@ -1041,9 +1195,10 @@ export function installMemory(hooks) {
     // A provider key the owner chose to keep, sealed with the unlocked library's key and stored
     // beside the library. Never part of the library, a backup or a profile file.
     secrets: {
-      open: () => Boolean(vault?.key) && !failed,
+      // A provider key is kept only under a passphrase, never under this browser's own key.
+      open: () => Boolean(vault?.key) && !vault.device && !failed,
       keep: (name, value) => vault.keepSecret(name, value),
-      read: (name) => (vault?.key ? vault.readSecret(name) : Promise.resolve('')),
+      read: (name) => (vault?.key && !vault.device ? vault.readSecret(name) : Promise.resolve('')),
       has: (name) => (vault ? vault.hasSecret(name) : Promise.resolve(false)),
       forget: (name) => (vault ? vault.forgetSecret(name) : Promise.resolve()),
     },

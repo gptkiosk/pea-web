@@ -129,10 +129,149 @@ test('leaving the page during a request starts clean on return', options, async 
     `document.getElementById('local-connect').onclick && !document.getElementById('profile').disabled`,
     'a clean start',
   );
-  assert.equal(await messages(page), 0);
+  // The chat is saved as it goes, so what was asked is back, and nothing is still in progress.
+  assert.match(await page.text('#messages .utterance'), /Answer slowly please\./);
+  assert.equal(await page.evaluate(`document.getElementById('profile').disabled`), false);
   assert.deepEqual(page.errors, []);
   await page.close();
 });
+
+const reload = async (page) => {
+  await page.goto(stack.gateway.origin + '/');
+  await page.waitFor(
+    `document.getElementById('local-connect').onclick && !document.getElementById('library-storage').disabled`,
+    'the app and its library to finish starting',
+  );
+};
+const recent = (page) =>
+  page.evaluate(
+    `document.getElementById('recent-chats').getClientRects().length ? [...document.querySelectorAll('.recent-chat strong')].map((s) => s.textContent) : null`,
+  );
+const stored = (page) =>
+  page.evaluate(`new Promise((resolve) => {
+    const r = indexedDB.open('pea-conversation-library-v1', 1);
+    r.onsuccess = () => {
+      const keys = r.result.transaction('encrypted').objectStore('encrypted').getAllKeys();
+      keys.onsuccess = () => resolve(keys.result.sort().join());
+    };
+  })`);
+
+test(
+  'a chat survives a reload with no passphrase, and a new chat lists the old one to pick up',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1500 });
+    await askModel(stack, page, 'Synthetic question about the harbour.');
+    assert.equal(await messages(page), 2);
+    await page.waitFor(
+      `document.getElementById('memory-status').textContent === 'Saved on this browser'`,
+      'the save',
+    );
+    assert.equal(await stored(page), 'device-key,library');
+    // What is stored is sealed: the words of the chat are not readable in the record.
+    assert.equal(
+      await page.evaluate(`new Promise((resolve) => {
+        const r = indexedDB.open('pea-conversation-library-v1', 1);
+        r.onsuccess = () => {
+          const g = r.result.transaction('encrypted').objectStore('encrypted').get('library');
+          g.onsuccess = () => resolve(new TextDecoder().decode(g.result.data).includes('harbour'));
+        };
+      })`),
+      false,
+    );
+    assert.doesNotMatch(await page.evaluate(`JSON.stringify(Object.entries(localStorage))`), /harbour/);
+
+    const asked = stack.model.requests.length;
+    await reload(page);
+    await page.waitFor(`document.querySelectorAll('#messages .utterance').length === 2`, 'the chat again');
+    assert.match(await page.text('#messages'), /Synthetic question about the harbour\./);
+    assert.equal(await page.evaluate(`document.getElementById('library-unlock').open`), false);
+    assert.equal(stack.model.requests.length, asked, 'coming back asks no model');
+    assert.equal(await recent(page), null, 'the list is for an empty chat');
+
+    // A new chat is empty and lists the saved one; one press continues it, with nothing to approve.
+    await page.evaluate(`document.getElementById('menu-new-chat').click()`);
+    await page.waitFor(`document.getElementById('review').open`, 'the new chat review');
+    await page.click('#review-approve');
+    await page.waitFor(`document.querySelectorAll('#messages .utterance').length === 0`, 'an empty chat');
+    assert.deepEqual(await recent(page), ['Synthetic question about the harbour.']);
+    await reload(page);
+    assert.equal(await messages(page), 0, 'a new chat stays new after a reload');
+    assert.deepEqual(await recent(page), ['Synthetic question about the harbour.']);
+    await page.evaluate(`document.querySelector('.recent-chat').click()`);
+    await page.waitFor(`document.querySelectorAll('#messages .utterance').length === 2`, 'the chat again');
+    assert.equal(await page.evaluate(`document.getElementById('review').open`), false);
+    assert.equal(stack.model.requests.length, asked);
+    assert.deepEqual(page.errors, []);
+    await page.close();
+  },
+);
+
+test(
+  'saving can be turned off, which deletes what was saved, or moved under a passphrase',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1500 });
+    await askModel(stack, page, 'Synthetic question about the lighthouse.');
+    await page.waitFor(
+      `document.getElementById('memory-status').textContent === 'Saved on this browser'`,
+      'the save',
+    );
+    // Off: a review first, then nothing is left in this browser and a reload starts empty.
+    await page.evaluate(`document.getElementById('library-save').click()`);
+    await page.waitFor(`document.getElementById('review').open`, 'the review');
+    assert.match(await page.text('#review-body'), /deletes the chats, interview answers and memories saved/);
+    await page.click('#review-approve');
+    await page.waitFor(
+      `document.getElementById('memory-status').textContent === 'Tab-only · saving is off'`,
+      'saving off',
+    );
+    assert.equal(await stored(page), '');
+    assert.equal(await messages(page), 2, 'what is open stays until a reload');
+    await reload(page);
+    assert.equal(await messages(page), 0);
+    assert.equal(await recent(page), null);
+    assert.equal(await stored(page), '', 'off stays off after a reload');
+
+    // On again, then under a passphrase: after a reload the chat stays closed until it is typed.
+    await page.evaluate(`document.getElementById('library-save').click()`);
+    await page.waitFor(
+      `document.getElementById('memory-status').textContent === 'Saved on this browser'`,
+      'saving on',
+    );
+    // A reload forgets the connection token, as it always has; connect again before asking.
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await page.waitFor(
+      `[...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`,
+      'the local model list',
+    );
+    await askModel(stack, page, 'Synthetic question about the ferry.');
+    await page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be free');
+    assert.equal(await page.text('#library-storage'), 'Set a passphrase…');
+    await page.evaluate(`document.getElementById('library-storage').click()`);
+    await page.waitFor(`document.getElementById('library-unlock').open`, 'the passphrase dialog');
+    await page.fill('#library-passphrase', 'synthetic passphrase 0001');
+    await page.evaluate(`document.getElementById('library-unlock-submit').click()`);
+    await page.waitFor(
+      `document.getElementById('memory-status').textContent === 'Encrypted saving · unlocked'`,
+      'the passphrase',
+      20000,
+    );
+    assert.equal(await stored(page), 'library', 'the browser’s own key is gone');
+    await reload(page);
+    assert.equal(await messages(page), 0, 'closed until the passphrase is typed');
+    assert.equal(await recent(page), null);
+    assert.equal(await page.text('#library-storage'), 'Unlock with your passphrase…');
+    assert.equal(
+      await page.evaluate(`document.getElementById('library-save-row').hidden`),
+      true,
+      'the switch has no part under a passphrase',
+    );
+    assert.deepEqual(page.errors, []);
+    await page.close();
+  },
+);
 
 test('a long conversation stays bounded in what it sends and responsive in the page', options, async () => {
   const page = await openConnectedPage(stack, { width: 1500 });
