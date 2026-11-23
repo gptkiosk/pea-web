@@ -4726,3 +4726,34 @@ button.numbered-row:focus-visible {
   display: grid;
   gap: 0.5rem;
 }
+
+/* A settings panel opened beside the page: the workspace stays in use while the owner follows along. */
+dialog.beside {
+  position: fixed;
+  inset: 84px 16px 16px auto;
+  margin: 0;
+  width: min(460px, 40vw);
+  height: auto;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  z-index: 4;
+}
+body.settings-beside {
+  padding-right: min(484px, calc(40vw + 24px));
+}
+/* The section the owner was taken to: clear of the panel's fixed heading, its title marked. */
+.settings-here {
+  scroll-margin-top: 190px;
+}
+.settings-here > summary,
+div.settings-here,
+section.settings-here {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+#notice .notice-go {
+  color: inherit;
+  text-decoration: underline;
+  margin-left: 6px;
+}

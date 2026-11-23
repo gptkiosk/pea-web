@@ -1,4 +1,5 @@
 import { loadPresencePreferences, savePresencePreferences } from './presence.mjs';
+import { present } from './settings-ui.mjs';
 import { ServiceError } from './connections.mjs';
 import {
   ConversationVault,
@@ -515,7 +516,7 @@ export function installMemory(hooks) {
   }
   $('library-open').onclick = () => {
     render();
-    $('library').showModal();
+    present($('library'));
   };
   $('library-search').oninput = render;
   $('memory-share').onchange = () => {

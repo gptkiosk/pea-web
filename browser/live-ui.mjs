@@ -32,6 +32,8 @@ import {
   matchModels,
 } from './connections.mjs';
 import { parseConfiguration } from './shared-config.mjs';
+import { present } from './settings-ui.mjs';
+import { settingsGuidance, settingsOpenLine } from './settings.mjs';
 import { LocalModel } from './local-model.mjs';
 import { forgetChoices, loadChoices, profileChoices, saveChoices } from './preferences.mjs';
 import { forgetLocalToken, loadLocalToken, saveLocalToken } from './local-token.mjs';
@@ -601,6 +603,9 @@ export function installConnections(hooks) {
         : '') +
       '\n' +
       navigationGuidance +
+      '\n' +
+      settingsGuidance +
+      (hooks.settingsOpen?.() ? '\n' + settingsOpenLine(hooks.settingsOpen()) : '') +
       '\n' +
       openGuidance +
       '\n' +
@@ -1566,7 +1571,7 @@ export function installConnections(hooks) {
       parseConfiguration(f?.content, p());
       $('shared-config').value = f.content;
       render();
-      $('connections').showModal();
+      present($('connections'));
       $('config-group').open = true;
     } catch (e) {
       note(e.message);
@@ -1574,7 +1579,7 @@ export function installConnections(hooks) {
   };
   $('connections-open').onclick = $('collab-config').onclick = () => {
     render();
-    $('connections').showModal();
+    present($('connections'));
   };
   $('router-connect').onclick = () =>
     run(async () => {
