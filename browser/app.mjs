@@ -2680,7 +2680,7 @@ numbered.sendWith((surface, text) => {
   void submit(surface, { plain: true });
 });
 // Curated sources fetch nothing until the owner browses; every file is checked before use.
-curated = installCurated({ review: live.review });
+curated = installCurated({ review: live.review, key: live.localKey, read: live.readPage });
 headlines = installHeadlines({
   changed: () => home?.render(),
   review: live.review,

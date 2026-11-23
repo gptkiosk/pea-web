@@ -152,7 +152,7 @@ class Site(BaseHTTPRequestHandler):
         if route == '/image':
             return self.send(200, 'image/png', b'\x89PNG')
         if route == '/json':
-            return self.send(200, 'application/json', b'{}')
+            return self.send(200, 'application/json; charset=utf-8', '{"name": "Zo\u00eb"}'.encode())
         if route == '/untyped':
             return self.send(200, None, b'no type')
         if route == '/packed':
@@ -793,7 +793,7 @@ class Conformance(unittest.TestCase):
         self.assertNotIn(TOKEN, json.dumps(Site.seen))
         for path, kind, text in (('/plain', 'text/plain', 'Plain synthetic text.\n'), ('/xhtml', 'application/xhtml+xml', None),
                                  ('/rss', 'application/rss+xml', None), ('/atom', 'application/atom+xml', None), ('/xml', 'application/xml', None), ('/text-xml', 'text/xml', None), ('/empty', 'text/plain', ''),
-                                 ('/bom', 'text/plain', 'After the mark'), ('/chunked', 'text/html', None), ('/until-close', 'text/plain', 'No length was given.'),
+                                 ('/bom', 'text/plain', 'After the mark'), ('/json', 'application/json', '{"name": "Zo\u00eb"}'), ('/chunked', 'text/html', None), ('/until-close', 'text/plain', 'No length was given.'),
                                  ('', 'text/plain', None), ('?x=1', 'text/plain', None)):
             if path in ('', '?x=1'):
                 continue  # these ask the fake site for "/", which it does not have; checked below
@@ -831,7 +831,7 @@ class Conformance(unittest.TestCase):
             status, answer = self.read(site + path)
             self.assertEqual((status, answer.get('status')), (502, 404 if path == '/missing' else 500), path)
             self.assertNotIn('SYNTHETIC SITE DETAIL', json.dumps(answer), 'an error page is not passed on')
-        for path in ('/image', '/json', '/untyped', '/packed', '/latin', '/big', '/big-unannounced', '/garbage', '/nothing-here'):
+        for path in ('/image', '/untyped', '/packed', '/latin', '/big', '/big-unannounced', '/garbage', '/nothing-here'):
             status, answer = self.read(site + path)
             self.assertEqual((status, 'text' in answer, 'outcome' in answer), (502, False, False), path)
         self.assertEqual(self.read('https://down.pea-conformance.example/page')[0], 502, 'a site that is not answering')
