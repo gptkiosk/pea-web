@@ -778,3 +778,132 @@ test(
     await page.close();
   },
 );
+
+test(
+  'when the kept files do not fit, the oldest unpinned digests are left out of storage first, a pinned one stays, and the owner is told',
+  options,
+  async () => {
+    const { page } = await openToday();
+    await browse(page);
+    const heldCount = (n) =>
+      `[...document.querySelectorAll('#curated-list .curated-held')].filter((x) => /kept in this browser/.test(x.textContent)).length === ${n} && ${idle}`;
+    const storage = () => page.evaluate(`document.getElementById('curated-storage-note').textContent`);
+    const keptFile = async () =>
+      JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-kept-v1')`));
+    await press(page, 'Follow Harbor Voices');
+    await page.waitFor(heldCount(1), 'the first show');
+    await press(page, 'Follow Tide Tables');
+    await page.waitFor(heldCount(2), 'the second show');
+
+    // With room to spare everything is kept, and the choice of size is saved.
+    assert.match(await storage(), /^Using 0\.\d+ MB of 1\.0 MB\. Everything is kept across a reload\.$/);
+    assert.deepEqual(
+      await page.evaluate(`[...document.getElementById('curated-room').options].map((o) => o.textContent)`),
+      ['0.5 MB', '1.0 MB', '2.0 MB'],
+    );
+    await page.evaluate(`(() => {
+      const pick = document.getElementById('curated-room');
+      pick.value = '500000';
+      pick.dispatchEvent(new Event('change'));
+    })()`);
+    assert.equal(JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`)).room, 500000);
+    assert.match(await storage(), /of 0\.5 MB\. Everything is kept/);
+    const whole = (await page.evaluate(`localStorage.getItem('pea-curated-kept-v1')`)).length;
+
+    // Pin Harbor Voices' oldest kept episode, then let the browser refuse anything but a small file.
+    await page.evaluate(
+      `document.querySelector('#curated-list button[aria-label="Details of Harbor Voices"]').click()`,
+    );
+    await page.waitFor(`document.getElementById('curated-detail').open`, 'the detail');
+    await page.evaluate(
+      `document.querySelectorAll('#curated-detail-body ul li')[2].querySelector('button').click()`,
+    );
+    await page.evaluate(`document.getElementById('curated-detail').close()`);
+    const most = whole;
+    await page.evaluate(`(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'pea-curated-kept-v1' && String(value).length > ${most})
+          throw new DOMException('no room', 'QuotaExceededError');
+        return set.call(this, key, value);
+      };
+    })()`);
+    const before = asked(page).length;
+    await press(page, 'Follow The Lamp Room');
+    await page.waitFor(heldCount(3), 'the third show');
+    const note = await storage();
+    assert.match(
+      note,
+      /^Using 0\.\d+ MB of 0\.5 MB\. \d+ digests? did not fit, oldest first, and (is|are) fetched again by Refresh after a reload\. Pinned episodes are kept first\.$/,
+    );
+    const kept = await keptFile();
+    assert.ok(JSON.stringify(kept).length <= most);
+    const harbor = JSON.parse(dist['sources/harbor-voices/items.json']).items,
+      tide = JSON.parse(dist['sources/tide-tables/items.json']).items,
+      oldestHarbor = harbor[2].id,
+      oldestTideKept = tide[2].id;
+    assert.ok(kept.shows['harbor-voices'].digests[oldestHarbor], 'the pinned episode keeps its digest');
+    assert.equal(
+      kept.shows['tide-tables'].digests[oldestTideKept],
+      undefined,
+      'the oldest unpinned one does not',
+    );
+    for (const id of ['harbor-voices', 'tide-tables', 'lamp-room'])
+      assert.equal(
+        Object.keys(kept.shows[id].briefs).length,
+        id === 'lamp-room' ? 2 : 3,
+        'every brief is still kept: digests go first',
+      );
+    // Nothing left this tab: the open tab still has every digest.
+    await page.evaluate(
+      `document.querySelector('#curated-list button[aria-label="Details of Tide Tables"]').click()`,
+    );
+    await page.waitFor(`document.getElementById('curated-detail').open`, 'the detail');
+    assert.ok(
+      (await page.evaluate(`document.getElementById('curated-detail-body').textContent`)).match(
+        /brief and digest/g,
+      ).length === 3,
+    );
+
+    // After a reload what was left out is missing until Refresh, and nothing was asked to find that out.
+    const asks = asked(page).length;
+    assert.ok(asks > before);
+    await page.reload();
+    await page.click('#tab-today');
+    await page.waitFor(
+      `document.getElementById('curated-peek').textContent === '8 briefs ready' && ${idle}`,
+      'the kept files back',
+    );
+    assert.equal(asked(page).length, asks);
+    await page.evaluate(
+      `document.querySelector('#curated-list button[aria-label="Details of Tide Tables"]').click()`,
+    );
+    await page.waitFor(`document.getElementById('curated-detail').open`, 'the detail');
+    assert.match(
+      await page.evaluate(`document.querySelectorAll('#curated-detail-body ul li')[2].textContent`),
+      /brief only/,
+    );
+    await page.evaluate(`document.getElementById('curated-detail').close()`);
+
+    // A browser that keeps nothing: the files last for the tab, and the owner is told.
+    await page.evaluate(`(() => {
+      Storage.prototype.setItem = function (key) {
+        if (key === 'pea-curated-kept-v1') throw new DOMException('no room', 'QuotaExceededError');
+      };
+      const pick = document.getElementById('curated-room');
+      pick.value = '2000000';
+      pick.dispatchEvent(new Event('change'));
+    })()`);
+    assert.match(await storage(), /^Nothing could be kept in this browser’s storage\./);
+    assert.equal(await page.evaluate(`localStorage.getItem('pea-curated-kept-v1')`), null);
+    assert.equal(
+      await page.evaluate(`document.getElementById('curated-peek').textContent`),
+      '8 briefs ready',
+    );
+    assert.deepEqual(
+      page.outsideRequests().filter((url) => !url.startsWith(base)),
+      [],
+    );
+    await page.close();
+  },
+);

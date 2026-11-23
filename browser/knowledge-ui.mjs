@@ -35,6 +35,11 @@ const cleanName = (value) =>
     .slice(0, nameMost);
 // The most text kept in this browser for all shows together.
 const keptMost = 3000000;
+// How much of this browser's storage the kept files may use, in characters of text: the owner's
+// choice, one megabyte unless another is chosen. A browser gives one site about five in all.
+export const roomChoices = [500000, 1000000, 2000000],
+  roomDefault = 1000000;
+const megabytes = (chars) => `${(chars / 1000000).toFixed(chars < 95000 ? 2 : 1)} MB`;
 // How many of a show's newest episodes are fetched and kept: three unless the owner chooses
 // another number for that show, and never more than five.
 export const keepDefault = 3,
@@ -100,6 +105,8 @@ export function installCurated({ review, changed = () => {} }) {
     triedAt = 0,
     topic = '',
     storeText = '',
+    room = roomDefault,
+    stored = { chars: 0, digestsOut: 0, episodesOut: 0, kept: false },
     // Episodes the owner pinned, by show: kept while the curator lists them, whatever the count.
     pins = {},
     // The owner's own name for a show. The show's id, number and briefs are unchanged by it.
@@ -145,6 +152,7 @@ export function installCurated({ review, changed = () => {} }) {
           .slice(0, 40),
       );
       current = saved.current === true;
+      room = roomChoices.includes(saved.room) ? saved.room : roomDefault;
       checkedAt = Number.isSafeInteger(saved.checked) && saved.checked <= Date.now() ? saved.checked : 0;
       numbers = whole(saved.numbers, 1, 999);
       keeps = whole(saved.keep, 0, keepMost);
@@ -172,6 +180,7 @@ export function installCurated({ review, changed = () => {} }) {
             ...(Object.keys(pins).length ? { pins } : {}),
             ...(Object.keys(names).length ? { names } : {}),
             ...(current ? { current: true } : {}),
+            ...(room !== roomDefault ? { room } : {}),
             ...(checkedAt ? { checked: checkedAt } : {}),
           }),
         );
@@ -183,40 +192,74 @@ export function installCurated({ review, changed = () => {} }) {
   };
   // The checked files as they arrived, so that a reload can check and use them again.
   function saveKept() {
+    stored = { chars: 0, digestsOut: 0, episodesOut: 0, kept: false };
     try {
       if (!allowed || !storeText || !held.size) return globalThis.localStorage.removeItem(keptKey);
-      const made = (withDigests) =>
+      // Every kept episode, oldest first. When the files do not fit, the digests of the oldest
+      // unpinned episodes are left out first, then those episodes' briefs, then pinned digests.
+      // A pinned episode's brief is never left out. Nothing leaves this tab: what did not fit is
+      // fetched again by the Refresh after a reload.
+      const all = [...held]
+        .filter(([, h]) => h.itemsText)
+        .flatMap(([id, h]) => h.episodes.map((e) => ({ id, e, fixed: pinned(id, e.item.id) })))
+        .sort((a, b) => (a.e.item.date < b.e.item.date ? -1 : a.e.item.date > b.e.item.date ? 1 : 0));
+      const noDigest = new Set(),
+        noEpisode = new Set();
+      const made = () =>
         JSON.stringify({
           store: storeText,
           shows: Object.fromEntries(
             [...held]
               .filter(([, h]) => h.itemsText)
-              .map(([id, h]) => [
-                id,
-                {
-                  items: h.itemsText,
-                  briefs: Object.fromEntries(
-                    h.episodes.filter((e) => e.text).map((e) => [e.item.id, e.text]),
-                  ),
-                  ...(withDigests
-                    ? {
-                        digests: Object.fromEntries(
-                          h.episodes.filter((e) => e.digestText).map((e) => [e.item.id, e.digestText]),
-                        ),
-                      }
-                    : {}),
-                },
-              ]),
+              .map(([id, h]) => {
+                const here = h.episodes.filter((e) => e.text && !noEpisode.has(e));
+                return [
+                  id,
+                  {
+                    items: h.itemsText,
+                    briefs: Object.fromEntries(here.map((e) => [e.item.id, e.text])),
+                    digests: Object.fromEntries(
+                      here
+                        .filter((e) => e.digestText && !noDigest.has(e))
+                        .map((e) => [e.item.id, e.digestText]),
+                    ),
+                  },
+                ];
+              }),
           ),
         });
-      // Digests are the larger files: when everything together is too much, they are the first
-      // to be left out of what is kept across a reload, and come back with the next Refresh.
-      let text = made(true);
-      if (text.length > keptMost) text = made(false);
-      if (text.length > keptMost) globalThis.localStorage.removeItem(keptKey);
-      else globalThis.localStorage.setItem(keptKey, text);
+      const next = () =>
+        all.find((x) => !x.fixed && x.e.digestText && !noDigest.has(x.e) && !noEpisode.has(x.e)) ??
+        all.find((x) => !x.fixed && !noEpisode.has(x.e)) ??
+        all.find((x) => x.fixed && x.e.digestText && !noDigest.has(x.e));
+      let limit = room;
+      for (let attempt = 0; attempt < 12; attempt++) {
+        let text = made();
+        while (text.length > limit) {
+          const out = next();
+          if (!out) break;
+          if (out.e.digestText && !noDigest.has(out.e)) noDigest.add(out.e);
+          else noEpisode.add(out.e);
+          text = made();
+        }
+        if (text.length > limit) break;
+        try {
+          globalThis.localStorage.setItem(keptKey, text);
+          stored = {
+            chars: text.length,
+            digestsOut: [...noDigest].filter((e) => !noEpisode.has(e)).length,
+            episodesOut: noEpisode.size,
+            kept: true,
+          };
+          return;
+        } catch {
+          // The browser had less room than the owner allowed: try again with somewhat less.
+          limit = Math.floor(text.length * 0.85);
+        }
+      }
+      globalThis.localStorage.removeItem(keptKey);
     } catch {
-      // No room or no storage: the briefs then last for this tab.
+      // No storage at all: the files then last for this tab.
     }
   }
   const isOn = (id) => !off.includes(id);
@@ -403,6 +446,25 @@ export function installCurated({ review, changed = () => {} }) {
     $('curated-renumber').disabled = busy;
     $('curated-request').hidden = !allowed;
     $('curated-current-row').hidden = !allowed;
+    $('curated-storage').hidden = !allowed || !followed.length;
+    const pick = $('curated-room');
+    if (pick.options.length !== roomChoices.length)
+      pick.replaceChildren(...roomChoices.map((n) => new Option(megabytes(n), String(n))));
+    pick.value = String(room);
+    pick.disabled = busy;
+    const out = [
+      stored.digestsOut ? `${stored.digestsOut} ${stored.digestsOut === 1 ? 'digest' : 'digests'}` : '',
+      stored.episodesOut ? `${stored.episodesOut} ${stored.episodesOut === 1 ? 'episode' : 'episodes'}` : '',
+    ].filter(Boolean);
+    $('curated-storage-note').textContent = !held.size
+      ? 'Nothing is kept yet.'
+      : !stored.kept
+        ? 'Nothing could be kept in this browser’s storage. The files last for this tab and are fetched again after a reload.'
+        : `Using ${megabytes(stored.chars)} of ${megabytes(room)}. ${
+            out.length
+              ? `${out.join(' and ')} did not fit, oldest first, and ${stored.digestsOut + stored.episodesOut === 1 ? 'is' : 'are'} fetched again by Refresh after a reload. Pinned episodes are kept first.`
+              : 'Everything is kept across a reload.'
+          }`;
     $('curated-current').checked = current;
     // A show with nothing to talk about yet is not offered; one already followed always shows.
     const shown = store
@@ -804,6 +866,16 @@ export function installCurated({ review, changed = () => {} }) {
     save();
     await refresh(id);
   }
+  $('curated-room').onchange = () => {
+    const n = Number($('curated-room').value);
+    if (busy || !roomChoices.includes(n)) return render();
+    room = n;
+    save();
+    say(
+      `This browser now keeps up to ${megabytes(room)} of curated files across a reload. Nothing was fetched.`,
+    );
+    render();
+  };
   // Stay current: a check by itself, never more often than every six hours.
   const due = () =>
     allowed &&
@@ -868,6 +940,8 @@ export function installCurated({ review, changed = () => {} }) {
       }
       held.set(id, { listing: s, episodes, refused: 0, itemsText: show.items });
     }
+    // Counts what is kept, and drops from storage anything that no longer passed its checks.
+    saveKept();
   }
 
   $('curated-browse').onclick = () => void browse();
@@ -883,6 +957,7 @@ export function installCurated({ review, changed = () => {} }) {
     names = {};
     $('curated-detail').close();
     current = false;
+    room = roomDefault;
     topic = '';
     storeText = '';
     store = null;
