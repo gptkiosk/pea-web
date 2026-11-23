@@ -540,3 +540,50 @@ test(
     await page.close();
   },
 );
+
+test(
+  'fields in a settings section keep one rhythm: label close above, note clear below, Paste on the same line',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1000, height: 1200 });
+    await press(page, 'menu-settings');
+    await tile(page, 'voices');
+    await page.fill('#provider-voice', 'fish');
+    await page.waitFor(`!document.getElementById('provider-voice-key-row').hidden`, 'the key field');
+    const gaps = await page.evaluate(`(() => {
+      const box = (id) => document.getElementById(id).getBoundingClientRect();
+      const label = (id) => document.querySelector('label[for="' + id + '"]').getBoundingClientRect();
+      const pick = box('provider-voice'), note = box('provider-voice-status'), key = box('provider-voice-key');
+      const paste = document.querySelector('[data-paste-target="provider-voice-key"]').getBoundingClientRect();
+      return {
+        labelToField: Math.round(pick.top - label('provider-voice').bottom),
+        fieldToNote: Math.round(note.top - pick.bottom),
+        noteToNextLabel: Math.round(label('provider-voice-key').top - note.bottom),
+        keyLabelToField: Math.round(key.top - label('provider-voice-key').bottom),
+        sameLine: paste.top < key.bottom && paste.bottom > key.top && paste.left >= key.right,
+        centred: Math.abs((paste.top + paste.bottom) / 2 - (key.top + key.bottom) / 2) <= 2,
+        ends: Math.round(paste.right - pick.right),
+      };
+    })()`);
+    assert.ok(gaps.labelToField >= 6 && gaps.labelToField <= 12, JSON.stringify(gaps));
+    assert.ok(gaps.keyLabelToField >= 6 && gaps.keyLabelToField <= 12, JSON.stringify(gaps));
+    assert.ok(gaps.fieldToNote >= 8, 'a note never touches the field above it: ' + JSON.stringify(gaps));
+    assert.ok(gaps.noteToNextLabel >= 18, 'the next label starts clear: ' + JSON.stringify(gaps));
+    assert.ok(gaps.sameLine && gaps.centred, 'Paste sits beside its field: ' + JSON.stringify(gaps));
+    assert.equal(gaps.ends, 0, 'the row ends where the fields end');
+    await page.evaluate(`document.getElementById('connections').close()`);
+    await closed(page, 'connections');
+
+    // A section never shows a More button whose text belongs to the window's home.
+    await press(page, 'menu-history');
+    await tile(page, 'profile-file');
+    assert.equal(
+      await page.evaluate(
+        `[...document.querySelectorAll('#library .settings-more')].filter((b) => b.getClientRects().length && !b.closest('.settings-focus')).length`,
+      ),
+      0,
+    );
+    assert.deepEqual(page.errors, []);
+    await page.close();
+  },
+);

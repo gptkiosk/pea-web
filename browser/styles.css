@@ -4837,6 +4837,54 @@ section.settings-here {
 .tiled .settings-focus > summary {
   display: none;
 }
+/* One rhythm for every field in these windows: a label sits close above its own field, a note
+   sits just under it, and the next label starts clear of both. */
+.tiled .dialog-body label {
+  margin: 22px 0 8px;
+  line-height: 1.4;
+}
+.tiled .dialog-body label:has(> input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+  margin: 14px 0;
+}
+.tiled .dialog-body :is(input:not([type='checkbox']), select, textarea) {
+  margin: 0;
+}
+.tiled .dialog-body label > :is(input:not([type='checkbox']), select, textarea) {
+  margin-top: 8px;
+}
+.tiled .dialog-body p {
+  margin: 0 0 12px;
+}
+.tiled .dialog-body p:empty {
+  margin: 0;
+}
+.tiled .dialog-body :is(input, select, textarea, .input-with-action, label) + p {
+  margin-top: 10px;
+}
+.tiled .dialog-body .settings-short {
+  margin-bottom: 0;
+}
+.tiled .dialog-body .settings-more {
+  min-height: 32px;
+  padding: 4px 0;
+  margin: 0 0 8px;
+}
+/* A field and its Paste button share one line; what Paste says goes underneath. */
+.tiled .dialog-body .input-with-action {
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.tiled .dialog-body .input-with-action input:not([type='checkbox']) {
+  flex: 1 1 0;
+  width: auto;
+}
+.tiled .dialog-body .settings-group > :is(button, .action-row):not(.settings-more),
+.tiled .dialog-body .settings-group > div > button:not(.paste-control):not(.settings-more) {
+  margin-top: 16px;
+}
 /* Short points in place of a paragraph, and a button that leads to where the setting is. */
 .settings-points {
   margin: 4px 0 14px;
