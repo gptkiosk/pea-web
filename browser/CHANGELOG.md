@@ -2,6 +2,30 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.47] - 2026-11-22
+
+### Added
+
+- **Web search with your own key, at Brave Search or Browserbase.** Under Connections there is a new section, **Web search**, with a field for each key and a choice of which to search with when you have both.
+  - In Chat, type "search for tide tables in Lisbon" (or "web search …", "search the web for …"), or press **Search the web** when your model offers it.
+  - Nothing is searched until you review the exact words and the provider. Declining asks nobody.
+  - Your PEA server makes the one request. Your key goes from the page to your server and from there only to the provider; the server does not keep or log it. PEA never retries and never switches to the other provider.
+  - Up to five results are kept as plain words in this tab: each page's title, site, address and up to three extracts. They are shown to you and shared with your model only with your next Chat message, after the usual review. They are not saved with your chats.
+  - Your model is told it may offer a search only while a key is in the tab, that a search may cost you money, and never to say it searched.
+  - A key is held in this tab only. Tick **Keep my search keys sealed in my encrypted library** to have them back after you unlock; they are in no backup. **Forget my search keys** removes them from both.
+  - If the provider rejects the key, is out of credit or is busy, PEA says so in its own words; the provider's wording is not shown.
+
+### Changed
+
+- **The PEA server has a new route for search**, written into the shared contract and conformance suite first. Both the Python and the Mac gateway follow it: one fixed request to the named provider's own host, nothing in a request chooses the host, path or options, bounded in time and size, sharing the one provider slot with speech.
+
+### Not included
+
+- **Prices are yours to check.** When read on 22 November 2026, Brave listed search at $5 per 1,000 requests with monthly free credit and did not state a price for the endpoint PEA uses; Browserbase listed 1,000 searches a month free and $1 per 1,000 for the fast mode PEA asks for.
+- Brave's terms do not allow storing results beyond transient use, so PEA keeps them in the tab only.
+- No separate "web brief" written by a model, and no result page is fetched by itself. To read one page in full, use "read https://…".
+- Not tried against the real providers: I have no key of yours and made no real search.
+
 ## [0.1.0-rc.4.dev.46] - 2026-11-22
 
 ### Added

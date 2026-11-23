@@ -20,7 +20,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from build_identity import build_identity
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -203,6 +203,40 @@ SPEECH_REFUSALS = {
     'failed': 'The voice provider could not be reached or failed. No retry and no other voice.',
 }
 SPEECH_REASONS = {401: 'key', 403: 'key', 402: 'credit', 429: 'busy', 400: 'voice', 404: 'voice', 422: 'voice'}
+
+
+SEARCH = CONTRACT['search']
+SEARCH_KEY = re.compile(SEARCH['keyPattern'] + r'\Z')
+# What the owner's page is told when a search provider gives no results. Its own words are never passed on.
+SEARCH_REFUSALS = {
+    'key': 'The search provider rejected this key.',
+    'credit': 'The search provider says this key has no credit for this.',
+    'busy': 'The search provider is busy or rate limiting this key. No automatic retry.',
+    'query': 'The search provider did not accept this search.',
+    'failed': 'The search provider could not be reached or failed. No retry and no other provider.',
+}
+SEARCH_REASONS = {401: 'key', 403: 'key', 402: 'credit', 429: 'busy', 400: 'query', 404: 'query', 422: 'query'}
+
+
+class SearchRefusal(Exception):
+    def __init__(self, reason):
+        self.reason = reason
+
+
+def validate_search(raw):
+    """Checks a request to search. Returns it unchanged or raises ValueError."""
+    if not isinstance(raw, dict) or set(raw) != set(SEARCH['fields']):
+        raise ValueError()
+    if not isinstance(raw['provider'], str) or raw['provider'] not in SEARCH['providers']:
+        raise ValueError()
+    if not isinstance(raw['key'], str) or not SEARCH_KEY.fullmatch(raw['key']):
+        raise ValueError()
+    query = raw['query']
+    if not isinstance(query, str) or not query.strip() or query != query.strip() or len(query) > SEARCH['queryCharacters']:
+        raise ValueError()
+    if any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in query):
+        raise ValueError()
+    return raw
 
 
 class SpeechRefusal(Exception):
@@ -578,6 +612,65 @@ class Gateway(ThreadingHTTPServer):
                 timer.cancel()
             connection.close()
 
+    def search_call(self, request):
+        """One request to a search provider with the owner's key. Returns the provider's answer as
+        text. Raises SearchRefusal with a reason; nothing else the provider said is kept."""
+        provider = request['provider']
+        rules = SEARCH['providers'][provider]
+        headers = {rules['keyHeader']: rules['keyPrefix'] + request['key'], 'Accept-Encoding': 'identity', 'Connection': 'close',
+                   'User-Agent': SEARCH['userAgent'], 'Accept': 'application/json'}
+        if rules['method'] == 'GET':
+            path, body = rules['path'].replace('{query}', quote(request['query'], safe='')), None
+        else:
+            path = rules['path']
+            body = json.dumps({**rules['body'], rules['queryField']: request['query']}).encode()
+            headers['Content-Type'] = 'application/json'
+        if provider in self.speech_test_ports:
+            connection = http.client.HTTPConnection('127.0.0.1', self.speech_test_ports[provider], timeout=SEARCH['seconds'])
+        else:
+            connection = http.client.HTTPSConnection(rules['host'], 443, timeout=SEARCH['seconds'], context=ssl.create_default_context())
+        expired = threading.Event()
+        timer = None
+        try:
+            connection.connect()
+            raw = connection.sock
+
+            def cut():
+                expired.set()
+                try:
+                    raw.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+            timer = threading.Timer(SEARCH['seconds'], cut)
+            timer.daemon = True
+            timer.start()
+            connection.request(rules['method'], path, body=body, headers=headers)
+            response = connection.getresponse()
+            if response.status != 200:
+                raise SearchRefusal(SEARCH_REASONS.get(response.status, 'failed'))
+            kind = (response.getheader('Content-Type') or '').split(';', 1)[0].strip().lower()
+            if kind != 'application/json' or (response.getheader('Content-Encoding') or 'identity').strip().lower() != 'identity':
+                raise SearchRefusal('failed')
+            data = b''
+            while True:
+                chunk = response.read1(65536)
+                if not chunk:
+                    break
+                data += chunk
+                if len(data) > SEARCH['bodyBytes']:
+                    raise SearchRefusal('failed')
+            if expired.is_set() or not data:
+                raise SearchRefusal('failed')
+            return data.decode('utf-8')
+        except SearchRefusal:
+            raise
+        except (OSError, ValueError, AttributeError, http.client.HTTPException):
+            raise SearchRefusal('failed') from None
+        finally:
+            if timer:
+                timer.cancel()
+            connection.close()
+
     def update_status(self):
         """Whether this gateway can update its own copy, what is installed and how the last update went."""
         if not self.update:
@@ -780,12 +873,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.boundary(auth=True):
             return
-        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path'], SPEECH['path'], SPEECH['voicesPath'], UPDATES['path'], PROJECTS['path']):
-            return self.reply(404, {'error': 'Only model listing, text chat, reminders, the page reader, speech, updates and projects are exposed.'})
+        if self.path not in ('/v1/chat/completions', REMINDERS['path'], READER['path'], SPEECH['path'], SPEECH['voicesPath'], SEARCH['path'], UPDATES['path'], PROJECTS['path']):
+            return self.reply(404, {'error': 'Only model listing, text chat, reminders, the page reader, speech, search, updates and projects are exposed.'})
         reminders = self.path == REMINDERS['path']
         reading = self.path == READER['path']
         speaking = self.path in (SPEECH['path'], SPEECH['voicesPath'])
         listing = self.path == SPEECH['voicesPath']
+        searching = self.path == SEARCH['path']
         updating = self.path == UPDATES['path']
         planning = self.path == PROJECTS['path']
         try:
@@ -795,10 +889,10 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= MAX_REQUEST:
                 raise ValueError()
             parsed = strict_json(self.rfile.read(length))
-            body = validate_project(parsed) if planning else validate_update(parsed) if updating else validate_speech(parsed, listing) if speaking else (validate_reminders if reminders else validate_read if reading else validate_chat)(parsed)
+            body = validate_project(parsed) if planning else validate_update(parsed) if updating else validate_search(parsed) if searching else validate_speech(parsed, listing) if speaking else (validate_reminders if reminders else validate_read if reading else validate_chat)(parsed)
             self.read_timer.cancel()
         except (ValueError, TypeError, RecursionError):
-            return self.reply(400, {'error': 'Invalid project request.' if planning else 'Invalid update request.' if updating else 'Invalid speech request.' if speaking else 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
+            return self.reply(400, {'error': 'Invalid project request.' if planning else 'Invalid update request.' if updating else 'Invalid search request.' if searching else 'Invalid speech request.' if speaking else 'Invalid reminder list.' if reminders else 'Invalid read request.' if reading else 'Invalid or oversized text chat request.'})
         if planning:
             if not self.server.projects:
                 return self.reply(409, {'error': PROJECTS['unavailable']})
@@ -815,6 +909,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.projects_lock.release()
         if updating:
             return self.reply(*self.server.update_request(body))
+        if searching:
+            if not self.server.speech_lock.acquire(blocking=False):
+                return self.reply(429, {'error': 'A provider request is already running. No automatic retry.'})
+            try:
+                return self.reply(200, {'outcome': 'results', 'provider': body['provider'], 'text': self.server.search_call(body)})
+            except SearchRefusal as refusal:
+                return self.reply(502, {'error': SEARCH_REFUSALS[refusal.reason], 'reason': refusal.reason})
+            finally:
+                self.server.speech_lock.release()
         if speaking:
             if not self.server.speech_lock.acquire(blocking=False):
                 return self.reply(429, {'error': 'A voice request is already running. No automatic retry.'})
@@ -889,7 +992,7 @@ def main():
     parser.add_argument('--update-channel', choices=('development', 'release'), default='release', help='release: signed published releases only. development: the main branch, unsigned.')
     parser.add_argument('--update-prerelease', action='store_true', help='With the release channel: also offer signed pre-releases.')
     parser.add_argument('--speech-test-port', action='append', default=[], metavar='PROVIDER=PORT',
-                        help='Tests only: reach this voice provider at plain HTTP on a port of this machine instead.')
+                        help='Tests only: reach this voice or search provider at plain HTTP on a port of this machine instead.')
     parser.add_argument('--projects-url', help='The address of your project engine (MCD or RCD), installed and running first: http:// and its port on a loopback IP of this machine, or https:// on a named host elsewhere. Needs --projects-token-file.')
     parser.add_argument('--projects-test-host', action='append', default=[], metavar='NAME.example=PORT',
                         help='Tests only: reach an https project engine of this name at plain HTTP on a port of this machine.')
@@ -916,11 +1019,11 @@ def main():
     voices = {}
     for entry in args.speech_test_port:
         name, _, value = entry.partition('=')
-        if name not in SPEECH['providers'] or not value.isdigit():
+        if (name not in SPEECH['providers'] and name not in SEARCH['providers']) or not value.isdigit():
             parser.error('A speech test port names a provider and a port.')
         voices[name] = int(value)
     if voices:
-        print('TEST MODE: voice providers have stand-ins. Never use this option outside tests.', file=sys.stderr)
+        print('TEST MODE: voice or search providers have stand-ins. Never use this option outside tests.', file=sys.stderr)
     if bool(args.update_checkout) != bool(args.update_launchd_label):
         parser.error('Give both --update-checkout and --update-launchd-label, or neither.')
     update = None

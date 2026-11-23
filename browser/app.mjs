@@ -57,6 +57,8 @@ import {
   lookupProposals,
   ownerLookup,
   ownerPapers,
+  ownerSearch,
+  searchProposals,
   ownerRead,
   paperProposals,
   readProposals,
@@ -1592,7 +1594,7 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
   }
   // "papers on …" in the owner's own words: one reviewed search of the public index of papers.
   // Likewise "wikipedia …" and "tv show …".
-  const search = surface === 'chat' ? (ownerPapers(text) ?? ownerLookup(text)) : null;
+  const search = surface === 'chat' ? (ownerPapers(text) ?? ownerLookup(text) ?? ownerSearch(text)) : null;
   if (search) {
     field.value = '';
     await research.lookup(search, 'owner');
@@ -1766,6 +1768,7 @@ live = installConnections({
   },
 
   page: () => research?.current() ?? null,
+  canSearch: () => research?.canSearch() ?? false,
   // The open episode's brief and digest, unless the owner switched Talk from briefs off.
   brief: () => (curated?.talks() === false ? null : (numbered?.brief() ?? null)),
   beginReply(surface, text, { sourced = false, steps = null, detail = null } = {}) {
@@ -1811,7 +1814,9 @@ live = installConnections({
       written = offer ? docProposals(raw, live.currentDocument()) : [],
       opens = offer ? openProposals(raw) : [],
       // One address to read, or one search of the index of papers: both are read by the same reader.
-      reads = offer ? [...readProposals(raw), ...paperProposals(raw), ...lookupProposals(raw)] : [],
+      reads = offer
+        ? [...readProposals(raw), ...paperProposals(raw), ...lookupProposals(raw), ...searchProposals(raw)]
+        : [],
       choices = offer ? choiceProposals(raw) : [],
       // A project draft is offered only where this server has a project engine to leave it in.
       drafts = offer && projects?.available() ? projectProposals(raw) : [];
@@ -2673,6 +2678,8 @@ research = installResearch({
   isBusy: live.isBusy,
   key: live.localKey,
   read: live.readPage,
+  search: live.searchWeb,
+  secrets: () => memory?.secrets ?? null,
 });
 numbered = installNumbered({
   groups: () => headlines?.groups() ?? [],

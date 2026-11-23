@@ -137,6 +137,7 @@
   "tests/dom/type-and-listen.test.mjs",
   "tests/dom/updates.test.mjs",
   "tests/dom/weather.test.mjs",
+  "tests/dom/web-search.test.mjs",
   "tests/dom/workspace.test.mjs",
   "tests/days.test.mjs",
   "tests/decks.test.mjs",

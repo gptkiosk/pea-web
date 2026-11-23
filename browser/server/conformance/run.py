@@ -34,6 +34,7 @@ CONTRACT = json.loads((SERVER / 'contract.json').read_text())
 LIMITS = CONTRACT['limits']
 READER = CONTRACT['reader']
 SPEECH = CONTRACT['speech']
+SEARCH = CONTRACT['search']
 UPDATES = CONTRACT['updates']
 PROJECTS = CONTRACT['projects']
 ENGINE_TOKEN = secrets.token_urlsafe(48)
@@ -195,6 +196,7 @@ class Voices(BaseHTTPRequestHandler):
     release = threading.Event()
     AUDIO = b'ID3SYNTHETIC-MP3-' + bytes(range(256)) * 4
     DETAIL = b'{"detail":"SYNTHETIC PROVIDER DETAIL quota for user owner@example.invalid"}'
+    FOUND = '{"results": [{"title": "Zo\u00eb\u2019s tide tables", "url": "https://tides.example/zoe"}]}'.encode()
 
     def log_message(self, *_args):
         pass
@@ -225,6 +227,8 @@ class Voices(BaseHTTPRequestHandler):
             self.send(200, 'audio/mpeg', b'x' * (SPEECH['audioBytes'] + 1))
         elif how == 'biglist01':
             self.send(200, 'application/json', b'{"voices":[' + b' ' * SPEECH['listBytes'] + b']}')
+        elif how == 'bigsearch':
+            self.send(200, 'application/json', b'{"results":[' + b' ' * SEARCH['bodyBytes'] + b']}')
         elif how == 'gzipped01':
             self.send(200, 'audio/mpeg', self.AUDIO, [('Content-Encoding', 'gzip')])
         elif how == 'emptybody':
@@ -249,9 +253,11 @@ class Voices(BaseHTTPRequestHandler):
     def do_GET(self):
         headers = {k.lower(): v for k, v in self.headers.items()}
         type(self).seen.append(('GET', self.path, headers, b''))
-        key = (headers.get('xi-api-key') or headers.get('authorization', '')).removeprefix('Bearer ')
+        key = (headers.get('xi-api-key') or headers.get('x-subscription-token') or headers.get('authorization', '')).removeprefix('Bearer ')
         if self.misbehave(key[:9]):
             return
+        if self.path.startswith('/res/v1/llm/context?'):
+            return self.send(200, 'application/json; charset=utf-8', self.FOUND)
         if self.path == '/v2/voices?page_size=100':
             rows = [{'voice_id': 'voiceAAAA1111', 'name': '  Synthetic\tAda  ', 'category': 'premade', 'preview_url': 'https://evil.example/x.mp3'},
                     {'voice_id': 'bad id!', 'name': 'Dropped'}, {'voice_id': 'voiceBBBB2222', 'name': 7}, 'text',
@@ -274,6 +280,10 @@ class Voices(BaseHTTPRequestHandler):
             voice = eleven.group(1) if eleven else json.loads(body)['reference_id'] if self.path == '/v1/tts' else None
         except (ValueError, KeyError):
             voice = None
+        if self.path == '/v1/search':
+            if not self.misbehave(headers.get('x-bb-api-key', '')[:9]):
+                self.send(200, 'application/json', self.FOUND)
+            return
         if voice is None:
             return self.send(404, 'application/json', self.DETAIL)
         if not self.misbehave(voice):
@@ -371,6 +381,8 @@ class Conformance(unittest.TestCase):
              # Stand-ins for the voice providers.
              '--speech-test-port', f'elevenlabs={cls.voices.server_port}',
              '--speech-test-port', f'fish={cls.voices.server_port}',
+             '--speech-test-port', f'brave={cls.voices.server_port}',
+             '--speech-test-port', f'browserbase={cls.voices.server_port}',
              # Stand-ins for public sites. A real name can never be given a local address this way.
              '--reader-test-site', f'site.pea-conformance.example={cls.site.server_port}',
              '--reader-test-site', f'other.pea-conformance.example={cls.site.server_port}',
@@ -1040,6 +1052,92 @@ class Conformance(unittest.TestCase):
             self.assertIn(self.call('GET', path, token=TOKEN)[0], (404, 405))
             for other in (path + '/', path + '/x', '/' + path, '/api' + path[3:]):
                 self.assertIn(self.call('POST', other, token=TOKEN, body=body)[0], (401, 404), other)
+        self.assertEqual(Voices.seen, [], 'nothing reached a provider')
+
+    # --- web search with the owner's own key --------------------------------------------------
+
+    def search(self, timeout=30, **fields):
+        body = {'provider': 'brave', 'key': self.KEY, 'query': 'tide tables', **fields}
+        status, headers, data = self.call('POST', SEARCH['path'], token=TOKEN, body=body, timeout=timeout)
+        self.assert_contract_headers(headers, 'search ' + str(status))
+        return status, json.loads(data)
+
+    def test_search_sends_one_fixed_request_with_the_owners_key_and_returns_the_answer_as_text(self):
+        asked = 'Zo\u00eb & \u201ctide tables\u201d? 100% #1/2'
+        status, answer = self.search(query=asked)
+        self.assertEqual((status, answer), (200, {'outcome': 'results', 'provider': 'brave', 'text': Voices.FOUND.decode()}))
+        self.assertEqual(len(Voices.seen), 1, 'one request to the provider')
+        method, path, sent, body = Voices.seen[0]
+        fixed = SEARCH['providers']['brave']['path']
+        self.assertEqual((method, path, body), ('GET', fixed.replace('{query}', 'Zo%C3%AB%20%26%20%E2%80%9Ctide%20tables%E2%80%9D%3F%20100%25%20%231%2F2'), b''))
+        self.assertEqual(sent.get('x-subscription-token'), self.KEY)
+        self.assertEqual(sent.get('user-agent'), SEARCH['userAgent'])
+        self.assertEqual(sent.get('accept-encoding'), 'identity')
+        for private in ('authorization', 'cookie', 'origin', 'referer', 'x-bb-api-key'):
+            self.assertNotIn(private, sent, 'nothing of the owner\u2019s gateway session, and no other key, is passed on')
+        self.assertNotIn(TOKEN, json.dumps(sent))
+
+        Voices.seen.clear()
+        status, answer = self.search(provider='browserbase', query=asked)
+        self.assertEqual((status, answer), (200, {'outcome': 'results', 'provider': 'browserbase', 'text': Voices.FOUND.decode()}))
+        method, path, sent, body = Voices.seen[0]
+        self.assertEqual((method, path), ('POST', '/v1/search'))
+        self.assertEqual(sent.get('x-bb-api-key'), self.KEY)
+        self.assertEqual(sent.get('content-type'), 'application/json')
+        self.assertNotIn('x-subscription-token', sent)
+        self.assertNotIn('authorization', sent)
+        self.assertEqual(json.loads(body), {**SEARCH['providers']['browserbase']['body'], 'query': asked})
+        self.assertNotIn(TOKEN, json.dumps(sent) + body.decode())
+        self.assertEqual(self.search(query='\U0001F331' * SEARCH['queryCharacters'])[0], 200, 'the limit counts characters')
+
+    def test_every_malformed_search_request_is_refused_before_any_provider(self):
+        good = {'provider': 'brave', 'key': self.KEY, 'query': 'tide tables'}
+        bad = [{**good, 'provider': 'elevenlabs'}, {**good, 'provider': 'Brave'}, {**good, 'provider': 7}, {**good, 'key': 'short'}, {**good, 'key': self.KEY + ' '},
+               {**good, 'key': None}, {**good, 'query': ''}, {**good, 'query': '   '}, {**good, 'query': ' padded'}, {**good, 'query': 'two\nlines'},
+               {**good, 'query': 'tab\there'}, {**good, 'query': 'x' * (SEARCH['queryCharacters'] + 1)}, {**good, 'query': 7}, {**good, 'query': ['tide']},
+               {**good, 'host': 'evil.example'}, {**good, 'url': 'https://evil.example/'}, {**good, 'count': 50}, {'provider': 'brave', 'key': self.KEY}, [], 'tide', None]
+        for body in bad:
+            status, _, data = self.call('POST', SEARCH['path'], token=TOKEN, body=body)
+            self.assertEqual((status, json.loads(data)), (400, {'error': 'Invalid search request.'}), json.dumps(body)[:80])
+        self.assertEqual(Voices.seen, [], 'nothing reached a provider')
+
+    def test_a_search_provider_that_fails_is_reported_in_the_gateways_own_words(self):
+        for how, reason in (('fail0401', 'key'), ('fail0403', 'key'), ('fail0402', 'credit'), ('fail0429', 'busy'), ('fail0400', 'query'), ('fail0422', 'query'),
+                            ('fail0500', 'failed'), ('fail0503', 'failed'), ('redirect1', 'failed'), ('wrongtype', 'failed'), ('gzipped01', 'failed'),
+                            ('emptybody', 'failed'), ('bigsearch', 'failed')):
+            for provider in SEARCH['providers']:
+                Voices.seen.clear()
+                status, answer = self.search(provider=provider, key=how + 'x' * 24)
+                self.assertEqual((status, set(answer), answer.get('reason')), (502, {'error', 'reason'}, reason), how + ' ' + provider)
+                self.assertNotIn('SYNTHETIC', json.dumps(answer), 'the provider\u2019s own words are not passed on')
+                self.assertEqual(len(Voices.seen), 1, how + ': one request, no retry and no redirect followed')
+
+    def test_search_shares_the_one_provider_slot_and_needs_the_token(self):
+        results = []
+        slow = threading.Thread(target=lambda: results.append(self.speak(voice='slowslow1')[0]))
+        slow.start()
+        deadline = time.monotonic() + 10
+        while not Voices.seen and time.monotonic() < deadline:
+            time.sleep(0.02)
+        try:
+            status, answer = self.search()
+            self.assertEqual((status, set(answer)), (429, {'error'}))
+            self.assertEqual(len(Voices.seen), 1)
+        finally:
+            Voices.release.set()
+            slow.join(30)
+        self.assertEqual(results, [200])
+        Voices.seen.clear()
+        good = {'provider': 'brave', 'key': self.KEY, 'query': 'tide tables'}
+        path = SEARCH['path']
+        self.assertEqual(self.call('POST', path, body=good)[0], 401)
+        self.assertEqual(self.call('POST', path, token=self.KEY, body=good)[0], 401, 'a provider key is not the connection token')
+        self.assertEqual(self.call('POST', path + '?token=' + TOKEN, body=good)[0], 401)
+        self.assertEqual(self.call('POST', path, token=TOKEN, body=good, headers={'Origin': 'https://evil.example'})[0], 403)
+        self.assertEqual(self.call('POST', path, token=TOKEN, body=good, headers={'Host': 'evil.example'})[0], 403)
+        self.assertIn(self.call('GET', path, token=TOKEN)[0], (404, 405))
+        for other in (path + '/', path + '/x', '/' + path, '/api' + path[3:]):
+            self.assertIn(self.call('POST', other, token=TOKEN, body=good)[0], (401, 404), other)
         self.assertEqual(Voices.seen, [], 'nothing reached a provider')
 
     # --- updating the installed copy ---------------------------------------------------------

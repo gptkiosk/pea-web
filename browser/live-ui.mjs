@@ -10,7 +10,7 @@ import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
 import { openGuidance } from './handoff.mjs';
 import { choiceGuidance } from './choices.mjs';
 import { pointsGuidance } from './numbered.mjs';
-import { lookupGuidance, papersGuidance, readGuidance } from './research.mjs';
+import { lookupGuidance, papersGuidance, readGuidance, searchGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
 import { canonContext } from './canon.mjs';
 import { describeLife, lifeContext, styleRule } from './life.mjs';
@@ -611,6 +611,7 @@ export function installConnections(hooks) {
       (surface === 'chat' && localKey()
         ? '\n' + readGuidance + '\n' + papersGuidance + '\n' + lookupGuidance
         : '') +
+      (surface === 'chat' && localKey() && hooks.canSearch?.() ? '\n' + searchGuidance : '') +
       '\nText for the owner to copy, such as an outline, a message to paste or code, goes in a plain fenced block; the app shows it with a Copy button and never reads it aloud.';
     // To-do guidance always explains how to propose a change; the items themselves are added only
     // under the owner's sharing setting for this profile.
@@ -714,7 +715,12 @@ export function installConnections(hooks) {
         ...(spoken ? ['spoken reply'] : []),
         'numbered points',
         ...(surface === 'chat' && localKey()
-          ? ['page reading', 'paper lookup', 'wikipedia and tv lookup']
+          ? [
+              'page reading',
+              'paper lookup',
+              'wikipedia and tv lookup',
+              ...(hooks.canSearch?.() ? ['web search'] : []),
+            ]
           : []),
         ...(brief ? ['curated brief'] : []),
         ...(todoText ? ['to-dos'] : []),
@@ -2040,6 +2046,7 @@ export function installConnections(hooks) {
     localKey,
     libraryChanged,
     readPage: (key, url) => local.read(key, url),
+    searchWeb: (key, provider, providerKey, query) => local.search(key, provider, providerKey, query),
     voices: (key, provider, providerKey) => local.voices(key, provider, providerKey),
     speak: (key, request, signal) => local.speak(key, request, signal),
     update: (key, body) => local.update(key, body),

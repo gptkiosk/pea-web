@@ -2,7 +2,17 @@
 // the plain words are kept in this tab only. They are shown here and reach a model only through
 // the model-sharing review of the next message. Nothing here is saved, and nothing is read unasked.
 import { ServiceError, containsCredential } from './connections.mjs';
-import { describeRead, pageAddress, pageText, lookupKinds, researchLimits } from './research.mjs';
+import {
+  describeRead,
+  describeSearch,
+  lookupKinds,
+  pageAddress,
+  pageText,
+  readSearch,
+  researchLimits,
+  searchLimits,
+  searchProviders,
+} from './research.mjs';
 import { beginWork, endWork, workStep, workWaiting } from './activity.mjs';
 import { showWork } from './activity-ui.mjs';
 
@@ -146,11 +156,110 @@ export function installResearch(hooks) {
     }
   }
 
+  // The owner's own search keys: typed under Connections, held in this tab, and kept sealed in the
+  // encrypted library only if the owner ticks the box. They are in no backup and no export.
+  const searchKeys = new Map();
+  const field = (provider) => $(`search-key-${provider}`);
+  const noteSearch = (text) => ($('search-note').textContent = text);
+  function showSearch() {
+    const have = Object.keys(searchProviders).filter((p) => searchKeys.has(p));
+    $('search-provider').disabled = have.length < 2;
+    if (have.length === 1) $('search-provider').value = have[0];
+    $('search-status').textContent = have.length
+      ? `Web search is ready with ${have.map((p) => searchProviders[p].name).join(' and ')}.`
+      : 'No search key in this tab.';
+  }
+  for (const provider of Object.keys(searchProviders))
+    field(provider).onchange = () =>
+      Promise.resolve()
+        .then(async () => {
+          const typed = field(provider).value.trim();
+          field(provider).value = '';
+          if (!typed) return;
+          if (!searchLimits.key.test(typed))
+            return noteSearch(
+              `That does not look like a ${searchProviders[provider].name} key. Nothing was kept.`,
+            );
+          searchKeys.set(provider, typed);
+          const lib = hooks.secrets?.();
+          if ($('search-keep').checked && lib?.open()) {
+            await lib.keep(searchProviders[provider].secret, typed);
+            noteSearch(
+              `${searchProviders[provider].name} key held in this tab and kept sealed in your encrypted library.`,
+            );
+          } else
+            noteSearch(
+              `${searchProviders[provider].name} key held in this tab only. It goes to your PEA server only when you approve a search.`,
+            );
+          showSearch();
+        })
+        .catch(() => noteSearch('The key could not be kept in the library. It is held in this tab.'));
+  $('search-keep').onchange = () =>
+    Promise.resolve()
+      .then(async () => {
+        const lib = hooks.secrets?.();
+        if (!$('search-keep').checked) {
+          for (const p of Object.values(searchProviders)) await lib?.forget(p.secret);
+          return noteSearch(
+            'Search keys are no longer kept in your library. Any typed here stay until you reload.',
+          );
+        }
+        if (!lib?.open()) {
+          $('search-keep').checked = false;
+          return noteSearch('Unlock your encrypted library first, under Past chats & memory.');
+        }
+        for (const [provider, value] of searchKeys) await lib.keep(searchProviders[provider].secret, value);
+        noteSearch('Search keys typed here are kept sealed in your encrypted library, and in no backup.');
+      })
+      .catch(() => noteSearch('The library could not be changed.'));
+  $('search-forget').onclick = () =>
+    Promise.resolve()
+      .then(async () => {
+        searchKeys.clear();
+        $('search-keep').checked = false;
+        for (const p of Object.values(searchProviders)) await hooks.secrets?.()?.forget(p.secret);
+        noteSearch('Search keys were removed from this tab and from your library.');
+        showSearch();
+      })
+      .catch(() => noteSearch('The library could not be changed.'));
+  // Keys kept in the library come back when it is unlocked and a search is first wanted.
+  async function restoreSearchKeys() {
+    const lib = hooks.secrets?.();
+    if (!lib?.open()) return;
+    for (const [provider, about] of Object.entries(searchProviders)) {
+      if (searchKeys.has(provider)) continue;
+      const value = await lib.read(about.secret);
+      if (searchLimits.key.test(value)) {
+        searchKeys.set(provider, value);
+        $('search-keep').checked = true;
+      }
+    }
+    showSearch();
+  }
+  // The provider and key a search will use, or null after saying what is missing.
+  async function searchWith() {
+    await restoreSearchKeys().catch(() => {});
+    const chosen = $('search-provider').value,
+      provider = searchKeys.has(chosen) ? chosen : [...searchKeys.keys()][0];
+    if (!provider) {
+      hooks.notice(
+        'Web search needs your own Brave Search or Browserbase key. Enter one in Connections → Web search.',
+      );
+      return null;
+    }
+    return { provider, key: searchKeys.get(provider) };
+  }
+  showSearch();
+
   // Reviews and makes one search of the public index of papers. `address` comes from
   // papersAddress(); `from` is 'owner' or 'model'. Returns true when a list was kept.
   async function lookup(address, from) {
     const kind = lookupKinds[address.lookup];
     if (!kind) return false;
+    // A web search goes to the provider the owner chose in Connections, with their own key.
+    const web = address.lookup === 'search' ? await searchWith() : null;
+    if (address.lookup === 'search' && !web) return false;
+    const service = web ? searchProviders[web.provider].name : kind.service;
     if (reading || hooks.isBusy()) {
       hooks.notice('Finish the current request first.');
       return false;
@@ -173,19 +282,32 @@ export function installResearch(hooks) {
       render();
     };
     try {
-      if (!(await hooks.review(kind.review, kind.describe(address, { profile: who, from })))) return false;
+      if (
+        !(await hooks.review(
+          kind.review,
+          web
+            ? describeSearch(address, { profile: who, from, provider: web.provider })
+            : kind.describe(address, { profile: who, from }),
+        ))
+      )
+        return false;
       if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the search again.');
       trail = beginWork(performance.now());
       work = { profile: who, trail };
       workStep(
         trail,
         'shield',
-        `You approved a search of ${kind.service} for “${address.query}”` +
+        `You approved a search of ${service} for “${address.query}”` +
           (from === 'model' ? ', which PEA’s reply suggested' : ''),
       );
-      workWaiting(trail, `Your PEA server is asking ${kind.service}…`);
+      workWaiting(trail, `Your PEA server is asking ${service}…`);
       render();
-      const answer = await hooks.run(() => hooks.read(hooks.key(), address.url));
+      const answer = web
+        ? await hooks.run(async () => ({
+            outcome: 'page',
+            text: await hooks.search(hooks.key(), web.provider, web.key, address.query),
+          }))
+        : await hooks.run(() => hooks.read(hooks.key(), address.url));
       if (!answer) {
         finish(
           'failed',
@@ -196,18 +318,23 @@ export function installResearch(hooks) {
       }
       if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the search again.');
       workWaiting(trail, '');
-      const kept = answer.outcome === 'page' ? kind.read(answer.text, address.query) : null;
+      const kept =
+        answer.outcome !== 'page'
+          ? null
+          : web
+            ? readSearch(web.provider, answer.text, address.query)
+            : kind.read(answer.text, address.query);
       if (!kept) throw new ServiceError(kind.odd);
       if (!kept.count) throw new ServiceError(kind.none);
       page = {
         profile: who,
-        url: address.url,
-        host: address.host,
+        url: web ? `https://${searchProviders[web.provider].host}/` : address.url,
+        host: web ? searchProviders[web.provider].host : address.host,
         title: kept.title,
         text: kept.text,
         length: kept.length,
       };
-      workStep(trail, 'globe', `Your PEA server asked ${kind.service} once`);
+      workStep(trail, 'globe', `Your PEA server asked ${service} once`);
       finish('done', 'file', kind.kept(kept.count));
       hooks.notice(kind.told(kept.count));
       return true;
@@ -226,10 +353,17 @@ export function installResearch(hooks) {
     read,
     lookup,
     papers: lookup,
+    // Whether a search key is in this tab, so the model may be told it can offer a search.
+    canSearch: () => searchKeys.size > 0,
     clear,
     render,
     // What the next Chat message would share, or null.
     current: () => (page && page.profile === hooks.profile() ? { url: page.url, text: page.text } : null),
     profileChanged: clear,
+    // Leaving the page or locking the library drops the keys held in this tab.
+    forgetKeys() {
+      searchKeys.clear();
+      showSearch();
+    },
   };
 }
