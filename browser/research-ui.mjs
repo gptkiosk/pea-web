@@ -2,14 +2,7 @@
 // the plain words are kept in this tab only. They are shown here and reach a model only through
 // the model-sharing review of the next message. Nothing here is saved, and nothing is read unasked.
 import { ServiceError, containsCredential } from './connections.mjs';
-import {
-  describePapers,
-  describeRead,
-  pageAddress,
-  pageText,
-  readPapers,
-  researchLimits,
-} from './research.mjs';
+import { describeRead, pageAddress, pageText, lookupKinds, researchLimits } from './research.mjs';
 import { beginWork, endWork, workStep, workWaiting } from './activity.mjs';
 import { showWork } from './activity-ui.mjs';
 
@@ -155,19 +148,21 @@ export function installResearch(hooks) {
 
   // Reviews and makes one search of the public index of papers. `address` comes from
   // papersAddress(); `from` is 'owner' or 'model'. Returns true when a list was kept.
-  async function papers(address, from) {
+  async function lookup(address, from) {
+    const kind = lookupKinds[address.lookup];
+    if (!kind) return false;
     if (reading || hooks.isBusy()) {
       hooks.notice('Finish the current request first.');
       return false;
     }
     const who = hooks.profile();
     if (who === 'blended') {
-      hooks.notice('Choose Work or Personal before looking up papers.');
+      hooks.notice('Choose Work or Personal first.');
       return false;
     }
     if (!hooks.key()) {
       hooks.notice(
-        'Looking up papers needs your PEA server. Connect it in Connections → Local model, then try again.',
+        `${kind.need} needs your PEA server. Connect it in Connections → Local model, then try again.`,
       );
       return false;
     }
@@ -178,18 +173,17 @@ export function installResearch(hooks) {
       render();
     };
     try {
-      if (!(await hooks.review('Look up papers on this?', describePapers(address, { profile: who, from }))))
-        return false;
+      if (!(await hooks.review(kind.review, kind.describe(address, { profile: who, from })))) return false;
       if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the search again.');
       trail = beginWork(performance.now());
       work = { profile: who, trail };
       workStep(
         trail,
         'shield',
-        `You approved a search of OpenAlex for “${address.papers}”` +
+        `You approved a search of ${kind.service} for “${address.query}”` +
           (from === 'model' ? ', which PEA’s reply suggested' : ''),
       );
-      workWaiting(trail, 'Your PEA server is asking OpenAlex…');
+      workWaiting(trail, `Your PEA server is asking ${kind.service}…`);
       render();
       const answer = await hooks.run(() => hooks.read(hooks.key(), address.url));
       if (!answer) {
@@ -202,9 +196,9 @@ export function installResearch(hooks) {
       }
       if (who !== hooks.profile()) throw new ServiceError('Profile changed. Review the search again.');
       workWaiting(trail, '');
-      const kept = answer.outcome === 'page' ? readPapers(answer.text, address.papers) : null;
-      if (!kept) throw new ServiceError('OpenAlex did not answer with a list of papers. Nothing was kept.');
-      if (!kept.count) throw new ServiceError('OpenAlex lists no papers for those words. Nothing was kept.');
+      const kept = answer.outcome === 'page' ? kind.read(answer.text, address.query) : null;
+      if (!kept) throw new ServiceError(kind.odd);
+      if (!kept.count) throw new ServiceError(kind.none);
       page = {
         profile: who,
         url: address.url,
@@ -213,15 +207,9 @@ export function installResearch(hooks) {
         text: kept.text,
         length: kept.length,
       };
-      workStep(trail, 'globe', `Your PEA server asked OpenAlex once`);
-      finish(
-        'done',
-        'file',
-        `Kept ${kept.count} ${kept.count === 1 ? 'paper' : 'papers'} as plain words, in this tab only`,
-      );
-      hooks.notice(
-        `${kept.count} ${kept.count === 1 ? 'paper is' : 'papers are'} listed and kept in this tab; your model sees them only after you review your next message.`,
-      );
+      workStep(trail, 'globe', `Your PEA server asked ${kind.service} once`);
+      finish('done', 'file', kind.kept(kept.count));
+      hooks.notice(kind.told(kept.count));
       return true;
     } catch (error) {
       const said = error instanceof ServiceError ? error.message : 'The search could not be made.';
@@ -236,7 +224,8 @@ export function installResearch(hooks) {
   render();
   return {
     read,
-    papers,
+    lookup,
+    papers: lookup,
     clear,
     render,
     // What the next Chat message would share, or null.
