@@ -4,6 +4,7 @@
 // this browser by their ids, and the checked public files are kept beside them so that a reload
 // needs no fetch. A kept file is checked again, exactly as a fetched one is, before it is used.
 import {
+  catalogAddress,
   catalogBase,
   checkBrief,
   checkDigest,
@@ -33,6 +34,18 @@ const cleanName = (value) =>
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, nameMost);
+// Another catalog's address: the catalog's own address rule, ending in a slash, with no query.
+const validOther = (text) =>
+  typeof text === 'string' &&
+  text.length <= 200 &&
+  text.endsWith('/') &&
+  !text.includes('?') &&
+  // A name ending in .example can never be a real site. It passes here so that the server, which
+  // refuses such names outside its own tests, stays the one place that decides what may be read.
+  catalogAddress(text.replace(/^(https:\/\/[a-z0-9.-]+)\.example\//, '$1.org/')) &&
+  text !== catalogBase;
+const needServer =
+  'Another catalog is read through your PEA server. Connect it under Connections, then press Refresh.';
 // The most text kept in this browser for all shows together.
 const keptMost = 3000000;
 // How much of this browser's storage the kept files may use, in characters of text: the owner's
@@ -92,7 +105,7 @@ async function download(path, limit) {
   return { bytes };
 }
 
-export function installCurated({ review, changed = () => {} }) {
+export function installCurated({ review, changed = () => {}, key = () => '', read = null }) {
   let allowed = false,
     followed = [],
     store = null,
@@ -106,6 +119,9 @@ export function installCurated({ review, changed = () => {} }) {
     topic = '',
     storeText = '',
     room = roomDefault,
+    // Another catalog's address, when the owner chose one. Its files are read through the owner's
+    // PEA server, since this page may only reach the addresses it was built with.
+    other = '',
     // Talk from briefs: whether the open episode's brief and digest go with a Chat message.
     talk = true,
     stored = { chars: 0, digestsOut: 0, episodesOut: 0, kept: false },
@@ -154,6 +170,7 @@ export function installCurated({ review, changed = () => {} }) {
           .slice(0, 40),
       );
       current = saved.current === true;
+      other = validOther(saved.catalog) ? saved.catalog : '';
       talk = saved.talk !== false;
       room = roomChoices.includes(saved.room) ? saved.room : roomDefault;
       checkedAt = Number.isSafeInteger(saved.checked) && saved.checked <= Date.now() ? saved.checked : 0;
@@ -183,6 +200,7 @@ export function installCurated({ review, changed = () => {} }) {
             ...(Object.keys(pins).length ? { pins } : {}),
             ...(Object.keys(names).length ? { names } : {}),
             ...(current ? { current: true } : {}),
+            ...(other ? { catalog: other } : {}),
             ...(talk ? {} : { talk: false }),
             ...(room !== roomDefault ? { room } : {}),
             ...(checkedAt ? { checked: checkedAt } : {}),
@@ -267,6 +285,23 @@ export function installCurated({ review, changed = () => {} }) {
     }
   }
   const isOn = (id) => !off.includes(id);
+  const hostNow = () => (other ? new URL(other).host : curatedHost);
+  // One file of the catalog in use. The usual catalog is asked by this browser. Another one is
+  // read by the owner's PEA server, one public file at a time, and checked here all the same.
+  async function fetchFile(path, limit) {
+    if (!other) return download(path, limit);
+    const token = key();
+    if (!token || !read) return { failed: 'server' };
+    let answer;
+    try {
+      answer = await read(token, other + path);
+    } catch {
+      return { failed: 'network' };
+    }
+    if (answer?.outcome !== 'page' || typeof answer.text !== 'string') return { failed: 'network' };
+    const bytes = new TextEncoder().encode(answer.text);
+    return bytes.byteLength > limit ? { failed: 'too_large' } : { bytes };
+  }
   const pinned = (id, itemID) => pins[id]?.includes(itemID) ?? false;
   const nameOf = (s) => names[s.id] ?? s.name;
   // Of a show's episodes, newest first: the newest few, and any the owner pinned.
@@ -448,7 +483,15 @@ export function installCurated({ review, changed = () => {} }) {
     $('curated-off').disabled = busy;
     $('curated-renumber').hidden = !allowed || !followed.length;
     $('curated-renumber').disabled = busy;
-    $('curated-request').hidden = !allowed;
+    // A request goes to the usual catalog's own project, so it is offered only for that one.
+    $('curated-request').hidden = !allowed || Boolean(other);
+    $('curated-other').hidden = !allowed;
+    $('curated-other-default').hidden = !other;
+    $('curated-other-use').disabled = busy;
+    $('curated-other-default').disabled = busy;
+    $('curated-other-now').textContent = other
+      ? `Using the catalog at ${other} Its files are read through your PEA server and checked the same way.`
+      : `Using the usual catalog at ${catalogBase}`;
     $('curated-current-row').hidden = !allowed;
     $('curated-talk-row').hidden = !allowed || !followed.length;
     $('curated-talk').checked = talk;
@@ -494,7 +537,7 @@ export function installCurated({ review, changed = () => {} }) {
     if (s.state !== 'active' || !s.items_file) return;
     workWaiting(work, `Reading ${s.name}…`);
     trail();
-    const got = await download(s.items_file.path, knowledgeLimits.items);
+    const got = await fetchFile(s.items_file.path, knowledgeLimits.items);
     if (got.failed) {
       workStep(
         work,
@@ -531,7 +574,7 @@ export function installCurated({ review, changed = () => {} }) {
       // the episode is talked about from its brief alone.
       const longer = async (episode) => {
         if (episode.digest && episode.item.digest.sha256 === item.digest.sha256) return episode;
-        const got = await download(item.digest.path, knowledgeLimits.digest),
+        const got = await fetchFile(item.digest.path, knowledgeLimits.digest),
           digest = got.failed ? null : await checkDigest(got.bytes, s, item);
         if (digest?.value) return { ...episode, item, digest: digest.value, digestText: textOf(got.bytes) };
         noDigest++;
@@ -541,7 +584,7 @@ export function installCurated({ review, changed = () => {} }) {
         episodes.push(await longer(old));
         continue;
       }
-      const file = await download(item.brief.path, knowledgeLimits.brief),
+      const file = await fetchFile(item.brief.path, knowledgeLimits.brief),
         brief = file.failed ? null : await checkBrief(file.bytes, s, item, store.topics ?? []);
       if (brief?.value) episodes.push(await longer({ item, brief: brief.value, text: textOf(file.bytes) }));
       else refused++;
@@ -565,7 +608,7 @@ export function installCurated({ review, changed = () => {} }) {
     workWaiting(work, 'Asking for the curator’s list of sources…');
     render();
     try {
-      const got = await download('store.json', knowledgeLimits.store),
+      const got = await fetchFile('store.json', knowledgeLimits.store),
         checked = got.failed ? null : checkStore(got.bytes);
       if (!checked?.value) {
         const why = got.failed ?? checked.problems[0].code;
@@ -573,15 +616,17 @@ export function installCurated({ review, changed = () => {} }) {
           work,
           'failed',
           'warn',
-          `Couldn’t check for updates${why === 'network' ? '' : ` (${why})`}. Everything PEA had is kept as it was.`,
+          `Couldn’t check for updates${why === 'network' ? '' : why === 'server' ? ': your PEA server is not connected' : ` (${why})`}. Everything PEA had is kept as it was.`,
           performance.now(),
         );
         say(
-          store
-            ? 'Couldn’t check for updates. Showing the last good list.'
-            : why === 'network'
-              ? 'The curator’s list could not be reached.'
-              : refusal(why),
+          why === 'server'
+            ? needServer
+            : store
+              ? 'Couldn’t check for updates. Showing the last good list.'
+              : why === 'network'
+                ? 'The curator’s list could not be reached.'
+                : refusal(why),
         );
         return;
       }
@@ -829,7 +874,7 @@ export function installCurated({ review, changed = () => {} }) {
       if (s.state === 'active' && isOn(s.id))
         parts.push(
           act('Check this show now', () => void refresh(s.id)),
-          el('small', 'muted', ` Asks ${curatedHost} for the curator’s list and this show only.`),
+          el('small', 'muted', ` Asks ${hostNow()} for the curator’s list and this show only.`),
         );
       parts.push(heading('Your name for it'));
       const input = document.createElement('input'),
@@ -872,6 +917,64 @@ export function installCurated({ review, changed = () => {} }) {
     save();
     await refresh(id);
   }
+  // Changing catalog starts over: another catalog has other shows, numbers and files.
+  function startOver(next) {
+    followed = [];
+    off = [];
+    pins = {};
+    names = {};
+    numbers = {};
+    keeps = {};
+    topic = '';
+    storeText = '';
+    store = null;
+    checkedAt = 0;
+    work = null;
+    held.clear();
+    $('curated-detail').close();
+    other = next;
+    save();
+  }
+  async function useOther() {
+    if (busy) return;
+    const note = (text) => ($('curated-other-note').textContent = text);
+    const typed = $('curated-other-address').value.trim(),
+      next = typed && !typed.endsWith('/') ? typed + '/' : typed;
+    if (containsCredential(next)) return note('That looks like a key or password. Nothing was changed.');
+    if (next === catalogBase || (next && next === other)) return note('That is the catalog already in use.');
+    if (!validOther(next))
+      return note(
+        'Enter a public https address in lower case, such as https://name.example.org/catalog/ with no port, sign-in, question mark or local name.',
+      );
+    if (!key() || !read) return note(needServer);
+    const host = new URL(next).host;
+    if (
+      !(await review(
+        'Use another catalog?',
+        `Catalog: ${next}\n\nThis replaces the usual catalog. Someone else chooses and prepares what this one holds; PEA does not know them and has not looked at it.\n\nThis page can only reach the addresses it was built with, so your PEA server reads the files for it: one public file at a time from ${host}, over https, with no cookie, no account and nothing about you or your chats. ${host} sees your server’s internet address and which shows you follow. PEA checks every file exactly as it checks the usual catalog’s (size, fingerprint, form and text rules) before using it.\n\nYour followed shows, their numbers, pins, names and kept files from the catalog in use now are removed from this browser. Request a podcast is not offered for another catalog.`,
+      ))
+    )
+      return note('Nothing was changed.');
+    startOver(next);
+    $('curated-other-address').value = '';
+    note('');
+    await refresh();
+  }
+  async function useUsual() {
+    if (busy || !other) return;
+    if (
+      !(await review(
+        'Go back to the usual catalog?',
+        `Catalog: ${catalogBase}\n\nYour followed shows, their numbers, pins, names and kept files from ${hostNow()} are removed from this browser. Then this browser asks ${curatedHost} for the usual list.`,
+      ))
+    )
+      return ($('curated-other-note').textContent = 'Nothing was changed.');
+    startOver('');
+    $('curated-other-note').textContent = '';
+    await refresh();
+  }
+  $('curated-other-use').onclick = () => void useOther();
+  $('curated-other-default').onclick = () => void useUsual();
   $('curated-talk').onchange = () => {
     talk = $('curated-talk').checked;
     save();
@@ -898,6 +1001,7 @@ export function installCurated({ review, changed = () => {} }) {
     current &&
     !busy &&
     followed.some(isOn) &&
+    (!other || Boolean(key())) &&
     Date.now() - checkedAt >= currentEvery &&
     Date.now() - triedAt >= currentRetry;
   $('curated-current').onchange = () => {
@@ -905,7 +1009,7 @@ export function installCurated({ review, changed = () => {} }) {
     save();
     say(
       current
-        ? `Stay current is on. While PEA is open it checks ${curatedHost} for your followed shows by itself, at most every six hours.`
+        ? `Stay current is on. While PEA is open it checks ${hostNow()} for your followed shows by itself, at most every six hours.`
         : 'Stay current is off. PEA asks only when you press Refresh.',
     );
     render();
@@ -973,6 +1077,7 @@ export function installCurated({ review, changed = () => {} }) {
     names = {};
     $('curated-detail').close();
     current = false;
+    other = '';
     talk = true;
     room = roomDefault;
     topic = '';

@@ -138,7 +138,7 @@
     "dueMax": 32503680000000
   },
   "reader": {
-    "about": "POST {\"url\"} asks the gateway to read one public web page for the owner, who has approved that exact address in the page. It is not a proxy: one GET over HTTPS on port 443 to a named public host, no credentials, no redirects followed, text only, bounded. The host's every resolved address must be outside refusedNetworks, and the connection goes to an address that was checked.",
+    "about": "POST {\"url\"} asks the gateway to read one public web page for the owner, who has approved that exact address in the page, or one file of a curated catalog whose address the owner approved there. It is not a proxy: one GET over HTTPS on port 443 to a named public host, no credentials, no redirects followed, text only, bounded. The host's every resolved address must be outside refusedNetworks, and the connection goes to an address that was checked.",
     "path": "/v1/read",
     "fields": [
       "url"
@@ -198,10 +198,11 @@
       "application/rss+xml",
       "application/atom+xml",
       "application/xml",
-      "text/xml"
+      "text/xml",
+      "application/json"
     ],
     "userAgent": "PEA-reader/1 (reads one page its owner approved)",
-    "accept": "text/html, text/plain;q=0.9, application/xhtml+xml;q=0.8, application/rss+xml;q=0.7, application/atom+xml;q=0.7, application/xml;q=0.6, text/xml;q=0.6",
+    "accept": "text/html, text/plain;q=0.9, application/xhtml+xml;q=0.8, application/rss+xml;q=0.7, application/atom+xml;q=0.7, application/xml;q=0.6, text/xml;q=0.6, application/json;q=0.5",
     "bodyBytes": 2000000,
     "headBytes": 65536,
     "seconds": 15,

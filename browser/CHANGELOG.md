@@ -2,6 +2,28 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.44] - 2026-11-22
+
+### Added
+
+- **Use another catalog.** Under Curated sources there is a new section, **Advanced: use another catalog**. Enter the public https address of a catalog in PEA's knowledge format, and after a review PEA uses it in place of the usual one.
+  - This page can only reach the addresses it was built with, so your PEA server reads the other catalog's files for it: one public file at a time, over https, with no cookie, no account and nothing about you or your chats. The server must be connected under Connections.
+  - Every file is checked exactly as the usual catalog's is (size, fingerprint, form and text rules) before PEA uses it.
+  - Changing catalog starts over: your followed shows, their numbers, pins, names and kept files from the catalog in use are removed from this browser. The review says so first.
+  - **Back to the usual catalog** returns, also after a review.
+  - Addresses that are not a plain public https address in lower case are refused in plain words, and nothing is asked.
+  - Request a podcast is offered only for the usual catalog.
+
+### Changed
+
+- **The PEA server's page reader also accepts JSON.** The rule is in the shared contract and the conformance suite, and both the Python and the Mac gateway follow it. The reader's other rules are unchanged: one GET to a named public host on port 443, no credentials, no redirects followed, bounded in size and time, never a private or local address.
+
+### Not included
+
+- The other catalog's host sees your server's internet address and which shows you follow, as the usual one sees your browser's.
+- Without the PEA server connected, another catalog cannot be refreshed; what was kept stays usable.
+- One catalog at a time.
+
 ## [0.1.0-rc.4.dev.43] - 2026-11-22
 
 ### Added

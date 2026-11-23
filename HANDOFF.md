@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Knowledge sources, sixth slice: another catalog address — 2026-11-22
+
+**Branch `feature/other-catalog`, version `0.1.0-rc.4.dev.44`.** The owner asked: "Build the other catalog address option".
+
+- **Why through the server.** The page's Content-Security-Policy (the same string in `index.html` and `contract.json`) names the hosts the page may reach, and only the usual catalog's host is among them. Widening it to any https host was rejected. The gateway already has a reader that makes one bounded GET to a named public host; another catalog's files go through it.
+- **Rule first.** `browser/server/contract.json` `reader.contentTypes` gained `application/json`, `reader.accept` names it, and `reader.about` names a catalog file. Both gateways read the list from the contract, so no gateway code changed. `browser/server/conformance/run.py`: a JSON page is now read and returned as text (it was in the refused list).
+- `browser/knowledge-ui.mjs`: `other` (saved as `catalog` in `pea-curated-v1`), `validOther` (the catalog's own address rule, a trailing slash, no query, at most 200 characters; a `.example` name is left to the server, which refuses it outside its tests), `fetchFile()` (the browser for the usual catalog, `read(key, url)` for another; the text is encoded to bytes and checked by size and SHA-256 like any file), `useOther()` and `useUsual()` behind reviews, `startOver()`. Stay current skips another catalog while the server is not connected. `installCurated` takes `key` and `read` from `browser/app.mjs`.
+- Tests: `browser/tests/dom/other-catalog.test.mjs` (1, new): refused addresses ask nothing, the review, declining, the list and a show read through the server with no owner header, the browser never contacting the other host, an altered file refused, kept across a reload, the not-connected notice, and back to the usual catalog. Conformance: JSON through the reader.
+- Known gaps: one catalog at a time; no merging of catalogs. A catalog's files must be valid UTF-8 JSON served as `application/json`, a text type or XML; the reader removes a leading byte-order mark, which would fail the fingerprint. Not tried against a real second catalog (none exists). Not looked at by eye.
+
 ## Knowledge sources, fifth slice: Talk from briefs — 2026-11-22
 
 **Branch `feature/talk-from-briefs`, version `0.1.0-rc.4.dev.43`.** The owner said "Yes, build it" to the Talk from briefs switch.
