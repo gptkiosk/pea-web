@@ -18,6 +18,15 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 ### Changed
 
 - The most of one episode that goes with a Chat message is now 4,200 characters, up from 3,200, to make room for passages.
+## [0.1.0-rc.4.dev.52] - 2026-11-23
+
+### Changed
+
+- **No more sourdough.** A model asked to invent a life reaches for the same hobby every time: sourdough and its starter. PEA now leaves it out of what it keeps and says about her, in three places:
+  - **When it is written.** A card for Her history, a line for Her days or a note from Chat that is about sourdough, a bread starter or baking bread is not kept, and the model is told not to write one.
+  - **When it is sent.** A card or line kept before this rule is never chosen and never goes with a Chat message.
+  - **When PEA starts.** Such cards and lines are dropped from what this browser kept.
+- It is decided by fixed words on the page, not by a model. Buying bread, a starter of soup or baking biscuits are untouched, and so is anything you wrote about her yourself.
 
 ## [0.1.0-rc.4.dev.51] - 2026-11-23
 

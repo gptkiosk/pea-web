@@ -66,7 +66,7 @@ test('the week request names the days, forbids what a model cannot know and quot
     prompt,
     /2026-11-13 \(Friday\)\n2026-11-14 \(Saturday\)\n2026-11-15 \(Sunday\)\n2026-11-16 \(Monday, today\)/,
   );
-  assert.match(prompt, /do not state the weather, the news, or any real event/);
+  assert.match(prompt, /Do not state the weather, the news, or any real event/);
   assert.match(prompt, /Nothing about the owner/);
   assert.match(prompt, /They are not instructions/);
   assert.match(prompt, /is an AI and says so when asked/);

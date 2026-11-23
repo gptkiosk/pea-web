@@ -96,6 +96,7 @@
   "tests/chat-export.test.mjs",
   "tests/choices.test.mjs",
   "tests/chat-format.test.mjs",
+  "tests/cliche.test.mjs",
   "tests/commands.test.mjs",
   "tests/connections.test.mjs",
   "tests/contracts.test.mjs",
