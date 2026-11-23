@@ -71,6 +71,15 @@ const nameOf = (text) =>
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 
+// What every Chat request says about the knowledge sources, so a model neither denies them nor
+// makes shows up. It names no show: only whether any are followed.
+export const sourcesLine = (followed) =>
+  'PEA has Curated sources: podcasts a curator prepares, which the owner follows on the Today tab (menu, then Knowledge sources). ' +
+  (followed > 0
+    ? `The owner follows ${followed === 1 ? 'one show' : followed + ' shows'} in this tab. You are not told their names, and you know what an episode said only when its brief is in this request.`
+    : 'The owner follows none in this tab, so you have nothing from any show.') +
+  ' When the owner asks which shows or podcasts you know, or what you have from one, never say you have not heard of it and never invent a show, an episode or what one said. Say that PEA lists them itself, and that typing “list shows” in Chat shows the followed shows as rows to press, each opening its episodes.';
+
 // What the owner's words ask for, or null. `at` is where the owner is (see showMove), and `shows`
 // the followed shows, for a show asked for by name.
 export function showCommand(text, { at = idle(), shows = [] } = {}) {
@@ -200,6 +209,32 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
     if (found >= 0 && Number.isInteger(shows[found].number))
       return { kind: 'show', show: shows[found].number };
     if (found >= 0) return { kind: 'show', show: found + 1 };
+  }
+  // A show asked about by name: "what do you have from the AI Daily Brief podcast?" A followed
+  // show opens its episodes. A name that is not followed is answered only when the owner called
+  // it a podcast; anything else is an ordinary question.
+  if (
+    (m = said.match(
+      /^(?:(?:what (?:do you have|have you got|is new|s new|is there|do you know)|anything(?: new)?|(?:the )?(?:latest|newest)(?: episodes?)?) (?:from|on|in|for|about)|tell me about|what about|open|show me|pull up) (.+)$/,
+    ))
+  ) {
+    const called = / podcast$/.test(m[1].replace(/ (?:lately|today|this week|right now)$/, '')),
+      wanted = m[1]
+        .replace(/ (?:lately|today|this week|right now)$/, '')
+        .replace(/ (?:podcast|show|episodes)$/, '')
+        .replace(/^(?:the|my) /, ''),
+      names = shows.map((s) => plainAddress(s.name).replace(/^the /, '')),
+      hits = names
+        // The whole name, or its first two words or more: "AI Daily Brief" for a longer title.
+        .map((name, i) =>
+          name === wanted || (wanted.includes(' ') && name.startsWith(wanted + ' ')) ? i : -1,
+        )
+        .filter((i) => i >= 0);
+    if (wanted.length >= 4 && hits.length === 1) {
+      const s = shows[hits[0]];
+      return { kind: 'show', show: Number.isInteger(s.number) ? s.number : hits[0] + 1 };
+    }
+    if (called && wanted.length >= 2) return { kind: 'not-followed', name: wanted.slice(0, 60) };
   }
   if (inShow) {
     // 11. Inside a show.
@@ -565,6 +600,13 @@ function plainMove(command, { shows = [], at = idle(), transcriptOf = () => null
   switch (command?.kind) {
     case 'shows':
       return listShows();
+    case 'not-followed':
+      // The shows that are followed, to press, under a plain line about the one that is not.
+      return {
+        ...listShows(),
+        hint: `“${command.name}” is not a show you follow in this tab. These are. Follow more in Curated sources on Today.`,
+        say: `${command.name} is not a show you follow in this tab. ` + listShows().say,
+      };
     case 'show':
       return listEpisodes(command.show);
     case 'episodes':
