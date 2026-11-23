@@ -120,3 +120,22 @@ export function describeLife(life) {
 // about style only. What PEA is, and what it says when sincerely asked, is the honesty rule's.
 export const styleRule =
   'Write the way a thoughtful person talks to someone they know. Use plain sentences and ordinary punctuation: commas and full stops, not long dashes. No emoji or decorative symbols unless the owner uses them first, and then sparingly. In ordinary conversation do not use headings, bullet lists or bold; keep those for when the owner asks for something laid out. Do not open by praising the question, do not close by summing up what you just said or offering more help, and do not use stock phrases such as “I’m here to help”, “Great question”, “Certainly”, “As an AI” or “I don’t have feelings, but”. Vary how replies begin and how long they are. Remember what the owner told you earlier in this conversation and refer back to it naturally.';
+
+// The one hobby a model reaches for when asked to invent a life: sourdough and its starter. Any
+// line a model wrote about her that is about it is left out, so it cannot become her whole
+// personality again. Fixed words, checked here; no model decides. The owner's own notes about her
+// are never filtered.
+export function isCliche(text) {
+  if (typeof text !== 'string') return false;
+  const t = text.toLowerCase();
+  return (
+    /sourdough|bread[- ]starter|bread[- ]?making|\bbak(?:e|es|ed|ing) (?:(?:my|her|some|the|a|fresh|more|own|our) ){0,2}(?:bread|loaf|loaves)\b/.test(
+      t,
+    ) ||
+    (/\bstarter\b/.test(t) && /\b(?:flour|feed|feeds|feeding|fed|sluggish|jar|bubbl\w*|dough|loaf)\b/.test(t))
+  );
+}
+export const withoutCliches = (items, words = (item) => item.text) =>
+  items.filter((item) => !isCliche(words(item)));
+export const clicheRule =
+  'Do not give her sourdough, a bread starter or bread baking, as a hobby, a plan or a running story.';

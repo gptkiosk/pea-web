@@ -3,7 +3,7 @@
 // second review of every card before any is kept. Personal profile only. Kept cards stay in this
 // browser; in Chat at most two go with a message, under the owner's introduction-sharing switch.
 import { containsCredential } from './connections.mjs';
-import { describeLife, lifeBrief, lifeOf, validSeed } from './life.mjs';
+import { describeLife, lifeBrief, lifeOf, validSeed, withoutCliches } from './life.mjs';
 import { describeRead, pageAddress, pageText } from './research.mjs';
 import {
   canonLimits,
@@ -28,6 +28,8 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     sinceLast = canonLimits.gap;
   try {
     saved = validSavedCanon(JSON.parse(globalThis.localStorage.getItem(storageKey) || 'null'));
+    // Cards on the worn-out hobby kept before the rule existed are dropped for good.
+    saved.cards = withoutCliches(saved.cards, (c) => c.topic + ' ' + c.text);
   } catch {
     // Nothing usable was saved; there are no cards.
   }
