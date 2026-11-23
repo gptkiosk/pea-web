@@ -2,6 +2,19 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.50] - 2026-11-23
+
+### Changed
+
+- **Settings opens on a home of big tiles.** Connections used to be one long list of nine folded sections. It now opens on nine large tiles (Models & OpenRouter, Local model, Images, Google, GitHub, Web search, Voice providers, PEA updates, Shared configuration), each with one line on what it is for. Three of them also say where they stand: whether your server is connected, whether a search key is entered, and your model connection.
+- **One section at a time.** Pressing a tile shows that section alone, under its own title, with **← All settings** to go back. Anything that takes you to a setting (a link, an error's button, your model's button, the update window) lands in this view.
+- **Switches instead of small checkboxes** in Settings, Privacy & voice and the library, and taller fields and buttons.
+- **Less text at first sight.** A long explanation is cut to two lines with a **More** button. Nothing was removed: the whole text is one press away, and every review still shows what it always showed.
+- **Help, commands and shortcuts are one menu entry.** The menu had Commands at the top and Keyboard shortcuts at the bottom. It now has one **Help & commands** entry, and is grouped: your chats, then you and your settings, then help.
+  - Type what you want to do or set up ("brave key", "calendar", "backup") and it finds the setting and takes you there, as well as the commands it always had.
+  - **Keyboard shortcuts** is a button inside it, and the shortcut list has a button back.
+- Shortcuts and the command list now work while a settings panel is open beside the page.
+
 ## [0.1.0-rc.4.dev.49] - 2026-11-23
 
 ### Added

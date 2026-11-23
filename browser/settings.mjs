@@ -14,6 +14,8 @@ export const settingsPlaces = {
     holds: 'every connection in one list',
   },
   models: {
+    glyph: '✦',
+    what: 'Your OpenRouter key and which models to use',
     title: 'Models & OpenRouter',
     dialog: 'connections',
     group: 'router-group',
@@ -22,6 +24,8 @@ export const settingsPlaces = {
       'the owner’s own OpenRouter key, a Connect button, and the choice of chat, planner and review models',
   },
   'local-model': {
+    glyph: '⌂',
+    what: 'Your own PEA server and local models',
     title: 'Local model',
     dialog: 'connections',
     group: 'local-group',
@@ -30,6 +34,8 @@ export const settingsPlaces = {
       'the connection token of the owner’s own PEA server, a Connect button, and the choice of a local model',
   },
   images: {
+    glyph: '◩',
+    what: 'An optional model for pictures',
     title: 'Images',
     dialog: 'connections',
     group: 'images-group',
@@ -37,6 +43,8 @@ export const settingsPlaces = {
     holds: 'an optional model for looking at images',
   },
   google: {
+    glyph: '✉',
+    what: 'Calendar, Mail and your PEA folder',
     title: 'Google',
     dialog: 'connections',
     group: 'google-group',
@@ -54,6 +62,8 @@ export const settingsPlaces = {
       'a field for the owner’s own Google Web OAuth client ID (it ends in .apps.googleusercontent.com), boxes for Calendar and Mail access, a Connect button that opens Google’s own sign-in, and the choice of a PEA folder in Drive',
   },
   github: {
+    glyph: '⌥',
+    what: 'One repository, for reviewed drafts',
     title: 'GitHub',
     dialog: 'connections',
     group: 'github-group',
@@ -61,6 +71,8 @@ export const settingsPlaces = {
     holds: 'an optional GitHub connection for one repository',
   },
   'web-search': {
+    glyph: '⌕',
+    what: 'Search with your own Brave or Browserbase key',
     title: 'Web search',
     dialog: 'connections',
     group: 'search-providers',
@@ -69,6 +81,8 @@ export const settingsPlaces = {
       'a field for the owner’s own Brave Search key and one for a Browserbase key, a choice of which to search with, and a box to keep the keys in the encrypted library',
   },
   voices: {
+    glyph: '♪',
+    what: 'ElevenLabs or Fish Audio voices',
     title: 'Voice providers',
     dialog: 'connections',
     group: 'voice-providers',
@@ -83,6 +97,8 @@ export const settingsPlaces = {
     holds: 'the owner’s own ElevenLabs or Fish Audio key and the choice of a voice',
   },
   updates: {
+    glyph: '↻',
+    what: 'Check this copy for a newer version',
     title: 'PEA updates',
     dialog: 'connections',
     group: 'updates-pointer',
@@ -90,6 +106,8 @@ export const settingsPlaces = {
     holds: 'where this installed copy is checked for a newer version',
   },
   'shared-configuration': {
+    glyph: '⇄',
+    what: 'Carry model choices to another device',
     title: 'Shared configuration',
     dialog: 'connections',
     group: 'config-group',
@@ -144,6 +162,9 @@ export const settingsPlaces = {
     holds: 'the curator’s list of shows, the ones the owner follows, and how many briefs are kept',
   },
 };
+// The sections of one panel, in the order they are shown as tiles: [id, place].
+export const sectionsOf = (dialog) =>
+  Object.entries(settingsPlaces).filter(([, place]) => place.dialog === dialog && place.group);
 export const settingsPlace = (id) =>
   typeof id === 'string' && Object.hasOwn(settingsPlaces, id) ? settingsPlaces[id] : null;
 

@@ -1,6 +1,7 @@
 // "Update this copy" in the Versions & updates window: look for an update to the installed copy
 // and, after a review that names the exact version, ask PEA's own gateway to install it. The page chooses nothing about
 // where an update comes from, and a model has no way to reach any of this.
+import { reveal } from './settings-ui.mjs';
 import {
   describeOffer,
   describeOutcome,
@@ -181,6 +182,7 @@ export function installUpdates({ localKey, ask, review, isBusy }) {
     $('collab-config').click();
     returning = true;
     const group = $('local-group');
+    reveal(group);
     group.open = true;
     group.scrollIntoView({ block: 'start' });
     $('local-token').focus();

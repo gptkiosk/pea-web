@@ -2696,6 +2696,7 @@ installDragDrop({
 installCommands({
   workspace,
   tab,
+  goSetting: (id) => settings.go(id),
   context: () => ({ ...workspace.layout(), wide: workspace.wide(), profile, busy: live.isBusy() }),
 });
 // Takes the owner to a place in the settings: by their own words, a button, or an address.
@@ -2708,6 +2709,19 @@ settings = installSettings({
   },
   tab,
   notice,
+  // What is known about a section without opening it, for its tile.
+  status: (id) =>
+    id === 'local-model'
+      ? live.localKey()
+        ? 'Connected'
+        : 'Not connected'
+      : id === 'web-search'
+        ? research?.canSearch()
+          ? 'Key entered'
+          : 'No key'
+        : id === 'models'
+          ? $('connection-status').textContent.trim()
+          : '',
 });
 if (placeInAddress(location.hash)) settings.fromAddress();
 else if (location.hash.slice(1)) tab(location.hash.slice(1));

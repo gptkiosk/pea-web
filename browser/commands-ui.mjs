@@ -1,12 +1,13 @@
 // The command palette, keyboard shortcuts and their help screen.
 // Every command presses a control that is already on the page, so its usual checks and reviews apply.
 // Shortcuts do nothing while any other dialog is open, which includes every review.
+import { settingsPlaces } from './settings.mjs';
 import { commandList, matchCommands, shortcutFor, shortcutLabel, shortcuts } from './commands.mjs';
 
 const $ = (id) => document.getElementById(id);
 const press = (id) => $(id).click();
 
-export function installCommands({ workspace, tab, context }) {
+export function installCommands({ workspace, tab, context, goSetting = () => {} }) {
   const mac = /mac|iphone|ipad/i.test(
     globalThis.navigator?.userAgentData?.platform || navigator.platform || '',
   );
@@ -49,6 +50,7 @@ export function installCommands({ workspace, tab, context }) {
     theme: () => press('theme'),
     shortcuts: () => openHelp(),
   };
+  for (const id of Object.keys(settingsPlaces)) actions['settings-' + id] = () => goSetting(id);
   for (const name of ['chat', 'today', 'greenhouse']) {
     actions['go-' + name] = () => tab(name);
     actions['beside-' + name] = () => workspace.beside(name);
@@ -119,7 +121,7 @@ export function installCommands({ workspace, tab, context }) {
       chosen = null;
       return palette.close();
     }
-    if (document.querySelector('dialog[open]')) return;
+    if (document.querySelector('dialog:modal')) return;
     $('workspace-menu').open = false;
     input.value = '';
     active = 0;
@@ -129,7 +131,7 @@ export function installCommands({ workspace, tab, context }) {
   }
 
   function openHelp() {
-    if (document.querySelector('dialog[open]')) return;
+    if (document.querySelector('dialog:modal')) return;
     $('shortcut-list').replaceChildren(
       ...shortcuts.flatMap((shortcut) => {
         const keys = document.createElement('dt'),
@@ -170,7 +172,8 @@ export function installCommands({ workspace, tab, context }) {
   document.addEventListener('keydown', (event) => {
     const name = shortcutFor(event, { mac, typing: typingIn(event.target) });
     if (!name) return;
-    const dialog = document.querySelector('dialog[open]');
+    // A settings panel open beside the page is not in the way.
+    const dialog = document.querySelector('dialog:modal');
     // With a dialog open, the only shortcut is closing the palette with its own key.
     if (dialog && !(dialog === palette && name === 'palette')) return;
     if (name === 'send') {
@@ -191,9 +194,15 @@ export function installCommands({ workspace, tab, context }) {
     $('workspace-menu').open = false;
     openPalette();
   };
-  $('menu-shortcuts').onclick = () => {
-    $('workspace-menu').open = false;
+  // Commands and shortcuts are one place: each has a way to the other.
+  $('palette-shortcuts').onclick = () => {
+    chosen = null;
+    palette.close();
     openHelp();
+  };
+  $('shortcuts-commands').onclick = () => {
+    $('shortcuts-dialog').close();
+    openPalette();
   };
   $('menu-palette').append(
     Object.assign(document.createElement('kbd'), { textContent: shortcutLabel('palette', mac) }),
