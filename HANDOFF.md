@@ -23,6 +23,20 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Every menu window on tiles, and a way to the knowledge sources — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.55`. Owner request: the same look for every choice under the menu as Settings got, and the owner could find no knowledge sources or anywhere to set them up (a model invented shows when asked to list them).
+
+- `browser/settings-ui.mjs`: `installSettings` now gives three windows a tile home (`tiled`: `connections`, `library`, `preferences`), each with its own home, back button and title; `.tiled` is set on the dialog. A section the page has hidden gets no tile and is not unhidden outside Connections. `[data-go]` buttons close their window and go to a place. `shorten` also runs once on `interview` and `chat-export-dialog`.
+- `browser/settings.mjs`: new places `past-chats`, `memories`, `interview-file`, `profile-file`, `privacy-boundary`, `folder-rules`, `speaking-listening`; `glyph` and `what` on every Library place; `memory` is titled "Past chats & memory" and `backup` "Library backup". Every place is also a command and is named to the model.
+- `browser/index.html`: `library-home`, `library-back`, `library-title`, `threads-group` (no longer open by default), `memories-group`, `profile-move-group`, `.home-only`; Privacy & voice rebuilt as three `details.settings-group` of `ul.settings-points` with the same sentences; `interview-steps`; menu button `menu-sources`.
+- `browser/memory-ui.mjs`: the interview's steps as `.interview-step` buttons (`aria-current="step"`); the spoken progress line is kept for screen readers.
+- `browser/shownav.mjs`: `showCommand` reads a question about known or followed shows as `shows`. `browser/app.mjs`: `menu-sources` goes to `curated-sources`; `onState` renames only dictate buttons.
+- Tests: four more in `browser/tests/dom/settings-links.test.mjs` (seven there now) and one more in `browser/tests/shownav.test.mjs`.
+- **File list is full.** `browser/WEB-FILES.json` holds 200 names, the most `browser/server/releases.py` (`MAX_FILES`) accepts, so these tests went into an existing file. The next new file needs that limit raised, which is a release-format decision: an installed copy checking a package with the old limit would refuse a larger one.
+- Known gaps: Past chats is one press further than before; Library and Privacy tiles show no state; the interview's questions are as long as they were (they are the interview); Export this chat and Help & commands keep their own small windows; the setup wizard is unchanged; Curated sources still lives on Today and is not a window of its own. Looked at by eye in the test browser only, dark theme, 1100 wide; not on the owner's copy and not on a phone-width screen.
+- Next action: owner looks at the installed copy after merge.
+
 ## Settings button from a mislabelled block — 2026-11-23
 
 **Branch `fix/settings-button-label`, version `0.1.0-rc.4.dev.54`.** The owner sent a picture of their installed copy: asked how to connect Google, the model wrote `{"op":"settings","place":"connections"}` in a block labelled `json`, which was shown as code with no button.

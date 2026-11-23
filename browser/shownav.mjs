@@ -169,6 +169,13 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
     )
   )
     return { kind: 'shows' };
+  // The same, asked as a question: "can you list the podcast shows you know about?"
+  if (
+    /^(?:(?:can|could|will|would) you (?:please )?(?:list|show|tell)(?: me)?|(?:what|which)(?: are)?|list|show me) (?:all )?(?:of )?(?:the |your |my )?(?:podcast shows|podcasts|shows|knowledge sources|curated sources)(?: (?:that |do |are )?(?:you|i) (?:know about|know of|know|follow|have|track|listen to))?$/.test(
+      nameOf(text),
+    )
+  )
+    return { kind: 'shows' };
   if (
     (m = is(
       `(?:(?:list\\s+)?(?:the\\s+)?episodes\\s+(?:for|of|in|from)\\s+)?(?:the\\s+)?(?:show|podcast)\\s+(?:number\\s+)?${N}`,

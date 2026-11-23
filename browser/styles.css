@@ -4815,26 +4815,97 @@ section.settings-here {
   border: 1px solid var(--line);
   font-size: 12px;
 }
-#connections:not([data-section]):not([data-guided]) .settings-group,
-#connections[data-section] .settings-group:not(.settings-focus),
-#connections[data-section] .settings-home,
-#connections[data-guided] .settings-home,
-#connections[data-guided] .settings-back,
-#connections:not([data-section]) .settings-back {
+.tiled:not([data-section]):not([data-guided]) .settings-group,
+.tiled[data-section] .settings-group:not(.settings-focus),
+.tiled[data-section] .settings-home,
+.tiled[data-section] .home-only,
+.tiled[data-guided] .settings-home,
+.tiled[data-guided] .settings-back,
+.tiled:not([data-section]) .settings-back {
   display: none;
 }
-#connections {
+.tiled {
   width: min(760px, 94vw);
 }
-#connections.beside {
+.tiled.beside {
   width: min(460px, 40vw);
 }
-#connections .settings-focus {
+.tiled .settings-focus {
   border-top: 0;
   padding-top: 0;
 }
-#connections .settings-focus > summary {
+.tiled .settings-focus > summary {
   display: none;
+}
+/* Short points in place of a paragraph, and a button that leads to where the setting is. */
+.settings-points {
+  margin: 4px 0 14px;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  line-height: 1.45;
+}
+.settings-go {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-decoration: none;
+}
+.settings-go:hover,
+.settings-go:focus-visible {
+  border-color: var(--green);
+  background: var(--tint);
+}
+/* The interview's three steps, each one press away. */
+.interview-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.interview-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.interview-step span {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 700;
+}
+.interview-step[aria-current='step'] {
+  border-color: var(--green);
+  background: var(--tint);
+}
+.interview-step[aria-current='step'] span {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--bg);
+}
+.interview-step:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+#interview label:has(> input[type='checkbox']),
+#chat-export-dialog label:has(> input[type='checkbox']) {
+  display: flex;
+  align-items: center;
 }
 .settings-back {
   font-size: 15px;
@@ -4855,7 +4926,7 @@ section.settings-here {
   padding: 2px 0 8px;
 }
 /* Controls that are easy to hit: switches for on-and-off choices, taller fields and buttons. */
-:is(#connections, #preferences, #library) input[type='checkbox'] {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;
   flex: none;
@@ -4869,7 +4940,7 @@ section.settings-here {
   vertical-align: middle;
   cursor: pointer;
 }
-:is(#connections, #preferences, #library) input[type='checkbox']::after {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox']::after {
   content: '';
   position: absolute;
   top: 2px;
@@ -4880,27 +4951,27 @@ section.settings-here {
   background: var(--ink);
   opacity: 0.55;
 }
-:is(#connections, #preferences, #library) input[type='checkbox']:checked {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox']:checked {
   background: var(--green);
   border-color: var(--green);
 }
-:is(#connections, #preferences, #library) input[type='checkbox']:checked::after {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox']:checked::after {
   transform: translateX(18px);
   background: var(--bg);
   opacity: 1;
 }
-:is(#connections, #preferences, #library) input[type='checkbox']:focus-visible {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox']:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 3px;
 }
-:is(#connections, #preferences, #library) input[type='checkbox']:disabled {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox']:disabled {
   opacity: 0.45;
   cursor: default;
 }
-:is(#connections, #preferences) :is(input:not([type='checkbox']), select) {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) :is(input:not([type='checkbox']), select) {
   min-height: 48px;
 }
-:is(#connections, #preferences) .dialog-body button:not(.icon):not(.text-button):not(.settings-tile) {
+:is(#connections, #preferences, #library, #interview, #chat-export-dialog) .dialog-body button:not(.icon):not(.text-button):not(.settings-tile) {
   min-height: 46px;
   padding-inline: 20px;
 }
@@ -4910,10 +4981,10 @@ section.settings-here {
   background: var(--line);
 }
 @media (prefers-reduced-motion: no-preference) {
-  :is(#connections, #preferences, #library) input[type='checkbox'] {
+  :is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox'] {
     transition: background 0.15s;
   }
-  :is(#connections, #preferences, #library) input[type='checkbox']::after {
+  :is(#connections, #preferences, #library, #interview, #chat-export-dialog) input[type='checkbox']::after {
     transition:
       transform 0.15s,
       opacity 0.15s;

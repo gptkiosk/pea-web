@@ -56,74 +56,100 @@ function shorten(dialog) {
 
 // `openers` gives, for each panel, the function that draws and opens it; `tab(name)` goes to a
 // workspace. Returns { go(id), open() }.
+// The windows that open on a home of big tiles: its tile list, its way back and its title.
+const tiled = [
+  { dialog: 'connections', home: 'settings-home', back: 'settings-back', title: 'connections-title' },
+  { dialog: 'library', home: 'library-home', back: 'library-back', title: 'library-title' },
+  { dialog: 'preferences', home: 'preferences-home', back: 'preferences-back', title: 'preferences-title' },
+];
+
 export function installSettings({ openers, tab, notice, status = () => '' }) {
-  // Connections opens on a home of big tiles, one per section. Choosing one shows that section
-  // alone, with a way back. A section some other control opens is shown the same way.
-  const panel = $('connections'),
-    home = $('settings-home'),
-    sections = sectionsOf('connections');
-  const showHome = () => {
-    delete panel.dataset.section;
-    for (const [, place] of sections) {
-      $(place.group).classList.remove('settings-focus');
-      $(place.group).open = false;
-    }
-    $('connections-title').textContent = 'Settings';
-    home.replaceChildren(
-      ...sections.map(([id, place]) => {
-        const tile = document.createElement('button'),
-          glyph = document.createElement('span'),
-          title = document.createElement('strong'),
-          what = document.createElement('small'),
-          state = status(id);
-        tile.type = 'button';
-        tile.className = 'settings-tile';
-        tile.setAttribute('role', 'listitem');
-        tile.dataset.place = id;
-        glyph.className = 'settings-glyph';
-        glyph.setAttribute('aria-hidden', 'true');
-        glyph.textContent = place.glyph;
-        title.textContent = place.title;
-        what.textContent = place.what;
-        tile.append(glyph, title, what);
-        if (state) {
-          const badge = document.createElement('span');
-          badge.className = 'settings-state';
-          badge.textContent = state;
-          tile.append(badge);
-        }
-        tile.onclick = () => showSection(id);
-        return tile;
-      }),
-    );
-  };
-  const showSection = (id) => {
-    const place = settingsPlace(id);
-    for (const [, other] of sections) $(other.group).classList.toggle('settings-focus', other === place);
-    panel.dataset.section = id;
-    $('connections-title').textContent = place.title;
-    $(place.group).hidden = false;
-    $(place.group).open = true;
-    panel.querySelector('.dialog-body')?.scrollTo?.(0, 0);
-    panel.scrollTo?.(0, 0);
-  };
-  $('settings-back').onclick = showHome;
-  $('guided-all').addEventListener('click', showHome);
-  for (const [id, place] of sections)
-    $(place.group).addEventListener('toggle', () => {
-      if ($(place.group).open && panel.dataset.section !== id) showSection(id);
-    });
+  // Each of these windows opens on a home of big tiles, one per section. Choosing one shows that
+  // section alone, with a way back. A section some other control opens is shown the same way.
+  const panels = new Map();
+  for (const spec of tiled) {
+    const panel = $(spec.dialog),
+      home = $(spec.home),
+      heading = $(spec.title),
+      name = heading.textContent,
+      sections = sectionsOf(spec.dialog);
+    panel.classList.add('tiled');
+    const showHome = () => {
+      delete panel.dataset.section;
+      for (const [, place] of sections) {
+        $(place.group).classList.remove('settings-focus');
+        $(place.group).open = false;
+      }
+      heading.textContent = name;
+      home.replaceChildren(
+        ...sections
+          // A section the page has put away (for the other profile, say) gets no tile.
+          .filter(([, place]) => spec.dialog === 'connections' || !$(place.group).hidden)
+          .map(([id, place]) => {
+            const tile = document.createElement('button'),
+              glyph = document.createElement('span'),
+              title = document.createElement('strong'),
+              what = document.createElement('small'),
+              state = status(id);
+            tile.type = 'button';
+            tile.className = 'settings-tile';
+            tile.setAttribute('role', 'listitem');
+            tile.dataset.place = id;
+            glyph.className = 'settings-glyph';
+            glyph.setAttribute('aria-hidden', 'true');
+            glyph.textContent = place.glyph;
+            title.textContent = place.title;
+            what.textContent = place.what;
+            tile.append(glyph, title, what);
+            if (state) {
+              const badge = document.createElement('span');
+              badge.className = 'settings-state';
+              badge.textContent = state;
+              tile.append(badge);
+            }
+            tile.onclick = () => showSection(id);
+            return tile;
+          }),
+      );
+    };
+    const showSection = (id) => {
+      const place = settingsPlace(id);
+      for (const [, other] of sections) $(other.group).classList.toggle('settings-focus', other === place);
+      panel.dataset.section = id;
+      heading.textContent = place.title;
+      if (spec.dialog === 'connections') $(place.group).hidden = false;
+      $(place.group).open = true;
+      panel.querySelector('.dialog-body')?.scrollTo?.(0, 0);
+      panel.scrollTo?.(0, 0);
+    };
+    $(spec.back).onclick = showHome;
+    for (const [id, place] of sections)
+      $(place.group).addEventListener('toggle', () => {
+        if ($(place.group).open && panel.dataset.section !== id) showSection(id);
+      });
+    panel.addEventListener('close', showHome);
+    showHome();
+    panels.set(spec.dialog, { panel, sections, showHome, showSection });
+  }
+  $('guided-all').addEventListener('click', panels.get('connections').showHome);
   whenShown = (dialog) => {
-    if (dialog === panel && !dialog.open) showHome();
+    const tiles = panels.get(dialog.id);
+    if (tiles && !dialog.open) tiles.showHome();
     shorten(dialog);
   };
   revealGroup = (group) => {
-    const found = sections.find(([, place]) => $(place.group) === group);
-    if (found) showSection(found[0]);
+    for (const tiles of panels.values()) {
+      const found = tiles.sections.find(([, place]) => $(place.group) === group);
+      if (found) tiles.showSection(found[0]);
+    }
   };
-  panel.addEventListener('close', showHome);
-  showHome();
-  shorten($('preferences'));
+  // A button inside one window that leads to a place in another: this window closes first.
+  for (const button of document.querySelectorAll('[data-go]'))
+    button.onclick = () => {
+      button.closest('dialog')?.close();
+      go(button.dataset.go);
+    };
+  for (const id of ['interview', 'chat-export-dialog']) shorten($(id));
   for (const name of Object.keys(openers))
     $(name).addEventListener('close', () => {
       $(name).classList.remove('beside');
@@ -144,10 +170,11 @@ export function installSettings({ openers, tab, notice, status = () => '' }) {
       openers[place.dialog]();
       wantBeside = false;
     }
-    const group = place.group ? $(place.group) : null;
-    if (place.dialog === 'connections') place.group ? showSection(id) : showHome();
+    const group = place.group ? $(place.group) : null,
+      tiles = panels.get(place.dialog);
+    if (tiles) place.group ? tiles.showSection(id) : tiles.showHome();
     if (group) {
-      group.hidden = false;
+      if (!tiles || place.dialog === 'connections') group.hidden = false;
       if ('open' in group) group.open = true;
       // After the panel has been laid out, so the section is at the top of what is seen.
       requestAnimationFrame(() => group.scrollIntoView({ block: 'start' }));

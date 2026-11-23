@@ -535,6 +535,21 @@ export function installMemory(hooks) {
     $('interview-progress').textContent =
       `Step ${interviewStep + 1} of 3 · ${['About you', 'Your world', 'Your companion'][interviewStep]}`;
     $('interview-progress-bar').style.width = `${((interviewStep + 1) * 100) / 3}%`;
+    // The three steps as buttons, so any of them is one press away.
+    $('interview-steps').replaceChildren(
+      ...['About you', 'Your world', 'Your companion'].map((name, n) => {
+        const step = document.createElement('button'),
+          number = document.createElement('span');
+        step.type = 'button';
+        step.className = 'interview-step';
+        step.setAttribute('role', 'listitem');
+        if (n === interviewStep) step.setAttribute('aria-current', 'step');
+        number.textContent = String(n + 1);
+        step.append(number, name);
+        step.onclick = () => showInterviewStep(n, true);
+        return step;
+      }),
+    );
     $('interview-back').hidden = interviewStep === 0;
     $('interview-next').hidden = interviewStep === 2;
     $('interview-save').hidden = interviewStep !== 2;
