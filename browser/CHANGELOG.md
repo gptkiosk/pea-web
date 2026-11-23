@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.43] - 2026-11-22
+
+### Added
+
+- **Talk from briefs.** A switch in Curated sources, shown once you follow a show and on until you turn it off. On, an open episode's brief and digest go with a Chat message, after the usual review, as before. Off, nothing from a curated episode goes with a Chat message; you can still walk shows, episodes and sections by number. The choice is remembered in this browser.
+
+### Not included
+
+- On the iPhone app this switch also routes questions about a show or topic to the right brief when no episode is open. The web shares a brief only for the episode you have open, so the switch covers only that.
+
 ## [0.1.0-rc.4.dev.42] - 2026-11-22
 
 ### Added
