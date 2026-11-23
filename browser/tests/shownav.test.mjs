@@ -496,3 +496,21 @@ test('citations are listed, opened and stepped by address, and looking up a sect
   assert.doesNotMatch(plain.text, /Citation/);
   assert.doesNotMatch(briefInPlay(cited, go('1.1').at).text, /Citation/);
 });
+
+test('asking which shows PEA knows lists the shows, and ordinary questions are left alone', () => {
+  for (const said of [
+    'can you list the podcast shows you know about?',
+    'What podcasts do you know?',
+    'which shows do I follow',
+    'which knowledge sources do you have?',
+    'show me my podcasts',
+  ])
+    assert.deepEqual(showCommand(said, { at: idle(), shows: [] }), { kind: 'shows' }, said);
+  for (const said of [
+    'what shows are on tonight?',
+    'can you list the podcast shows about gardening?',
+    'what do you know about podcasts',
+    'which shows should I watch',
+  ])
+    assert.equal(showCommand(said, { at: idle(), shows: [] }), null, said);
+});

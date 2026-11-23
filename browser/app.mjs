@@ -2283,6 +2283,10 @@ for (const [id, target] of [
     $('workspace-menu').open = false;
     $(target).click();
   };
+$('menu-sources').onclick = () => {
+  $('workspace-menu').open = false;
+  settings.go('curated-sources');
+};
 $('workspace-menu').onkeydown = (e) => {
   if (e.key === 'Escape') {
     e.preventDefault();
@@ -2381,7 +2385,7 @@ voice = new Dictation({
   onState(on) {
     for (const id of ['collab-mic', 'board-mic'])
       $(id).textContent = on ? 'Stop listening' : id === 'board-mic' ? 'Dictate command' : 'Dictate';
-    for (const b of document.querySelectorAll('.interview-dictate'))
+    for (const b of document.querySelectorAll('.interview-dictate[data-target]'))
       b.textContent = on && b.dataset.target === voiceTarget ? 'Stop listening' : 'Dictate answer';
     $('voice-room-mic').classList.toggle('listening', on);
     $('voice-room-mic').setAttribute('aria-pressed', String(on));

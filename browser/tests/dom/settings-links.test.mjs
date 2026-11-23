@@ -298,6 +298,7 @@ test(
         'Past chats & memory',
         'Export this chat…',
         'Interview & persona',
+        'Knowledge sources',
         'Connections & settings',
         'Privacy & voice',
         'Help & commands',
@@ -314,6 +315,228 @@ test(
     await page.waitFor(`document.getElementById('connections').open`, 'the setting');
     seen = await view();
     assert.deepEqual(seen, { title: 'Web search', tiles: [], groups: ['search-providers'], back: true });
+    await page.close();
+  },
+);
+
+// Every window under the menu looks and works like Settings: a home of big tiles, one section at
+// a time with a way back, switches, short text, and a way to the knowledge sources.
+const view = (page, id) =>
+  page.evaluate(`(() => {
+    const d = document.getElementById(${JSON.stringify(id)});
+    const seen = (e) => !!e && e.getClientRects().length > 0;
+    return {
+      open: d.open,
+      title: d.querySelector('.dialog-head h2').textContent,
+      tiles: [...d.querySelectorAll('.settings-tile')].filter(seen).map((t) => t.querySelector('strong').textContent),
+      groups: [...d.querySelectorAll('.settings-group')].filter(seen).map((g) => g.id),
+      back: seen(d.querySelector('.settings-back')),
+    };
+  })()`);
+const press = (page, id) => page.evaluate(`document.getElementById(${JSON.stringify(id)}).click()`);
+const tile = (page, place) =>
+  page.evaluate(`document.querySelector('.settings-tile[data-place="${place}"]').click()`);
+const closed = (page, id) =>
+  page.waitFor(`!document.getElementById(${JSON.stringify(id)}).open`, id + ' to close');
+
+test('Past chats & memory opens on tiles and shows one section at a time', options, async () => {
+  const page = await openConnectedPage(stack, { width: 1000 });
+  await page.fill('#profile', 'personal');
+  await press(page, 'menu-history');
+  let seen = await view(page, 'library');
+  assert.equal(seen.open, true);
+  assert.equal(seen.title, 'Good things to remember.');
+  assert.deepEqual(seen.tiles, [
+    'Past chats',
+    'Memories',
+    'What you have told her',
+    'Her history',
+    'Her days',
+    'Interview file',
+    'Profile file',
+    'Library backup',
+  ]);
+  assert.deepEqual(seen.groups, []);
+  assert.equal(seen.back, false);
+  const size = await page.evaluate(`(() => {
+      const r = document.querySelector('#library .settings-tile').getBoundingClientRect();
+      return r.height >= 88 && r.width >= 190;
+    })()`);
+  assert.ok(size, 'a tile is big enough to press');
+
+  await tile(page, 'past-chats');
+  seen = await view(page, 'library');
+  assert.deepEqual(seen, {
+    open: true,
+    title: 'Past chats',
+    tiles: [],
+    groups: ['threads-group'],
+    back: true,
+  });
+  // What belongs to the home is put away while a section is open.
+  assert.equal(
+    await page.evaluate(
+      `[...document.querySelectorAll('#library .home-only')].every((e) => e.getClientRects().length === 0)`,
+    ),
+    true,
+  );
+  await press(page, 'library-back');
+  seen = await view(page, 'library');
+  assert.equal(seen.title, 'Good things to remember.');
+  assert.equal(seen.tiles.length, 8);
+
+  // An on-and-off choice is a switch, and a long explanation is two lines with the rest a press away.
+  await tile(page, 'memories');
+  const look = await page.evaluate(`(() => {
+      const c = document.getElementById('memory-share'), r = c.getBoundingClientRect();
+      const short = document.querySelector('#memories-group .settings-short');
+      return { width: r.width, height: r.height, look: getComputedStyle(c).appearance, more: short?.nextElementSibling?.textContent };
+    })()`);
+  assert.deepEqual(look, { width: 44, height: 26, look: 'none', more: 'More' });
+
+  // Opening the window again starts at its home.
+  await page.evaluate(`document.getElementById('library').close()`);
+  await closed(page, 'library');
+  await press(page, 'menu-history');
+  seen = await view(page, 'library');
+  assert.equal(seen.tiles.length, 8);
+  assert.deepEqual(seen.groups, []);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+test(
+  'Privacy & voice is three tiles of short points, each with a way to the setting it describes',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1000 });
+    await press(page, 'menu-privacy');
+    let seen = await view(page, 'preferences');
+    assert.deepEqual(seen.tiles, ['Privacy boundary', 'PEA folder rules', 'Speaking & listening']);
+    assert.deepEqual(seen.groups, []);
+    await tile(page, 'folder-rules');
+    seen = await view(page, 'preferences');
+    assert.deepEqual(seen.groups, ['privacy-folder-group']);
+    assert.equal(seen.title, 'PEA folder rules');
+    const points = await page.evaluate(
+      `[...document.querySelectorAll('#privacy-folder-group li')].map((li) => li.textContent.length)`,
+    );
+    assert.equal(points.length, 7);
+    assert.ok(
+      points.every((n) => n < 150),
+      'every point is short',
+    );
+    // Nothing the window said before was dropped.
+    const text = await page.evaluate(`document.querySelector('#preferences .dialog-body').textContent`);
+    for (const kept of [
+      'Keys and access tokens stay in this tab’s memory; reloading clears them.',
+      'a model cannot expand it',
+      'There is no background listening or automatic send.',
+      'Your iPhone history and older WebUI login are not imported.',
+    ])
+      assert.ok(text.includes(kept), kept);
+
+    // Its button closes this window and opens the setting itself.
+    await page.evaluate(`document.querySelector('#privacy-folder-group [data-go="google"]').click()`);
+    await page.waitFor(`document.getElementById('connections').open`, 'Google settings');
+    assert.equal((await view(page, 'preferences')).open, false);
+    seen = await view(page, 'connections');
+    assert.equal(seen.title, 'Google');
+    assert.deepEqual(seen.groups, ['google-group']);
+    assert.deepEqual(page.errors, []);
+    await page.close();
+  },
+);
+
+test(
+  'the interview’s steps are buttons, its choice is a switch, and Export this chat matches',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1000 });
+    await press(page, 'menu-interview');
+    await page.waitFor(`document.getElementById('interview').open`, 'the interview');
+    const steps = () =>
+      page.evaluate(`(() => ({
+        names: [...document.querySelectorAll('.interview-step')].map((b) => b.textContent),
+        now: document.querySelector('.interview-step[aria-current="step"]').textContent,
+        shown: [...document.querySelectorAll('[data-interview-step]')].filter((s) => !s.hidden).map((s) => s.dataset.interviewStep),
+        said: document.getElementById('interview-progress').textContent,
+      }))()`);
+    assert.deepEqual(await steps(), {
+      names: ['1About you', '2Your world', '3Your companion'],
+      now: '1About you',
+      shown: ['0'],
+      said: 'Step 1 of 3 · About you',
+    });
+    // Each question keeps its own two buttons, named for what they do.
+    assert.deepEqual(
+      await page.evaluate(
+        `[...document.querySelectorAll('[data-interview-step="0"] .interview-dictate')].slice(0, 2).map((b) => b.textContent)`,
+      ),
+      ['Dictate answer', 'Read question'],
+    );
+    await page.fill('#bio-ownerName', 'Sam');
+    await page.evaluate(`document.querySelectorAll('.interview-step')[2].click()`);
+    let at = await steps();
+    assert.equal(at.now, '3Your companion');
+    assert.deepEqual(at.shown, ['2']);
+    assert.equal(at.said, 'Step 3 of 3 · Your companion');
+    // Moving between steps keeps what was typed, and Back still works.
+    await press(page, 'interview-back');
+    at = await steps();
+    assert.equal(at.now, '2Your world');
+    await page.evaluate(`document.querySelectorAll('.interview-step')[0].click()`);
+    assert.equal(await page.evaluate(`document.getElementById('bio-ownerName').value`), 'Sam');
+    const box = (id) =>
+      page.evaluate(`(() => {
+        const c = document.getElementById(${JSON.stringify(id)});
+        return getComputedStyle(c).appearance + ' ' + getComputedStyle(c).width + ' ' + getComputedStyle(c).height;
+      })()`);
+    assert.equal(await box('bio-presence'), 'none 44px 26px');
+    await page.evaluate(`document.getElementById('interview').close()`);
+    await closed(page, 'interview');
+
+    await press(page, 'menu-export-chat');
+    await page.waitFor(`document.getElementById('chat-export-dialog').open`, 'Export this chat');
+    assert.equal(await box('chat-export-debug'), 'none 44px 26px');
+    assert.equal(
+      await page.evaluate(
+        `[...document.querySelectorAll('#chat-export-dialog .settings-more')].map((b) => b.textContent).join()`,
+      ),
+      'More,More',
+    );
+    assert.deepEqual(page.errors, []);
+    await page.close();
+  },
+);
+
+test(
+  'Knowledge sources is in the menu, and asking which shows PEA knows gets a true answer',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1000 });
+    const before = stack.model.requests.length;
+    await press(page, 'menu-sources');
+    await page.waitFor(`document.getElementById('curated-section').open`, 'Curated sources');
+    assert.equal(
+      await page.evaluate(
+        `document.getElementById('today').hidden === false && document.getElementById('curated-browse').getClientRects().length > 0`,
+      ),
+      true,
+      'Today is shown with the way to browse the sources',
+    );
+    assert.equal(await page.evaluate(`document.getElementById('workspace-menu').open`), false);
+
+    // With no show followed, the question is answered by PEA itself, not by a model's invention.
+    await page.evaluate(`document.getElementById('tab-chat').click()`);
+    await page.fill('#thought', 'can you list the podcast shows you know about?');
+    await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+    await page.waitFor(
+      `document.body.textContent.includes('You follow no shows with briefs in this tab.')`,
+      'the answer',
+    );
+    assert.equal(stack.model.requests.length, before, 'no model was asked');
+    assert.deepEqual(page.errors, []);
     await page.close();
   },
 );

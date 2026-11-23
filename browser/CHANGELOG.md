@@ -2,6 +2,22 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.55] - 2026-11-23
+
+### Added
+
+- **Knowledge sources is in the menu.** It takes you to Curated sources on Today, where you browse the curator's shows and follow the ones you want. Until now the only way there was to know it was on Today.
+- **Asking which shows PEA knows gets a true answer.** "Can you list the podcast shows you know about?", "what podcasts do you know?" and similar questions are now answered by PEA itself from the shows you follow. With none followed it says so and offers a button to Curated sources; before, the question went to your model, which made shows up.
+
+### Changed
+
+- **Every window under the menu now works like Settings.** Past chats & memory opens on eight big tiles (Past chats, Memories, What you have told her, Her history, Her days, Interview file, Profile file, Library backup) and shows one section at a time with a way back. Privacy & voice is three tiles of short points in place of three long paragraphs, each with a button to the setting it describes; every statement it made is still there. The interview's three steps are buttons, so any step is one press away. Switches, taller fields and buttons, and two-line explanations with "More" now apply in all of them and in Export this chat.
+- Past chats are one press further away than before: open the window, then Past chats.
+
+### Fixed
+
+- In the interview, the "Read question" button beside each answer was labelled "Dictate answer", so every question showed two buttons with the same name.
+
 ## [0.1.0-rc.4.dev.54] - 2026-11-23
 
 ### Fixed
