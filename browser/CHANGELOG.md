@@ -2,6 +2,24 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.45] - 2026-11-22
+
+### Added
+
+- **Look up scholarly papers.** In Chat, type "papers on sleep and memory" (or "studies about …", "find research on …"), or press **Look up papers** when your model offers it. PEA searches OpenAlex, a public index of scholarly works, for up to five papers.
+  - Nothing is asked until you review the exact search words and the exact address. Declining asks nobody.
+  - Your PEA server makes the one request, with no key, no cookie, no sign-in and nothing from your chats. It needs the server connected under Connections.
+  - PEA keeps each paper's title, year, first authors, journal, citation count, whether it is open access, its DOI and the start of its abstract, as plain words in this tab. It shows them to you and shares them with your model only with your next Chat message, after the usual review.
+  - PEA does not read the papers themselves. The list says so, and tells your model that a listing is not proof of a claim.
+  - Your model can only offer the button. It is told not to say it searched, and not to cite a study from memory as if it had looked it up.
+  - A search that fails or finds nothing keeps nothing, says so, and is never retried.
+
+### Not included
+
+- OpenAlex allows searches without a key from a small daily allowance shared by everyone at your internet address: about 100 searches a day when checked on 22 November 2026. PEA does not use an OpenAlex key.
+- Papers are not looked up automatically and are not attached to a curated brief's claims.
+- The list comes from OpenAlex's own ranking. PEA does not judge the quality of a paper.
+
 ## [0.1.0-rc.4.dev.44] - 2026-11-22
 
 ### Added

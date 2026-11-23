@@ -10,7 +10,7 @@ import { docGuidance, docHTML, docPlain, docSummary } from './documents.mjs';
 import { openGuidance } from './handoff.mjs';
 import { choiceGuidance } from './choices.mjs';
 import { pointsGuidance } from './numbered.mjs';
-import { readGuidance } from './research.mjs';
+import { papersGuidance, readGuidance } from './research.mjs';
 import { assistantName, honestyRule, nameLine } from './honesty.mjs';
 import { canonContext } from './canon.mjs';
 import { describeLife, lifeContext, styleRule } from './life.mjs';
@@ -608,7 +608,7 @@ export function installConnections(hooks) {
       '\n' +
       pointsGuidance +
       // Reading a page needs this server's reader, so it is offered only when the server is connected.
-      (surface === 'chat' && localKey() ? '\n' + readGuidance : '') +
+      (surface === 'chat' && localKey() ? '\n' + readGuidance + '\n' + papersGuidance : '') +
       '\nText for the owner to copy, such as an outline, a message to paste or code, goes in a plain fenced block; the app shows it with a Copy button and never reads it aloud.';
     // To-do guidance always explains how to propose a change; the items themselves are added only
     // under the owner's sharing setting for this profile.
@@ -711,7 +711,7 @@ export function installConnections(hooks) {
         'choices',
         ...(spoken ? ['spoken reply'] : []),
         'numbered points',
-        ...(surface === 'chat' && localKey() ? ['page reading'] : []),
+        ...(surface === 'chat' && localKey() ? ['page reading', 'paper lookup'] : []),
         ...(brief ? ['curated brief'] : []),
         ...(todoText ? ['to-dos'] : []),
         ...(projectText ? ['projects'] : []),
