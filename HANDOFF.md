@@ -23,6 +23,14 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Knowledge sources, second slice: source detail — 2026-11-22
+
+**Branch `feature/source-detail`, version `0.1.0-rc.4.dev.40`.** The owner said "Yes, build it" to the source detail page (Section 9C of their description).
+
+- `browser/knowledge-ui.mjs`: a **Details** button on every card opens `<dialog id="curated-detail">`, drawn by `detail()` from the checked list and kept briefs only. `pin(id, itemID)` and `pins` (up to `pinMost` 5 per show), `wanted()` (the newest kept, plus pinned) used by `load`, `restore` and `keep`; `rename(id, value)` and `names` (`cleanName`, 60 characters, key-like text refused) with `nameOf()` used on the card, in "learned lately" and in `shows()`; **Check this show now** is `refresh(id)`. `pea-curated-v1` gains `pins` and `names`; unfollowing or turning off removes them.
+- Tests: `browser/tests/dom/knowledge.test.mjs` (6; one new): the detail asks nothing, links are https with `noopener noreferrer`, pin then keep one, the pin across a reload and a check, unpin, rename on the card and in "list shows", a key-like name refused, unfollow from the detail.
+- Known gaps: a pin lasts only while the curator lists the episode (the kept copy is checked against the show's list on every load). No "remove the source but keep its items", no recent-check log, no per-show storage figure. Next in order: digests; storage limit and eviction; format 1.4 and citations once published. Not looked at by eye.
+
 ## Knowledge sources, first slice: kept briefs, Stay current, per-show switch — 2026-11-22
 
 **Branch `feature/knowledge-sources`, version `0.1.0-rc.4.dev.39`.** The owner asked "to implement the knowledge sources feature in PEA web that is implemented in the iOS app", fed by the public catalog the processor publishes. Source of behaviour: the owner's description (Section 9 of their handoff, read as a description only) and the live public catalog, which on this date serves format 1.3 with `Access-Control-Allow-Origin: *`; `briefs-index.json` exists there and is not read.
