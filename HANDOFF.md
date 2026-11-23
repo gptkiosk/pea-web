@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Knowledge sources, third slice: digests — 2026-11-22
+
+**Branch `feature/digests`, version `0.1.0-rc.4.dev.41`.** The owner said "Yes, build digests".
+
+- `browser/knowledge-schema.mjs`: the public project's `schema/digest.schema.json` added under `digest`, from the same commit as the others (`3069847`); the three existing schemas are byte for byte as before.
+- `browser/knowledge.mjs`: `knowledgeLimits.digest` (24,000 bytes), `digestBrief` (900), `digestShared` (1,400); `checkDigestAlone`, `checkDigest(bytes, listing, item)` after the public reference's `check_digest` (size and hash, strict JSON, schema, text rules, identity against the index, chapters in order, short form within 900, method and model agreeing, no quotes or moments without a transcript, a headline digest graded headline). The reference's transcript comparisons are not done: the web holds no transcripts. `digestLines(d, said, limit)`: the labelled lines for Chat.
+- `browser/knowledge-ui.mjs`: `load()` fetches and checks each kept episode's digest (reused when its hash is unchanged, retried when missing), episodes carry `digest` and `digestText`; kept and restored under `digests` in `pea-curated-kept-v1`, left out first when over the size limit; the activity step counts them; the detail page says "brief and digest" or "brief only".
+- `browser/shownav.mjs` `briefInPlay`: appends `digestLines` after the brief within `briefShared` (3,200, the cap `connections.mjs` already applied), returns `digest: true|false`, and the key includes the digest's hash. `browser/connections.mjs`: the guidance names Exact quote, the digest lines, times and Disputed.
+- Fixtures: `KnowledgeDist.json` gains the nine digests of the public good output and `KnowledgeHostile.json` the thirteen hostile digests with their expected reasons, copied unedited from the same commit.
+- Tests: `browser/tests/knowledge.test.mjs` (hostile digests refused for the stated reason, every digest of the good output accepted, a swapped or damaged digest refused, `digestLines`); `browser/tests/dom/knowledge.test.mjs` (7; one new: an altered digest left out, kept across a reload, fetched alone when right again); `browser/tests/dom/shownav.test.mjs` (the digest lines in the review and in what the model receives).
+- Known gaps: no transcripts, so no "go deeper" beyond the digest. Digest chapters, glossary, starters, follow-ups, connections and recap cards are unused. The live catalog is format 1.3; 1.4 and citations are not read. Checked once by hand against the live catalog from Node (12 digests of 4 shows, all accepted); no test asks the live catalog. Not looked at by eye.
+
 ## Knowledge sources, second slice: source detail — 2026-11-22
 
 **Branch `feature/source-detail`, version `0.1.0-rc.4.dev.40`.** The owner said "Yes, build it" to the source detail page (Section 9C of their description).

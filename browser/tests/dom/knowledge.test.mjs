@@ -109,8 +109,15 @@ test(
     const after = asked(page).slice(1);
     assert.equal(after[0], 'store.json', 'the list is checked again first');
     assert.equal(after[1], 'sources/harbor-voices/items.json');
-    assert.equal(after.length, 5, 'then that show’s three briefs, and no digest or transcript');
-    assert.ok(after.slice(2).every((path) => /^sources\/harbor-voices\/[a-z0-9-]+\.brief\.json$/.test(path)));
+    assert.equal(after.length, 8, 'then that show’s three briefs and three digests, and no transcript');
+    assert.ok(
+      after.slice(2).every((path) => /^sources\/harbor-voices\/[a-z0-9-]+\.(brief|digest)\.json$/.test(path)),
+    );
+    assert.equal(after.filter((path) => path.endsWith('.digest.json')).length, 3);
+    assert.match(
+      (await rows(page)).join(' | '),
+      /Harbor Voices: 3 briefs checked and kept; 3 with their digest/,
+    );
     const mine = (await cards(page)).find((c) => c.name === 'Harbor Voices');
     assert.equal(mine.button, 'Unfollow');
     assert.equal(mine.held, '3 briefs kept in this browser');
@@ -129,6 +136,9 @@ test(
     assert.equal(kept.store, dist['store.json']);
     assert.deepEqual(Object.keys(kept.shows), ['harbor-voices']);
     assert.equal(Object.keys(kept.shows['harbor-voices'].briefs).length, 3);
+    assert.equal(Object.keys(kept.shows['harbor-voices'].digests).length, 3, 'and the digests with them');
+    for (const [id, text] of Object.entries(kept.shows['harbor-voices'].digests))
+      assert.equal(text, dist[`sources/harbor-voices/${id}.digest.json`]);
 
     // Requests carry no cookie, no sign-in and no referrer.
     for (const r of page.intercepted.filter((x) => x.url.startsWith(base))) {
@@ -693,6 +703,74 @@ test(
     );
     const left = JSON.parse(await page.evaluate(`localStorage.getItem('pea-curated-v1')`));
     assert.deepEqual([left.followed, left.pins, left.names], [[], undefined, undefined]);
+    assert.deepEqual(
+      page.outsideRequests().filter((url) => !url.startsWith(base)),
+      [],
+    );
+    await page.close();
+  },
+);
+
+test(
+  'a digest that fails its checks is left out and the episode keeps its brief; a good one comes back after a reload with no fetch',
+  options,
+  async () => {
+    const { page, catalog } = await openToday();
+    const items = JSON.parse(dist['sources/harbor-voices/items.json']).items;
+    // One digest arrives altered: the right place, the wrong bytes.
+    catalog.files[items[0].digest.path] = dist[items[0].digest.path].replace('"', ' "');
+    await browse(page);
+    await press(page, 'Follow Harbor Voices');
+    await page.waitFor(
+      `/briefs kept in this browser/.test(document.querySelector('#curated-list .curated-held')?.textContent ?? '') && ${idle}`,
+      'the followed show',
+    );
+    assert.match(
+      (await rows(page)).join(' | '),
+      /Harbor Voices: 3 briefs checked and kept; 2 with their digest, 1 digest refused or missing/,
+    );
+    assert.equal(
+      (await cards(page)).find((c) => c.name === 'Harbor Voices').held,
+      '3 briefs kept in this browser',
+      'every episode is still kept, from its brief',
+    );
+    const kinds = async () => {
+      await page.evaluate(
+        `document.querySelector('#curated-list button[aria-label="Details of Harbor Voices"]').click()`,
+      );
+      await page.waitFor(`document.getElementById('curated-detail').open`, 'the detail');
+      const out = await page.evaluate(
+        `[...document.querySelectorAll('#curated-detail-body ul li small')].map((x) => x.textContent.split(' · ')[1].trim())`,
+      );
+      await page.evaluate(`document.getElementById('curated-detail').close()`);
+      return out;
+    };
+    assert.deepEqual(await kinds(), ['brief only', 'brief and digest', 'brief and digest']);
+
+    // After a reload the two good digests are back, checked again, and nothing is asked.
+    const before = asked(page).length;
+    await page.reload();
+    await page.click('#tab-today');
+    await page.waitFor(
+      `document.getElementById('curated-peek').textContent === '3 briefs ready' && ${idle}`,
+      'the kept files back',
+    );
+    assert.deepEqual(await kinds(), ['brief only', 'brief and digest', 'brief and digest']);
+    assert.equal(asked(page).length, before);
+
+    // Once the curator's file is right again, a Refresh fetches only what is missing.
+    catalog.files[items[0].digest.path] = dist[items[0].digest.path];
+    await page.evaluate(`document.getElementById('curated-browse').click()`);
+    await page.waitFor(
+      `/Harbor Voices: 3 briefs checked and kept; 3 with their digest/.test(document.getElementById('curated-activity').textContent) && ${idle}`,
+      'the refresh',
+    );
+    assert.deepEqual(asked(page).slice(before), [
+      'store.json',
+      'sources/harbor-voices/items.json',
+      items[0].digest.path,
+    ]);
+    assert.deepEqual(await kinds(), ['brief and digest', 'brief and digest', 'brief and digest']);
     assert.deepEqual(
       page.outsideRequests().filter((url) => !url.startsWith(base)),
       [],

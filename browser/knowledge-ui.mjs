@@ -6,6 +6,7 @@
 import {
   catalogBase,
   checkBrief,
+  checkDigest,
   checkItems,
   checkStore,
   knowledgeLimits,
@@ -41,7 +42,7 @@ export const keepDefault = 3,
 export const curatedHost = new URL(catalogBase).host;
 
 export function describeBrowse() {
-  return `If you approve, this browser asks ${curatedHost} (GitHub Pages) for the curator’s list of sources: one file, the same for everyone, so asking for it says nothing about what interests you. As with any website, the host sees your internet address. No cookie, no account and nothing about you or your chats is sent.\n\nNothing more is fetched until you follow a show. Following a show fetches that show’s list of episodes and the briefs of its ${keepDefault} newest (you can keep up to ${keepMost}, or none), so the host can tell which shows this address follows. PEA checks every file against the size and fingerprint the curator’s list promised before using it.\n\nThe shows you follow and their checked briefs are kept in this browser, in plain form (they are public files), for every profile, so a reload needs no fetch. PEA asks again only when you press Refresh, unless you turn on Stay current: then it also checks by itself, at most every six hours, while PEA is open. It never opens an episode’s own page by itself.`;
+  return `If you approve, this browser asks ${curatedHost} (GitHub Pages) for the curator’s list of sources: one file, the same for everyone, so asking for it says nothing about what interests you. As with any website, the host sees your internet address. No cookie, no account and nothing about you or your chats is sent.\n\nNothing more is fetched until you follow a show. Following a show fetches that show’s list of episodes and, for its ${keepDefault} newest (you can keep up to ${keepMost}, or none), the brief and the longer digest of each, so the host can tell which shows this address follows. PEA checks every file against the size and fingerprint the curator’s list promised before using it.\n\nThe shows you follow and their checked briefs are kept in this browser, in plain form (they are public files), for every profile, so a reload needs no fetch. PEA asks again only when you press Refresh, unless you turn on Stay current: then it also checks by itself, at most every six hours, while PEA is open. It never opens an episode’s own page by itself.`;
 }
 
 // One file from the catalog, as bytes, or a typed failure. Never more than `limit` bytes.
@@ -184,20 +185,34 @@ export function installCurated({ review, changed = () => {} }) {
   function saveKept() {
     try {
       if (!allowed || !storeText || !held.size) return globalThis.localStorage.removeItem(keptKey);
-      const text = JSON.stringify({
-        store: storeText,
-        shows: Object.fromEntries(
-          [...held]
-            .filter(([, h]) => h.itemsText)
-            .map(([id, h]) => [
-              id,
-              {
-                items: h.itemsText,
-                briefs: Object.fromEntries(h.episodes.filter((e) => e.text).map((e) => [e.item.id, e.text])),
-              },
-            ]),
-        ),
-      });
+      const made = (withDigests) =>
+        JSON.stringify({
+          store: storeText,
+          shows: Object.fromEntries(
+            [...held]
+              .filter(([, h]) => h.itemsText)
+              .map(([id, h]) => [
+                id,
+                {
+                  items: h.itemsText,
+                  briefs: Object.fromEntries(
+                    h.episodes.filter((e) => e.text).map((e) => [e.item.id, e.text]),
+                  ),
+                  ...(withDigests
+                    ? {
+                        digests: Object.fromEntries(
+                          h.episodes.filter((e) => e.digestText).map((e) => [e.item.id, e.digestText]),
+                        ),
+                      }
+                    : {}),
+                },
+              ]),
+          ),
+        });
+      // Digests are the larger files: when everything together is too much, they are the first
+      // to be left out of what is kept across a reload, and come back with the next Refresh.
+      let text = made(true);
+      if (text.length > keptMost) text = made(false);
       if (text.length > keptMost) globalThis.localStorage.removeItem(keptKey);
       else globalThis.localStorage.setItem(keptKey, text);
     } catch {
@@ -434,7 +449,8 @@ export function installCurated({ review, changed = () => {} }) {
     }
     const before = held.get(s.id),
       episodes = [];
-    let refused = 0;
+    let refused = 0,
+      noDigest = 0;
     for (const item of wanted(
       s.id,
       items.value.items.filter((i) => i.brief),
@@ -443,21 +459,32 @@ export function installCurated({ review, changed = () => {} }) {
       const old = before?.episodes.find(
         (e) => e.item.id === item.id && e.item.brief.sha256 === item.brief.sha256,
       );
+      // The digest: the longer account of the episode. One that fails its checks is left out and
+      // the episode is talked about from its brief alone.
+      const longer = async (episode) => {
+        if (episode.digest && episode.item.digest.sha256 === item.digest.sha256) return episode;
+        const got = await download(item.digest.path, knowledgeLimits.digest),
+          digest = got.failed ? null : await checkDigest(got.bytes, s, item);
+        if (digest?.value) return { ...episode, item, digest: digest.value, digestText: textOf(got.bytes) };
+        noDigest++;
+        return { ...episode, item, digest: null, digestText: '' };
+      };
       if (old) {
-        episodes.push(old);
+        episodes.push(await longer(old));
         continue;
       }
       const file = await download(item.brief.path, knowledgeLimits.brief),
         brief = file.failed ? null : await checkBrief(file.bytes, s, item, store.topics ?? []);
-      if (brief?.value) episodes.push({ item, brief: brief.value, text: textOf(file.bytes) });
+      if (brief?.value) episodes.push(await longer({ item, brief: brief.value, text: textOf(file.bytes) }));
       else refused++;
     }
     held.set(s.id, { listing: s, episodes, refused, itemsText });
+    const digests = episodes.filter((e) => e.digest).length;
     workStep(
       work,
-      refused ? 'warn' : 'book',
-      `${s.name}: ${episodes.length} ${episodes.length === 1 ? 'brief' : 'briefs'} checked and kept${refused ? `, ${refused} refused or missing` : ''}`,
-      Boolean(refused),
+      refused || noDigest ? 'warn' : 'book',
+      `${s.name}: ${episodes.length} ${episodes.length === 1 ? 'brief' : 'briefs'} checked and kept${refused ? `, ${refused} refused or missing` : ''}${episodes.length ? `; ${digests} with ${digests === 1 ? 'its' : 'their'} digest` : ''}${noDigest ? `, ${noDigest} ${noDigest === 1 ? 'digest' : 'digests'} refused or missing` : ''}`,
+      Boolean(refused || noDigest),
     );
   }
 
@@ -717,7 +744,11 @@ export function installCurated({ review, changed = () => {} }) {
           toggle = act(on ? 'Pinned' : 'Pin', () => pin(s.id, e.item.id));
         toggle.setAttribute('aria-pressed', String(on));
         toggle.setAttribute('aria-label', `${on ? 'Unpin' : 'Pin'} ${e.item.title}`);
-        row.append(el('strong', '', e.item.title), el('small', '', ` ${dayText(e.item.date)} `), toggle);
+        row.append(
+          el('strong', '', e.item.title),
+          el('small', '', ` ${dayText(e.item.date)} · ${e.digest ? 'brief and digest' : 'brief only'} `),
+          toggle,
+        );
         const original = outside(e.item.link, 'Open the original', e.item.title);
         if (original) row.append(' ', original);
         list.append(row);
@@ -824,7 +855,16 @@ export function installCurated({ review, changed = () => {} }) {
         const text = show.briefs?.[item.id];
         if (typeof text !== 'string') continue;
         const brief = await checkBrief(bytesOf(text), s, item, store.topics ?? []);
-        if (brief.value) episodes.push({ item, brief: brief.value, text });
+        if (!brief.value) continue;
+        const digestText = show.digests?.[item.id],
+          digest = typeof digestText === 'string' ? await checkDigest(bytesOf(digestText), s, item) : null;
+        episodes.push({
+          item,
+          brief: brief.value,
+          text,
+          digest: digest?.value ?? null,
+          digestText: digest?.value ? digestText : '',
+        });
       }
       held.set(id, { listing: s, episodes, refused: 0, itemsText: show.items });
     }
