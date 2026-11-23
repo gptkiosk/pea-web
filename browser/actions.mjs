@@ -12,8 +12,42 @@ export function ownerNavigation(text) {
   return match ? match[1].toLowerCase() : null;
 }
 
+// Some models label the block "json", or leave the label off. When a reply holds no PEA block at
+// all and exactly one such block whose whole content is one of the two navigation shapes, it is
+// read as the navigation block it was meant to be. Only navigation is read this way: it can do no
+// more than offer a button that opens a panel. Every other kind of block needs its own label.
+const navigationShape = (text) => {
+  try {
+    const v = JSON.parse(text);
+    if (!v || Array.isArray(v) || typeof v !== 'object') return false;
+    const keys = Object.keys(v).sort().join(',');
+    return (
+      (keys === 'op,place' && v.op === 'settings' && Boolean(settingsPlace(v.place))) ||
+      (keys === 'op,tab' && v.op === 'navigate' && ['chat', 'today', 'greenhouse'].includes(v.tab))
+    );
+  } catch {
+    return false;
+  }
+};
+export function relabelNavigation(raw) {
+  if (typeof raw !== 'string' || raw.length > 50000 || /```pea-/i.test(raw)) return raw;
+  const blocks = [...raw.matchAll(/```(json)?[ \t]*\r?\n([\s\S]*?)```/gi)].filter((m) =>
+    navigationShape(m[2]),
+  );
+  if (blocks.length !== 1) return raw;
+  const [block] = blocks;
+  return (
+    raw.slice(0, block.index) +
+    '```pea-nav\n' +
+    block[2].trim() +
+    '\n```' +
+    raw.slice(block.index + block[0].length)
+  );
+}
+
 // A model may suggest a destination, but only the owner can activate the button.
-export function navigationProposals(raw) {
+export function navigationProposals(given) {
+  const raw = relabelNavigation(given);
   if (
     typeof raw !== 'string' ||
     raw.length > 50000 ||
@@ -92,8 +126,10 @@ export function storyProposals(raw) {
 }
 
 // Hide action blocks even while they arrive in pieces. Ordinary code fences remain visible.
-export function visibleReply(raw) {
-  if (typeof raw !== 'string') return '';
+export function visibleReply(given) {
+  if (typeof given !== 'string') return '';
+  // A navigation block a model mislabelled is not shown as code: it is a button.
+  const raw = relabelNavigation(given);
   let text = raw.replace(/```pea-[^\n`]*\r?\n[\s\S]*?(?:```|$)/gi, '');
   const tail = text.match(/```([^\n`]*)$/);
   if (

@@ -1,6 +1,7 @@
 import {
   ownerNavigation,
   navigationProposals,
+  relabelNavigation,
   visibleReply,
   storyProposals,
   emailProposals,
@@ -1856,7 +1857,7 @@ live = installConnections({
     // A note about her own day, kept only while the owner has notes on. Never from a sourced reply.
     if (offer && surface === 'chat') days?.noteFrom(raw);
     reply.text = visibleReply(raw);
-    if (complete && sourced && /```pea-/i.test(raw)) reply.text += '\n\n' + sourcedNotice;
+    if (complete && sourced && /```pea-/i.test(relabelNavigation(raw))) reply.text += '\n\n' + sourcedNotice;
     // Addresses in a reply written with a stranger's page in view are never made pressable.
     if (sourced) reply.fromPage = true;
     if (offer && !reads.length && claimsRead(reply.text))

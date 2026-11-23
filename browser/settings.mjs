@@ -228,7 +228,7 @@ export function placeInAddress(hash) {
 }
 
 export const settingsGuidance =
-  'When the owner asks where a setting is or how to set something up in PEA, or something failed because a setting is missing, you may offer one fenced pea-nav JSON block with exactly {"op":"settings","place":"web-search"}. It only offers a button the owner can press to open that panel; it changes no setting, grants nothing and does not open by itself, so never say you opened it. Places: ' +
+  'When the owner asks where a setting is or how to set something up in PEA, or something failed because a setting is missing, you may offer one fenced pea-nav JSON block with exactly {"op":"settings","place":"web-search"}. The first line of the block must be three backticks followed by pea-nav, never json. Choose the most exact place: for Google, Gmail or Calendar it is google, not connections. It only offers a button the owner can press to open that panel; it changes no setting, grants nothing and does not open by itself, so never say you opened it. Places: ' +
   Object.entries(settingsPlaces)
     .map(([id, place]) => `${id} (${place.title})`)
     .join(', ') +
