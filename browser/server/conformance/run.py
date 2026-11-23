@@ -154,6 +154,12 @@ class Site(BaseHTTPRequestHandler):
             return self.send(200, 'image/png', b'\x89PNG')
         if route == '/json':
             return self.send(200, 'application/json; charset=utf-8', '{"name": "Zo\u00eb"}'.encode())
+        if route == '/captions':
+            return self.send(200, 'text/vtt; charset=utf-8', b'WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello there.\n')
+        if route == '/subrip':
+            return self.send(200, 'application/x-subrip', b'1\n00:00:01,000 --> 00:00:03,000\nHello there.\n')
+        if route == '/markdown':
+            return self.send(200, 'text/markdown; charset=utf-8', b'# Episode\n\nHello there.\n')
         if route == '/untyped':
             return self.send(200, None, b'no type')
         if route == '/packed':
@@ -805,7 +811,10 @@ class Conformance(unittest.TestCase):
         self.assertNotIn(TOKEN, json.dumps(Site.seen))
         for path, kind, text in (('/plain', 'text/plain', 'Plain synthetic text.\n'), ('/xhtml', 'application/xhtml+xml', None),
                                  ('/rss', 'application/rss+xml', None), ('/atom', 'application/atom+xml', None), ('/xml', 'application/xml', None), ('/text-xml', 'text/xml', None), ('/empty', 'text/plain', ''),
-                                 ('/bom', 'text/plain', 'After the mark'), ('/json', 'application/json', '{"name": "Zo\u00eb"}'), ('/chunked', 'text/html', None), ('/until-close', 'text/plain', 'No length was given.'),
+                                 ('/bom', 'text/plain', 'After the mark'), ('/json', 'application/json', '{"name": "Zo\u00eb"}'),
+                                 ('/captions', 'text/vtt', 'WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello there.\n'),
+                                 ('/subrip', 'application/x-subrip', '1\n00:00:01,000 --> 00:00:03,000\nHello there.\n'),
+                                 ('/markdown', 'text/markdown', '# Episode\n\nHello there.\n'), ('/chunked', 'text/html', None), ('/until-close', 'text/plain', 'No length was given.'),
                                  ('', 'text/plain', None), ('?x=1', 'text/plain', None)):
             if path in ('', '?x=1'):
                 continue  # these ask the fake site for "/", which it does not have; checked below

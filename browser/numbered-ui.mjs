@@ -21,6 +21,7 @@ export function installNumbered({
   speak,
   quiet = () => {},
   lookup = () => {},
+  transcripts = { of: () => null, fetch: async () => false },
   profile,
 }) {
   let at = { group: null, item: null, point: null },
@@ -168,7 +169,7 @@ export function installNumbered({
   }
   // One move through the followed shows.
   function runShow(command, followed) {
-    const move = showMove(command, { shows: followed, at: showAt });
+    const move = showMove(command, { shows: followed, at: showAt, transcriptOf: transcripts.of });
     showAt = move.at;
     whose = profile();
     shown = {
@@ -185,6 +186,16 @@ export function installNumbered({
     };
     draw();
     if (move.lookup) lookup(move.lookup);
+    // Going deeper: the owner reviews the one address, and the passages are shown when it is read.
+    if (move.deeper) {
+      const { show, episode, section, source } = move.deeper,
+        asker = whose,
+        from = followed.find((s, i) => (Number.isInteger(s.number) ? s.number : i + 1) === show);
+      void transcripts.fetch(from, from?.episodes[episode - 1], source).then((read) => {
+        if (!read || asker !== profile() || showAt.show !== show || showAt.episode !== episode) return;
+        runShow({ kind: 'deeper', show, episode, section }, shows());
+      });
+    }
     return { handled: true, send: move.send, say: move.say };
   }
   // The owner's words as a move, through shows first and then feeds and reply points; null when
@@ -228,6 +239,6 @@ export function installNumbered({
     },
     draw,
     // The open episode's brief, for a Chat request of the profile that opened it. Null otherwise.
-    brief: () => (whose === profile() ? briefInPlay(shows(), showAt) : null),
+    brief: () => (whose === profile() ? briefInPlay(shows(), showAt, transcripts.of) : null),
   };
 }
