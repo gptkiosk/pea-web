@@ -1,6 +1,8 @@
 // The command palette's list and the keyboard shortcuts, as plain data and pure functions.
 // A command only names something the owner could already click. Nothing here can approve a review,
 // grant access or reach a model, and model output never becomes a command.
+import { settingsPlaces } from './settings.mjs';
+
 const titles = { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse' };
 const names = Object.keys(titles);
 
@@ -56,6 +58,14 @@ export function commandList(context = {}) {
     { id: 'privacy', title: 'Privacy & voice', keywords: 'preferences speech sharing' },
     { id: 'theme', title: 'Switch light or dark theme', keywords: 'appearance colour color night' },
   );
+  // Help: every place in the settings, findable by what the owner wants to do.
+  for (const [id, place] of Object.entries(settingsPlaces))
+    if (id !== 'connections' && id !== 'privacy')
+      list.push({
+        id: 'settings-' + id,
+        title: 'Set up: ' + place.title,
+        keywords: 'help how do i settings connect change ' + place.also.join(' '),
+      });
   for (const profile of ['personal', 'work', 'blended'])
     if (profile !== context.profile)
       list.push({

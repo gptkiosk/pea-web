@@ -105,8 +105,13 @@ test(
 test('the help shows the keys for this kind of keyboard', options, async () => {
   const page = await openConnectedPage(stack, { width: 1500 });
   const mac = Boolean((await page.mod()).meta);
-  await page.click('#menu-shortcuts');
+  // Help and commands are one entry in the menu; the shortcut list is one press from the commands.
+  assert.equal(await page.evaluate(`document.getElementById('menu-shortcuts')`), null);
+  await page.click('#menu-palette');
+  await page.waitFor(`document.getElementById('palette').open`, 'help and commands');
+  await page.evaluate(`document.getElementById('palette-shortcuts').click()`);
   await page.waitFor(`document.getElementById('shortcuts-dialog').open`, 'the shortcut help');
+  assert.equal(await page.evaluate(`document.getElementById('palette').open`), false);
   const first = await page.evaluate(`document.querySelector('#shortcut-list kbd').textContent`);
   assert.equal(first, mac ? '⌘K' : 'Ctrl+K');
   // A Mac reports itself as "macOS" in one place and "MacIntel" in another; both must count.

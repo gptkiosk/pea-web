@@ -180,3 +180,104 @@ test('on a narrow screen a setting opens over the page, as it always has', optio
   assert.deepEqual(await section(page, 'search-providers'), { open: true, marked: true });
   await page.close();
 });
+
+test(
+  'Settings opens on big tiles, shows one section at a time, and help finds a setting by what it is for',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1000 });
+    const view = () =>
+      page.evaluate(`(() => {
+        const d = document.getElementById('connections');
+        const seen = (e) => !!e && e.getClientRects().length > 0;
+        return {
+          title: document.getElementById('connections-title').textContent,
+          tiles: [...d.querySelectorAll('.settings-tile')].filter(seen).map((t) => t.querySelector('strong').textContent),
+          groups: [...d.querySelectorAll('.settings-group')].filter(seen).map((g) => g.id),
+          back: seen(document.getElementById('settings-back')),
+        };
+      })()`);
+    await page.evaluate(`document.getElementById('menu-settings').click()`);
+    await page.waitFor(`document.getElementById('connections').open`, 'Settings');
+    let seen = await view();
+    assert.equal(seen.title, 'Settings');
+    assert.deepEqual(seen.tiles, [
+      'Models & OpenRouter',
+      'Local model',
+      'Images',
+      'Google',
+      'GitHub',
+      'Web search',
+      'Voice providers',
+      'PEA updates',
+      'Shared configuration',
+    ]);
+    assert.deepEqual(seen.groups, [], 'no section is open at home');
+    assert.equal(seen.back, false);
+    // A tile is big enough to press, and says what is known without opening it.
+    const tile = await page.evaluate(`(() => {
+      const t = document.querySelector('.settings-tile[data-place="local-model"]'), r = t.getBoundingClientRect();
+      return { height: r.height, width: r.width, state: t.querySelector('.settings-state')?.textContent };
+    })()`);
+    assert.ok(tile.height >= 88 && tile.width >= 190, JSON.stringify(tile));
+    assert.equal(tile.state, 'Connected');
+    assert.equal(
+      await page.evaluate(
+        `document.querySelector('.settings-tile[data-place="web-search"] .settings-state').textContent`,
+      ),
+      'No key',
+    );
+
+    // One section alone, with a way back.
+    await page.evaluate(`document.querySelector('.settings-tile[data-place="google"]').click()`);
+    seen = await view();
+    assert.deepEqual(seen, { title: 'Google', tiles: [], groups: ['google-group'], back: true });
+    // On-and-off choices are switches wide enough to hit; a long explanation is two lines and a button.
+    const box = await page.evaluate(`(() => {
+      const c = document.getElementById('google-calendar-access'), r = c.getBoundingClientRect();
+      return { width: r.width, height: r.height, look: getComputedStyle(c).appearance };
+    })()`);
+    assert.deepEqual(box, { width: 44, height: 26, look: 'none' });
+    const long = await page.evaluate(`(() => {
+      const p = document.querySelector('#google-group .settings-short'), more = p.nextElementSibling;
+      const before = p.getBoundingClientRect().height, whole = p.textContent.length;
+      more.click();
+      return { cut: before < p.getBoundingClientRect().height, whole, label: more.textContent, said: more.getAttribute('aria-expanded') };
+    })()`);
+    assert.ok(long.cut && long.whole >= 150, 'the whole text is one press away');
+    assert.equal(long.label + long.said, 'Lesstrue');
+    await page.click('#settings-back');
+    seen = await view();
+    assert.equal(seen.title, 'Settings');
+    assert.equal(seen.tiles.length, 9);
+    await page.evaluate(`document.getElementById('connections').close()`);
+
+    // The menu has one entry for help, commands and shortcuts; typing what you want finds the setting.
+    assert.deepEqual(
+      await page.evaluate(
+        `[...document.querySelectorAll('.workspace-menu-panel button')].map((b) => b.firstChild.textContent.trim())`,
+      ),
+      [
+        'New chat',
+        'Past chats & memory',
+        'Export this chat…',
+        'Interview & persona',
+        'Connections & settings',
+        'Privacy & voice',
+        'Help & commands',
+      ],
+    );
+    await page.click('#menu-palette');
+    await page.waitFor(`document.getElementById('palette').open`, 'help and commands');
+    await page.fill('#palette-input', 'brave key');
+    await page.waitFor(
+      `document.querySelector('#palette-list [aria-selected=true]')?.textContent === 'Set up: Web search'`,
+      'the setting, found by what it is for',
+    );
+    await page.press('Enter');
+    await page.waitFor(`document.getElementById('connections').open`, 'the setting');
+    seen = await view();
+    assert.deepEqual(seen, { title: 'Web search', tiles: [], groups: ['search-providers'], back: true });
+    await page.close();
+  },
+);

@@ -4757,3 +4757,164 @@ section.settings-here {
   text-decoration: underline;
   margin-left: 6px;
 }
+
+/* Settings: a home of big tiles, then one section at a time. */
+.settings-home {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 4px 0 18px;
+}
+.settings-tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: start;
+  align-content: start;
+  text-align: left;
+  min-height: 92px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+.settings-tile:hover,
+.settings-tile:focus-visible {
+  border-color: var(--green);
+  background: var(--tint);
+}
+.settings-glyph {
+  grid-row: span 2;
+  font-size: 24px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--tint);
+  color: var(--green);
+}
+.settings-tile strong {
+  font-size: 16px;
+}
+.settings-tile small {
+  grid-column: 2;
+  font-size: 13px;
+  line-height: 1.35;
+  opacity: 0.8;
+}
+.settings-state {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+}
+#connections:not([data-section]):not([data-guided]) .settings-group,
+#connections[data-section] .settings-group:not(.settings-focus),
+#connections[data-section] .settings-home,
+#connections[data-guided] .settings-home,
+#connections[data-guided] .settings-back,
+#connections:not([data-section]) .settings-back {
+  display: none;
+}
+#connections {
+  width: min(760px, 94vw);
+}
+#connections.beside {
+  width: min(460px, 40vw);
+}
+#connections .settings-focus {
+  border-top: 0;
+  padding-top: 0;
+}
+#connections .settings-focus > summary {
+  display: none;
+}
+.settings-back {
+  font-size: 15px;
+  padding: 10px 0;
+  margin-bottom: 6px;
+}
+/* Less text at first sight: two lines, and the rest one press away. */
+.settings-short:not(.settings-whole) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.settings-more {
+  font-size: 13px;
+  padding: 2px 0 8px;
+}
+/* Controls that are easy to hit: switches for on-and-off choices, taller fields and buttons. */
+:is(#connections, #preferences, #library) input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  margin: 0 10px 0 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  position: relative;
+  vertical-align: middle;
+  cursor: pointer;
+}
+:is(#connections, #preferences, #library) input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0.55;
+}
+:is(#connections, #preferences, #library) input[type='checkbox']:checked {
+  background: var(--green);
+  border-color: var(--green);
+}
+:is(#connections, #preferences, #library) input[type='checkbox']:checked::after {
+  transform: translateX(18px);
+  background: var(--bg);
+  opacity: 1;
+}
+:is(#connections, #preferences, #library) input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+:is(#connections, #preferences, #library) input[type='checkbox']:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+:is(#connections, #preferences) :is(input:not([type='checkbox']), select) {
+  min-height: 48px;
+}
+:is(#connections, #preferences) .dialog-body button:not(.icon):not(.text-button):not(.settings-tile) {
+  min-height: 46px;
+  padding-inline: 20px;
+}
+.menu-rule {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--line);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(#connections, #preferences, #library) input[type='checkbox'] {
+    transition: background 0.15s;
+  }
+  :is(#connections, #preferences, #library) input[type='checkbox']::after {
+    transition:
+      transform 0.15s,
+      opacity 0.15s;
+  }
+}
