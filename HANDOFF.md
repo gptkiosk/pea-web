@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Wikipedia and TV show lookups — 2026-11-22
+
+**Branch `feature/lookups`, version `0.1.0-rc.4.dev.46`.** The owner said yes to the built-in lookups. Weather and news feeds existed; this adds Wikipedia and TV shows.
+
+- **Evidence, 22 November 2026.** One real request each, sent as the gateway's reader identifies itself, to `en.wikipedia.org/w/api.php` (search generator with an intro extract, one call) and `api.tvmaze.com/singlesearch/shows` (one call; it answers 404 with `null` when nothing matches): both answered 200 with JSON and the fields used here. Licences as each site states them: Wikipedia text CC BY-SA 4.0, TVmaze data CC BY-SA. Their terms pages were not read beyond that.
+- `browser/research.mjs`: `wikiAddress`, `tvAddress`, `ownerLookup`, `lookupProposals` (one exact `pea-wiki` or `pea-tv` block), `lookupGuidance`, `readWiki`, `readShow` (plain labelled words; markup, hidden characters, addresses that are not the site's own page and out-of-range values dropped), and `lookupKinds`, the table of what differs between papers, Wikipedia and TV. A lookup address now carries `lookup` and `query`. `browser/research-ui.mjs`: `papers()` became `lookup()` driven by that table (`papers` remains as a name for it). `browser/app.mjs`: the typed commands, buttons and receipts by kind. `browser/live-ui.mjs`: `lookupGuidance`, and `wikipedia and tv lookup` in the debug record.
+- No gateway or contract change, no new address the page may reach.
+- Tests: `browser/tests/research.test.mjs` (3 new) and `browser/tests/dom/papers.test.mjs` (3; one new).
+- Known gaps: English Wikipedia only and the first search hit only; no followed-shows list; no per-lookup switch or health dot; local news stays the existing feeds. Still open from the owner's approved list: web search and Web briefs (the web app has no search provider yet), health topics (needs a public source for the cards), and format 1.4 citations (not published). Not looked at by eye.
+
 ## Scholarly papers: one reviewed OpenAlex search — 2026-11-22
 
 **Branch `feature/papers`, version `0.1.0-rc.4.dev.45`.** The owner said yes to the OpenAlex paper lookup.

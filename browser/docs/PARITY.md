@@ -84,6 +84,10 @@ Web deals the assistant's character a set of five interests and five people from
 
 The iPhone app looks up papers in OpenAlex alongside its web search and attaches them to science claims (as the owner described it; its code was not read). Web has one reviewed search at a time (`browser/research.mjs`, `browser/research-ui.mjs`): the owner types "papers on …" or presses a button the model offered, reviews the exact search words and address, and the PEA server asks OpenAlex once with no key. The titles, authors and the start of each abstract are kept as plain words in the tab and go to the model only with the next reviewed Chat message. There is no automatic lookup, no attaching of papers to a brief's claims and no web search.
 
+## Wikipedia and TV show lookups
+
+The iPhone app has built-in lookups for weather, local news, TV shows and Wikipedia, each with a switch and a health dot (as the owner described it; its code was not read). Web already had weather and news feeds. It now also has Wikipedia and TV shows as reviewed lookups in Chat (`browser/research.mjs`): "wikipedia …" or "tv show …", or a button the model offers; one request each through the PEA server to `en.wikipedia.org` or `api.tvmaze.com`; the answer kept as plain words with its source and licence and shared only with the next reviewed message. Web has no per-lookup switch or health dot, no list of followed TV shows, and nothing is looked up unasked.
+
 ## What the owner tells her
 
 With a switch the owner turns on, Web keeps a few of the owner's own Chat sentences about their life for 60 days in the saved library (version 3), picked by a fixed rule with no model involved, and gives up to four that fit to a later Chat conversation (`browser/memory.mjs`, `browser/memory-ui.mjs`). This is Web's own design; nothing here was taken from or checked against the iPhone app.

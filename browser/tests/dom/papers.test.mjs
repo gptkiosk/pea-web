@@ -6,7 +6,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { askModel, browserSkipReason, openConnectedPage, startStack } from './harness.mjs';
-import { papersAddress } from '../../research.mjs';
+import { papersAddress, tvAddress, wikiAddress } from '../../research.mjs';
 
 const skip = browserSkipReason();
 const block = (query) => '```pea-papers\n' + JSON.stringify({ op: 'papers', query }) + '\n```';
@@ -39,6 +39,12 @@ before(
       if (body.messages[0].content.includes('Papers that OpenAlex'))
         return 'The list has a 2019 paper on tide tables.';
       if (said.includes('research say')) return 'I can look that up.\n' + block('tide tables harbour time');
+      if (said.includes('who keeps a lighthouse'))
+        return (
+          'Wikipedia will know.\n```pea-wiki\n' +
+          JSON.stringify({ op: 'wiki', query: 'lighthouse keeper' }) +
+          '\n```'
+        );
       if (said.includes('sneaky')) return 'Looking.\n' + block('see https://evil.example.org/x');
       return 'A plain synthetic reply.';
     });
@@ -225,6 +231,127 @@ test(
       assert.equal(await page.evaluate(`document.getElementById('context-page').hidden`), true, how);
     }
     assert.equal(stack.model.requests.length, models, 'no model was asked');
+    await page.close();
+  },
+);
+
+test(
+  'Wikipedia and a TV show are looked up the same way: a review of the exact search, one request, plain words kept with their source',
+  { skip, timeout: 120000 },
+  async () => {
+    const page = await openConnectedPage(stack);
+    const wiki = JSON.stringify({
+      query: {
+        pages: [
+          {
+            title: 'Lighthouse keeper',
+            extract: 'A lighthouse keeper tends a lighthouse. <img src=x onerror="window.__ran = true">',
+            description: 'Profession',
+            canonicalurl: 'https://en.wikipedia.org/wiki/Lighthouse_keeper',
+          },
+        ],
+      },
+    });
+    const show = JSON.stringify({
+      name: 'Harbour Lights',
+      type: 'Scripted',
+      status: 'Running',
+      summary: '<p>A keeper counts the ships.</p>',
+      url: 'https://www.tvmaze.com/shows/12345/harbour-lights',
+      _embedded: { nextepisode: { name: 'The Bar', season: 2, number: 3, airdate: '2026-11-27' } },
+    });
+    const asked = await standIn(page, (url) =>
+      url.startsWith('https://en.wikipedia.org/')
+        ? { body: { outcome: 'page', url, type: 'application/json', text: wiki } }
+        : url.includes('nothing')
+          ? { status: 502, body: { status: 404 } }
+          : { body: { outcome: 'page', url, type: 'application/json', text: show } },
+    );
+    const kept = () => page.evaluate(`document.getElementById('context-page-text').textContent`);
+    const models = stack.model.requests.length;
+
+    // Wikipedia, in the owner's words.
+    await type(page, 'wikipedia lighthouse keeper');
+    await page.waitFor(reviewOpen, 'the review');
+    assert.equal(await page.text('#review-title'), 'Look this up on Wikipedia?');
+    const shown = await page.text('#review-body');
+    assert.ok(shown.includes('Search words (exactly what is sent):\nlighthouse keeper'));
+    assert.ok(shown.includes(wikiAddress('lighthouse keeper').url));
+    assert.match(shown, /asks Wikipedia \(en\.wikipedia\.org\) once/);
+    await page.click('#review-cancel');
+    await page.waitFor(`!${reviewOpen}`, 'the review to close');
+    assert.deepEqual(asked, [], 'declining asks nobody');
+    await type(page, 'wikipedia lighthouse keeper');
+    await page.waitFor(reviewOpen, 'the review');
+    await page.click('#review-approve');
+    await page.waitFor(`!document.getElementById('context-page').hidden`, 'the article to be kept');
+    assert.deepEqual(asked, [wikiAddress('lighthouse keeper').url]);
+    assert.equal(
+      await page.evaluate(`document.getElementById('context-page-name').textContent`),
+      'Wikipedia: Lighthouse keeper',
+    );
+    assert.match(
+      await kept(),
+      /^From Wikipedia, the encyclopedia that anyone can edit, for “lighthouse keeper”/,
+    );
+    assert.ok(
+      (await kept()).includes(
+        'Article: Lighthouse keeper (Profession)\nA lighthouse keeper tends a lighthouse.\nPage: https://en.wikipedia.org/wiki/Lighthouse_keeper',
+      ),
+    );
+    assert.equal(await page.evaluate(`window.__ran === true`), false);
+    assert.equal(stack.model.requests.length, models, 'no model was asked');
+
+    // A TV show, replacing what was kept; then one TVmaze does not know.
+    await type(page, 'tv show Harbour Lights');
+    await page.waitFor(reviewOpen, 'the review');
+    assert.equal(await page.text('#review-title'), 'Look up this TV show?');
+    await page.click('#review-approve');
+    await page.waitFor(
+      `document.getElementById('context-page-name').textContent === 'TV show: Harbour Lights'`,
+      'the show to be kept',
+    );
+    assert.ok(
+      (await kept()).includes(
+        'Show: Harbour Lights\nScripted. Status: Running.\nNext episode: 2026-11-27, season 2 episode 3, “The Bar”\nSummary: A keeper counts the ships.\nPage: https://www.tvmaze.com/shows/12345/harbour-lights',
+      ),
+    );
+    assert.deepEqual(asked.slice(1), [tvAddress('Harbour Lights').url]);
+    await page.click('#context-page-clear');
+    await type(page, 'tv show nothing like this');
+    await page.waitFor(reviewOpen, 'the review');
+    await page.click('#review-approve');
+    await page.waitFor(
+      `/The site answered with an error \\(404\\)/.test((window.peaNotices || []).join(' | ')) && !document.querySelector('#profile').disabled`,
+      'the plain failure',
+    );
+    assert.equal(asked.length, 3, 'one request, no retry');
+    assert.equal(await page.evaluate(`document.getElementById('context-page').hidden`), true);
+
+    // A model's proposal is only a button, reviewed like the owner's own.
+    await askModel(stack, page, 'Tell me who keeps a lighthouse.');
+    await page.waitFor(
+      `[...document.querySelectorAll('#messages button')].some((b) => b.textContent === 'Look up on Wikipedia: lighthouse keeper')`,
+      'the button',
+      20000,
+    );
+    assert.equal(asked.length, 3);
+    await page.evaluate(
+      `[...document.querySelectorAll('#messages button')].find((b) => b.textContent.startsWith('Look up on Wikipedia')).click()`,
+    );
+    await page.waitFor(reviewOpen, 'the review');
+    assert.match(await page.text('#review-body'), /Suggested by: your model/);
+    await page.click('#review-approve');
+    await page.waitFor(
+      `[...document.querySelectorAll('#messages small')].some((x) => x.textContent === 'Wikipedia read')`,
+      'the receipt',
+    );
+    assert.equal(asked.length, 4);
+    assert.match(
+      stack.model.requests.at(-1).messages[0].content,
+      /you may offer one fenced pea-wiki JSON block/,
+    );
+    assert.deepEqual(page.outsideRequests(), []);
     await page.close();
   },
 );

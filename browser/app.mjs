@@ -53,6 +53,9 @@ import { installCurated } from './knowledge-ui.mjs';
 import { chatExport, chatExportName } from './chat-export.mjs';
 import {
   claimsRead,
+  lookupKinds,
+  lookupProposals,
+  ownerLookup,
   ownerPapers,
   ownerRead,
   paperProposals,
@@ -112,7 +115,8 @@ function stopVoices() {
 // Replies written while a web page was shared, and proposals to read a page that were carried out.
 const sourcedReplies = new Set(),
   readDone = new Set(),
-  papersDone = new Set();
+  // Replies whose lookup was made, with the words that say so.
+  lookupDone = new Map();
 let voiceTarget = null;
 const chats = {},
   schedules = {},
@@ -816,15 +820,15 @@ function proposalButton(m, surface) {
   }
   if (readDone.has(m.id)) {
     const receipt = document.createElement('small');
-    receipt.textContent = papersDone.has(m.id) ? 'Papers listed' : 'Page read';
+    receipt.textContent = lookupDone.get(m.id) ?? 'Page read';
     return receipt;
   }
   const reading = proposals.get(m.id);
   if (reading?.kind === 'read' && !m.incomplete && reading.profile === profile) {
     const b = document.createElement('button');
     b.className = 'text-button';
-    b.textContent = reading.address.papers
-      ? 'Look up papers: ' + reading.address.papers
+    b.textContent = reading.address.lookup
+      ? `${lookupKinds[reading.address.lookup].button}: ${reading.address.query}`
       : 'Review page: ' + reading.address.host;
     b.onclick = async () => {
       if (reviewingStory) return;
@@ -832,15 +836,15 @@ function proposalButton(m, surface) {
       const who = profile;
       try {
         if (
-          (await (reading.address.papers
-            ? research.papers(reading.address, 'model')
+          (await (reading.address.lookup
+            ? research.lookup(reading.address, 'model')
             : research.read(reading.address, 'model'))) &&
           who === profile &&
           proposals.get(m.id) === reading
         ) {
           proposals.delete(m.id);
           readDone.add(m.id);
-          if (reading.address.papers) papersDone.add(m.id);
+          if (reading.address.lookup) lookupDone.set(m.id, lookupKinds[reading.address.lookup].done);
           restoreQuestion(surface, m.id);
           renderChat();
         }
@@ -1587,10 +1591,11 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     return;
   }
   // "papers on …" in the owner's own words: one reviewed search of the public index of papers.
-  const search = surface === 'chat' ? ownerPapers(text) : null;
+  // Likewise "wikipedia …" and "tv show …".
+  const search = surface === 'chat' ? (ownerPapers(text) ?? ownerLookup(text)) : null;
   if (search) {
     field.value = '';
-    await research.papers(search, 'owner');
+    await research.lookup(search, 'owner');
     return;
   }
   try {
@@ -1806,7 +1811,7 @@ live = installConnections({
       written = offer ? docProposals(raw, live.currentDocument()) : [],
       opens = offer ? openProposals(raw) : [],
       // One address to read, or one search of the index of papers: both are read by the same reader.
-      reads = offer ? [...readProposals(raw), ...paperProposals(raw)] : [],
+      reads = offer ? [...readProposals(raw), ...paperProposals(raw), ...lookupProposals(raw)] : [],
       choices = offer ? choiceProposals(raw) : [],
       // A project draft is offered only where this server has a project engine to leave it in.
       drafts = offer && projects?.available() ? projectProposals(raw) : [];

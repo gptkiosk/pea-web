@@ -105,7 +105,7 @@ export function papersAddress(text) {
   const address = pageAddress(
     `https://${papersHost}/works?search=${encodeURIComponent(query)}&per_page=${paperLimits.results}&select=${papersFields}`,
   );
-  return address ? { ...address, papers: query } : null;
+  return address ? { ...address, papers: query, lookup: 'papers', query } : null;
 }
 // This parser receives the owner's submitted message only, never model output.
 export function ownerPapers(text) {
@@ -221,6 +221,211 @@ export function readPapers(body, query) {
 export function describePapers(address, { profile, from }) {
   return `Profile: ${profile}\n${from === 'owner' ? 'From: your own message' : 'Suggested by: your model. Check the search words are ones you meant, and that they hold nothing private.'}\n\nSearch words (exactly what is sent):\n${address.papers}\n\nAddress (exactly what is requested):\n${address.url}\n\nIf you approve, your PEA server asks OpenAlex (${address.host}), a public index of scholarly works, for up to ${paperLimits.results} papers. OpenAlex sees your internet address, the search words and a fixed description of PEA’s reader. It gets no key, no cookies, no sign-in and nothing else from your chats. OpenAlex allows searches without a key from a small daily allowance shared by everyone at your internet address (about 100 searches a day when checked on 22 November 2026); PEA makes one search per approval and never retries.\n\nNothing is sent to a model by this step. PEA keeps the titles, authors and the start of each abstract as plain words in this tab, shows them to you, and shares them with your model only when you next send a message in Chat, after the usual review. PEA does not read the papers themselves, and words from the index can never make PEA take an action.`;
 }
+
+// --- Wikipedia and TV shows: the same one reviewed request, to two more public services -----------
+
+export const wikiHost = 'en.wikipedia.org',
+  tvHost = 'api.tvmaze.com';
+export const lookupLimits = { extract: 1500, summary: 800, name: 200 };
+// The one address a lookup asks for, as { url, host, lookup, query }, or null.
+export function wikiAddress(text) {
+  const query = paperQuery(text);
+  if (!query) return null;
+  const address = pageAddress(
+    `https://${wikiHost}/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1&prop=extracts%7Cinfo%7Cdescription&exintro=1&explaintext=1&exchars=1200&inprop=url&redirects=1&format=json&formatversion=2`,
+  );
+  return address ? { ...address, lookup: 'wiki', query } : null;
+}
+export function tvAddress(text) {
+  const query = paperQuery(text);
+  if (!query) return null;
+  const address = pageAddress(
+    `https://${tvHost}/singlesearch/shows?q=${encodeURIComponent(query)}&embed=nextepisode`,
+  );
+  return address ? { ...address, lookup: 'tv', query } : null;
+}
+// This parser receives the owner's submitted message only, never model output.
+export function ownerLookup(text) {
+  if (typeof text !== 'string') return null;
+  const said = text.trim();
+  let m = said.match(/^(?:please\s+)?(?:wikipedia|wiki)(?:\s+(?:on|for|about))?[:\s]\s*(.{3,200})$/i);
+  if (!m)
+    m = said.match(/^(?:please\s+)?(?:look up|find|search for)\s+(.{3,200}?)\s+(?:on|in)\s+wikipedia\.?$/i);
+  if (m) return wikiAddress(m[1]);
+  m = said.match(/^(?:please\s+)?(?:look up\s+)?(?:the\s+)?tv\s+(?:show|series)[:\s]\s*(.{3,200})$/i);
+  return m ? tvAddress(m[1]) : null;
+}
+// Model output is untrusted. Only one complete, exactly shaped proposal becomes a button.
+export function lookupProposals(raw) {
+  if (
+    typeof raw !== 'string' ||
+    raw.length > 50000 ||
+    [...raw.matchAll(/```pea-[^\n`]*\r?\n/gi)].length !== 1
+  )
+    return [];
+  const blocks = [...raw.matchAll(/```pea-(wiki|tv)[ \t]*\r?\n([\s\S]*?)```/gi)];
+  if (blocks.length !== 1) return [];
+  try {
+    const kind = blocks[0][1].toLowerCase(),
+      v = JSON.parse(blocks[0][2]);
+    if (
+      !v ||
+      Array.isArray(v) ||
+      typeof v !== 'object' ||
+      Object.keys(v).sort().join(',') !== 'op,query' ||
+      v.op !== kind ||
+      typeof v.query !== 'string' ||
+      paperQuery(v.query) !== v.query
+    )
+      return [];
+    const address = kind === 'wiki' ? wikiAddress(v.query) : tvAddress(v.query);
+    return address ? [address] : [];
+  } catch {
+    return [];
+  }
+}
+export const lookupGuidance =
+  'In the same way you may offer one fenced pea-wiki JSON block with exactly {"op":"wiki","query":"the subject"} to look a subject up on Wikipedia, or one fenced pea-tv JSON block with exactly {"op":"tv","query":"the show’s name"} for a TV show’s public listing: plain words only, nothing about the owner or this conversation. Each only offers a button the owner reviews; nothing is looked up unless they approve, so do not say you looked anything up, and do not include another action block in the same reply.';
+const day = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '');
+// Wikipedia's answer as the plain words PEA keeps, or null when it is not an answer.
+export function readWiki(body, query) {
+  let answer;
+  try {
+    answer = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (!answer || typeof answer !== 'object' || Array.isArray(answer)) return null;
+  const found = Array.isArray(answer.query?.pages) ? answer.query.pages[0] : null,
+    title = plain(found?.title, lookupLimits.name),
+    extract = plain(found?.extract, lookupLimits.extract);
+  if (!title || !extract) return { title: '', text: '', length: 0, count: 0 };
+  const about = plain(found.description, lookupLimits.name),
+    link =
+      typeof found.canonicalurl === 'string' &&
+      /^https:\/\/en\.wikipedia\.org\/wiki\/[\x21-\x7e]{1,300}$/.test(found.canonicalurl) &&
+      !/[<>"\\]/.test(found.canonicalurl)
+        ? found.canonicalurl
+        : '';
+  const text = [
+    `From Wikipedia, the encyclopedia that anyone can edit, for “${query}”. Its text is under the CC BY-SA 4.0 licence. This is the start of one article, found by Wikipedia’s own search: it may not be the subject meant, it is a general reference and not a primary source, and when you use it say that it comes from Wikipedia.`,
+    `Article: ${title}${about ? ` (${about})` : ''}`,
+    extract,
+    ...(link ? [`Page: ${link}`] : []),
+  ].join('\n');
+  return { title: `Wikipedia: ${title}`, text, length: text.length, count: 1 };
+}
+// TVmaze's answer for one show as the plain words PEA keeps, or null when it is not an answer.
+export function readShow(body, query) {
+  let show;
+  try {
+    show = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (show === null) return { title: '', text: '', length: 0, count: 0 };
+  if (typeof show !== 'object' || Array.isArray(show)) return null;
+  const name = plain(show.name, lookupLimits.name);
+  if (!name) return { title: '', text: '', length: 0, count: 0 };
+  const short = (value) => plain(value, 60),
+    genres = (Array.isArray(show.genres) ? show.genres : []).slice(0, 5).map(short).filter(Boolean),
+    days = (Array.isArray(show.schedule?.days) ? show.schedule.days : [])
+      .slice(0, 7)
+      .map(short)
+      .filter(Boolean),
+    time =
+      typeof show.schedule?.time === 'string' && /^\d{2}:\d{2}$/.test(show.schedule.time)
+        ? show.schedule.time
+        : '',
+    where = short(show.network?.name) || short(show.webChannel?.name),
+    rating =
+      typeof show.rating?.average === 'number' && show.rating.average >= 0 && show.rating.average <= 10,
+    runtime = Number.isInteger(show.averageRuntime) && show.averageRuntime > 0 && show.averageRuntime < 1000,
+    next = show._embedded?.nextepisode,
+    nextName = short(next?.name),
+    link =
+      typeof show.url === 'string' &&
+      /^https:\/\/www\.tvmaze\.com\/shows\/\d{1,9}\/[a-z0-9-]{1,120}$/.test(show.url)
+        ? show.url
+        : '',
+    facts = [
+      short(show.type),
+      short(show.language),
+      genres.join(', '),
+      short(show.status) ? `Status: ${short(show.status)}` : '',
+      day(show.premiered) ? `First shown ${day(show.premiered)}` : '',
+      day(show.ended) ? `Ended ${day(show.ended)}` : '',
+      where ? `On ${where}` : '',
+      days.length ? `Shown on ${days.join(', ')}${time ? ` at ${time}` : ''}` : '',
+      runtime ? `About ${show.averageRuntime} minutes an episode` : '',
+      rating ? `TVmaze users rate it ${show.rating.average} out of 10` : '',
+    ].filter(Boolean),
+    summary = plain(show.summary, lookupLimits.summary);
+  const text = [
+    `From TVmaze, a public listing of TV shows that its users edit, for “${query}”. Its data is under the CC BY-SA licence. This is the one show TVmaze’s own search matched: it may not be the show meant, and dates and times are as TVmaze lists them. When you use it say that it comes from TVmaze.`,
+    `Show: ${name}`,
+    ...(facts.length ? [facts.join('. ') + '.'] : []),
+    ...(day(next?.airdate)
+      ? [
+          `Next episode: ${day(next.airdate)}${Number.isInteger(next.season) && Number.isInteger(next.number) ? `, season ${next.season} episode ${next.number}` : ''}${nextName ? `, “${nextName}”` : ''}`,
+        ]
+      : []),
+    ...(summary ? [`Summary: ${summary}`] : []),
+    ...(link ? [`Page: ${link}`] : []),
+  ].join('\n');
+  return { title: `TV show: ${name}`, text, length: text.length, count: 1 };
+}
+// The words of the review the owner sees before PEA's server asks Wikipedia or TVmaze.
+function describeLookup(address, { profile, from }, service, what) {
+  return `Profile: ${profile}\n${from === 'owner' ? 'From: your own message' : 'Suggested by: your model. Check the search words are ones you meant, and that they hold nothing private.'}\n\nSearch words (exactly what is sent):\n${address.query}\n\nAddress (exactly what is requested):\n${address.url}\n\nIf you approve, your PEA server asks ${service} (${address.host}) once for ${what}. ${service} sees your internet address, the search words and a fixed description of PEA’s reader. It gets no key, no cookies, no sign-in and nothing else from your chats. PEA makes one request per approval and never retries.\n\nNothing is sent to a model by this step. PEA keeps the answer as plain words in this tab, shows them to you, and shares them with your model only when you next send a message in Chat, after the usual review. Words from ${service} can never make PEA take an action.`;
+}
+// Everything that differs between the kinds of lookup.
+export const lookupKinds = {
+  papers: {
+    service: 'OpenAlex',
+    button: 'Look up papers',
+    done: 'Papers listed',
+    review: 'Look up papers on this?',
+    need: 'Looking up papers',
+    describe: (address, options) => describePapers(address, options),
+    read: (body, query) => readPapers(body, query),
+    odd: 'OpenAlex did not answer with a list of papers. Nothing was kept.',
+    none: 'OpenAlex lists no papers for those words. Nothing was kept.',
+    kept: (n) => `Kept ${n} ${n === 1 ? 'paper' : 'papers'} as plain words, in this tab only`,
+    told: (n) =>
+      `${n} ${n === 1 ? 'paper is' : 'papers are'} listed and kept in this tab; your model sees them only after you review your next message.`,
+  },
+  wiki: {
+    service: 'Wikipedia',
+    button: 'Look up on Wikipedia',
+    done: 'Wikipedia read',
+    review: 'Look this up on Wikipedia?',
+    need: 'Looking something up on Wikipedia',
+    describe: (address, options) =>
+      describeLookup(address, options, 'Wikipedia', 'the start of the one article its search finds first'),
+    read: (body, query) => readWiki(body, query),
+    odd: 'Wikipedia did not answer with an article. Nothing was kept.',
+    none: 'Wikipedia found no article for those words. Nothing was kept.',
+    kept: () => 'Kept the start of one article as plain words, in this tab only',
+    told: () =>
+      'The start of one Wikipedia article is kept in this tab; your model sees it only after you review your next message.',
+  },
+  tv: {
+    service: 'TVmaze',
+    button: 'Look up TV show',
+    done: 'TV show listed',
+    review: 'Look up this TV show?',
+    need: 'Looking up a TV show',
+    describe: (address, options) =>
+      describeLookup(address, options, 'TVmaze', 'the listing of the one show its search matches'),
+    read: (body, query) => readShow(body, query),
+    odd: 'TVmaze did not answer with a show. Nothing was kept.',
+    none: 'TVmaze found no show for those words. Nothing was kept.',
+    kept: () => 'Kept one show’s listing as plain words, in this tab only',
+    told: () =>
+      'One show’s listing from TVmaze is kept in this tab; your model sees it only after you review your next message.',
+  },
+};
 
 export const sourcedNotice =
   'This reply was written with a web page in view, so PEA offers no action from it. To act on it, stop sharing the page and ask again.';

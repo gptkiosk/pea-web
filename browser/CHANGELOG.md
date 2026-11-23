@@ -2,6 +2,24 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.46] - 2026-11-22
+
+### Added
+
+- **Look something up on Wikipedia.** In Chat, type "wikipedia lighthouse keeper" (or "look up … on Wikipedia"), or press **Look up on Wikipedia** when your model offers it. PEA keeps the start of the one article Wikipedia's own search finds first, with its title, short description and page address.
+- **Look up a TV show.** Type "tv show Severance", or press **Look up TV show** when your model offers it. PEA keeps the one show TVmaze's search matches: its kind, language, genres, status, dates, where and when it is shown, episode length, rating, next episode when listed, summary and page address.
+- Both work like the paper lookup:
+  - Nothing is asked until you review the exact search words and the exact address. Declining asks nobody.
+  - Your PEA server makes the one request, with no key, no cookie, no sign-in and nothing from your chats, and never retries.
+  - The answer is kept as plain words in this tab, shown to you, and shared with your model only with your next Chat message after the usual review.
+  - The kept words name their source and licence (Wikipedia, CC BY-SA 4.0; TVmaze, CC BY-SA) and tell your model to say where they come from, and that the match may not be the subject you meant.
+  - Your model can only offer the button, and is told not to say it looked anything up.
+
+### Not included
+
+- English Wikipedia only, and only the first article its search finds.
+- No list of TV shows you follow, no switch per lookup, and nothing is looked up unasked.
+
 ## [0.1.0-rc.4.dev.45] - 2026-11-22
 
 ### Added
