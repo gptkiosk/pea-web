@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { briefInPlay, dayOf, idle, plainAddress, sectionsOf, showCommand, showMove } from '../shownav.mjs';
+import {
+  briefInPlay,
+  citationsOf,
+  claimQuery,
+  dayOf,
+  idle,
+  plainAddress,
+  sectionCitations,
+  sectionsOf,
+  showCommand,
+  showMove,
+} from '../shownav.mjs';
 import { numberedCommand } from '../numbered.mjs';
 
 const brief = (n) => ({
@@ -50,9 +61,10 @@ test('addresses are read most specific first, said or typed, alone or inside a s
     ],
     ['search 1.2.3', { kind: 'search', show: 1, episode: 2, section: 3 }],
     ['fact check 1.2.3', { kind: 'search', show: 1, episode: 2, section: 3 }],
-    ['1.2.3.c.1', { kind: 'citations', show: 1, episode: 2, section: 3 }],
-    ['1.2.3 c 1', { kind: 'citations', show: 1, episode: 2, section: 3 }],
-    ['one point two point three c one', { kind: 'citations', show: 1, episode: 2, section: 3 }],
+    ['1.2.3.c.1', { kind: 'citation', show: 1, episode: 2, section: 3, number: 1 }],
+    ['1.2.3 c 2', { kind: 'citation', show: 1, episode: 2, section: 3, number: 2 }],
+    ['one point two point three c one', { kind: 'citation', show: 1, episode: 2, section: 3, number: 1 }],
+    ['check studies for 1.2.3', { kind: 'studies', show: 1, episode: 2, section: 3 }],
     ['studies on 1.2.3', { kind: 'citations', show: 1, episode: 2, section: 3 }],
     // Inside a show or an open episode.
     ['episode 2', { kind: 'episode', show: 1, episode: 2 }, { ...open, episode: null }],
@@ -203,11 +215,9 @@ test('moves walk shows, episodes and sections, each row carrying the words it st
     /^There is no section 1\.1\.9\. Episode 1\.1 has 3 sections\.$/,
   );
   assert.match(
-    showMove(ask('search 1.2.3'), { shows }).say,
-    /cannot search the web, so section 1\.2\.3 was not searched/,
+    showMove(ask('1.2.3.c.1'), { shows }).say,
+    /^No citations are kept for section 1\.2\.3\. Say “check studies”/,
   );
-  assert.equal(showMove(ask('search 1.2.3'), { shows }).send, null);
-  assert.match(showMove(ask('1.2.3.c.1'), { shows }).say, /No scientific citations are kept/);
   assert.match(
     showMove(ask('list shows'), { shows: [] }).say,
     /^You follow no shows with briefs in this tab\./,
@@ -296,18 +306,193 @@ test('every answer offers its next moves as buttons, including a refusal and whe
   assert.deepEqual(labels('1.2.2'), [
     'Next section',
     'Previous section',
+    'Check studies',
     'Back to episode',
     'Episodes',
     'Shows',
     'Where am I',
   ]);
-  assert.deepEqual(labels('1.2.1'), ['Next section', 'Back to episode', 'Episodes', 'Shows', 'Where am I']);
+  assert.deepEqual(labels('1.2.1'), [
+    'Next section',
+    'Check studies',
+    'Back to episode',
+    'Episodes',
+    'Shows',
+    'Where am I',
+  ]);
   assert.deepEqual(labels('where am I', open), ['Back to episode', 'Episodes', 'Shows']);
-  assert.deepEqual(labels('search 1.2.3'), ['Shows']);
+  assert.deepEqual(labels('search 1.2.3'), ['Back to episode', 'Episodes', 'Shows']);
   assert.deepEqual(labels('9.1'), ['Shows']);
   assert.deepEqual(showMove({ kind: 'shows' }, { shows: [] }).footer, []);
   // Each button's words are a command the same parser reads.
   for (const at of [open, { ...open, section: 2 }])
     for (const b of showMove({ kind: 'where' }, { shows, at }).footer)
       assert.ok(showCommand(b.say, { at, shows }), b.say);
+});
+
+const paper = (n, more = {}) => ({
+  title: `Paper ${n} on harbour lamps`,
+  journal: 'Journal of Synthetic Harbours',
+  year: 2019,
+  cited_by: 40 + n,
+  stance: 'related',
+  summary: `A synthetic review of ${n} lamps.`,
+  correlation: 'It concerns lamps, not the vote.',
+  link: `https://papers.example.org/p/${n}`,
+  ...more,
+});
+
+test('a citation is used only when it is exactly in the expected form', () => {
+  assert.equal(citationsOf({ text: 'x', citations: [paper(1), paper(2)] }).length, 2);
+  assert.deepEqual(citationsOf({ text: 'x', citations: [paper(1)] })[0], {
+    title: 'Paper 1 on harbour lamps',
+    journal: 'Journal of Synthetic Harbours',
+    year: 2019,
+    cited: 41,
+    stance: 'related',
+    summary: 'A synthetic review of 1 lamps.',
+    correlation: 'It concerns lamps, not the vote.',
+    link: 'https://papers.example.org/p/1',
+  });
+  assert.equal(citationsOf({ citations: Array.from({ length: 9 }, (_, i) => paper(i)) }).length, 4);
+  for (const wrong of [
+    { stance: 'irrelevant' },
+    { stance: 'toString' },
+    { title: '' },
+    { title: 'x'.repeat(181) },
+    { title: 'A <b>bold</b> paper' },
+    { summary: 'See https://evil.example.org/x for more.' },
+    { correlation: 'x'.repeat(221) },
+    { journal: 7 },
+    { link: 'http://papers.example.org/p/1' },
+    { link: 'https://127.0.0.1/p' },
+    { link: 'javascript:alert(1)' },
+    { year: '2019' },
+    { year: 99 },
+    { cited_by: -1 },
+    { cited_by: 1.5 },
+  ])
+    assert.deepEqual(citationsOf({ citations: [paper(1, wrong)] }), [], JSON.stringify(wrong));
+  for (const wrong of [null, 'x', {}, { citations: 'x' }, { citations: [null, 'x', [paper(1)]] }])
+    assert.deepEqual(citationsOf(wrong), []);
+  // A missing year or count is allowed, as the pipeline writes it.
+  assert.equal(citationsOf({ citations: [paper(1, { year: null, cited_by: null })] })[0].year, null);
+});
+
+test('a claim becomes words a search can carry', () => {
+  assert.equal(
+    claimQuery('Tobias Renn says that the lamp “won” by 42 votes to nine; 80% agreed.'),
+    'the lamp won by 42 votes to nine 80 agreed',
+  );
+  assert.equal(claimQuery('See https://evil.example.org/x now'), 'See https: evil.example.org/x now');
+  const long = claimQuery('word '.repeat(60));
+  assert.ok(long.length <= 120 && long.endsWith('word'));
+  assert.equal(claimQuery(null), '');
+});
+
+test('citations are listed, opened and stepped by address, and looking up a section only proposes a search', () => {
+  const cited = [
+    {
+      id: 'harbor',
+      name: 'Harbor Voices',
+      episodes: [
+        {
+          item: { id: 'a', title: 'The lamp', date: '2026-11-11', brief: { sha256: 'abc' } },
+          brief: {
+            brief_kind: 'extractive',
+            headline: 'A headline.',
+            claims: [
+              { text: 'First claim about the lamp vote.' },
+              {
+                text: 'Mara says the old lamp won by 42 votes.',
+                citations: [paper(1), paper(2, { stance: 'mixed' })],
+              },
+            ],
+            quotes: [],
+          },
+        },
+      ],
+    },
+  ];
+  const go = (said, at = idle()) => showMove(showCommand(said, { at, shows: cited }), { shows: cited, at });
+  assert.equal(sectionCitations(cited[0].episodes[0].brief, 2).length, 2);
+  assert.deepEqual(sectionCitations(cited[0].episodes[0].brief, 1), []);
+
+  const section = go('1.1.2');
+  assert.deepEqual(
+    section.footer.map((b) => b.label),
+    [
+      'Next section',
+      'Previous section',
+      'Citations (2)',
+      'Check studies',
+      'Back to episode',
+      'Episodes',
+      'Shows',
+      'Where am I',
+    ],
+  );
+  assert.match(section.hint, /found 2 papers for it: say “list citations”/);
+  assert.match(go('1.1.1').hint, /Say “check studies” to look for papers on it\.$/);
+
+  const list = go('list citations', section.at);
+  assert.equal(list.title, 'Citations for section 1.1.2');
+  assert.deepEqual(
+    list.rows.map((r) => [r.label, r.text, r.say]),
+    [
+      ['1.1.2.c.1', 'Paper 1 on harbour lamps', '1.1.2.c.1'],
+      ['1.1.2.c.2', 'Paper 2 on harbour lamps', '1.1.2.c.2'],
+    ],
+  );
+  assert.match(list.rows[1].sub, /Journal of Synthetic Harbours · 2019 · cited by 42 · mixed evidence$/);
+  assert.match(list.hint, /the episode did not name them/);
+  assert.equal(list.send, null);
+  assert.equal(go('citations for 1.1.2').title, list.title);
+
+  const one = go('1.1.2.c.2');
+  assert.equal(one.title, 'Citation 1.1.2.c.2');
+  assert.equal(one.open, 'https://papers.example.org/p/2');
+  assert.deepEqual(one.at, { show: 1, episode: 1, section: 2, offset: 0, citation: 2 });
+  assert.match(one.rows[2].sub, /The pipeline’s reading: mixed evidence$/);
+  assert.equal(one.send, null);
+  assert.equal(go('citation 1', section.at).title, 'Citation 1.1.2.c.1');
+  assert.equal(go('next citation', section.at).title, 'Citation 1.1.2.c.1');
+  assert.equal(go('next citation', go('citation 1', section.at).at).title, 'Citation 1.1.2.c.2');
+  assert.equal(go('previous citation', one.at).title, 'Citation 1.1.2.c.1');
+  assert.match(
+    go('next citation', one.at).say,
+    /^There is no citation 1\.1\.2\.c\.3\. Section 1\.1\.2 has 2 citations\.$/,
+  );
+  assert.match(
+    go('where am I', one.at).say,
+    /^Citation 1\.1\.2\.c\.2: Paper 2 on harbour lamps It is a paper found for section 1\.1\.2\./,
+  );
+  assert.match(go('list citations', go('1.1.1').at).say, /^No citations are kept for section 1\.1\.1\./);
+  assert.match(go('list citations', go('1.1').at).say, /^Open a section first/);
+  // Leaving the citation leaves it: the next section has none open.
+  assert.equal(go('1.1.1', one.at).at.citation, undefined);
+
+  // Looking for studies, or searching the web, only hands the page the words to review.
+  const studies = go('check studies', section.at);
+  assert.deepEqual(studies.lookup, { kind: 'papers', query: 'the old lamp won by 42 votes' });
+  assert.equal(studies.send, null);
+  assert.match(studies.say, /^Review the search for papers on section 1\.1\.2\.$/);
+  assert.deepEqual(go('search 1.1.1').lookup, { kind: 'search', query: 'First claim about the lamp vote' });
+  assert.deepEqual(go('search this section', section.at).lookup.kind, 'search');
+  assert.equal(go('check studies for 1.1.9').lookup, undefined);
+
+  // With a section open its citations go with the brief, labelled; the open one comes first.
+  const sent = briefInPlay(cited, one.at);
+  assert.equal(sent.citations, 2);
+  assert.match(
+    sent.text,
+    /\nPapers the curator’s pipeline found for section 1\.1\.2 by searching published research\. The episode did not name them and nobody checked the match by hand:\nCitation 1\.1\.2\.c\.2: “Paper 2 on harbour lamps” \(Journal of Synthetic Harbours, 2019, cited by 42\)\. What it found: /,
+  );
+  assert.ok(sent.text.indexOf('Citation 1.1.2.c.2') < sent.text.indexOf('Citation 1.1.2.c.1'));
+  assert.ok(sent.text.length <= 3200);
+  assert.notEqual(sent.key, briefInPlay(cited, section.at).key);
+  const plain = briefInPlay(cited, go('1.1.1').at);
+  assert.equal(plain.citations, 0);
+  assert.doesNotMatch(plain.text, /Citation/);
+  assert.doesNotMatch(briefInPlay(cited, go('1.1').at).text, /Citation/);
 });

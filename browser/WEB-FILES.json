@@ -143,6 +143,7 @@
   "tests/decks.test.mjs",
   "tests/documents.test.mjs",
   "tests/dom/backup.test.mjs",
+  "tests/dom/citations.test.mjs",
   "tests/dragdrop.test.mjs",
   "tests/feeds.test.mjs",
   "tests/fixtures/ActionFixtures.json",
