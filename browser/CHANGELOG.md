@@ -2,6 +2,27 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.41] - 2026-11-22
+
+### Added
+
+- **Digests for curated shows.** A digest is the curator's longer checked account of an episode: its strongest claim, talking points with their times, figures, what is disputed, exact quotes and who took part. For each kept episode PEA now fetches the digest along with the brief.
+  - Every digest is checked like a brief before use: its size and fingerprint against the curator's list, its form, its text rules, and that it is the digest of that episode. One that fails is left out, and the episode is still kept and talked about from its brief.
+  - With an episode open, a Chat message now carries the brief and then what the digest adds, as labelled lines ("Point (at 4:54): ..."), with nothing the brief already said repeated. Brief and digest together stay within the same limit as before, and the review before sharing shows exactly what is sent.
+  - Your model is told that only lines marked Quote or Exact quote are the publisher's own words, and to say a line marked Disputed as disputed.
+  - Digests are kept across reloads with the briefs. If everything together is too much for this browser, digests are the first to be left out and come back with the next Refresh.
+  - The detail page says for each kept episode whether PEA has its brief and digest or its brief only.
+
+### Changed
+
+- The review before browsing now says that following a show fetches the brief and the longer digest of each kept episode.
+- If you already follow shows, press Refresh once to fetch their digests.
+
+### Not included
+
+- Publisher transcripts are not fetched, so PEA cannot go deeper than the digest; it can give the time and you can open the original.
+- A digest is used only for the episode you have open. Digest chapters, glossary, suggested questions and recap cards are not used yet.
+
 ## [0.1.0-rc.4.dev.40] - 2026-11-22
 
 ### Added

@@ -157,6 +157,20 @@ test(
     );
     assert.match(system(), /\nSection 1\.2\.1: /);
     assert.match(system(), /Sentences picked from the episode’s digest; no model wrote it\./);
+    // The kept digest of the same episode follows the brief: labelled lines, inside the one limit,
+    // exactly as the review showed them.
+    assert.match(
+      shown,
+      /From the episode’s digest, made from the transcript in its own sentences, with no model:/,
+    );
+    assert.match(
+      system(),
+      /\nFrom the episode’s digest, made from the transcript[^\n]*:\n(?:Strongest claim|Point)/,
+    );
+    assert.match(system(), /\nPoint \(at \d+:\d\d\): /);
+    assert.match(system(), /Lines after “From the episode’s digest” come from the curator’s longer digest/);
+    const evidence = system().slice(system().indexOf('Show 1: Harbor Voices. Episode 1.2'));
+    assert.ok(shown.includes(evidence.slice(0, evidence.indexOf('\nFrom the episode’s digest') + 60)));
     assert.ok(
       (
         await page.evaluate(

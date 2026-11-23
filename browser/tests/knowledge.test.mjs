@@ -11,6 +11,10 @@ import {
   requestAddress,
   checkBrief,
   checkBriefAlone,
+  checkDigest,
+  checkDigestAlone,
+  digestLines,
+  knowledgeLimits,
   checkItems,
   checkStore,
   refusal,
@@ -50,10 +54,17 @@ test('the golden corpus of the brief contract gives the result its manifest stat
 
 test('every hostile store.json and brief is refused with the stated reason, and the good ones are used', () => {
   const hostile = fixture('KnowledgeHostile');
-  assert.ok(Object.keys(hostile.cases).length >= 45);
+  assert.ok(Object.keys(hostile.cases).length >= 58);
+  assert.equal(Object.values(hostile.cases).filter((c) => c.kind === 'digest').length, 13);
   for (const [name, c] of Object.entries(hostile.cases)) {
     const data = bytes(hostile.files[name]),
-      { value, problems } = c.kind === 'store' ? checkStore(data) : checkBriefAlone(data, name);
+      { value, problems } =
+        c.kind === 'store'
+          ? checkStore(data)
+          : c.kind === 'digest'
+            ? checkDigestAlone(data, name)
+            : checkBriefAlone(data, name);
+    assert.ok(['store', 'brief', 'digest'].includes(c.kind), name);
     assert.deepEqual(
       codes(problems),
       c.expect === 'ok' ? [] : [c.expect],
@@ -79,9 +90,62 @@ test('a whole good output reads: the store, every items file by its hash, every 
       assert.deepEqual(brief.problems, [], item.brief.path);
       assert.equal(brief.value.title, item.title);
       briefs++;
+      // Every listed item names a digest too, checked by its size and hash and against the index.
+      const digest = await checkDigest(bytes(dist[item.digest.path]), listing, item);
+      assert.deepEqual(digest.problems, [], item.digest.path);
+      assert.equal(digest.value.title, item.title);
     }
   }
   assert.ok(briefs >= 6);
+});
+
+test('a digest is refused when it is not the one the index named, and gives Chat whole labelled lines within its limit', async () => {
+  const dist = fixture('KnowledgeDist').files,
+    store = checkStore(bytes(dist['store.json'])).value,
+    listing = store.sources.find((s) => s.id === 'harbor-voices'),
+    items = (await checkItems(bytes(dist[listing.items_file.path]), listing, store.topics)).value.items,
+    [first, second] = items,
+    good = bytes(dist[first.digest.path]);
+  const flipped = good.slice();
+  flipped[flipped.length - 3] ^= 1;
+  assert.deepEqual(codes((await checkDigest(flipped, listing, first)).problems), ['hash_mismatch']);
+  assert.deepEqual(codes((await checkDigest(new Uint8Array([...good, 10]), listing, first)).problems), [
+    'size_mismatch',
+  ]);
+  // Another episode's digest under this episode's entry: right size and hash are not enough.
+  const others = bytes(dist[second.digest.path]),
+    swapped = {
+      ...first,
+      digest: { ...first.digest, bytes: others.byteLength, sha256: await sha256(others) },
+    };
+  assert.ok(codes((await checkDigest(others, listing, swapped)).problems).includes('identity_mismatch'));
+  assert.deepEqual(codes(checkDigestAlone(new Uint8Array(knowledgeLimits.digest + 1)).problems), [
+    'too_large',
+  ]);
+
+  const d = (await checkDigest(good, listing, first)).value,
+    lines = digestLines(d);
+  assert.match(
+    lines[0],
+    /^From the episode’s digest, made from the transcript in its own sentences, with no model:$/,
+  );
+  assert.ok(lines.length > 3);
+  assert.ok(lines.join('\n').length <= knowledgeLimits.digestShared);
+  assert.ok(
+    lines.slice(1).every((l) => /^(Strongest claim|Point|Figure|Disputed|Exact quote|Taking part)/.test(l)),
+  );
+  assert.ok(
+    lines.some((l) => /^Point \(at \d+:\d\d\): /.test(l)),
+    'points carry their time',
+  );
+  // A sentence the brief already has is not repeated, a small limit gives fewer whole lines, and
+  // a digest that would add nothing gives no lines at all.
+  const point = d.talking_points[0].point;
+  assert.ok(lines.some((l) => l.endsWith(point)));
+  assert.ok(!digestLines(d, [point]).some((l) => l.includes(point)));
+  const few = digestLines(d, [], 400);
+  assert.ok(few.length >= 2 && few.length < lines.length && few.join('\n').length <= 400);
+  assert.deepEqual(digestLines(d, [], 120), []);
 });
 
 test('a file that did not arrive intact, or is not the one the index named, is refused', async () => {

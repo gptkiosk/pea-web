@@ -5,6 +5,7 @@
 // address first, so "1.2.3" always means the same place and every place can be traced back up
 // ("where am I"). No model reads the words or chooses the move. This parser receives the owner's
 // submitted words only, never a model's output.
+import { digestLines, knowledgeLimits } from './knowledge.mjs';
 
 export const showLimits = { said: 180, sections: 6, page: 5, aloud: 6, snippet: 120 };
 
@@ -443,6 +444,9 @@ function plainMove(command, { shows = [], at = idle() } = {}) {
   }
 }
 
+// The most text of one episode that goes with a Chat message: its brief, then its digest.
+export const briefShared = 3200;
+
 // The brief of the episode the owner has open, as the quoted evidence that goes with a Chat
 // message: its label, the exact words, and a key that changes when the brief does. Sections carry
 // their addresses so the owner and the model can name the same one. Null when no episode is open.
@@ -464,10 +468,20 @@ export function briefInPlay(shows, at) {
   sectionsOf(b).forEach((text, i) => lines.push(`Section ${address}.${i + 1}: ${text}`));
   if (b.new) lines.push(`New: ${b.new}`);
   for (const q of b.quotes ?? []) lines.push(`Quote (${q.speaker}): “${q.text}”`);
+  // The episode's digest, when it is kept: what it adds to the brief, within its own limit.
+  const more = episode.digest
+    ? digestLines(
+        episode.digest,
+        [b.headline, b.new, ...sectionsOf(b), ...(b.quotes ?? []).map((q) => q.text)],
+        Math.min(knowledgeLimits.digestShared, briefShared - lines.join('\n').length - 1),
+      )
+    : [];
+  lines.push(...more);
   return {
+    digest: more.length > 0,
     label: `“${episode.item.title}” (${show.name}, ${dayOf(episode.item.date)})`,
     title: episode.item.title,
     text: lines.join('\n'),
-    key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}`,
+    key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}${more.length ? '/' + (episode.item.digest?.sha256 ?? '') : ''}`,
   };
 }

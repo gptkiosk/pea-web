@@ -11,6 +11,11 @@ export const knowledgeLimits = {
   store: 512000,
   items: 512000,
   brief: 8000,
+  digest: 24000,
+  // All the text of a digest's short form together.
+  digestBrief: 900,
+  // How much of a digest goes with a Chat message, after the brief.
+  digestShared: 1400,
   visible: 1800,
   talk: 1050,
   titleShown: 120,
@@ -535,6 +540,118 @@ export async function checkBrief(bytes, listing, item, topics = null) {
       problems.push(problem('inconsistent', where + '.topics', 'a topic is not in the vocabulary'));
   }
   return { value: problems.length ? null : b, problems };
+}
+
+// --- A digest: the longer checked account of one episode ------------------------------------------
+
+// The rules every digest keeps, whatever named it. This reader holds no transcripts, so the rules
+// that compare a digest with its transcript are not checked here.
+function digestRules(d, where) {
+  const problems = [],
+    wrong = (code, at, detail) => problems.push(problem(code, where + at, detail));
+  const chapters = d.chapters ?? [];
+  if (
+    chapters.some((c) => c.end_seconds !== null && c.end_seconds <= c.start_seconds) ||
+    chapters
+      .slice(1)
+      .some(
+        (b, i) =>
+          b.start_seconds <= chapters[i].start_seconds ||
+          (chapters[i].end_seconds !== null && chapters[i].end_seconds > b.start_seconds),
+      )
+  )
+    wrong('inconsistent', '.chapters', 'the chapters are not in order of time');
+  if (d.basis !== 'transcript' && (d.snippable_moments ?? []).length)
+    wrong('inconsistent', '.snippable_moments', 'moments without a transcript');
+  const short = d.brief,
+    size =
+      length(str(short.about)) +
+      (short.points ?? []).reduce((sum, p) => sum + length(str(p)), 0) +
+      length(str(short.quote?.text)) +
+      length(str(short.quote?.speaker)) +
+      length(str(short.hook));
+  if (size > knowledgeLimits.digestBrief)
+    wrong('brief_too_long', '.brief', 'its short form is over the limit');
+  if ((d.provenance.method === 'model') !== (d.provenance.model !== null))
+    wrong('inconsistent', '.provenance', 'method and model disagree');
+  if (d.basis !== 'transcript' && (d.quotes.length || d.provenance.transcript_sha256 !== null))
+    wrong('inconsistent', '', 'quotes or a transcript hash without a transcript');
+  if (d.basis === 'headline' && d.quality.grade !== 'headline')
+    wrong('inconsistent', '', 'a headline digest with another grade');
+  return problems;
+}
+// A digest file on its own, with no index entry: what the catalog's hostile samples are checked with.
+export function checkDigestAlone(bytes, where = 'digest') {
+  const read = readFile(bytes, 'digest', where, knowledgeLimits.digest);
+  if (!read.value) return read;
+  const problems = digestRules(read.value, where);
+  return { value: problems.length ? null : read.value, problems };
+}
+// An item's digest, against its entry in a checked items file and its source's listing.
+export async function checkDigest(bytes, listing, item) {
+  const ref = item.digest,
+    where = ref.path;
+  let problems = await fileProblems(bytes, ref, where);
+  if (problems.length) return { value: null, problems };
+  const read = readFile(bytes, 'digest', where, knowledgeLimits.digest);
+  if (!read.value) return read;
+  const d = read.value;
+  problems = read.problems;
+  for (const [key, expected] of [
+    ['source_id', listing.id],
+    ['source_name', listing.name],
+    ['item_id', item.id],
+    ['title', item.title],
+    ['date', item.date],
+    ['link', item.link],
+    ['duration_seconds', item.duration_seconds],
+    ['basis', ref.basis],
+  ])
+    if (d[key] !== expected)
+      problems.push(problem('identity_mismatch', `${where}.${key}`, 'differs from the index'));
+  if ('link_kind' in d && 'link_kind' in item && d.link_kind !== item.link_kind)
+    problems.push(problem('identity_mismatch', where + '.link_kind', 'differs from the index'));
+  if (d.quality.grade !== ref.grade || d.provenance.method !== ref.method)
+    problems.push(problem('identity_mismatch', where, 'grade or method differs from the index'));
+  problems.push(...digestRules(d, where));
+  return { value: problems.length ? null : d, problems };
+}
+const clock = (seconds) =>
+  Number.isFinite(seconds) && seconds >= 0
+    ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
+    : '';
+// What a checked digest adds to an episode's brief in conversation, as quoted evidence: what it
+// was made from, the main claim, the talking points with their times, figures, what is disputed,
+// exact quotes and who took part. Whole lines only, within `limit` characters. A sentence already
+// in `said` (the brief's own) is not repeated. Empty when the digest adds nothing.
+export function digestLines(d, said = [], limit = knowledgeLimits.digestShared) {
+  const have = new Set(said.map((x) => String(x).trim()).filter(Boolean)),
+    lines = [],
+    at = (p) => (clock(p?.time_seconds) ? ` (at ${clock(p.time_seconds)})` : '');
+  if (d.strongest_claim && !have.has(d.strongest_claim.text))
+    lines.push(`Strongest claim${at(d.strongest_claim.at)}: ${d.strongest_claim.text}`);
+  for (const p of d.talking_points)
+    if (!have.has(p.point))
+      lines.push(`Point${at(p.at)}: ${p.point}${p.why ? ` Why it matters: ${p.why}` : ''}`);
+  for (const n of d.numbers) lines.push(`Figure${at(n.at)}: ${n.value}, ${n.context}`);
+  for (const c of d.contested) lines.push(`Disputed, so say it is disputed: ${c}`);
+  for (const q of d.quotes)
+    if (q.exact && !have.has(q.text))
+      lines.push(`Exact quote${q.speaker ? ` (${q.speaker})` : ''}${at(q.at)}: “${q.text}”`);
+  for (const g of d.guests ?? []) lines.push(`Taking part: ${g.name}${g.role ? `, ${g.role}` : ''}`);
+  const from = { transcript: 'the transcript', notes: 'the show notes', headline: 'the headline only' }[
+      d.basis
+    ],
+    out = [
+      `From the episode’s digest, made from ${from ?? 'the episode'}${d.provenance.method === 'model' ? ' by a model and checked by the curator’s pipeline' : ' in its own sentences, with no model'}:`,
+    ];
+  let used = out[0].length;
+  for (const line of lines) {
+    if (used + line.length + 1 > limit) break;
+    out.push(line);
+    used += line.length + 1;
+  }
+  return out.length > 1 ? out : [];
 }
 
 // --- The catalog's address, and asking its curator for a podcast ---------------------------------
