@@ -2,6 +2,25 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.42] - 2026-11-22
+
+### Added
+
+- **A storage limit for curated sources.** A new section, **Storage in this browser**, shows how much of this browser's storage the kept files use and lets you choose the most they may use: 0.5, 1 or 2 MB. It starts at 1 MB.
+  - When the files do not fit, the digests of the oldest episodes are left out first, then those episodes' briefs. Pinned episodes are kept first, and a pinned episode's brief is never left out.
+  - Nothing leaves the open tab. What did not fit is missing only after a reload, and the next Refresh fetches it again.
+  - The section says in plain words how many digests or episodes did not fit, or that everything is kept.
+  - If the browser itself has less room than you allowed, PEA keeps a smaller set instead of nothing; if it will keep nothing at all, PEA says so.
+
+### Changed
+
+- The limit used to be a fixed 3 MB, with every digest dropped at once when it was passed. It is now your choice, and files are left out one at a time, oldest first.
+
+### Not included
+
+- The iPhone app offers 5 to 100 MB. A browser gives one site about 5 MB in all for this kind of storage, so the web choices are smaller.
+- Nothing is evicted from the open tab, and there is no per-show storage figure.
+
 ## [0.1.0-rc.4.dev.41] - 2026-11-22
 
 ### Added

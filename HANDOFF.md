@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Knowledge sources, fourth slice: storage limit — 2026-11-22
+
+**Branch `feature/storage-limit`, version `0.1.0-rc.4.dev.42`.** The owner said "Yes, build it" to the storage limit.
+
+- `browser/knowledge-ui.mjs` `saveKept()`: the kept files may use at most `room` characters (`roomChoices` 500,000 / 1,000,000 / 2,000,000, `roomDefault` 1,000,000, saved as `room` in `pea-curated-v1` when not the default). Over the limit it leaves out, oldest episode first: unpinned digests, then unpinned episodes, then pinned digests; never a pinned brief. If `setItem` is refused it retries up to 12 times at 85% of the size just tried, then removes the kept file. `stored` holds what was kept for the status line. `restore()` ends with `saveKept()` so the figures are right after a reload. Section `#curated-storage` with `#curated-room` and `#curated-storage-note`.
+- This is a limit on what is kept across a reload, not on the open tab: `held` is never trimmed by it, so a Refresh does not fetch in a loop.
+- Tests: `browser/tests/dom/knowledge.test.mjs` (8; one new): everything kept with room, the choice saved, a browser that refuses larger files (the pinned digest kept, the oldest unpinned left out, every brief kept, the tab unchanged, "brief only" after a reload with no fetch), and a browser that keeps nothing.
+- Known gaps: sizes are characters of text, which a browser counts as about two bytes each, so "1 MB" is an approximation the section does not explain further. No per-show figure. Next in order: another catalog address; the Talk from briefs switch; format 1.4 and citations once published. Not looked at by eye.
+
 ## Knowledge sources, third slice: digests — 2026-11-22
 
 **Branch `feature/digests`, version `0.1.0-rc.4.dev.41`.** The owner said "Yes, build digests".
