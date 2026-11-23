@@ -9,6 +9,7 @@ import {
   plainAddress,
   sectionCitations,
   sectionsOf,
+  sourcesLine,
   showCommand,
   showMove,
 } from '../shownav.mjs';
@@ -513,4 +514,55 @@ test('asking which shows PEA knows lists the shows, and ordinary questions are l
     'which shows should I watch',
   ])
     assert.equal(showCommand(said, { at: idle(), shows: [] }), null, said);
+});
+
+test('a followed show asked about by name opens its episodes; one that is not followed is said plainly', () => {
+  const ask = (said) => showCommand(said, { at: idle(), shows });
+  for (const said of [
+    'what do you have from the Harbor Voices podcast?',
+    'What’s new on Harbor Voices?',
+    'anything new from harbor voices today',
+    'the latest from Harbor Voices',
+    'tell me about the harbor voices show',
+    'open Harbor Voices',
+  ])
+    assert.deepEqual(ask(said), { kind: 'show', show: 1 }, said);
+  assert.deepEqual(ask('what do you have from Quay Notes?'), { kind: 'show', show: 2 });
+  assert.deepEqual(ask('what do you have from the AI daily brief podcast?'), {
+    kind: 'not-followed',
+    name: 'ai daily brief',
+  });
+  // Not called a podcast and not a followed name: an ordinary question for the model.
+  for (const said of [
+    'what do you have from my inbox?',
+    'tell me about the harbor',
+    'open the tv show',
+    'what about tomorrow',
+    'anything new from Sam',
+  ])
+    assert.equal(ask(said), null, said);
+
+  const move = showMove({ kind: 'not-followed', name: 'ai daily brief' }, { shows, at: idle() });
+  assert.equal(move.level, 'shows');
+  assert.deepEqual(
+    move.rows.map((r) => r.text),
+    ['Harbor Voices', 'The Quay Notes'],
+  );
+  assert.match(move.hint, /^“ai daily brief” is not a show you follow in this tab\. These are\./);
+  assert.equal(move.send, null);
+  assert.match(
+    showMove({ kind: 'not-followed', name: 'x' }, { shows: [], at: idle() }).say,
+    /^You follow no shows with briefs in this tab\./,
+  );
+});
+
+test('the line every Chat request carries names no show and forbids inventing one', () => {
+  assert.match(sourcesLine(0), /follows none in this tab, so you have nothing from any show/);
+  assert.match(sourcesLine(1), /follows one show in this tab/);
+  assert.match(sourcesLine(3), /follows 3 shows in this tab\. You are not told their names/);
+  for (const n of [0, 3]) {
+    assert.match(sourcesLine(n), /never invent a show, an episode or what one said/);
+    assert.match(sourcesLine(n), /typing “list shows” in Chat/);
+    assert.doesNotMatch(sourcesLine(n), /Harbor|[\n`]/);
+  }
 });

@@ -34,6 +34,7 @@ import {
 import { parseConfiguration } from './shared-config.mjs';
 import { present } from './settings-ui.mjs';
 import { settingsGuidance, settingsOpenLine } from './settings.mjs';
+import { sourcesLine } from './shownav.mjs';
 import { LocalModel } from './local-model.mjs';
 import { forgetChoices, loadChoices, profileChoices, saveChoices } from './preferences.mjs';
 import { forgetLocalToken, loadLocalToken, saveLocalToken } from './local-token.mjs';
@@ -578,6 +579,7 @@ export function installConnections(hooks) {
     // Sent with every request: the honesty rule and the name the owner chose for the assistant.
     const calledName = assistantName(context.assistantName);
     body.messages[0].content += '\n' + honestyRule + '\n' + nameLine(context.assistantName);
+    if (surface === 'chat') body.messages[0].content += '\n' + sourcesLine(hooks.followed?.() ?? 0);
     if (life) body.messages[0].content += '\n' + lifeContext(life, dayKey(Date.now()));
     if (told.length) body.messages[0].content += '\n' + toldContext(told);
     if (canon?.send.length) body.messages[0].content += '\n' + canonContext(canon.send);

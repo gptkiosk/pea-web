@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.57] - 2026-11-23
+
+### Added
+
+- **Ask about a show by name and get its episodes to press.** "What do you have from the Harbor Voices podcast?", "what's new on Harbor Voices?", "the latest from Harbor Voices" and "open Harbor Voices" now open that show's episodes as numbered rows in Chat, answered by PEA itself. The whole name works, and so do its first two words or more.
+- **A podcast you do not follow is said plainly, with your shows to press.** Asked about a podcast that is not one of yours, PEA says so and lists the shows you do follow as rows, with the way to follow more. Before, the question went to your model, which said it had never heard of the show and suggested others.
+
+### Changed
+
+- **Your model is now told the knowledge sources exist.** Every Chat request says that PEA has Curated sources, whether you follow any, that the model knows an episode only when its brief is in the request, and that it must never deny a show or invent one, pointing you to "list shows" instead. It is told how many shows you follow and never their names.
+
 ## [0.1.0-rc.4.dev.56] - 2026-11-23
 
 ### Fixed

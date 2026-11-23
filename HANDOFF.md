@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Chat knows the knowledge sources exist, and a show asked by name is listed to press — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.57`. Owner report: asked "what do you have from the AI daily brief podcast?", the model said it had never heard of it and suggested other podcasts. Owner instruction: while discussing these sources, list the shows or episodes in the clickable interface.
+
+- `browser/shownav.mjs`: `sourcesLine(followed)`, the line for every Chat request (a count, never a name). `showCommand` reads "what do you have from / what is new on / anything new from / the latest from / tell me about / what about / open / show me / pull up X": a followed show (whole name, or its first two words or more, one match only) gives `{ kind: 'show' }`; a name the owner called a podcast that is not followed gives `{ kind: 'not-followed', name }`; anything else is null and goes to the model. `showMove` answers `not-followed` with the shows list and a hint saying so.
+- `browser/live-ui.mjs`: adds `sourcesLine(hooks.followed())` to the system message on the chat surface only. `browser/app.mjs`: hook `followed` (count of followed shows that have briefs).
+- Tests: two more in `browser/tests/shownav.test.mjs`, one more in `browser/tests/dom/shownav.test.mjs`.
+- Known gaps: PEA does not know the curator's whole list by name until the owner browses it, so "not followed" does not say whether the catalog carries the show; a show mentioned inside a longer question still goes to the model, which now points to "list shows" and draws no rows itself; the model's wording is its own and has not been tried with the owner's model. Whether the owner's installed copy follows any show was not checked.
+- Next action: owner follows a show in Knowledge sources on their copy and asks about it by name.
+
 ## One spacing rhythm for settings fields — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.56`. Owner report with a picture of Voice providers: dropdowns and text cramped and not aligned.

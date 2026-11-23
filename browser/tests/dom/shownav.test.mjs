@@ -280,3 +280,35 @@ test('in the voice room a show is walked aloud and the room stays open', options
   assert.equal(stack.model.requests.length, asked, 'no model was asked');
   await page.close();
 });
+
+test(
+  'asking about a show by name draws the rows to press, and the model is told the sources exist',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1500 });
+    const system = () => stack.model.requests.at(-1).messages[0].content;
+    // Before anything is followed, a model is told so and told not to invent.
+    await askModel(stack, page, 'Good morning, how are you today?');
+    assert.match(system(), /PEA has Curated sources/);
+    assert.match(system(), /follows none in this tab/);
+
+    await following(page);
+    const asked = stack.model.requests.length;
+    await type(page, 'what do you have from the Harbor Voices podcast?');
+    await titled(page, 'Show 1: Harbor Voices');
+    let seen = await panel(page);
+    assert.equal(seen.rows[0][0], '1.1');
+    // A row is pressed, not typed.
+    await page.evaluate(`document.querySelector('#numbered ol button').click()`);
+    await titled(page, 'Episode 1.1');
+
+    await type(page, 'what do you have from the AI daily brief podcast?');
+    await titled(page, 'Your shows');
+    seen = await panel(page);
+    assert.deepEqual(seen.rows, [['1', 'Harbor Voices']]);
+    assert.match(seen.note, /^“ai daily brief” is not a show you follow in this tab\. These are\./);
+    assert.equal(stack.model.requests.length, asked, 'no model was asked');
+
+    await page.close();
+  },
+);
