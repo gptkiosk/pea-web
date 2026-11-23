@@ -1,4 +1,5 @@
 import { containsCredential, safeName } from './connections.mjs';
+import { settingsPlace } from './settings.mjs';
 
 // This parser receives the owner's submitted command only, never model output.
 export function ownerNavigation(text) {
@@ -23,6 +24,16 @@ export function navigationProposals(raw) {
   if (blocks.length !== 1) return [];
   try {
     const v = JSON.parse(blocks[0][1]);
+    // A place in PEA's settings, by its name on the fixed list.
+    if (
+      v &&
+      !Array.isArray(v) &&
+      typeof v === 'object' &&
+      Object.keys(v).sort().join(',') === 'op,place' &&
+      v.op === 'settings' &&
+      settingsPlace(v.place)
+    )
+      return [{ place: v.place }];
     if (
       !v ||
       Array.isArray(v) ||

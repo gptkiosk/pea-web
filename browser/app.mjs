@@ -35,6 +35,8 @@ import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
 import { installWeather } from './weather-ui.mjs';
 import { installResearch } from './research-ui.mjs';
+import { installSettings, present } from './settings-ui.mjs';
+import { ownerSettings, placeInAddress, placeInMessage, settingsPlace } from './settings.mjs';
 import { installHeadlines } from './feeds-ui.mjs';
 import { installHome } from './home-ui.mjs';
 import { installCanon } from './canon-ui.mjs';
@@ -110,6 +112,7 @@ let live,
   portable,
   updates,
   numbered,
+  settings,
   curated;
 // Ends reading aloud, whichever voice is doing it.
 function stopVoices() {
@@ -471,10 +474,24 @@ const visible = () =>
   files.filter(
     (f) => gate({ profile: f.profile, dataClass: 'attachment' }, profile, [], now / 1000) === 'allow',
   );
+// A short message at the foot of the page. One of PEA's own messages that names a place in its
+// settings also carries a button that goes there.
 function notice(message) {
+  const place = settings ? placeInMessage(message) : null;
   $('notice').textContent = message;
+  if (place) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'text-button notice-go';
+    b.textContent = 'Open ' + settingsPlace(place).title;
+    b.onclick = () => {
+      $('notice').textContent = '';
+      settings.go(place);
+    };
+    $('notice').append(' ', b);
+  }
   clearTimeout(notice.timer);
-  notice.timer = setTimeout(() => ($('notice').textContent = ''), 6500);
+  notice.timer = setTimeout(() => ($('notice').textContent = ''), place ? 14000 : 6500);
 }
 function stopSpeaking() {
   if ($('speech-length')?.open) $('speech-length').close();
@@ -657,7 +674,9 @@ function proposalButton(m, surface) {
   if (nav?.kind === 'navigation' && !m.incomplete && nav.profile === profile) {
     const b = document.createElement('button');
     b.className = 'text-button';
-    b.textContent = 'Open ' + { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse' }[nav.tab];
+    b.textContent = nav.place
+      ? 'Open ' + settingsPlace(nav.place).title + ' settings'
+      : 'Open ' + { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse' }[nav.tab];
     b.onclick = () => {
       if (live.isBusy()) {
         notice('Finish the current request first.');
@@ -669,7 +688,8 @@ function proposalButton(m, surface) {
         proposals.get(m.id) !== nav
       )
         return;
-      tab(nav.tab);
+      if (nav.place) settings.go(nav.place);
+      else tab(nav.tab);
     };
     return b;
   }
@@ -1402,7 +1422,7 @@ function renderPreview() {
   pane.append(text);
 }
 function preferences() {
-  $('preferences').showModal();
+  present($('preferences'));
 }
 for (const b of document.querySelectorAll('[data-tab]')) {
   b.onclick = () => tab(b.dataset.tab);
@@ -1585,6 +1605,14 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     field.value = '';
     tab(destination);
     notice('Opened ' + { chat: 'Chat', today: 'Today', greenhouse: 'Greenhouse' }[destination] + '.');
+    return;
+  }
+  // "open web search settings", "where do I enter my Brave key": the owner's own words, by fixed
+  // rules. It opens that panel and nothing else.
+  const place = ownerSettings(text);
+  if (place) {
+    field.value = '';
+    if (settings.go(place)) notice('Opened ' + settingsPlace(place).title + '.');
     return;
   }
   // "read https://…" in the owner's own words. Chat only; the review comes before anything is asked.
@@ -1773,6 +1801,8 @@ live = installConnections({
   canSearch: () => research?.canSearch() ?? false,
   // The open episode's brief and digest, unless the owner switched Talk from briefs off.
   brief: () => (curated?.talks() === false ? null : (numbered?.brief() ?? null)),
+  // The place in the settings that is open beside the page, so the model can help with it.
+  settingsOpen: () => settings?.open() ?? null,
   beginReply(surface, text, { sourced = false, steps = null, detail = null } = {}) {
     const reply = addReply(surface, text);
     if (sourced) sourcedReplies.add(reply.id);
@@ -1879,7 +1909,7 @@ live = installConnections({
         target: { id: edits[0].target.id, title: edits[0].target.title },
       });
     else if (navs.length === 1 && !items.length && !emails.length && !docs.length && !events.length)
-      proposals.set(reply.id, { profile, kind: 'navigation', tab: navs[0].tab });
+      proposals.set(reply.id, { profile, kind: 'navigation', tab: navs[0].tab, place: navs[0].place });
     else if (
       changes.length &&
       !items.length &&
@@ -2668,7 +2698,19 @@ installCommands({
   tab,
   context: () => ({ ...workspace.layout(), wide: workspace.wide(), profile, busy: live.isBusy() }),
 });
-if (location.hash.slice(1)) tab(location.hash.slice(1));
+// Takes the owner to a place in the settings: by their own words, a button, or an address.
+settings = installSettings({
+  openers: {
+    // The full list, as the setup guide's own buttons open it.
+    connections: () => $('collab-config').click(),
+    preferences,
+    library: () => $('library-open').click(),
+  },
+  tab,
+  notice,
+});
+if (placeInAddress(location.hash)) settings.fromAddress();
+else if (location.hash.slice(1)) tab(location.hash.slice(1));
 
 void installReleaseUI();
 weather = installWeather({ notice, review: live.review, changed: () => home?.render() });

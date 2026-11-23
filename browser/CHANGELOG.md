@@ -2,6 +2,19 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.49] - 2026-11-23
+
+### Added
+
+- **PEA can take you to the setting you need.** Seventeen places in PEA's settings now have a name PEA can send you to, from Web search and Google to Privacy & voice, your encrypted library and Curated sources.
+  - **Ask in your own words.** In Chat, type "open web search settings", "take me to the Google setup", "where do I enter my Brave key?" or "how do I connect Google?" and PEA opens that section. It is matched by fixed rules on the page; no model is asked. Ordinary questions ("open my calendar", "where is my passport") still go to your model.
+  - **From an error.** When PEA tells you something needs a setting ("Enter one in Connections → Web search"), the message now carries an **Open Web search** button that takes you there.
+  - **From your model.** When you ask how to set something up, your model may offer an **Open Google settings** button. It opens only when you press it.
+  - **Beside your chat.** On a wide screen, a panel opened this way sits at the side of the page instead of over it, scrolled to the section with its title marked. Chat stays in use, so you can ask PEA what to do next while you look at the fields. On a narrow screen it opens over the page as before.
+  - **Guided setup.** While a settings panel is open beside the chat, your model is told which one and what it holds, to guide you one step at a time. It cannot see or change any setting, and is told never to ask you to paste a key or password into the chat.
+  - **By address.** `#settings/web-search` at the end of PEA's address opens that section, so a place can be bookmarked or written in a guide. The address names a place and carries nothing else.
+- Going to a setting only opens, scrolls and marks a section. It fills no field, approves nothing and grants nothing.
+
 ## [0.1.0-rc.4.dev.48] - 2026-11-23
 
 ### Added

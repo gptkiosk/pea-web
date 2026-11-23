@@ -56,6 +56,8 @@
     "release.json",
     "releases.mjs",
     "research-ui.mjs",
+    "settings-ui.mjs",
+    "settings.mjs",
     "research.mjs",
     "shared-config.mjs",
     "shownav.mjs",
