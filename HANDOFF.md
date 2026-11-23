@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Cliché filter for her history and days — 2026-11-23
+
+**Branch `feature/cliche-filter`, version `0.1.0-rc.4.dev.52`.** From the owner's description of the iPhone app ("Three layers of cliché protection so legacy sourdough/bread-starter entries… never come back"). No iPhone file was read.
+
+- `browser/life.mjs`: `isCliche(text)` (sourdough; bread starter; bread making; baking bread or a loaf; or "starter" together with flour, feed, sluggish, jar, bubbling, dough or loaf), `withoutCliches(items, words)`, `clicheRule`.
+- Written: `parseCanon`, `parseWeek` and `dayNote` skip a cliché card, day or note; `historyPrompt` and `weekPrompt` carry `clicheRule`. Sent: `selectCards`, `canonContext` and `daysContext` leave them out. Kept: `canon-ui.mjs` and `days-ui.mjs` drop them when the saved copy is read (written back at the next save).
+- Not in the validators (`validSavedCanon`, `validSavedDays`, `pruneEntries`), so an encrypted backup holding an old line still restores; the line is then dropped on reading.
+- Tests: `browser/tests/cliche.test.mjs` (3).
+- Known gaps against the iPhone description: Web's interests and people are a fixed written hand (`life.mjs`), so there is no hobby matrix to rotate and no `recentTopics`; nothing is regenerated in the background, because Web makes no model request the owner has not reviewed, so a week that lost a line stays a line short until the owner asks for a new week. Only this one cliché is known. The owner's own character notes are not filtered.
+- Next action: the owner's go to merge.
+
 ## Settings sections in the order they are done — 2026-11-23
 
 **Branch `feature/settings-order`, version `0.1.0-rc.4.dev.51`.** The owner's go to "reorder them" after the settings home.

@@ -2,6 +2,7 @@
 // A week is written only when the owner asks, in one reviewed request, and is shown before it is
 // kept. Notes from Chat are kept only while the owner has turned them on, each with a notice.
 // Personal profile only; kept in this browser; every line can be deleted.
+import { withoutCliches } from './life.mjs';
 import {
   addNote,
   addWeek,
@@ -42,7 +43,8 @@ export function installDays({
   } catch {
     // Nothing usable was saved; there are no lines and notes are off.
   }
-  saved.entries = pruneEntries(saved.entries, Date.now());
+  // Lines on the worn-out hobby kept before the rule existed are dropped for good.
+  saved.entries = withoutCliches(pruneEntries(saved.entries, Date.now()));
   const store = () => {
     try {
       if (saved.notes || saved.entries.length)
