@@ -37,7 +37,8 @@ function shorten(dialog) {
   for (const text of dialog.querySelectorAll('.dialog-body p, .dialog-body small')) {
     if (text.dataset.shortened || text.id || text.closest('.guided-connection, [aria-live]')) continue;
     text.dataset.shortened = '1';
-    if (text.textContent.trim().length < 150 || text.querySelector('input, select, textarea')) continue;
+    if (text.textContent.trim().length < 150 || text.querySelector('input, select, textarea, code, a[href]'))
+      continue;
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'text-button settings-more';

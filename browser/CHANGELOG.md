@@ -2,6 +2,15 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.51] - 2026-11-23
+
+### Changed
+
+- **Google settings follow the order you do them in,** as four numbered steps: your Google client ID (with the origin to copy and the link to Google's console), what PEA may ask Google for and the button that continues to Google, your PEA folder, and what this profile shares with your model. The switches used to come first and the client ID field after them.
+- **Models & OpenRouter is three numbered steps:** your key (with the switch to keep it, then Verify), your models, and sharing and data.
+- Every field, switch, button and sentence is the same as before; only the order changed and the step headings were added. One sentence under Local model said to choose a model "above"; it now says where: under Models & OpenRouter.
+- An explanation that holds a link or an address to copy is no longer cut to two lines, so the link is never hidden behind **More**.
+
 ## [0.1.0-rc.4.dev.50] - 2026-11-23
 
 ### Changed

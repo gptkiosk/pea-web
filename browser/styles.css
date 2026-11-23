@@ -4850,6 +4850,7 @@ section.settings-here {
   overflow: hidden;
 }
 .settings-more {
+  display: block;
   font-size: 13px;
   padding: 2px 0 8px;
 }
@@ -4917,4 +4918,32 @@ section.settings-here {
       transform 0.15s,
       opacity 0.15s;
   }
+}
+
+/* The steps of a settings section, in the order they are done. */
+.settings-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-size: 16px;
+}
+summary + .settings-step {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 8px;
+}
+.settings-step span {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 700;
 }
