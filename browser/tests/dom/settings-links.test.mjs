@@ -232,6 +232,23 @@ test(
     await page.evaluate(`document.querySelector('.settings-tile[data-place="google"]').click()`);
     seen = await view();
     assert.deepEqual(seen, { title: 'Google', tiles: [], groups: ['google-group'], back: true });
+    // The section runs in the order it is done: numbered steps, the client ID before the switches.
+    assert.deepEqual(
+      await page.evaluate(
+        `[...document.querySelectorAll('#google-group .settings-step, #google-group [id]')].map((e) => e.matches('.settings-step') ? e.textContent : e.id).filter((x) => /^[1-4]|^(google-client|google-calendar-access|google-connect|drive-root|share-calendar)$/.test(x))`,
+      ),
+      [
+        '1Your Google client ID',
+        'google-client',
+        '2What PEA may ask Google for',
+        'google-calendar-access',
+        'google-connect',
+        '3Your PEA folder',
+        'drive-root',
+        '4What this profile shares with the model',
+        'share-calendar',
+      ],
+    );
     // On-and-off choices are switches wide enough to hit; a long explanation is two lines and a button.
     const box = await page.evaluate(`(() => {
       const c = document.getElementById('google-calendar-access'), r = c.getBoundingClientRect();

@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Settings sections in the order they are done — 2026-11-23
+
+**Branch `feature/settings-order`, version `0.1.0-rc.4.dev.51`.** The owner's go to "reorder them" after the settings home.
+
+- `browser/index.html`: the Google section's existing markup moved into four steps under `h4.settings-step` headings (client ID and origin; what to ask Google for, the Drive note and Connect; the PEA folder; what the profile shares with the model), and Models & OpenRouter into three (key with keep-switch before Verify; models; sharing and data). Moved by a script that checked the section's length was unchanged apart from the headings: no field, id or sentence was added or removed. Local model's "choose a Local model above" now reads "under Models & OpenRouter".
+- `browser/settings-ui.mjs`: `shorten` leaves alone a paragraph holding a link or a `code` address. `browser/styles.css`: `.settings-step`, and More on its own line.
+- Tests: the existing suites (fields are found by id); `browser/tests/dom/settings-links.test.mjs` checks the order of Google's steps and fields.
+- Known gaps: the other seven sections were already in a workable order and are unchanged. Steps are headings, not a wizard: nothing is hidden until an earlier step is done. Looked at in the test browser at 1,000 pixels wide, dark theme.
+- Next action: the owner's go to merge.
+
 ## Settings home, switches, shorter text, and one help entry — 2026-11-23
 
 **Branch `feature/settings-audit`, version `0.1.0-rc.4.dev.50`.** The owner asked: "Let's also give a solid audit of the settings area so it easy. big buttons, intuitive flow, less text, modern controls, etc.. Then remap help directly to these spots and move commands under keyboard shortcuts so the menu makes more sense or put them together somehow."
