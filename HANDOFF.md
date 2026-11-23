@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## One spacing rhythm for settings fields — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.56`. Owner report with a picture of Voice providers: dropdowns and text cramped and not aligned.
+
+- `browser/styles.css`: rules under `.tiled .dialog-body` for labels (22px above, 8px below), fields (no margin of their own), notes after a field (10px), empty status paragraphs (no margin), switch rows, `.settings-more`, and `.input-with-action` (field and Paste on one line, centred). Earlier rules gave a label 24px on both sides and a field nothing below it, and a full-width field pushed Paste to the next line.
+- `browser/settings-ui.mjs`: `shorten` gives the More button of a `.home-only` text the same class, so it is put away with it.
+- Tests: one more in `browser/tests/dom/settings-links.test.mjs` (eight there now); it measures the gaps in Voice providers and fails without the change.
+- Known gaps: the interview, Export this chat and the setup wizard are not `.tiled` and keep the earlier spacing; the Google section's "Copy origin" line is unchanged. Looked at by eye in the test browser only (Voice providers, Models, Google, Web search, Profile file), dark theme, 1100 wide.
+- Next action: owner looks at the installed copy after merge.
+
 ## Every menu window on tiles, and a way to the knowledge sources — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.55`. Owner request: the same look for every choice under the menu as Settings got, and the owner could find no knowledge sources or anywhere to set them up (a model invented shows when asked to list them).

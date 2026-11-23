@@ -50,6 +50,8 @@ function shorten(dialog) {
       more.setAttribute('aria-expanded', String(open));
     };
     text.classList.add('settings-short');
+    // Text that belongs to a window's home takes its button with it when a section is open.
+    if (text.classList.contains('home-only')) more.classList.add('home-only');
     text.after(more);
   }
 }

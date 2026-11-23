@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.56] - 2026-11-23
+
+### Fixed
+
+- **Fields in Settings were cramped and out of line.** A note under a dropdown touched it, a label sat as far from its own field as from the one above, and Paste dropped to its own line under the key field. In Settings, Past chats & memory and Privacy & voice a label now sits close above its field, a note sits clear under it, the next label starts clear of both, and Paste sits beside its field and ends where the other fields end. "More" sits directly under the text it expands.
+- In Past chats & memory, a section showed stray "More" buttons that belonged to text on the window's home.
+
 ## [0.1.0-rc.4.dev.55] - 2026-11-23
 
 ### Added
