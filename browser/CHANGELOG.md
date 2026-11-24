@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.70] - 2026-11-24
+
+### Added
+
+- **Backup & restore can carry your keys, if you tick the box for that file.** "Also put my keys in this file" adds the OpenRouter key, GitHub token, web search keys and voice provider key that are in the tab when the file is made. The box is off every time, a file with keys needs a passphrase of 16 or more characters, and the review names each key and says plainly that anyone with the file and its passphrase could use them. No key is ever shown.
+- **Keys come back after a review of their own.** OpenRouter and GitHub go back into their fields and wait for Connect, which checks them with the provider as usual; a search or voice key is held in the tab at once. Nothing is sent anywhere by restoring. Because keys live in the tab only, a restore that also changes settings asks you to reload first and restore from the same file again for the keys.
+- Never in any file: the connection token and your Google sign-in.
+
 ## [0.1.0-rc.4.dev.69] - 2026-11-24
 
 ### Added

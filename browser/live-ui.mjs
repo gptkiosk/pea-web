@@ -1901,6 +1901,21 @@ export function installConnections(hooks) {
   // After the rest of the page has started: connect with the remembered token, if there is one.
   setTimeout(() => void restoreLocal(), 0);
   return {
+    // For a backup file the owner chose to put keys in: the two keys this profile has connected.
+    keys: () => ({ openrouter: state().key || '', github: state().github?.token || '' }),
+    // Keys from a reviewed backup go back into their fields; Connect checks each as usual.
+    offerKeys(keys) {
+      const put = [];
+      for (const [name, id] of [
+        ['openrouter', 'router-key'],
+        ['github', 'github-token'],
+      ])
+        if (keys[name]) {
+          $(id).value = keys[name];
+          put.push(name);
+        }
+      return put;
+    },
     chat,
     compose,
     open,

@@ -2230,6 +2230,13 @@ portable = installBackup({
   canon: () => canon,
   days: () => days,
   decks: () => decks,
+  // Only for a file the owner ticks the box for: the keys held in this tab, and the way back.
+  keys: () => ({ ...live.keys(), ...(research?.keys() ?? {}), ...(speech?.keys() ?? {}) }),
+  offerKeys: (keys) => [
+    ...live.offerKeys(keys),
+    ...(research?.offerKeys(keys) ?? []),
+    ...(speech?.offerKeys(keys) ?? []),
+  ],
 });
 // Provider voices for reading aloud, through the owner's gateway with the owner's key.
 speech = installSpeech({
