@@ -890,3 +890,95 @@ test('on a phone the bar stays at the top, the tabs fit and Chat’s writing box
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });
+
+test('Today is a list of short rows, two columns in a wide pane, and Harvest starts as a card', options, async () => {
+  const page = await openConnectedPage(stack, { width: 1440, height: 900 });
+  await page.evaluate(`document.getElementById('notice').textContent = ''`);
+  await page.click('#tab-today');
+  await page.waitFor(`!document.getElementById('today').hidden`, 'Today');
+  const rows = () =>
+    page.evaluate(
+      `[...document.querySelectorAll('.today-sections > .today-section')].map((d) => { const s = d.querySelector('summary'), r = s.getBoundingClientRect(); return { open: d.open, name: s.querySelector('strong')?.textContent ?? '', note: Boolean(s.querySelector('small')), height: Math.round(r.height), left: Math.round(r.left) }; })`,
+    );
+  const split = await rows();
+  assert.equal(split.length, 9);
+  for (const row of split) {
+    assert.ok(row.name && row.note, 'every row has a name and a line about it');
+    assert.ok(row.height >= 44 && row.height <= 72, row.name + ' is a short row: ' + row.height);
+  }
+  assert.equal(new Set(split.map((r) => r.left)).size, 1, 'one column beside another pane');
+  assert.equal(await page.evaluate(`document.querySelector('#today .section-heading .pill')`), null);
+  // Its actions are buttons, the pane's own two stay small, and adding a to-do still works.
+  const shape = (selector) =>
+    page.evaluate(
+      `(() => { const b = document.querySelector(${JSON.stringify(selector)}); b.hidden = false; const c = getComputedStyle(b), r = b.getBoundingClientRect(); return { border: c.borderTopWidth, height: Math.round(r.height) }; })()`,
+    );
+  const notify = await shape('#todo-notify');
+  assert.ok(notify.border === '1px' && notify.height >= 44, JSON.stringify(notify));
+  assert.ok((await shape('#today .pane-bar .text-button')).height <= 34, 'the pane’s own buttons stay small');
+  await page.evaluate(
+    `(() => { const t = document.getElementById('todo-title'); t.value = 'Water the synthetic peas'; t.dispatchEvent(new Event('input', { bubbles: true })); })()`,
+  );
+  await page.click('#todo-submit');
+  await page.waitFor(`document.querySelectorAll('#todo-list li').length === 1`, 'the to-do to be listed');
+  // Alone on a wide screen, the rows are two columns.
+  await page.click('#split-toggle');
+  await page.waitFor(`!document.getElementById('panes').classList.contains('split')`, 'one pane');
+  await page.waitFor(
+    `new Set([...document.querySelectorAll('.today-sections > .today-section')].map((d) => Math.round(d.getBoundingClientRect().left))).size === 2`,
+    'two columns of rows',
+  );
+  // Harvest with nothing in it is a card saying what will appear, and the footer is one line of buttons.
+  await page.click('#tab-harvest');
+  await page.waitFor(`!document.getElementById('harvest').hidden`, 'Harvest');
+  const empty = await page.evaluate(
+    `(() => { const e = document.getElementById('harvest-empty'), c = getComputedStyle(e); return { hidden: e.hidden, border: c.borderTopStyle, title: e.querySelector('strong').textContent, words: e.querySelector('p').textContent }; })()`,
+  );
+  assert.equal(empty.hidden, false);
+  assert.equal(empty.border, 'dashed');
+  assert.equal(empty.title, 'Nothing to harvest yet.');
+  assert.match(empty.words, /Nothing is ever added, written or sent until you review it\./);
+  const footer = await page.evaluate(
+    `[...document.querySelectorAll('.release-footer nav :is(button, a)')].filter((b) => !b.hidden).map((b) => { const c = getComputedStyle(b), r = b.getBoundingClientRect(); return { name: b.textContent.trim(), border: c.borderTopWidth, top: Math.round(r.top), height: Math.round(r.height) }; })`,
+  );
+  assert.ok(footer.length >= 3, JSON.stringify(footer));
+  for (const b of footer) assert.ok(b.border === '1px' && b.height >= 28, b.name + ' has a button’s shape');
+  assert.equal(new Set(footer.map((b) => b.top)).size, 1, 'the footer’s buttons are one line');
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
+
+test('on a phone a dialog is a sheet at the foot of the screen with its close button in reach', options, async () => {
+  const page = await openConnectedPage(stack, { width: 390, height: 844 });
+  await page.evaluate(`document.getElementById('notice').textContent = ''`);
+  const open = async (id) => {
+    await page.evaluate(`document.getElementById('${id}').showModal()`);
+    await page.waitFor(`document.getElementById('${id}').getAnimations().length === 0`, id + ' to settle');
+    return page.evaluate(
+      `(() => { const d = document.getElementById('${id}'), r = d.getBoundingClientRect(), x = d.querySelector('.dialog-head .icon')?.getBoundingClientRect(), h = d.querySelector('.dialog-head'); d.scrollTop = 400; const after = d.querySelector('.dialog-head .icon')?.getBoundingClientRect(); return { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), bottom: Math.round(r.bottom), close: x && { top: Math.round(x.top), height: Math.round(x.height), right: Math.round(x.right) }, scrolled: d.scrollTop, closeAfter: after && Math.round(after.top), head: h && getComputedStyle(h).position, wide: d.scrollWidth > d.clientWidth }; })()`,
+    );
+  };
+  for (const id of ['connections', 'library', 'release-dialog', 'voice-room', 'remember', 'review']) {
+    const d = await open(id);
+    assert.ok(d.left === 0 && d.right === 390, id + ' is as wide as the screen');
+    assert.equal(d.bottom, 844, id + ' sits at the foot of the screen');
+    assert.ok(d.top >= 60, id + ' leaves the top of the page showing: ' + d.top);
+    assert.equal(d.wide, false, id + ' does not scroll sideways');
+    if (d.close) {
+      assert.ok(d.close.height >= 40 && d.close.right <= 390, id + ' has a close button that is easy to press');
+      // Scrolled, the heading and its close button stay where they were.
+      assert.equal(d.head, 'sticky');
+      assert.ok(Math.abs(d.closeAfter - d.close.top) <= 1, id + ' keeps its close button in reach when scrolled');
+    }
+    await page.evaluate(`document.getElementById('${id}').close()`);
+  }
+  // The command palette stays a small card near the top, and its one action is a button.
+  await page.evaluate(`document.getElementById('palette').showModal()`);
+  const palette = await page.evaluate(
+    `(() => { const r = document.getElementById('palette').getBoundingClientRect(), c = getComputedStyle(document.getElementById('palette-shortcuts')); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), border: c.borderTopWidth }; })()`,
+  );
+  assert.ok(palette.left > 0 && palette.bottom < 500, JSON.stringify(palette));
+  assert.equal(palette.border, '1px');
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
