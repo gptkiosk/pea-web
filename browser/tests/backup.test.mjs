@@ -5,7 +5,10 @@ import {
   describeBackup,
   describeRestore,
   describeFull,
+  describeKeys,
   fullFormat,
+  gatherKeys,
+  keyNames,
   gatherBackup,
   gatherSettings,
   openBackup,
@@ -420,4 +423,48 @@ test('restoring settings names what is replaced and added, and writes only what 
   assert.match(said, /Left out because they cannot travel: Headline feeds\./);
   assert.match(said, /Left out: provider and service keys, the connection token, chats/);
   assert.match(said, /Personal: 1 interview answer, 0 memories/);
+});
+
+// Keys travel only in a file the owner ticked the box for.
+const routerKey = 'sk-or-v1-' + 'a'.repeat(24);
+test('keys travel only by a fixed list of names, in a file made for them, under a longer passphrase', async () => {
+  assert.deepEqual(
+    gatherKeys({ openrouter: routerKey, github: '', 'search-brave': 'b'.repeat(20), 'voice-fish': 'has a space', token: 'x'.repeat(20), local: 'y'.repeat(43) }),
+    { openrouter: routerKey, 'search-brave': 'b'.repeat(20) },
+  );
+  assert.deepEqual(gatherKeys(null), {});
+  const withKeys = whole({ keys: { openrouter: routerKey, github: 'ghp_' + 'c'.repeat(30) } });
+  assert.equal(validFull(withKeys), true);
+  for (const bad of [
+    whole({ keys: {} }),
+    whole({ keys: { 'connection-token': 'x'.repeat(43) } }),
+    whole({ keys: { openrouter: 'short' } }),
+    whole({ keys: { openrouter: 'a key with spaces in it' } }),
+    whole({ keys: { openrouter: 7 } }),
+    whole({ keys: [routerKey] }),
+    // A key is never accepted among the settings or a profile's contents.
+    whole({ settings: { 'pea-connections-v1': routerKey } }),
+  ])
+    assert.equal(validFull(bad), false, JSON.stringify(bad).slice(0, 90));
+  await assert.rejects(sealFull(withKeys, 'twelve chars'), /needs a passphrase of 16 or more characters/);
+  const pass = 'a synthetic long passphrase';
+  const file = await sealFull(withKeys, pass);
+  assert.ok(!file.includes(routerKey) && !file.includes('ghp_'), 'no key is readable in the file');
+  assert.deepEqual((await openFull(file, pass)).keys, withKeys.keys);
+  // A file without keys is still made under the ordinary passphrase rule and has no keys field.
+  assert.ok(!Object.hasOwn(await openFull(await sealFull(whole(), 'twelve chars'), 'twelve chars'), 'keys'));
+});
+
+test('the reviews name the keys, never show them, and say what having the file means', () => {
+  const keys = { github: 'ghp_' + 'c'.repeat(30), openrouter: routerKey };
+  assert.deepEqual(keyNames(keys), ['OpenRouter key', 'GitHub token']);
+  const said = describeFull(whole({ keys }));
+  assert.match(said, /Keys in this file \(2\): OpenRouter key, GitHub token\./);
+  assert.match(said, /Anyone who has this file and its passphrase can use these keys/);
+  assert.match(said, /Left out: the connection token, your Google sign-in, chats/);
+  assert.doesNotMatch(describeFull(whole()), /Keys in this file/);
+  for (const text of [said, describeKeys(keys), describeKeys(keys, true)])
+    assert.ok(!text.includes(routerKey) && !text.includes('ghp_'), 'no key is shown');
+  assert.match(describeKeys(keys), /wait in their fields for you to press Connect/);
+  assert.match(describeKeys(keys, true), /After reloading, restore from the same file again/);
 });

@@ -301,5 +301,15 @@ export function installSpeech({ voices, speak, localKey, profile, review, notice
     // Whether Read aloud should go to a provider. A provider that is chosen but not ready still
     // counts, so PEA says what is missing instead of quietly using another voice.
     chosen: () => Boolean(choice.provider),
+    // For a backup file the owner chose to put keys in, and back from one after its review. The
+    // key belongs to the provider chosen now; one for another provider waits until that is chosen.
+    keys: () => (key && choice.provider ? { ['voice-' + choice.provider]: key } : {}),
+    offerKeys(keys) {
+      const mine = choice.provider ? keys['voice-' + choice.provider] : '';
+      if (!mine) return [];
+      $('provider-voice-key').value = mine;
+      $('provider-voice-key').onchange();
+      return ['voice-' + choice.provider];
+    },
   };
 }

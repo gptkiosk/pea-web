@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Keys in the backup file, as an opt-in — 2026-11-24
+
+Version `0.1.0-rc.4.dev.70`. The owner chose to allow provider keys in the Backup & restore file as a tick box. This reverses, for this one file and only when ticked, the earlier rule that keys never travel.
+
+- **Source:** `browser/backup.mjs` (`travellingKeys`, `gatherKeys`, `keyNames`, `keyPassphrase`, `describeKeys`; `validFull` accepts an optional non-empty `keys` field; `sealFull` refuses a file with keys under a 16-character passphrase). `browser/backup-ui.mjs` (`#full-keys`, cleared at every use; `putKeys` and its review). `keys()` and `offerKeys()` on `live-ui.mjs` (OpenRouter, GitHub: back into their fields, not connected), `research-ui.mjs` (search keys: held in the tab as if typed) and `speech-ui.mjs` (the chosen provider's key). Wired in `browser/app.mjs`; the box is in `browser/index.html`.
+- **Tests:** two in `browser/tests/backup.test.mjs` (the list of names, shapes, the passphrase rule, a key refused among settings; the reviews name keys and never show them), one in `browser/tests/dom/backup.test.mjs` (refused with no key or a short passphrase; unticked file has no keys; restore in an empty browser waits for the reload, then a keys review, cancel, approve; nothing sent and nothing in browser storage).
+- **Known gaps:** the keys are those of the profile in view and of the voice provider chosen now; another profile's keys or a second voice provider's key are not gathered. A voice key in a file is placed only when that provider is the one chosen. The image model uses the OpenRouter key, so there is no separate one. The connection token and Google sign-in never travel. Restoring keys with settings takes two passes, because a reload clears the tab. Not tried with real keys.
+- **Next action:** the owner tries a backup with keys and a restore on their own copy.
+
 ## Updates show their steps, check settings and can go back — 2026-11-24
 
 Version `0.1.0-rc.4.dev.69`. The owner asked for the update window to say what is happening, keep a log, keep settings untouched as part of updating, and make going back to the previous version possible and clear.

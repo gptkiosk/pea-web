@@ -374,8 +374,9 @@ export function describeRestore(plan) {
 // the travelling shape above. It is for the owner's own reinstall or move to another browser, so
 // it is a different format from the shared one and no other app is expected to read it.
 // Settings travel as the exact text this browser keeps, by a fixed list of names; each is read
-// again by its own rule when the page loads, which drops anything it does not expect. Keys,
-// tokens, chats, files and permissions are not in the list and never travel.
+// again by its own rule when the page loads, which drops anything it does not expect. Tokens,
+// chats, files and permissions are not in the list and never travel; provider keys travel only
+// in a file the owner ticked the box for (see travellingKeys).
 export const fullFormat = 'pea-full-backup-v1';
 export const fullLimits = { iterations: backupLimits.iterations, fileCharacters: 3400000, contentBytes: 2400000, setting: 200000 };
 export const travellingSettings = [
@@ -395,6 +396,29 @@ export const travellingSettings = [
   ['pea-workspace-v1:blended', 'Window arrangement (Blended)'],
 ];
 const settingLabel = new Map(travellingSettings);
+// Keys travel only when the owner ticks the box for one file. A fixed list of names; each value is
+// one unbroken run of printable characters. They are sealed with everything else and never shown.
+export const travellingKeys = [
+  ['openrouter', 'OpenRouter key'],
+  ['github', 'GitHub token'],
+  ['search-brave', 'Brave Search key'],
+  ['search-browserbase', 'Browserbase key'],
+  ['voice-elevenlabs', 'ElevenLabs key'],
+  ['voice-fish', 'Fish Audio key'],
+];
+const keyLabel = new Map(travellingKeys);
+export const keyPassphrase = 16;
+const validKeys = (keys) =>
+  keys &&
+  typeof keys === 'object' &&
+  !Array.isArray(keys) &&
+  Object.entries(keys).every(
+    ([name, value]) => keyLabel.has(name) && typeof value === 'string' && /^[\x21-\x7e]{8,400}$/.test(value),
+  );
+// The keys held now, from what each part of the page reports. Anything not on the list is dropped.
+export const gatherKeys = (held) =>
+  Object.fromEntries(travellingKeys.map(([name]) => [name, held?.[name]]).filter(([, v]) => validKeys({ openrouter: v })));
+export const keyNames = (keys) => travellingKeys.filter(([name]) => Object.hasOwn(keys ?? {}, name)).map(([, label]) => label);
 const fullRefusal = 'Could not verify this backup file. Check the file and passphrase; nothing was changed.';
 const validSetting = (text) =>
   typeof text === 'string' &&
@@ -421,7 +445,11 @@ export function gatherSettings(storage = globalThis.localStorage) {
 }
 export function validFull(content) {
   return Boolean(
-    exact(content, ['made', 'version', 'settings', 'profiles']) &&
+    // `keys` is there only in a file the owner chose to put keys in.
+    (exact(content, ['made', 'version', 'settings', 'profiles']) ||
+      (exact(content, ['made', 'version', 'settings', 'profiles', 'keys']) &&
+        validKeys(content.keys) &&
+        Object.keys(content.keys).length > 0)) &&
       time(content.made) &&
       typeof content.version === 'string' &&
       /^[0-9A-Za-z.+-]{1,80}$/.test(content.version) &&
@@ -436,6 +464,10 @@ export function validFull(content) {
 export async function sealFull(content, passphrase) {
   if (!validFull(content))
     throw new ServiceError('Something here cannot be put in a backup. Nothing was written.');
+  if (content.keys && (typeof passphrase !== 'string' || passphrase.length < keyPassphrase))
+    throw new ServiceError(
+      `A file that holds keys needs a passphrase of ${keyPassphrase} or more characters. Nothing was written.`,
+    );
   const plain = new TextEncoder().encode(JSON.stringify(content));
   if (plain.byteLength > fullLimits.contentBytes)
     throw new ServiceError('There is too much here for one backup file. Nothing was written.');
@@ -476,12 +508,32 @@ export function describeFull(content, left = []) {
     `Personal: ${contents(content.profiles.personal)}.`,
     `Work: ${contents(content.profiles.work)}.`,
     '',
-    'Left out: provider and service keys, the connection token, chats, files, the story board, permissions and “may retain or train” consents. Chats have their own encrypted library backup, and the board has its own.',
+    ...(content.keys
+      ? [
+          `Keys in this file (${keyNames(content.keys).length}): ${keyNames(content.keys).join(', ')}.`,
+          'Anyone who has this file and its passphrase can use these keys and spend on your accounts. Keep the file where you would keep the keys, and use a passphrase you use nowhere else. If the file is ever lost, replace the keys at each provider.',
+          '',
+          'Left out: the connection token, your Google sign-in, chats, files, the story board, permissions and “may retain or train” consents. Chats have their own encrypted library backup, and the board has its own.',
+        ]
+      : [
+          'Left out: provider and service keys, the connection token, chats, files, the story board, permissions and “may retain or train” consents. Chats have their own encrypted library backup, and the board has its own.',
+        ]),
     '',
     'The file is encrypted with the passphrase you choose. PEA does not keep the passphrase and cannot recover it; without it the file cannot be opened by anyone, including you.',
   ].join('\n');
 }
 // What bringing a whole backup in would do. `plans` holds one planRestore result per profile.
+// What putting a file's keys back would do. `later` is true when a reload has to come first.
+export function describeKeys(keys, later = false) {
+  const names = keyNames(keys);
+  return [
+    `This file holds ${count(names.length, 'key')}: ${names.join(', ')}.`,
+    '',
+    later
+      ? 'They are not put back in this step: the restored settings need a reload, and keys live in this tab only, so they would be lost by it. After reloading, restore from the same file again and the keys go back then.'
+      : 'Each goes back where you would type it, under Settings. OpenRouter and GitHub wait in their fields for you to press Connect, which checks them with the provider as usual; a search or voice key is held in this tab at once. Nothing is sent anywhere by this step, and no key is shown.',
+  ].join('\n');
+}
 export function describeFullRestore(content, settings, plans, extra = '') {
   const added = (plan) =>
     plan.nothing
@@ -511,6 +563,8 @@ export function describeFullRestore(content, settings, plans, extra = '') {
     'Interview answers, memories, to-dos, history, days and decks are only added; nothing already here is changed or removed. Settings are replaced, and take effect when the page reloads.' +
       extra,
     '',
-    'Keys, tokens, chats and permissions are not in the file and are not touched.',
+    content.keys
+      ? 'The connection token, chats and permissions are not in the file and are not touched.'
+      : 'Keys, tokens, chats and permissions are not in the file and are not touched.',
   ].join('\n');
 }

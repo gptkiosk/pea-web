@@ -459,3 +459,95 @@ test(
     await fresh.close();
   },
 );
+
+test(
+  'keys go in a backup only when the box is ticked for that file, and come back only after their own review',
+  { skip, timeout: 120000 },
+  async () => {
+    const brave = 'synthetic_brave_key_' + '0'.repeat(12),
+      router = 'sk-or-v1-' + 'a'.repeat(24);
+    const page = await open();
+    await page.evaluate(`localStorage.setItem('pea-device-voice-v1', JSON.stringify({ voice: '', rate: 1.2 }))`);
+    // Ticked with no key in the tab, or with a passphrase under 16 characters: nothing is written.
+    await page.click('#full-keys');
+    await page.fill('#full-pass', passphrase);
+    await page.click('#full-make');
+    await fullNoted(page, /There are no keys in this tab to put in the file/);
+    assert.equal(await page.evaluate(`document.querySelector('#full-keys').checked`), false, 'the box is off again');
+    await page.fill('#search-key-brave', brave);
+    await page.evaluate(`document.querySelector('#search-key-brave').onchange()`);
+    await page.waitFor(`/ready with Brave Search/.test(document.querySelector('#search-status').textContent)`, 'the search key');
+    await page.click('#full-keys');
+    await page.fill('#full-pass', 'fourteen chars');
+    await page.click('#full-make');
+    await fullNoted(page, /needs a passphrase of 16 or more characters/);
+    assert.equal(await page.evaluate(`document.querySelector('#full-download').hidden`), true);
+    // Not ticked: the file has no keys at all.
+    await page.fill('#full-pass', passphrase);
+    await page.click('#full-make');
+    await waitReview(page, 'Back up everything?');
+    assert.doesNotMatch(await page.text('#review-body'), /Keys in this file/);
+    await answer(page, '#review-approve');
+    await page.waitFor(`!document.querySelector('#full-download').hidden`, 'the file without keys');
+    const plain = await openFull(await page.evaluate(`window.peaFiles.at(-1).text()`), passphrase);
+    assert.ok(!Object.hasOwn(plain, 'keys') && !JSON.stringify(plain).includes(brave));
+    // Ticked: the review names the key and what having the file means, and never shows it.
+    await page.click('#full-keys');
+    await page.fill('#full-pass', passphrase);
+    await page.click('#full-make');
+    await waitReview(page, 'Back up everything?');
+    const shown = await page.text('#review-body');
+    assert.match(shown, /Keys in this file \(1\): Brave Search key\./);
+    assert.match(shown, /Anyone who has this file and its passphrase can use these keys/);
+    assert.ok(!shown.includes(brave));
+    await answer(page, '#review-approve');
+    await page.waitFor(`!document.querySelector('#full-download').hidden`, 'the file with keys');
+    const file = await page.evaluate(`window.peaFiles.at(-1).text()`);
+    assert.ok(!file.includes(brave), 'the key is not readable in the file');
+    const content = await openFull(file, passphrase);
+    assert.deepEqual(content.keys, { 'search-brave': brave });
+    assert.equal(await page.evaluate(`document.querySelector('#full-keys').checked`), false);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+
+    // In an empty browser the settings come first and need a reload, so the keys wait.
+    const fresh = await open();
+    const both = await sealFull({ ...content, keys: { ...content.keys, openrouter: router } }, passphrase);
+    await offerFull(fresh, both);
+    await waitReview(fresh, 'Restore from this backup?');
+    const plan = await fresh.text('#review-body');
+    assert.match(plan, /This file holds 2 keys: OpenRouter key, Brave Search key\./);
+    assert.match(plan, /They are not put back in this step/);
+    assert.ok(!plan.includes(brave) && !plan.includes(router));
+    await answer(fresh, '#review-approve');
+    await fullNoted(fresh, /Reload this page now.*Then restore from the same file again to put your keys back\./);
+    assert.equal(await fresh.evaluate(`document.querySelector('#router-key').value`), '');
+    assert.match(await words(fresh, '#search-status'), /No search key in this tab/);
+    await fresh.reload();
+    await fresh.fill('#profile', 'personal');
+    // Now nothing else is left to do, and the keys have a review of their own.
+    await offerFull(fresh, both);
+    await waitReview(fresh, 'Put these keys back?');
+    const keysShown = await fresh.text('#review-body');
+    assert.match(keysShown, /wait in their fields for you to press Connect/);
+    assert.ok(!keysShown.includes(brave) && !keysShown.includes(router));
+    await answer(fresh, '#review-cancel');
+    await fullNoted(fresh, /Everything else in this file is already here\. No key was put back\./);
+    assert.equal(await fresh.evaluate(`document.querySelector('#router-key').value`), '');
+    await offerFull(fresh, both);
+    await waitReview(fresh, 'Put these keys back?');
+    await answer(fresh, '#review-approve');
+    await fullNoted(fresh, /2 keys put back under Settings; press Connect for OpenRouter and GitHub\./);
+    assert.equal(await fresh.evaluate(`document.querySelector('#router-key').value`), router, 'waiting for Connect');
+    assert.equal(await fresh.evaluate(`document.querySelector('#router-key').type`), 'password');
+    await fresh.waitFor(`/ready with Brave Search/.test(document.querySelector('#search-status').textContent)`, 'the search key in use');
+    assert.equal(await fresh.evaluate(`document.querySelector('#search-key-brave').value`), '');
+    // Nothing was sent anywhere, and nothing was written to the browser's own storage.
+    assert.deepEqual(fresh.outsideRequests(), []);
+    assert.ok(
+      !(await fresh.evaluate(`JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))`)).includes('synthetic_brave_key'),
+      'no key is kept in the browser’s storage',
+    );
+    await fresh.close();
+  },
+);

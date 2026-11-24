@@ -157,7 +157,8 @@ export function installResearch(hooks) {
   }
 
   // The owner's own search keys: typed under Connections, held in this tab, and kept sealed in the
-  // encrypted library only if the owner ticks the box. They are in no backup and no export.
+  // encrypted library only if the owner ticks the box. They are in no export, and in a backup file
+  // only when the owner ticks the box for that one file under Backup & restore.
   const searchKeys = new Map();
   const field = (provider) => $(`search-key-${provider}`);
   const noteSearch = (text) => ($('search-note').textContent = text);
@@ -209,7 +210,7 @@ export function installResearch(hooks) {
           return noteSearch('Unlock your encrypted library first, under Past chats & memory.');
         }
         for (const [provider, value] of searchKeys) await lib.keep(searchProviders[provider].secret, value);
-        noteSearch('Search keys typed here are kept sealed in your encrypted library, and in no backup.');
+        noteSearch('Search keys typed here are kept sealed in your encrypted library, and are not part of the library’s backup.');
       })
       .catch(() => noteSearch('The library could not be changed.'));
   $('search-forget').onclick = () =>
@@ -355,6 +356,18 @@ export function installResearch(hooks) {
     papers: lookup,
     // Whether a search key is in this tab, so the model may be told it can offer a search.
     canSearch: () => searchKeys.size > 0,
+    // For a backup file the owner chose to put keys in, and back from one after its review.
+    keys: () => Object.fromEntries([...searchKeys].map(([provider, key]) => ['search-' + provider, key])),
+    offerKeys(keys) {
+      const put = [];
+      for (const provider of Object.keys(searchProviders))
+        if (keys['search-' + provider]) {
+          field(provider).value = keys['search-' + provider];
+          field(provider).onchange();
+          put.push('search-' + provider);
+        }
+      return put;
+    },
     clear,
     render,
     // What the next Chat message would share, or null.

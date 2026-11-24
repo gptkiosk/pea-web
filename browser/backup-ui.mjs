@@ -6,10 +6,14 @@ import {
   describeBackup,
   describeFull,
   describeFullRestore,
+  describeKeys,
   describeRestore,
   fullLimits,
   gatherBackup,
+  gatherKeys,
   gatherSettings,
+  keyNames,
+  keyPassphrase,
   openBackup,
   openFull,
   planRestore,
@@ -21,7 +25,19 @@ import { ServiceError } from './connections.mjs';
 
 const $ = (id) => document.getElementById(id);
 
-export function installBackup({ profile, review, isBusy, notice, memory, todos, canon, days, decks }) {
+export function installBackup({
+  profile,
+  review,
+  isBusy,
+  notice,
+  memory,
+  todos,
+  canon,
+  days,
+  decks,
+  keys = () => ({}),
+  offerKeys = () => [],
+}) {
   let working = false,
     url = null;
   const say = (text) => ($('portable-note').textContent = text);
@@ -69,7 +85,8 @@ export function installBackup({ profile, review, isBusy, notice, memory, todos, 
       'portable-open',
     ])
       $(id).disabled = !on || working;
-    for (const id of ['full-pass', 'full-make', 'full-file', 'full-open-pass', 'full-open']) $(id).disabled = working;
+    for (const id of ['full-pass', 'full-keys', 'full-make', 'full-file', 'full-open-pass', 'full-open'])
+      $(id).disabled = working;
     $('portable-status').textContent = on
       ? `This is about the ${profile() === 'work' ? 'Work' : 'Personal'} profile only. Switch profile to move the other one.`
       : 'Choose Work or Personal to move a profile. A Blended profile has nothing of its own.';
@@ -251,11 +268,23 @@ export function installBackup({ profile, review, isBusy, notice, memory, todos, 
   $('full-make').onclick = () =>
     guardedFull(async () => {
       const input = $('full-pass'),
-        passphrase = input.value;
+        passphrase = input.value,
+        withKeys = $('full-keys').checked;
       input.value = '';
+      // The box is a choice for one file, never a setting.
+      $('full-keys').checked = false;
       forgetFull();
       if (passphrase.length < 12 || passphrase.length > 256)
         throw new ServiceError('Choose a passphrase of 12–256 characters for the file. Nothing was written.');
+      if (withKeys && passphrase.length < keyPassphrase)
+        throw new ServiceError(
+          `A file that holds keys needs a passphrase of ${keyPassphrase} or more characters. Nothing was written.`,
+        );
+      const held = withKeys ? gatherKeys(keys()) : {};
+      if (withKeys && !Object.keys(held).length)
+        throw new ServiceError(
+          'There are no keys in this tab to put in the file. Connect them under Settings first, or untick the box. Nothing was written.',
+        );
       const now = Date.now(),
         { profiles, todosLocked } = gatherAll(now),
         { settings, left } = gatherSettings(),
@@ -264,6 +293,7 @@ export function installBackup({ profile, review, isBusy, notice, memory, todos, 
           version: $('release-version').textContent.replace(/^v/, '') || 'unknown',
           settings,
           profiles,
+          ...(withKeys ? { keys: held } : {}),
         };
       if (
         !(await review('Back up everything?', describeFull(content, left) + (todosLocked ? lockedNote : '')))
@@ -321,11 +351,27 @@ export function installBackup({ profile, review, isBusy, notice, memory, todos, 
       if (people.some((who) => plans[who].todos.add.length))
         extra +=
           '\n\nTo-dos are kept the way your story board is. Unless the board is saved with a passphrase on this browser (under Today), restored to-dos last only until the page reloads; save the board first if you want to keep them.';
-      const writes = Object.entries(settings.write);
+      const writes = Object.entries(settings.write),
+        hasKeys = Boolean(incoming.keys);
+      // Keys live in the tab, so they go back only when no reload is still to come.
+      async function putKeys() {
+        if (!(await review('Put these keys back?', describeKeys(incoming.keys)))) return 'No key was put back.';
+        const put = offerKeys(incoming.keys),
+          waiting = keyNames(incoming.keys).length - put.length;
+        return (
+          `${put.length} ${put.length === 1 ? 'key' : 'keys'} put back under Settings; press Connect for OpenRouter and GitHub.` +
+          (waiting ? ` ${waiting} could not be placed: a voice key goes back once that provider is chosen under Voice providers.` : '')
+        );
+      }
       if (!writes.length && people.every((who) => plans[who].nothing)) {
         $('full-file').value = '';
-        return tell('Everything in this file is already here. Nothing was changed.');
+        return tell(
+          hasKeys
+            ? 'Everything else in this file is already here. ' + (await putKeys())
+            : 'Everything in this file is already here. Nothing was changed.',
+        );
       }
+      if (hasKeys) extra += '\n\n' + describeKeys(incoming.keys, writes.length > 0);
       if (
         !(await review(
           'Restore from this backup?',
@@ -369,7 +415,12 @@ export function installBackup({ profile, review, isBusy, notice, memory, todos, 
       $('full-file').value = '';
       $('full-reload').hidden = !writes.length;
       tell(
-        `Restored: ${done.join(', ')}.${writes.length ? ' Reload this page now: the restored settings take effect when it loads, and a change made before then could be saved over them.' : ''}`,
+        `Restored: ${done.join(', ')}.${writes.length ? ' Reload this page now: the restored settings take effect when it loads, and a change made before then could be saved over them.' : ''}` +
+          (hasKeys
+            ? writes.length
+              ? ' Then restore from the same file again to put your keys back.'
+              : ' ' + (await putKeys())
+            : ''),
       );
     });
   $('full-reload').onclick = () => location.reload();
