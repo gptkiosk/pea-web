@@ -257,10 +257,10 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     life: () => (personal() ? lifeOf(seed) : null),
     lifeBrief: () => (personal() ? lifeBrief(lifeOf(seed)) : ''),
     // For other parts of her story, such as her days: the kept cards, in Personal only.
-    cards: () => (personal() ? saved.cards : []),
+    cards: (whole = false) => (whole || personal() ? saved.cards : []),
     // Cards from a reviewed backup, added under new local ids. Gives how many were added.
-    bringIn(cards) {
-      if (!personal() || !cards.length) return 0;
+    bringIn(cards, whole = false) {
+      if (!(whole || personal()) || !cards.length) return 0;
       const used = new Set(saved.cards.map((c) => c.id));
       let n = 1;
       const added = cards.map((c) => {

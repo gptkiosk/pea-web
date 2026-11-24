@@ -293,8 +293,7 @@ export function installTodos({ store, profile, notice, review, mac = null, chang
     // For a backup: every to-do, or null while the list cannot be read.
     portable: () => (store.usable() ? store.items() : null),
     // To-dos from a reviewed backup, added to this profile under new local ids.
-    bringIn(list) {
-      const who = profile();
+    bringIn(list, who = profile()) {
       store.change((items) => {
         const next = [...items, ...list.map((t) => ({ ...t, id: crypto.randomUUID(), profile: who }))];
         if (!validateTodos(next))

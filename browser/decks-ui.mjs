@@ -338,11 +338,11 @@ export function installDecks({ profile, review, run, compose, isBusy }) {
     // For a backup: every project in this browser.
     all: () => decks,
     // Projects from a reviewed backup, added to this profile under new local ids.
-    bringIn(list) {
-      if (!usable() || !list.length) return 0;
+    bringIn(list, who = usable() ? profile() : '') {
+      if (!who || !list.length) return 0;
       const added = list.map((d) => ({
         id: 'deck-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20),
-        profile: profile(),
+        profile: who,
         changed: Date.now(),
         ...d,
       }));

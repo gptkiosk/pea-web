@@ -230,6 +230,7 @@ test(
       'Voice providers',
       'PEA updates',
       'Shared configuration',
+      'Backup & restore',
     ]);
     assert.deepEqual(seen.groups, [], 'no section is open at home');
     assert.equal(seen.back, false);
@@ -285,7 +286,7 @@ test(
     await page.click('#settings-back');
     seen = await view();
     assert.equal(seen.title, 'Settings');
-    assert.equal(seen.tiles.length, 9);
+    assert.equal(seen.tiles.length, 10);
     await page.evaluate(`document.getElementById('connections').close()`);
 
     // The menu has one entry for help, commands and shortcuts; typing what you want finds the setting.

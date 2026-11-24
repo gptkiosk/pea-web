@@ -114,6 +114,15 @@ export const settingsPlaces = {
     also: ['shared config', 'portable choices', 'configuration'],
     holds: 'a snapshot of model choices to carry to another device, with no credentials in it',
   },
+  'backup-everything': {
+    glyph: '⛨',
+    what: 'Settings and both profiles in one encrypted file',
+    title: 'Backup & restore',
+    dialog: 'connections',
+    group: 'full-backup-group',
+    also: ['back up everything', 'backup everything', 'full backup', 'export settings', 'import settings', 'reinstall'],
+    holds: 'writing one encrypted file of this browser’s settings and both profiles, or restoring from one after a review',
+  },
   privacy: {
     title: 'Privacy & voice',
     dialog: 'preferences',

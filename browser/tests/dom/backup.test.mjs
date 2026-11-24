@@ -5,7 +5,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { browserSkipReason, openConnectedPage, startStack } from './harness.mjs';
-import { openBackup, sealBackup, validBackup } from '../../backup.mjs';
+import { openBackup, openFull, sealBackup, sealFull, validBackup } from '../../backup.mjs';
 import { introductionLimits } from '../../memory.mjs';
 
 const skip = browserSkipReason();
@@ -327,5 +327,135 @@ test(
       [[], [], [], ''],
     );
     await page.close();
+  },
+);
+
+// Everything in one file, under Settings: this browser's settings and both profiles.
+const fullNoted = (page, pattern) =>
+  page.waitFor(
+    `new RegExp(${JSON.stringify(pattern.source)}).test(document.querySelector('#full-note').textContent)`,
+    'the note ' + pattern,
+  );
+async function offerFull(page, file, pass = passphrase) {
+  await page.evaluate(
+    `(() => { const t = new DataTransfer(); t.items.add(new File([${JSON.stringify(file)}], 'pea-everything.json', { type: 'application/json' })); document.querySelector('#full-file').files = t.files; })()`,
+  );
+  await page.fill('#full-open-pass', pass);
+  await page.click('#full-open');
+}
+test(
+  'one encrypted file carries settings and both profiles to an empty browser, after a review',
+  { skip, timeout: 120000 },
+  async () => {
+    const page = await open();
+    await bringIn(page, personal());
+    await page.fill('#profile', 'work');
+    await offer(page, {
+      ...personal({ history: [], days: [], memories: [], decks: [deck('Synthetic work plan')] }),
+      profile: 'work',
+      introduction: { ...blank, ownerName: 'Sam at work' },
+      todos: [todo('File the synthetic report')],
+    });
+    await waitReview(page, 'Bring in this backup?');
+    await answer(page, '#review-approve');
+    await noted(page, /^Added: /);
+    // Two settings this browser remembers, and one thing that must never travel.
+    await page.evaluate(
+      `(() => { localStorage.setItem('pea-device-voice-v1', JSON.stringify({ voice: '', rate: 1.2 })); localStorage.setItem('pea-presence-v1', JSON.stringify({ personal: true, work: false })); localStorage.setItem('pea-local-token-v1', 'synthetic-connection-token-000000'); })()`,
+    );
+    // Settings has a tile for it. A short passphrase writes nothing.
+    await page.evaluate(`document.getElementById('menu-settings').click()`);
+    await page.waitFor(`document.getElementById('connections').open`, 'Settings');
+    assert.equal(
+      await page.evaluate(
+        `document.querySelector('.settings-tile[data-place="backup-everything"] strong').textContent`,
+      ),
+      'Backup & restore',
+    );
+    await page.evaluate(`document.getElementById('connections').close()`);
+    assert.match(await words(page, '#full-last'), /No backup file has been made in this browser yet/);
+    await page.fill('#full-pass', 'too short');
+    await page.click('#full-make');
+    await fullNoted(page, /passphrase of 12–256 characters/);
+    // Made from the Work profile, it still holds Personal.
+    await page.fill('#full-pass', passphrase);
+    await page.click('#full-make');
+    await waitReview(page, 'Back up everything?');
+    const shown = await page.text('#review-body');
+    assert.match(shown, /- Device voice and speed/);
+    assert.match(shown, /- Local-time presence/);
+    assert.match(shown, /Personal: 2 interview answers, 2 memories, 2 to-dos, 2 history cards, 1 day line, 1 deck project\./);
+    assert.match(shown, /Work: 1 interview answer, 0 memories, 1 to-do, 0 history cards, 0 day lines, 1 deck project\./);
+    assert.match(shown, /Left out: provider and service keys, the connection token, chats/);
+    await answer(page, '#review-approve');
+    await page.waitFor(`!document.querySelector('#full-download').hidden`, 'the backup file');
+    assert.match(await words(page, '#full-last'), /Last backup file made in this browser: /);
+    const file = await page.evaluate(`window.peaFiles.at(-1).text()`);
+    for (const phrase of ['Synthetic Sam', 'synthetic-connection-token', 'Prefers tea', 'pea-device-voice'])
+      assert.ok(!file.includes(phrase), phrase + ' is not readable in the file');
+    const content = await openFull(file, passphrase);
+    for (const name of ['pea-device-voice-v1', 'pea-presence-v1'])
+      assert.ok(Object.hasOwn(content.settings, name), name + ' is in the file');
+    assert.ok(!Object.hasOwn(content.settings, 'pea-local-token-v1'));
+    assert.ok(!JSON.stringify(content).includes('synthetic-connection-token'), 'the token never travels');
+    assert.equal(content.profiles.personal.introduction.ownerName, 'Synthetic Sam');
+    assert.equal(content.profiles.work.todos[0].title, 'File the synthetic report');
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+
+    // Another browser with nothing in it.
+    const fresh = await open();
+    const empty = await fresh.evaluate(`localStorage.getItem('pea-device-voice-v1')`);
+    await offerFull(fresh, file, 'the wrong synthetic passphrase');
+    await fullNoted(fresh, /Could not verify this backup file/);
+    assert.equal(await reviewOpen(fresh), false);
+    // A profile file is not taken for a whole backup.
+    await offerFull(fresh, await sealBackup(personal(), passphrase));
+    await fullNoted(fresh, /Could not verify this backup file/);
+    await offerFull(fresh, file);
+    await waitReview(fresh, 'Restore from this backup?');
+    const plan = await fresh.text('#review-body');
+    assert.match(plan, /Settings that will be set to what the file holds:/);
+    assert.match(plan, /- Device voice and speed/);
+    assert.match(plan, /Personal: 2 interview answers, 2 memories, 2 to-dos, 2 history cards, 1 day line, 1 deck project added\./);
+    assert.match(plan, /Work: 1 interview answer, 1 to-do, 1 deck project added\./);
+    assert.match(plan, /\+ Prefers tea to coffee\./, 'every addition is listed');
+    assert.match(plan, /\+ File the synthetic report/);
+    assert.match(plan, /Keys, tokens, chats and permissions are not in the file and are not touched\./);
+    await answer(fresh, '#review-cancel');
+    await fullNoted(fresh, /Nothing was changed/);
+    assert.equal(await fresh.evaluate(`localStorage.getItem('pea-device-voice-v1')`), empty, 'cancel changes nothing');
+    assert.equal(await fresh.evaluate(`document.querySelector('#bio-ownerName').value`), '');
+
+    await offerFull(fresh, file);
+    await waitReview(fresh, 'Restore from this backup?');
+    await answer(fresh, '#review-approve');
+    await fullNoted(fresh, /^Restored: 10 items added to Personal, 3 items added to Work, \d+ settings restored\. Reload this page now/);
+    assert.equal(await fresh.evaluate(`document.querySelector('#full-reload').hidden`), false);
+    assert.equal(await fresh.evaluate(`localStorage.getItem('pea-local-token-v1')`), null);
+    assert.equal(await fresh.evaluate(`document.querySelector('#bio-ownerName').value`), 'Synthetic Sam');
+    assert.match(await words(fresh, '#canon-list'), /Childhood street/);
+    // The same file again has nothing left to do.
+    await offerFull(fresh, file);
+    await fullNoted(fresh, /Everything in this file is already here\. Nothing was changed/);
+    // Work has its own things, added without ever switching to it.
+    await fresh.fill('#profile', 'work');
+    await fresh.waitFor(
+      `document.querySelector('#todo-list').textContent.includes('File the synthetic report')`,
+      'the Work to-do',
+    );
+    assert.ok(!(await words(fresh, '#todo-list')).includes('Buy synthetic milk'), 'Personal’s to-dos stay in Personal');
+    assert.equal(await fresh.evaluate(`document.querySelector('#bio-ownerName').value`), 'Sam at work');
+    await fresh.fill('#profile', 'personal');
+    // After the reload the restored settings are the ones in use, and what is kept is still there.
+    await fresh.reload();
+    await fresh.waitFor(`document.querySelector('#device-rate')?.value === '1.2'`, 'the restored voice speed');
+    await fresh.fill('#profile', 'work');
+    await fresh.waitFor(
+      `document.querySelector('#decks-list').textContent.includes('Synthetic work plan')`,
+      'the Work deck',
+    );
+    assert.deepEqual(fresh.outsideRequests(), []);
+    await fresh.close();
   },
 );

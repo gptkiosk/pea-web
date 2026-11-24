@@ -4,10 +4,19 @@ import {
   backupLimits,
   describeBackup,
   describeRestore,
+  describeFull,
+  fullFormat,
   gatherBackup,
+  gatherSettings,
+  openBackup,
+  openFull,
   planRestore,
+  planSettings,
   sealBackup,
+  sealFull,
+  travellingSettings,
   validBackup,
+  validFull,
 } from '../backup.mjs';
 import { introductionLimits } from '../memory.mjs';
 
@@ -315,4 +324,100 @@ test('brought-in memories cite the owner’s quoted words in a conversation name
   }));
   assert.throws(() => bringInMemories(full, 'personal', items, 1000), /library holds 40 conversations/);
   assert.throws(() => bringInMemories(emptyLibrary(), 'blended', items, 1000), /Choose Work or Personal/);
+});
+
+// Everything in one file: settings by a fixed list of names, and both profiles.
+const emptyProfile = (profile) => ({
+  profile,
+  made: now,
+  introduction: { ...blank },
+  memories: [],
+  todos: [],
+  history: [],
+  days: [],
+  decks: [],
+});
+const whole = (over = {}) => ({
+  made: now,
+  version: '0.1.0-rc.4.dev.68',
+  settings: { 'pea-device-voice-v1': '{"rate":1.1}', 'pea-save-chats-v1': 'off' },
+  profiles: {
+    personal: { ...emptyProfile('personal'), introduction: { ...blank, ownerName: 'Synthetic Sam' } },
+    work: emptyProfile('work'),
+  },
+  ...over,
+});
+const storageOf = (values) => ({ getItem: (name) => (Object.hasOwn(values, name) ? values[name] : null) });
+
+test('only the listed settings travel, and never a credential or the connection token', () => {
+  const names = travellingSettings.map(([name]) => name);
+  assert.equal(new Set(names).size, names.length);
+  for (const never of ['pea-local-token-v1', 'pea-curated-kept-v1', 'pea-open-threads-v1'])
+    assert.ok(!names.includes(never), never + ' stays here');
+  const found = gatherSettings(
+    storageOf({
+      'pea-device-voice-v1': '{"rate":1.1}',
+      'pea-local-token-v1': 'synthetic-connection-token',
+      'pea-connections-v1': '{"note":"sk-or-v1-' + 'a'.repeat(24) + '"}',
+      'pea-weather-v1': 'x'.repeat(200001),
+      'some-other-site-key': 'yes',
+    }),
+  );
+  assert.deepEqual(found.settings, { 'pea-device-voice-v1': '{"rate":1.1}' });
+  assert.equal(found.left.length, 2, 'a setting that looks like a key, or is too large, is left out and named');
+  assert.deepEqual(gatherSettings({ getItem() { throw new Error('refused'); } }), { settings: {}, left: [] });
+});
+
+test('a whole backup holds exactly settings and both profiles, and anything else is refused', () => {
+  assert.equal(validFull(whole()), true);
+  for (const bad of [
+    whole({ extra: 1 }),
+    whole({ version: 'not a version!' }),
+    whole({ settings: { 'pea-local-token-v1': 'synthetic-connection-token' } }),
+    whole({ settings: { 'pea-device-voice-v1': 'ghp_' + 'a'.repeat(24) } }),
+    whole({ settings: { 'pea-device-voice-v1': '' } }),
+    whole({ settings: { 'pea-device-voice-v1': 7 } }),
+    whole({ settings: [] }),
+    whole({ profiles: { personal: emptyProfile('personal') } }),
+    whole({ profiles: { personal: emptyProfile('work'), work: emptyProfile('work') } }),
+    whole({ profiles: { personal: emptyProfile('personal'), work: { ...emptyProfile('work'), extra: 1 } } }),
+    null,
+  ])
+    assert.equal(validFull(bad), false, JSON.stringify(bad)?.slice(0, 90));
+});
+
+test('a whole backup opens only with its passphrase and is not a profile file', async () => {
+  const pass = 'synthetic whole passphrase';
+  const file = await sealFull(whole(), pass);
+  assert.equal(JSON.parse(file).format, fullFormat);
+  assert.ok(!file.includes('Synthetic Sam') && !file.includes('pea-device-voice'), 'nothing is readable');
+  assert.deepEqual(await openFull(file, pass), whole());
+  await assert.rejects(openFull(file, 'another synthetic passphrase'), /Could not verify/);
+  await assert.rejects(openBackup(file, pass), /Could not verify/, 'not accepted as a profile file');
+  await assert.rejects(
+    openFull(await sealBackup(emptyProfile('personal'), pass), pass),
+    /Could not verify/,
+    'a profile file is not accepted as a whole backup',
+  );
+  // The label is part of what is sealed, so relabelling a file does not open it.
+  const relabelled = JSON.stringify({ ...JSON.parse(await sealBackup(emptyProfile('personal'), pass)), format: fullFormat });
+  await assert.rejects(openFull(relabelled, pass), /Could not verify/);
+  await assert.rejects(sealFull(whole({ extra: 1 }), pass), /cannot be put in a backup/);
+  await assert.rejects(sealFull(whole(), 'short'), /12–256/);
+});
+
+test('restoring settings names what is replaced and added, and writes only what differs', () => {
+  const plan = planSettings(
+    { 'pea-device-voice-v1': '{"rate":1}', 'pea-save-chats-v1': 'off', 'pea-headlines-v1': '[]' },
+    { 'pea-device-voice-v1': '{"rate":1.1}', 'pea-save-chats-v1': 'off', 'pea-weather-v1': '{"unit":"celsius"}' },
+  );
+  assert.deepEqual(plan.replace, ['Device voice and speed']);
+  assert.deepEqual(plan.add, ['Weather place and units']);
+  assert.equal(plan.same, 1);
+  assert.deepEqual(plan.write, { 'pea-device-voice-v1': '{"rate":1.1}', 'pea-weather-v1': '{"unit":"celsius"}' });
+  const said = describeFull(whole(), ['Headline feeds']);
+  assert.match(said, /Settings \(2\):/);
+  assert.match(said, /Left out because they cannot travel: Headline feeds\./);
+  assert.match(said, /Left out: provider and service keys, the connection token, chats/);
+  assert.match(said, /Personal: 1 interview answer, 0 memories/);
 });
