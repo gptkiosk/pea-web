@@ -1803,8 +1803,18 @@ live = installConnections({
   canSearch: () => research?.canSearch() ?? false,
   // The open episode's brief and digest, unless the owner switched Talk from briefs off.
   brief: () => (curated?.talks() === false ? null : (numbered?.brief() ?? null)),
-  // How many shows are followed, for the line that tells a model the knowledge sources exist.
-  followed: () => curated?.shows().length ?? 0,
+  // The followed shows, for the line that tells a model the knowledge sources exist. Their names
+  // go only while "Talk from briefs" is on; otherwise only how many there are.
+  followed: () => {
+    const shows = curated?.shows() ?? [];
+    return {
+      count: shows.length,
+      names:
+        curated?.talks() === false
+          ? null
+          : shows.map((s, i) => ({ number: s.number ?? i + 1, name: s.name, episodes: s.episodes.length })),
+    };
+  },
   // The place in the settings that is open beside the page, so the model can help with it.
   settingsOpen: () => settings?.open() ?? null,
   beginReply(surface, text, { sourced = false, steps = null, detail = null } = {}) {

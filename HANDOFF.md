@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The model is given the real followed shows — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.59`. Owner report with a picture: asked for the shows, the local model listed eight invented ones as "the shows you follow", and at other times the real rows appeared.
+
+- Cause: `sourcesLine` told the model that shows are followed and how many, but not which, and a small model filled the gap. Whether the real rows appeared depended on whether the owner's wording matched a fixed rule.
+- `browser/shownav.mjs`: `sourcesLine({ count, names })` names each followed show with its number and kept episodes when `names` is given (at most 20, each cut to 80 characters, control characters and backticks removed, marked as data), and otherwise only the count. `showCommand` reads any question or request of 16 words or fewer about podcasts, curated or knowledge sources, or followed shows as `shows`, unless it names a followed show.
+- `browser/app.mjs`: hook `followed()` gives `{ count, names }`, with `names` null while "Talk from briefs" is off. `browser/live-ui.mjs`: the names are in the review text ("Shows you follow in Curated sources") and in what the approval is keyed on, as a kind.
+- Tests: `browser/tests/shownav.test.mjs` (rules and the line), `browser/tests/dom/shownav.test.mjs` (rows without a model, the review, the system message with names, and without them when the switch is off).
+- Known gaps: a model can still ignore its instructions; this removes its reason to invent and catches more questions before they reach it, and does not check its reply. A long message that mentions podcasts still goes to the model and draws no rows. Not tried with the owner's model.
+- Next action: owner asks their model the same question again.
+
 ## Chats saved automatically under a key the browser keeps — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.58`. Owner report: a refresh loses the chat; chats must be saved and listed when a new one is started. Owner decision: automatic, no passphrase.

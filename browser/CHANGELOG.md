@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.59] - 2026-11-23
+
+### Fixed
+
+- **A model no longer has to guess which shows you follow.** Told only that sources exist, a small local model answered "here are the shows you follow" with eight it had made up. While "Talk from briefs" is on, each Chat request now names the shows you really follow, with how many episodes are kept, and says they are the only ones. The review before sending lists those names. With the switch off, the model is told only how many there are and to say it cannot see the list.
+- **PEA answers more of these questions itself.** Any short question about podcasts, the curated or knowledge sources, or the shows you follow now gets PEA's own list with rows to press, and never reaches a model. A show asked about by name still opens its episodes.
+- The model is also told never to claim it listened to a show.
+
 ## [0.1.0-rc.4.dev.58] - 2026-11-23
 
 ### Changed

@@ -308,7 +308,34 @@ test(
     assert.deepEqual(seen.rows, [['1', 'Harbor Voices']]);
     assert.match(seen.note, /^“ai daily brief” is not a show you follow in this tab\. These are\./);
     assert.equal(stack.model.requests.length, asked, 'no model was asked');
+    // A short question about podcasts is PEA's to answer too, so no model makes a list up.
+    await type(page, 'do you have any podcasts I should know about?');
+    await titled(page, 'Your shows');
+    assert.equal(stack.model.requests.length, asked, 'no model was asked');
 
+    // An ordinary message now carries the real shows, and the review says so before it is sent.
+    await type(page, 'And how is your afternoon going?');
+    await page.waitFor(`document.getElementById('review').open`, 'a review, because show names are new');
+    assert.match(
+      await page.text('#review-body'),
+      /Shows you follow in Curated sources \([^)]*makes none up[^)]*\):\nHarbor Voices\n/,
+    );
+    await page.click('#review-approve');
+    await page.waitFor(
+      `!document.getElementById('profile').disabled && !document.getElementById('review').open`,
+      'the reply',
+    );
+    assert.equal(stack.model.requests.length, asked + 1);
+    assert.match(system(), /are exactly these and no others: Show 1: Harbor Voices \(3 episodes kept\)\./);
+    assert.doesNotMatch(system(), /follows none|not told their names/);
+
+    // With "Talk from briefs" off the names stay here: only how many there are is said.
+    await page.click('#tab-today');
+    await page.evaluate(`document.getElementById('curated-talk').click()`);
+    await page.click('#tab-chat');
+    await askModel(stack, page, 'One more plain question, please.');
+    assert.match(system(), /follows one show in this tab\. You are not told their names/);
+    assert.doesNotMatch(system(), /Harbor Voices \(/);
     await page.close();
   },
 );
