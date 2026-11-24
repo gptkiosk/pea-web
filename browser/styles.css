@@ -5122,13 +5122,13 @@ summary + .settings-step {
 dialog .dialog-body :is(button, a).text-button,
 .today-section .settings-group :is(button, a).text-button {
   min-height: 44px;
-  padding: 8px 18px;
+  padding: 8px 14px;
   margin: 4px 12px 4px 0;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--bg);
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
 }
@@ -5147,11 +5147,12 @@ dialog .dialog-body :is(button, a).text-button:disabled {
 dialog .dialog-body .primary + .text-button {
   margin-inline-start: 12px;
 }
+/* A row of actions keeps its own gap, a little closer now that each action has its own edge. */
 dialog .dialog-body .action-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 0;
+  gap: 6px 12px;
+}
+dialog .dialog-body .action-row :is(button, a).text-button {
+  margin: 0;
 }
 /* The small ones: the way back, and "More" under a shortened text. */
 dialog .dialog-body .text-button.settings-back {
