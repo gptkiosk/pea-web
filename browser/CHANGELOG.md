@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.62] - 2026-11-23
+
+### Fixed
+
+- **Fish Audio voices load.** "Load voices" asked Fish Audio only for voices made by the key's own account, so an account that had made none got an empty list. PEA now also asks for Fish Audio's page of licensed English voices (voices whose rights Fish Audio says it has secured), and lists them under their own heading below any voices of your own. Any other voice on fish.audio still works by pasting its ID. Voices that are still training are left out.
+
+### Changed
+
+- **Voice providers shows one step at a time.** Choose a provider, then its key, then "Load voices" and the voice list, then "Try this voice…". Each step appears when the one before it is done, and pasting a whole key moves on at once. What loading found is said next to the button, above the list. The key field is named for the provider, and the voice ID field says where to find an ID.
+- **Gateway rule (both gateways):** `POST /v1/voices` accepts `{provider, key, library: true}` for a provider whose rules name a library page; it is one fixed request, and nothing in it chooses a path, a language or a page. A gateway older than this refuses it, and PEA then lists your own voices only.
+
 ## [0.1.0-rc.4.dev.60] - 2026-11-23
 
 ### Changed

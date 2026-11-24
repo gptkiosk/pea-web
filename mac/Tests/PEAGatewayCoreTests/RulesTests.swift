@@ -172,6 +172,26 @@ final class RulesTests: XCTestCase {
         XCTAssertNil(speech.outbound(SpeechRules.Request(provider: "other", key: ask.key, voice: "", text: ""), listing: true, testPort: nil))
     }
 
+    func testAProvidersLicensedVoicesAreOneFixedPageAndOnlyWhereTheRulesNameOne() throws {
+        let speech = contract.speech
+        let key = String(repeating: "k", count: 32)
+        func body(_ provider: String, _ library: String) throws -> JSONValue { try parse("{\"provider\":\"\(provider)\",\"key\":\"\(key)\",\"library\":\(library)}") }
+        let ask = try speech.validate(body("fish", "true"), listing: true)
+        XCTAssertEqual(ask, SpeechRules.Request(provider: "fish", key: key, voice: "", text: "", library: true))
+        let out = try XCTUnwrap(speech.outbound(ask, listing: true, testPort: nil))
+        XCTAssertEqual(out.url?.absoluteString, "https://api.fish.audio/model?licensed=true&language=en&page_size=100")
+        XCTAssertEqual(out.httpMethod, "GET")
+        XCTAssertNil(out.httpBody)
+        for bad in [("fish", "false"), ("fish", "1"), ("fish", "\"true\""), ("fish", "\"/model?self=false\""), ("elevenlabs", "true")] {
+            XCTAssertThrowsError(try speech.validate(body(bad.0, bad.1), listing: true), "\(bad)")
+        }
+        XCTAssertThrowsError(try speech.validate(body("fish", "true"), listing: false), "a library is only ever listed")
+        XCTAssertNil(speech.outbound(ask, listing: false, testPort: nil))
+        XCTAssertNil(speech.outbound(SpeechRules.Request(provider: "elevenlabs", key: key, voice: "", text: "", library: true), listing: true, testPort: nil))
+        let unfinished = "{\"items\":[{\"_id\":\"\(String(repeating: "c", count: 32))\",\"title\":\"Unfinished\",\"type\":\"tts\",\"state\":\"training\"}]}"
+        XCTAssertEqual(speech.voicesIn(provider: "fish", data: Data(unfinished.utf8)), JSONObject([("voices", .array([]))]))
+    }
+
     func testVoicesAreReducedToIdsAndNames() throws {
         let speech = contract.speech
         let answer = "{\"items\":[{\"_id\":\"\(String(repeating: "a", count: 32))\",\"title\":\" Bo\\n \",\"type\":\"tts\",\"author\":{\"x\":1}},{\"_id\":\"\(String(repeating: "b", count: 32))\",\"title\":\"Song\",\"type\":\"svc\"},{\"_id\":\"../x\",\"title\":\"No\"},7]}"

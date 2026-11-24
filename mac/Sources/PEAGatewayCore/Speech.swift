@@ -7,6 +7,8 @@ public struct SpeechRules {
         public let host: String
         public let speak: String
         public let list: String
+        /// The provider's fixed page of licensed voices, where it has one.
+        public let library: String?
         public let keyHeader: String
         public let keyPrefix: String
         public let model: String
@@ -18,6 +20,8 @@ public struct SpeechRules {
         public let key: String
         public let voice: String
         public let text: String
+        /// List the provider's licensed voices in place of the key's own.
+        public var library = false
     }
 
     public let path: String
@@ -35,6 +39,7 @@ public struct SpeechRules {
     public let providers: [String: Provider]
     let fields: Set<String>
     let voicesFields: Set<String>
+    let libraryFields: Set<String>
     let key: NSRegularExpression
     let voice: NSRegularExpression
 
@@ -87,7 +92,8 @@ public struct SpeechRules {
         self.voicesPath = voicesPath
         fields = Set(try strings("fields"))
         voicesFields = Set(try strings("voicesFields"))
-        guard fields == ["provider", "key", "voice", "text"], voicesFields == ["provider", "key"] else {
+        libraryFields = Set(try strings("libraryFields"))
+        guard fields == ["provider", "key", "voice", "text"], voicesFields == ["provider", "key"], libraryFields == ["provider", "key", "library"] else {
             throw GatewayError("The rules file names speech fields this gateway does not know.")
         }
         textCharacters = try whole("textCharacters")
@@ -110,7 +116,9 @@ public struct SpeechRules {
             guard case .object(let one)? = named[name] else { throw missing }
             let host = try plain(one["host"]?.string), speak = try plain(one["speak"]?.string), list = try plain(one["list"]?.string)
             guard !host.contains("/"), !host.contains(":"), !host.contains("@"), host.contains("."), speak.hasPrefix("/"), list.hasPrefix("/") else { throw missing }
-            known[name] = Provider(host: host, speak: speak, list: list, keyHeader: try plain(one["keyHeader"]?.string),
+            let library = try one["library"].map { try plain($0.string) }
+            guard library?.hasPrefix("/") ?? true else { throw missing }
+            known[name] = Provider(host: host, speak: speak, list: list, library: library, keyHeader: try plain(one["keyHeader"]?.string),
                                    keyPrefix: try plain(one["keyPrefix"]?.string, spaces: true, empty: true), model: try plain(one["model"]?.string))
         }
         providers = known
@@ -119,11 +127,14 @@ public struct SpeechRules {
     /// Checks a request to speak or to list voices. Anything else throws.
     public func validate(_ raw: JSONValue, listing: Bool) throws -> Request {
         let bad = GatewayError("Invalid speech request.")
-        let wanted = listing ? voicesFields : fields
-        guard case .object(let body) = raw, body.keys.count == wanted.count, Set(body.keys) == wanted,
-              let provider = body["provider"]?.string, providers[provider] != nil,
+        guard case .object(let body) = raw else { throw bad }
+        let library = listing && Set(body.keys) == libraryFields
+        let wanted = library ? libraryFields : listing ? voicesFields : fields
+        guard body.keys.count == wanted.count, Set(body.keys) == wanted,
+              let provider = body["provider"]?.string, let known = providers[provider],
               let secret = body["key"]?.string, Contract.matches(key, secret) else { throw bad }
-        if listing { return Request(provider: provider, key: secret, voice: "", text: "") }
+        if library { guard body["library"] == .bool(true), known.library != nil else { throw bad } }
+        if listing { return Request(provider: provider, key: secret, voice: "", text: "", library: library) }
         guard let name = body["voice"]?.string, Contract.matches(voice, name), let text = body["text"]?.string,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.unicodeScalars.count <= textCharacters,
               !text.unicodeScalars.contains(where: { ($0.value < 0x20 && $0 != "\n" && $0 != "\t") || $0.value == 0x7F }) else { throw bad }
@@ -133,7 +144,8 @@ public struct SpeechRules {
     /// The one request a provider is sent. `testPort` stands in for the provider in tests only.
     func outbound(_ request: Request, listing: Bool, testPort: UInt16?) -> URLRequest? {
         guard let rules = providers[request.provider] else { return nil }
-        let path = listing ? rules.list : rules.speak.replacingOccurrences(of: "{voice}", with: request.voice)
+        guard !request.library || (listing && rules.library != nil) else { return nil }
+        let path = listing ? (request.library ? rules.library ?? rules.list : rules.list) : rules.speak.replacingOccurrences(of: "{voice}", with: request.voice)
         guard let url = URL(string: (testPort.map { "http://127.0.0.1:\($0)" } ?? "https://" + rules.host) + path) else { return nil }
         var out = URLRequest(url: url)
         out.httpMethod = listing ? "GET" : "POST"
@@ -164,6 +176,7 @@ public struct SpeechRules {
         for row in rows {
             guard case .object(let one) = row else { continue }
             if provider == "fish", let kind = one["type"], kind != .string("tts") { continue }
+            if provider == "fish", let state = one["state"], state != .string("trained") { continue }
             guard let identity = one[provider == "elevenlabs" ? "voice_id" : "_id"]?.string, Contract.matches(voice, identity),
                   let title = one[provider == "elevenlabs" ? "name" : "title"]?.string else { continue }
             var cleaned = String.UnicodeScalarView()

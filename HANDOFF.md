@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Fish Audio voices and a stepped voice setup — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.62`. Owner report with a picture of Voice providers: "the voice setup settings are not super clear and do not load the Fish audio voices even with my key."
+
+- Cause: `speech.providers.fish.list` is `/model?self=true…`, which Fish Audio answers with voices the key's workspace made. The owner has made none.
+- `browser/server/contract.json` (`speech.libraryFields`, `speech.providers.fish.library`), `browser/server/gateway.py` (`validate_speech`, `speech_call`, `speech_voices`), `mac/Sources/PEAGatewayCore/Speech.swift`: a voices request may be `{provider, key, library: true}` where the provider has a `library` path; Fish rows whose `state` is not `trained` are dropped. Contract and conformance first, then both gateways.
+- `browser/speech.mjs` (`voicesFound`, `library`, `idHelp`), `browser/speech-ui.mjs` (own voices then the licensed page, option groups, steps shown in turn, `oninput` on the key), `browser/local-model.mjs` (`voices(…, library)`), `browser/index.html` (order, labels, `provider-voice-actions`).
+- Tests: `browser/tests/speech.test.mjs` (wording), `browser/tests/dom/speech.test.mjs` (steps, list, two fixed requests, buttons), `browser/server/conformance/run.py` (`test_a_providers_licensed_voices_…`), `browser/server/test_gateway.py`, `mac/Tests/PEAGatewayCoreTests/RulesTests.swift`.
+- Evidence: Fish Audio's list-models reference page (read 2026-11-23) documents `self`, `licensed`, `language`, `page_size` and item `state`; the licensed English page answered with 100 usable rows of 136 that day. Not tried with the owner's key or a real read-aloud.
+- Limits: the licensed list is English and one page of 100, in Fish Audio's own order; there is no search of its wider library (paste an ID). ElevenLabs is unchanged.
+
 ## Buttons in place of link-style actions — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.60`. Owner instruction with a picture of Past chats: "all through settings and tools nice modern buttons instead of clickable link style."

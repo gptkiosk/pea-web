@@ -2059,7 +2059,7 @@ export function installConnections(hooks) {
     libraryChanged,
     readPage: (key, url) => local.read(key, url),
     searchWeb: (key, provider, providerKey, query) => local.search(key, provider, providerKey, query),
-    voices: (key, provider, providerKey) => local.voices(key, provider, providerKey),
+    voices: (key, provider, providerKey, library) => local.voices(key, provider, providerKey, library),
     speak: (key, request, signal) => local.speak(key, request, signal),
     update: (key, body) => local.update(key, body),
     macReminders: (key, list) => local.reminders(key, list),

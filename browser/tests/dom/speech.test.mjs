@@ -32,6 +32,33 @@ before(
               ],
             }),
           };
+        // This key's account has made no voice of its own; the provider's licensed page has two.
+        if (request.method === 'GET' && request.path === '/model?licensed=true&language=en&page_size=100')
+          return {
+            type: 'application/json',
+            data: JSON.stringify({
+              items: [
+                {
+                  _id: 'c1b2c3d4e5f60718293a4b5c6d7e8f90',
+                  title: 'Synthetic Narrator',
+                  type: 'tts',
+                  state: 'trained',
+                },
+                {
+                  _id: 'd1b2c3d4e5f60718293a4b5c6d7e8f90',
+                  title: 'Synthetic Calm',
+                  type: 'tts',
+                  state: 'trained',
+                },
+                {
+                  _id: 'e1b2c3d4e5f60718293a4b5c6d7e8f90',
+                  title: 'Not ready',
+                  type: 'tts',
+                  state: 'training',
+                },
+              ],
+            }),
+          };
         if (request.method === 'GET' && request.path.startsWith('/model'))
           return { type: 'application/json', data: JSON.stringify({ items: [] }) };
         if (request.method === 'POST' && failWith)
@@ -263,6 +290,87 @@ test(
       'the refusal',
     );
     assert.equal(spoken().length, 1);
+    await page.close();
+  },
+);
+
+test(
+  'voice setup shows one step at a time, and a Fish Audio key with no voices of its own still gets a list',
+  { skip, timeout: 60000 },
+  async () => {
+    const page = await openConnectedPage(stack);
+    stack.voices.requests.length = 0;
+    const shown = (id) =>
+      page.evaluate(
+        `(() => { const e = document.querySelector('#${id}'); return !e.hidden && e.getClientRects().length > 0; })()`,
+      );
+    await page.evaluate(`document.querySelector('#collab-config').click()`);
+    await page.evaluate(`document.querySelector('.settings-tile[data-place="voices"]').click()`);
+    assert.equal(await shown('provider-voice'), true, 'the voice section is on screen');
+    await page.fill('#provider-voice', 'fish');
+    assert.equal(await page.text('#provider-voice-key-label'), 'Your Fish Audio key');
+    for (const id of ['provider-voice-load', 'provider-voice-pick', 'provider-voice-test'])
+      assert.equal(await shown(id), false, id + ' waits for a key');
+
+    await page.fill('#provider-voice-key', fishKey);
+    assert.equal(await shown('provider-voice-load'), true);
+    assert.equal(await shown('provider-voice-pick'), true);
+    assert.equal(await shown('provider-voice-test'), false, 'nothing to try before a voice is chosen');
+    assert.match(await page.text('#provider-voice-id-help'), /fish\.audio/);
+    assert.equal(await page.text('#provider-voice-load'), 'Load voices');
+
+    await page.click('#provider-voice-load');
+    await page.waitFor(`document.querySelector('#provider-voice-choice optgroup')`, 'the licensed voices');
+    assert.deepEqual(
+      await page.evaluate(
+        `[...document.querySelectorAll('#provider-voice-choice optgroup')].map((g) => [g.label, [...g.children].map((o) => o.textContent)])`,
+      ),
+      [['Fish Audio licensed voices (English)', ['Synthetic Narrator', 'Synthetic Calm']]],
+    );
+    assert.match(
+      await page.text('#provider-voice-note'),
+      /made no voices of your own on Fish Audio, so these are 2 voices it has licensed/,
+    );
+    assert.deepEqual(
+      stack.voices.requests.map((r) => [r.method, r.path, r.headers.authorization]),
+      [
+        ['GET', '/model?self=true&page_size=100', 'Bearer ' + fishKey],
+        ['GET', '/model?licensed=true&language=en&page_size=100', 'Bearer ' + fishKey],
+      ],
+      'two fixed requests, nothing else',
+    );
+    // The result is said beside the button that asked, above the list it describes.
+    assert.equal(
+      await page.evaluate(
+        `(() => { const y = (id) => document.querySelector('#' + id).getBoundingClientRect().top; return y('provider-voice-load') < y('provider-voice-note') && y('provider-voice-note') < y('provider-voice-choice'); })()`,
+      ),
+      true,
+    );
+
+    await page.fill('#provider-voice-choice', 'c1b2c3d4e5f60718293a4b5c6d7e8f90');
+    assert.match(
+      await page.text('#provider-voice-status'),
+      /Read aloud uses Synthetic Narrator from Fish Audio/,
+    );
+    assert.equal(await shown('provider-voice-test'), true);
+    // Try and Turn off are drawn as buttons, side by side.
+    const drawn = await page.evaluate(
+      `['provider-voice-test', 'provider-voice-forget'].map((id) => { const e = document.querySelector('#' + id), s = getComputedStyle(e), r = e.getBoundingClientRect(); return { border: parseFloat(s.borderTopWidth), height: r.height, top: Math.round(r.top) }; })`,
+    );
+    for (const b of drawn) assert(b.border >= 1 && b.height >= 44, JSON.stringify(b));
+
+    // ElevenLabs has no licensed page: one request, one plain list.
+    stack.voices.requests.length = 0;
+    await chooseElevenLabs(page);
+    assert.equal(
+      await page.evaluate(`document.querySelectorAll('#provider-voice-choice optgroup').length`),
+      0,
+    );
+    assert.deepEqual(
+      stack.voices.requests.map((r) => r.path),
+      ['/v2/voices?page_size=100'],
+    );
+    assert.match(await page.text('#provider-voice-note'), /Voice set to Synthetic Ada|2 voices listed/);
     await page.close();
   },
 );

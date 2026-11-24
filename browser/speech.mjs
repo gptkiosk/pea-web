@@ -15,12 +15,18 @@ export const speechProviders = {
       'ElevenLabs keeps a history of generated speech in your account unless you delete it or have its enterprise zero-retention mode.',
     advice:
       'Use a key limited to text to speech, with a credit limit; ElevenLabs lets you set both on a key.',
+    library: '',
+    idHelp: 'For a voice that is not listed, copy its voice ID from your ElevenLabs voices page.',
   },
   fish: {
     name: 'Fish Audio',
     price: '$15 per million bytes of text (s2.1-pro), as Fish Audio listed on 16 November 2026',
     keeps: 'Fish Audio’s developer pages do not say how long it keeps text or audio.',
     advice: 'Use a key made only for PEA, so you can delete it without affecting anything else.',
+    // The gateway can also list one fixed page of voices Fish Audio has licensed from their owners.
+    library: 'Fish Audio licensed voices (English)',
+    idHelp:
+      'Any voice on fish.audio works: open the voice’s page and copy the ID, the long run of letters and digits at the end of its address.',
   },
 };
 export const validSpeechKey = (key) => typeof key === 'string' && keyShape.test(key);
@@ -33,6 +39,32 @@ export function speechChoice(value) {
   const provider = Object.hasOwn(speechProviders, value?.provider) ? value.provider : '';
   const voice = provider && validVoiceId(value?.voice) ? value.voice : '';
   return { provider, voice, name: voice ? cleanName(value?.name) || voice : '' };
+}
+
+// What the owner is told after voices were asked for: `own` made with this key's account, `shared`
+// from the provider's licensed page (null when that page could not be listed).
+export function voicesFound(provider, own, shared) {
+  const p = speechProviders[provider],
+    count = (n, what) => `${n} ${what}${n === 1 ? '' : 's'}`,
+    tail = ' Listing costs nothing; reading aloud does.';
+  if (!p.library)
+    return own
+      ? `${count(own, 'voice')} listed.` + tail
+      : `${p.name} listed no voices for this key. Paste a voice ID below.`;
+  if (shared === null)
+    return own
+      ? `${count(own, 'voice')} of your own listed. ${p.name}’s licensed voices could not be listed just now.` +
+          tail
+      : `You have made no voices of your own on ${p.name}, and its licensed voices could not be listed just now. Paste a voice ID below, or try again.`;
+  if (own && shared)
+    return `${count(own, 'voice')} of your own and ${count(shared, 'licensed voice')} listed.` + tail;
+  if (own) return `${count(own, 'voice')} of your own listed.` + tail;
+  if (shared)
+    return (
+      `You have made no voices of your own on ${p.name}, so these are ${count(shared, 'voice')} it has licensed. For any other voice, paste its ID below.` +
+      tail
+    );
+  return `${p.name} listed no voices. Paste a voice ID below.`;
 }
 
 // The voices a gateway listed, as [{ id, name }]. Anything else in the answer is dropped.
