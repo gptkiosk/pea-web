@@ -107,7 +107,10 @@ export function installMemory(hooks) {
     $('bio-presence').disabled = !eligible();
     $('bio-presence').checked = presence.get(profile()) ?? false;
     $('note-count').textContent = String(Object.values(value).filter(Boolean).length);
+    filled = JSON.stringify(readInterview());
   }
+  // What the form held when PEA last filled it, so answers typed since are not written over.
+  let filled = '';
   function render() {
     const saved = !!vault?.key;
     $('interview-storage-status').textContent = initializing
@@ -319,7 +322,9 @@ export function installMemory(hooks) {
     library = await vault.unlockDevice(library);
     hasSaved = true;
     failed = false;
-    fillInterview();
+    // Saved chats open a moment after the page loads. Answers the owner has already started
+    // typing in the interview are theirs and stay.
+    if (JSON.stringify(readInterview()) === filled) fillInterview();
     invalidate();
     reopen();
     hooks.libraryChanged?.(true);

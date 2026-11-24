@@ -29,6 +29,7 @@ Development identity `0.1.0-rc.4.dev.65` (first written as `dev.61`, renumbered 
 
 - Likely cause, not proven: `autoOpen()` in `browser/memory-ui.mjs` finishes a moment after load and then calls `invalidate()`, `reopen()` and `libraryChanged`, which redraw and reset context. On a slow machine a test's first message was already in flight.
 - Change: `installMemory` returns `ready` (the start-up promise); `submit()` in `browser/app.mjs` awaits it before anything else.
+- Second race, found from the Mac check on this branch (`settings-links.test.mjs`, the interview test: `'' !== 'Sam'`, three times on 2026-11-23): `autoOpen()` called `fillInterview()` after the owner had typed. Now it refills only when the form is as PEA last filled it (`filled` in `browser/memory-ui.mjs`).
 - No new test: the race could not be reproduced locally. Evidence will be whether the Mac check stops failing.
 - Known gap: if the failures continue, the cause is elsewhere (candidates: the extra save after each reply on a slow disk).
 
