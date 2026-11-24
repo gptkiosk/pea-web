@@ -56,7 +56,7 @@ test('her history never keeps or sends a card on it', () => {
   const kept = parseCanon(written);
   assert.equal(kept.length, 7);
   assert.ok(kept.every((c) => !/sourdough|starter/i.test(c.topic + c.text)));
-  assert.match(historyPrompt({ home: 'Lisbon' }), /Rules: Do not give her sourdough/);
+  assert.match(historyPrompt({ home: 'Lisbon' }), /Rules: Do not give PEA sourdough/);
 
   // A card kept before the rule is never chosen and never sent.
   const old = [
@@ -95,7 +95,7 @@ test('her days never keep or send a line on it', () => {
   );
   assert.equal(week.length, 4);
   assert.ok(week.every((e) => !/sourdough/i.test(e.text)));
-  assert.match(weekPrompt({ home: 'Lisbon', now }), /Rules: Do not give her sourdough/);
+  assert.match(weekPrompt({ home: 'Lisbon', now }), /Rules: Do not give PEA sourdough/);
   const note = (text) => '```pea-life\n' + JSON.stringify({ op: 'day_note', when: 'today', text }) + '\n```';
   assert.equal(dayNote(note('My starter was sluggish so I fed it more flour.'), now), null);
   assert.equal(

@@ -25,12 +25,41 @@ Resume: branch from `main`, keep one bounded slice per pull request, stage named
 
 ## A message waits for the saved chats to open — 2026-11-23
 
-Development identity `0.1.0-rc.4.dev.61`. After #127 merged, the Mac check failed intermittently in different tests that watch a request in progress ("the working sign", "the open list", "the reply to finish"), on GitHub's Mac runners only, including on `main` at `452b927`. Each rerun passed.
+Development identity `0.1.0-rc.4.dev.65` (first written as `dev.61`, renumbered when it was brought up to main). After #127 merged, the Mac check failed intermittently in different tests that watch a request in progress ("the working sign", "the open list", "the reply to finish"), on GitHub's Mac runners only, including on `main` at `452b927`. Each rerun passed.
 
 - Likely cause, not proven: `autoOpen()` in `browser/memory-ui.mjs` finishes a moment after load and then calls `invalidate()`, `reopen()` and `libraryChanged`, which redraw and reset context. On a slow machine a test's first message was already in flight.
 - Change: `installMemory` returns `ready` (the start-up promise); `submit()` in `browser/app.mjs` awaits it before anything else.
 - No new test: the race could not be reproduced locally. Evidence will be whether the Mac check stops failing.
 - Known gap: if the failures continue, the cause is elsewhere (candidates: the extra save after each reply on a slow disk).
+
+## The assistant is PEA, not "her" — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.64`, on top of the guided setup below. Owner instruction with a picture of Past chats & memory: "Her" is often used here when the assistant could be a "him", best to just use PEA as the assistant's name for now until configured.
+
+- Wording only, in `browser/index.html`, `settings.mjs` (titles and descriptions; the place ids `her-history` and `her-days` are kept so saved links still open), `activity.mjs`, `canon.mjs`, `canon-ui.mjs`, `days.mjs`, `days-ui.mjs`, `life.mjs` (the dealt interests and people, and what a model is told), `live-ui.mjs` (the request review), `memory-ui.mjs`, and the docs that name those sections.
+- Guard: `browser/tests/settings.test.mjs`, "the assistant is called PEA…", reads `index.html` and every `browser/*.mjs` outside comments and fails on "her", "hers", "herself" or "she". Left alone on purpose: the owner's search words in `also: [...]`, the bread pattern in `life.mjs` that reads a model's line, the common-word list in `transcript.mjs`, the published schema, and sample model lines in `tests/cliche.test.mjs`.
+- Known gaps: code comments still say "her". No setting yet for the assistant's name or pronoun; when there is one, these strings should take it. Kept cards and days are not rewritten. Whether a model's own replies avoid "she" was not measured.
+
+## Guided setup in six steps — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.63`, on top of the Fish Audio change below. Owner instruction: "a more wizard like setup approach that is more intuitive leading the user through gathering the keys necessary for the setup in each step (model (each area), voice, search, google (gmail, calendar and docs integration), setup of knowledge sources). again with little text, nice modern buttons and dropdowns and intuitive design."
+
+- `browser/settings-ui.mjs` (`steps`, `showStep`, `drawStep`, `endSetup`, `setup`; returned as `settings.setup`): the steps, what counts as done for each (read from the page: a loaded model list, a chosen Chat model, the voice status line, `status('web-search')`, `status('google')`, the Curated sources pill), and the walk. It shows a Settings section through the tiled window's own `showSection`.
+- `browser/index.html`: `#setup-wizard` is the overview (`setup-steps`, `setup-start`, `setup-all`); in Connections, `#guided-connection` is the progress bar with `setup-switch`, plus `setup-sources` and `setup-nav`. `browser/app.mjs`: the old chooser wiring is removed; `status('google')`. `browser/live-ui.mjs`: `googleAccount()` returns a yes or no only.
+- `browser/styles.css`: the `[data-guided]` route rules are removed; the guided setup's rules are at the end of the file, including what part of a section each step shows (`[data-setup="model"]`, `[data-setup="areas"]`).
+- Test: `browser/tests/dom/settings-links.test.mjs`, "the guided setup lists six steps…" (overview states, Continue target, each step's one section, the switch, the walk to Finish, plain Settings afterwards).
+- Known gaps: the inside of each section is unchanged, so Local model and Google still carry long explanations; the guide hides only two leftovers. Done is read from the page twice a second while a step is open. Knowledge sources is a button to Today, not a section in the window. GitHub, Images, updates and shared configuration are not steps. Looked at in pictures from the test browser with a stand-in model; not tried on the owner's copy, a phone, or with real keys.
+
+## Fish Audio voices and a stepped voice setup — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.62`. Owner report with a picture of Voice providers: "the voice setup settings are not super clear and do not load the Fish audio voices even with my key."
+
+- Cause: `speech.providers.fish.list` is `/model?self=true…`, which Fish Audio answers with voices the key's workspace made. The owner has made none.
+- `browser/server/contract.json` (`speech.libraryFields`, `speech.providers.fish.library`), `browser/server/gateway.py` (`validate_speech`, `speech_call`, `speech_voices`), `mac/Sources/PEAGatewayCore/Speech.swift`: a voices request may be `{provider, key, library: true}` where the provider has a `library` path; Fish rows whose `state` is not `trained` are dropped. Contract and conformance first, then both gateways.
+- `browser/speech.mjs` (`voicesFound`, `library`, `idHelp`), `browser/speech-ui.mjs` (own voices then the licensed page, option groups, steps shown in turn, `oninput` on the key), `browser/local-model.mjs` (`voices(…, library)`), `browser/index.html` (order, labels, `provider-voice-actions`).
+- Tests: `browser/tests/speech.test.mjs` (wording), `browser/tests/dom/speech.test.mjs` (steps, list, two fixed requests, buttons), `browser/server/conformance/run.py` (`test_a_providers_licensed_voices_…`), `browser/server/test_gateway.py`, `mac/Tests/PEAGatewayCoreTests/RulesTests.swift`.
+- Evidence: Fish Audio's list-models reference page (read 2026-11-23) documents `self`, `licensed`, `language`, `page_size` and item `state`; the licensed English page answered with 100 usable rows of 136 that day. Not tried with the owner's key or a real read-aloud.
+- Limits: the licensed list is English and one page of 100, in Fish Audio's own order; there is no search of its wider library (paste an ID). ElevenLabs is unchanged.
 
 ## Buttons in place of link-style actions — 2026-11-23
 

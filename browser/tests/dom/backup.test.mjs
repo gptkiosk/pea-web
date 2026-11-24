@@ -58,12 +58,12 @@ const personal = (over = {}) => ({
     {
       topic: 'Childhood street',
       tags: ['home'],
-      text: 'She grew up on a steep street where the tram bell marked the hours.',
+      text: 'PEA grew up on a steep street where the tram bell marked the hours.',
     },
     {
       topic: 'First job',
       tags: ['work', 'river'],
-      text: 'Her first job was sorting postcards in a shop by the river.',
+      text: 'PEA’s first job was sorting postcards in a shop by the river.',
     },
   ],
   days: [{ day: day(0), text: 'Walked up to the viewpoint before the fog lifted.', from: 'week' }],
@@ -247,7 +247,7 @@ test(
         {
           topic: 'childhood street',
           tags: ['home'],
-          text: 'A quite different account of the street she grew up on.',
+          text: 'A quite different account of the street PEA grew up on.',
         },
       ],
       days: [{ day: day(-60), text: 'Something from two months ago that is no longer kept.', from: 'week' }],

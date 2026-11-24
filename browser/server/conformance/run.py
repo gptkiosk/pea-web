@@ -275,6 +275,11 @@ class Voices(BaseHTTPRequestHandler):
                     {'_id': 'b1b2c3d4e5f60718293a4b5c6d7e8f90', 'title': 'A singing model', 'type': 'svc'},
                     {'_id': '../../wallet', 'title': 'Dropped', 'type': 'tts'}]
             return self.send(200, 'application/json', json.dumps({'total': 3, 'items': rows}).encode())
+        if self.path == '/model?licensed=true&language=en&page_size=100':
+            rows = [{'_id': 'c1b2c3d4e5f60718293a4b5c6d7e8f90', 'title': 'Synthetic Narrator', 'type': 'tts', 'state': 'trained', 'licensed': True,
+                     'author': {'nickname': 'SYNTHETIC PROVIDER DETAIL'}, 'cover_image': 'https://evil.example/x.png'},
+                    {'_id': 'd1b2c3d4e5f60718293a4b5c6d7e8f90', 'title': 'Still training', 'type': 'tts', 'state': 'training'}]
+            return self.send(200, 'application/json', json.dumps({'total': 2, 'items': rows}).encode())
         self.send(404, 'application/json', self.DETAIL)
 
     def do_POST(self):
@@ -993,6 +998,27 @@ class Conformance(unittest.TestCase):
         self.assertEqual((status, answer), (200, {'voices': [{'id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'name': 'Synthetic Bo'}]}))
         method, path, sent, _ = Voices.seen[0]
         self.assertEqual((method, path, sent.get('authorization')), ('GET', '/model?self=true&page_size=100', 'Bearer ' + self.KEY))
+
+    def test_a_providers_licensed_voices_are_one_fixed_page_and_only_where_the_rules_name_one(self):
+        self.assertEqual(SPEECH['providers']['fish']['library'], '/model?licensed=true&language=en&page_size=100')
+        self.assertNotIn('library', SPEECH['providers']['elevenlabs'])
+        ask = {'provider': 'fish', 'key': self.KEY, 'library': True}
+        status, headers, data = self.call('POST', SPEECH['voicesPath'], token=TOKEN, body=ask, timeout=30)
+        self.assert_contract_headers(headers, 'library')
+        self.assertEqual((status, json.loads(data)), (200, {'voices': [{'id': 'c1b2c3d4e5f60718293a4b5c6d7e8f90', 'name': 'Synthetic Narrator'}]}),
+                         'ids and names only, and only voices that are ready')
+        self.assertEqual(len(Voices.seen), 1, 'one request to the provider')
+        method, path, sent, _ = Voices.seen[0]
+        self.assertEqual((method, path, sent.get('authorization')), ('GET', SPEECH['providers']['fish']['library'], 'Bearer ' + self.KEY))
+        Voices.seen.clear()
+        for body in ({**ask, 'library': False}, {**ask, 'library': 1}, {**ask, 'library': 'true'}, {**ask, 'library': '/model?self=false'},
+                     {**ask, 'provider': 'elevenlabs'}, {**ask, 'page': 2}, {**ask, 'language': 'ja'}):
+            status, _, data = self.call('POST', SPEECH['voicesPath'], token=TOKEN, body=body)
+            self.assertEqual((status, json.loads(data)), (400, {'error': 'Invalid speech request.'}), repr(body)[:80])
+        status, _, data = self.call('POST', SPEECH['path'], token=TOKEN, body={'provider': 'fish', 'key': self.KEY, 'voice': 'a1b2c3d4e5f60718293a4b5c6d7e8f90',
+                                                                              'text': 'Hello.', 'library': True})
+        self.assertEqual(status, 400, 'a library is only ever listed')
+        self.assertEqual(Voices.seen, [], 'nothing malformed reached a provider')
 
     def test_every_malformed_speech_request_is_refused_before_any_provider(self):
         good = {'provider': 'elevenlabs', 'key': self.KEY, 'voice': 'voiceAAAA1111', 'text': 'Hello.'}

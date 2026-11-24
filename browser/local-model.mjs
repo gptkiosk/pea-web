@@ -104,10 +104,11 @@ export class LocalModel {
       return { outcome: 'redirect', location: answer.location };
     throw new ServiceError(readFailure(r.ok ? 0 : r.status, answer?.status));
   }
-  // Asks this server for the voices a provider key can use. `providerKey` goes only to this server.
-  async voices(key, provider, providerKey) {
+  // Asks this server for the voices a provider key can use: the key's own, or with `library` the
+  // provider's fixed page of licensed voices. `providerKey` goes only to this server.
+  async voices(key, provider, providerKey, library = false) {
     const r = await this.request('/v1/voices', key, {
-      body: { provider, key: providerKey },
+      body: library ? { provider, key: providerKey, library: true } : { provider, key: providerKey },
       signal: AbortSignal.timeout(70000),
       anyStatus: true,
     });

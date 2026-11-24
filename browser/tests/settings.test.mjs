@@ -51,7 +51,7 @@ test('the owner’s own words go to a place only when they plainly ask for one',
     ['help me set up voice providers', 'voices'],
     ['open the settings for web search', 'web-search'],
     ['go to privacy', 'privacy'],
-    ['open her history settings', 'her-history'],
+    ['open PEA’s history settings', 'her-history'],
     ['open backup settings', 'backup'],
     ['show podcasts settings', 'curated-sources'],
     ['open elevenlabs settings', 'voices'],
@@ -208,4 +208,26 @@ test('a navigation block a model labelled json, or did not label, is still the b
   assert.match(visibleReply(beside), /```json/);
   assert.equal(relabelNavigation(null), null);
   assert.match(settingsGuidance, /followed by pea-nav, never json/);
+});
+
+test('the assistant is called PEA in what the owner reads and what a model is told, never “her” or “she”', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const root = new URL('../', import.meta.url);
+  const names = ['index.html', ...(await readdir(root)).filter((n) => n.endsWith('.mjs'))];
+  // Not wording: a list of common words, a published schema, the owner's own search words, a
+  // pattern that reads a model's line, and two addresses kept so saved links still open.
+  const skipFile = new Set(['transcript.mjs', 'knowledge-schema.mjs']);
+  const skipLine = /^\s*(\/\/|\*)|also: \[|sourdough\|bread|'her-(history|days)'/;
+  const found = [];
+  for (const name of names) {
+    if (skipFile.has(name)) continue;
+    (await readFile(new URL(name, root), 'utf8')).split('\n').forEach((line, i) => {
+      if (skipLine.test(line)) return;
+      // A written line break (backslash n) is not part of the word after it.
+      const code = line.replace(/\s\/\/ .*$/, '').replace(/\\n/g, '  ');
+      for (const m of code.matchAll(/\b(her|hers|herself|she)\b/gi))
+        found.push(`${name}:${i + 1} …${code.slice(Math.max(0, m.index - 30), m.index + 30)}…`);
+    });
+  }
+  assert.deepEqual(found, []);
 });

@@ -524,8 +524,8 @@ export function installMemory(hooks) {
         if (
           on &&
           !(await hooks.review(
-            'Keep notes on what you tell her',
-            `PEA will keep a few of your own sentences from Chat in the ${who} profile: statements about your life, such as “My sister visits on Friday.” PEA picks them by a fixed rule (English only); no model chooses or writes them, and nothing a model says is kept.\n\nEach note is kept for ${noteLimits.days} days, up to ${noteLimits.kept} at a time. You see every one under “What you have told her” and can forget any of them.\n\nUp to ${noteLimits.sent} that fit what you are talking about go to your chosen model with a Chat message, in your own words. The review before sharing lists them.\n\nThey are stored with your saved conversations: encrypted when encrypted saving is on, otherwise in this tab only. They are in an encrypted library backup and in no other file.${
+            'Keep notes on what you tell PEA',
+            `PEA will keep a few of your own sentences from Chat in the ${who} profile: statements about your life, such as “My sister visits on Friday.” PEA picks them by a fixed rule (English only); no model chooses or writes them, and nothing a model says is kept.\n\nEach note is kept for ${noteLimits.days} days, up to ${noteLimits.kept} at a time. You see every one under “What you have told PEA” and can forget any of them.\n\nUp to ${noteLimits.sent} that fit what you are talking about go to your chosen model with a Chat message, in your own words. The review before sharing lists them.\n\nThey are stored with your saved conversations: encrypted when encrypted saving is on, otherwise in this tab only. They are in an encrypted library backup and in no other file.${
               vault?.key && library.version < 3
                 ? '\n\nThe first note upgrades this browser library to version 3. Older versions of PEA Web cannot open the upgraded library. Prepare an encrypted backup first if you may roll back.'
                 : ''

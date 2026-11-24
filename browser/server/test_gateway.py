@@ -149,7 +149,8 @@ class GatewayChecks(unittest.TestCase):
         self.assertEqual(set(speech['providers']), {'elevenlabs', 'fish'})
         self.assertEqual({p['host'] for p in speech['providers'].values()}, {'api.elevenlabs.io', 'api.fish.audio'})
         for rules in speech['providers'].values():
-            self.assertEqual(set(rules), {'host', 'speak', 'list', 'keyHeader', 'keyPrefix', 'model'})
+            self.assertEqual(set(rules) - {'library'}, {'host', 'speak', 'list', 'keyHeader', 'keyPrefix', 'model'})
+            self.assertTrue(rules.get('library', '/').startswith('/'))
             self.assertTrue(rules['speak'].startswith('/') and rules['list'].startswith('/'))
         self.assertTrue(speech['path'].startswith('/v1/') and speech['voicesPath'].startswith('/v1/'), 'so both need the token')
         good = {'provider': 'fish', 'key': 'k' * 32, 'voice': 'a' * 32, 'text': 'Hello.'}
@@ -161,7 +162,14 @@ class GatewayChecks(unittest.TestCase):
                 g.validate_speech(bad)
         with self.assertRaises(ValueError):
             g.validate_speech(good, listing=True)
-        listed = g.speech_voices('fish', json.dumps({'items': [{'_id': 'a' * 32, 'title': ' Bo\n ', 'type': 'tts'}, {'_id': 'b' * 32, 'title': 'Song', 'type': 'svc'}, 7]}).encode())
+        shared = {'provider': 'fish', 'key': 'k' * 32, 'library': True}
+        self.assertEqual(g.validate_speech(dict(shared), listing=True), shared)
+        for bad in ({**shared, 'library': False}, {**shared, 'library': 1}, {**shared, 'library': 'true'}, {**shared, 'provider': 'elevenlabs'}, {**shared, 'page': 2}):
+            with self.assertRaises(ValueError, msg=repr(bad)[:60]):
+                g.validate_speech(bad, listing=True)
+        with self.assertRaises(ValueError, msg='a library is only ever listed'):
+            g.validate_speech({**good, 'library': True})
+        listed = g.speech_voices('fish', json.dumps({'items': [{'_id': 'a' * 32, 'title': ' Bo\n ', 'type': 'tts'}, {'_id': 'b' * 32, 'title': 'Song', 'type': 'svc'}, {'_id': 'c' * 32, 'title': 'Unfinished', 'type': 'tts', 'state': 'training'}, 7]}).encode())
         self.assertEqual(listed, {'voices': [{'id': 'a' * 32, 'name': 'Bo'}]})
         for junk in (b'not json', b'{"voices":[]}', b'{"items":{}}', b'[]'):
             with self.assertRaises(g.SpeechRefusal):

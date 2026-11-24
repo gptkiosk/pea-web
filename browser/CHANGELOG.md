@@ -2,11 +2,36 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
-## [0.1.0-rc.4.dev.61] - 2026-11-23
+## [0.1.0-rc.4.dev.65] - 2026-11-23
 
 ### Fixed
 
 - **A message sent in the first moment after the page loads waits for your saved chats to open.** They open just after loading; on a slow machine that could land in the middle of a first request and redraw the chat under it. The wait is a few milliseconds on an ordinary machine.
+
+## [0.1.0-rc.4.dev.64] - 2026-11-23
+
+### Changed
+
+- **The assistant is called PEA, not "her".** Past chats & memory now reads "PEA’s history", "PEA’s days" and "What you have told PEA"; buttons, reviews, notices and the list of what PEA did follow ("Write PEA’s week…", "Included PEA’s days around today"). The same goes for what your model is told when it writes the character's history and days, and for the small set of interests and people PEA deals out: none of it says "she" or "her" any more. Cards and days already written keep their own words; write them again if you want them to match.
+
+## [0.1.0-rc.4.dev.63] - 2026-11-23
+
+### Changed
+
+- **"Set up" is a guided setup.** The button on Chat opens "Set up PEA": six steps, each a big button that says what is already known (connected, the Chat model, device voice, no key, off). Start or Continue goes to the first step that is not set up. The steps are: connect a model (a switch between "On this machine" and "OpenRouter"), choose your models (Chat, Greenhouse collaboration, Greenhouse coding), voice, web search, Google, and knowledge sources.
+- **One section at a time, with a way on.** Each step shows only the part of Settings it is about, under a progress bar with the step's name and one line of help. Back and Next stay at the bottom; Next reads "Skip" until the step is set up, and says what it found ("✓ Local model connected"). "All settings" leaves the guide for the usual Settings home. Finish returns to the list of steps.
+- The guide uses the controls Settings already has. It reads no key, fills no field and connects nothing by itself; every step can be skipped. The earlier chooser ("Set up your connections", five routes) is gone; GitHub is under All settings.
+
+## [0.1.0-rc.4.dev.62] - 2026-11-23
+
+### Fixed
+
+- **Fish Audio voices load.** "Load voices" asked Fish Audio only for voices made by the key's own account, so an account that had made none got an empty list. PEA now also asks for Fish Audio's page of licensed English voices (voices whose rights Fish Audio says it has secured), and lists them under their own heading below any voices of your own. Any other voice on fish.audio still works by pasting its ID. Voices that are still training are left out.
+
+### Changed
+
+- **Voice providers shows one step at a time.** Choose a provider, then its key, then "Load voices" and the voice list, then "Try this voice…". Each step appears when the one before it is done, and pasting a whole key moves on at once. What loading found is said next to the button, above the list. The key field is named for the provider, and the voice ID field says where to find an ID.
+- **Gateway rule (both gateways):** `POST /v1/voices` accepts `{provider, key, library: true}` for a provider whose rules name a library page; it is one fixed request, and nothing in it chooses a path, a language or a page. A gateway older than this refuses it, and PEA then lists your own voices only.
 
 ## [0.1.0-rc.4.dev.60] - 2026-11-23
 

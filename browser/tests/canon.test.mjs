@@ -133,7 +133,7 @@ test('a reply cut short keeps the cards that arrived whole', () => {
   assert.equal(parseCanon(cut).length, 8);
   const tricky = reply([
     ...many(6),
-    card(7, { text: 'She said "look, a } and a ] and a {" and laughed at it.' }),
+    card(7, { text: 'PEA said "look, a } and a ] and a {" and laughed at it.' }),
   ]);
   assert.equal(parseCanon(tricky).length, 7);
   const started = Date.now();
@@ -169,7 +169,7 @@ test('only an untouched saved set is restored', () => {
     assert.deepEqual(validSavedCanon(bad), none, JSON.stringify(bad)?.slice(0, 60));
 });
 
-test('asking about her life is told apart from asking for help', () => {
+test('asking about PEA’s life is told apart from asking for help', () => {
   for (const yes of [
     'Where did you grow up?',
     'Where are you from?',
@@ -228,7 +228,7 @@ test('cards reach a model marked as fiction that grants nothing', () => {
 test('the reviews say it is one request, what is sent and where the cards are kept', () => {
   const bare = describeHistoryRequest({ home: 'Synthetic Harbour', facts: '', source: '', existing: 0 });
   assert.match(bare, /This is one request to your model/);
-  assert.match(bare, /Her home, in your words: Synthetic Harbour/);
+  assert.match(bare, /PEA’s home, in your words: Synthetic Harbour/);
   assert.match(bare, /No page about the place/);
   assert.match(bare, /Nothing from your chats, your own name or your other interview answers/);
   assert.match(bare, /shows you every card before keeping any\./);
