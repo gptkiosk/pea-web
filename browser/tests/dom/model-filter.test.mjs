@@ -69,7 +69,7 @@ test('typing in Find a model narrows every list and keeps what is already chosen
   await type(page, 'HAIKU');
   assert.deepEqual(await listed(page, 'chat-model'), ['local:haiku-small', 'local:haiku-large']);
   await page.fill('#chat-model', 'local:haiku-large');
-  assert.equal(await page.text('#active-model'), 'Chat · haiku-large');
+  assert.equal(await page.evaluate(`document.getElementById('active-model').textContent`), 'Chat · haiku-large');
 
   // The chosen model stays in its own list whatever is typed; the other lists follow the filter.
   await type(page, '70b nemotron');

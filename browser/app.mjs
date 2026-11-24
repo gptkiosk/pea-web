@@ -1487,9 +1487,64 @@ $('profile').onchange = () => {
   numbered?.clear();
   memory.profileChanged();
 };
-$('theme').onclick = () =>
-  (document.documentElement.dataset.theme =
-    document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+// The theme row in the menu names the theme it switches to.
+const nameTheme = () =>
+  ($('theme').textContent =
+    document.documentElement.dataset.theme === 'dark' ? 'Light theme' : 'Dark theme');
+$('theme').onclick = () => {
+  document.documentElement.dataset.theme =
+    document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  nameTheme();
+};
+nameTheme();
+// The profile menu drops down under the bar and sets the profile field the rest of PEA reads.
+{
+  const menu = $('profile-menu'),
+    field = $('profile'),
+    summary = menu.querySelector('summary');
+  const show = () => {
+    const name = field.selectedOptions[0]?.textContent ?? '';
+    $('profile-name').textContent = name;
+    summary.setAttribute('aria-label', 'Profile: ' + name);
+    for (const b of menu.querySelectorAll('[data-profile]'))
+      b.setAttribute('aria-checked', String(b.dataset.profile === field.value));
+    // While a reply is being written the profile cannot change, as with the field itself.
+    summary.setAttribute('aria-disabled', String(field.disabled));
+    if (field.disabled) menu.open = false;
+  };
+  for (const b of menu.querySelectorAll('[data-profile]'))
+    b.onclick = () => {
+      menu.open = false;
+      summary.focus();
+      if (field.disabled || field.value === b.dataset.profile) return;
+      field.value = b.dataset.profile;
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+  summary.addEventListener('click', (e) => {
+    if (field.disabled) e.preventDefault();
+  });
+  field.addEventListener('change', show);
+  new MutationObserver(show).observe(field, { attributes: true, attributeFilter: ['disabled'] });
+  show();
+}
+// The bar's menus: one open at a time, closed by Escape or a press anywhere else.
+for (const menu of document.querySelectorAll('.bar-menu')) {
+  menu.addEventListener('toggle', () => {
+    if (!menu.open) return;
+    for (const other of document.querySelectorAll('.bar-menu[open]')) if (other !== menu) other.open = false;
+  });
+  menu.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !menu.open) return;
+    e.preventDefault();
+    menu.open = false;
+    menu.querySelector('summary').focus();
+  });
+}
+document.addEventListener('pointerdown', (e) => {
+  for (const menu of document.querySelectorAll('.bar-menu[open]'))
+    if (!menu.contains(e.target)) menu.open = false;
+});
+$('bar-setup').onclick = () => $('connections-open').click();
 for (const id of ['settings-open', 'context-open', 'folder-setup']) $(id).onclick = preferences;
 $('preferences-done').onclick = () => $('preferences').close();
 $('home-attach').onclick = () => tab('greenhouse');
@@ -2255,13 +2310,6 @@ for (const [id, target] of [
 $('menu-sources').onclick = () => {
   $('workspace-menu').open = false;
   settings.go('curated-sources');
-};
-$('workspace-menu').onkeydown = (e) => {
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    $('workspace-menu').open = false;
-    $('workspace-menu').querySelector('summary').focus();
-  }
 };
 function requestDictation(target) {
   if (live.isBusy()) {

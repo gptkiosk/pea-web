@@ -253,8 +253,8 @@ test(
       `[...document.querySelector('#chat-model').options].some((o) => o.value.startsWith('local:'))`,
       'the local model list',
     );
-    assert.equal(await page.text('#connection-status'), 'Connected · no Chat model chosen yet');
-    assert.equal(await page.text('#active-model'), 'Chat · choose a model in Set up');
+    assert.equal(await page.evaluate(`document.getElementById('connection-status').textContent`), 'Connected · no Chat model chosen yet');
+    assert.equal(await page.evaluate(`document.getElementById('active-model').textContent`), 'Chat · choose a model in Set up');
     // With exactly one local model, one press chooses it. Nothing is chosen or sent before that.
     const offers = () =>
       page.evaluate(
@@ -267,7 +267,7 @@ test(
     await page.waitFor(
       `document.getElementById('connection-status').textContent === 'Local model connected'`,
     );
-    assert.equal(await page.text('#active-model'), 'Chat · synthetic-model');
+    assert.equal(await page.evaluate(`document.getElementById('active-model').textContent`), 'Chat · synthetic-model');
     assert.equal(await page.evaluate(`document.getElementById('chat-model').value`), 'local:synthetic-model');
     assert.deepEqual(await offers(), [null, null], 'the offer goes once a model is chosen');
     assert.equal(stack.model.requests.length, sent, 'choosing a model sends nothing to it');
