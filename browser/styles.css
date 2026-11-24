@@ -5851,3 +5851,9 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
     opacity: 0;
   }
 }
+/* The three actions under Published releases stay one row, in a wider typeface too. */
+#release-dialog .release-section .action-row > :is(button, a) {
+  padding-inline: 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
