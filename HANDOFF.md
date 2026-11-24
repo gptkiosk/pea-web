@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Backup & restore: everything in one encrypted file — 2026-11-24
+
+Version `0.1.0-rc.4.dev.68`. The owner asked for one encrypted export and import of models, voice, interview and settings so nothing is lost across reinstalls. Before this there were five separate files (interview, one profile, library, board, model choices) and none held settings.
+
+- **Source:** `browser/backup.mjs` (format `pea-full-backup-v1`: `travellingSettings` is the fixed list of setting names that travel, as the exact text this browser keeps; `gatherSettings`, `validFull`, `sealFull`, `openFull`, `planSettings`, `describeFull`, `describeFullRestore`; `sealBytes` takes the format name, which is authenticated, and `openBackup` and `openFull` share one opener). `browser/backup-ui.mjs` (the `full-*` controls). `browser/index.html` (`#full-backup-group` in Settings) and `browser/settings.mjs` (the `backup-everything` place). So that both profiles are gathered and restored from whichever is in view: `memory-ui.mjs` `portable(who)` and `bringIn(…, who)`, `todos-ui.mjs` `bringIn(list, who)`, `decks-ui.mjs` `bringIn(list, who)`, `canon-ui.mjs` and `days-ui.mjs` `cards(whole)`, `entries(whole)`, `bringIn(…, whole)`.
+- **Tests:** four added to `browser/tests/backup.test.mjs` (the list of names and what never travels; exact contents; sealing and that a profile file and a whole backup are not taken for each other; the settings plan). One added to `browser/tests/dom/backup.test.mjs`: made from Work, restored in an empty browser after wrong-passphrase, wrong-file and cancel, then a reload. `settings-links.test.mjs` expects the tenth tile.
+- **Known gaps:** keys and the connection token do not travel, by the rule the other files already follow; the owner has not been asked whether a passphrase-encrypted file should be allowed to carry provider keys. Chats and the story board are not in the file. To-dos live in the tab unless the board is encrypted, so restored to-dos are lost at the reload that settings need unless the board is saved first; the review before restoring says so. A restored setting can be saved over by a change made before the reload. The file is PEA Web's own format; the iPhone app is not expected to read it. From the Blended profile the backup is refused.
+- **Next action:** updates that show their steps, check settings before and after, and can go back from the app.
+
 ## Today, Harvest, footer and dialogs tidied — 2026-11-24
 
 Version `0.1.0-rc.4.dev.67`. The second part of the look-and-phone cleanup that began with the one-row bar. The landing page and the setup wizard were left as they are at the owner's word.

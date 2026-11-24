@@ -170,19 +170,19 @@ async function keyFor(passphrase, salt) {
 }
 // Seals bytes as a backup file. The salt and iv are random unless given, which only the test
 // vectors do. The format name is authenticated, so a file cannot be relabelled.
-export async function sealBytes(plain, passphrase, { salt, iv } = {}) {
+export async function sealBytes(plain, passphrase, { salt, iv, format = backupFormat } = {}) {
   salt ??= crypto.getRandomValues(new Uint8Array(16));
   iv ??= crypto.getRandomValues(new Uint8Array(12));
   const key = await keyFor(passphrase, salt);
   const data = new Uint8Array(
     await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(backupFormat) },
+      { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(format) },
       key,
       plain,
     ),
   );
   return JSON.stringify({
-    format: backupFormat,
+    format,
     salt: toBase64(salt),
     iv: toBase64(iv),
     data: toBase64(data),
@@ -197,22 +197,24 @@ export async function sealBackup(content, passphrase) {
   return sealBytes(plain, passphrase);
 }
 // Opens a backup file. Any fault at all gives the same refusal and changes nothing.
-export async function openBackup(serialized, passphrase) {
-  if (typeof serialized !== 'string' || serialized.length > backupLimits.fileCharacters)
-    throw new ServiceError('Choose a backup file under 1.2 MB.');
+export const openBackup = (serialized, passphrase) =>
+  openSealed(serialized, passphrase, {
+    format: backupFormat,
+    limits: backupLimits,
+    size: 'Choose a backup file under 1.2 MB.',
+    valid: validBackup,
+  });
+async function openSealed(serialized, passphrase, { format, limits, size, valid }) {
+  if (typeof serialized !== 'string' || serialized.length > limits.fileCharacters)
+    throw new ServiceError(size);
   try {
     const envelope = JSON.parse(serialized);
-    if (!exact(envelope, ['format', 'salt', 'iv', 'data']) || envelope.format !== backupFormat)
+    if (!exact(envelope, ['format', 'salt', 'iv', 'data']) || envelope.format !== format)
       throw Error('format');
     const salt = fromBase64(envelope.salt, 24),
       iv = fromBase64(envelope.iv, 16),
-      data = fromBase64(envelope.data, backupLimits.fileCharacters);
-    if (
-      salt.length !== 16 ||
-      iv.length !== 12 ||
-      data.length < 16 ||
-      data.length > backupLimits.contentBytes + 16
-    )
+      data = fromBase64(envelope.data, limits.fileCharacters);
+    if (salt.length !== 16 || iv.length !== 12 || data.length < 16 || data.length > limits.contentBytes + 16)
       throw Error('size');
     const key = await keyFor(passphrase, salt),
       plain = await crypto.subtle.decrypt(
@@ -221,7 +223,7 @@ export async function openBackup(serialized, passphrase) {
         data,
       );
     const content = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plain));
-    if (!validBackup(content)) throw Error('contents');
+    if (!valid(content)) throw Error('contents');
     return content;
   } catch (error) {
     if (error instanceof ServiceError && /passphrase of/.test(error.message)) throw error;
@@ -366,4 +368,149 @@ export function describeRestore(plan) {
   }
   if (notes.length) lines.push('Not added:', ...notes.map((n) => '  · ' + n));
   return lines.join('\n').trim();
+}
+
+// Everything in one file: what this browser remembers as settings, and both profiles' contents in
+// the travelling shape above. It is for the owner's own reinstall or move to another browser, so
+// it is a different format from the shared one and no other app is expected to read it.
+// Settings travel as the exact text this browser keeps, by a fixed list of names; each is read
+// again by its own rule when the page loads, which drops anything it does not expect. Keys,
+// tokens, chats, files and permissions are not in the list and never travel.
+export const fullFormat = 'pea-full-backup-v1';
+export const fullLimits = { iterations: backupLimits.iterations, fileCharacters: 3400000, contentBytes: 2400000, setting: 200000 };
+export const travellingSettings = [
+  ['pea-connections-v1', 'Model choices, sharing switches, Google client ID and repository name'],
+  ['pea-provider-voice-v1', 'Provider voice for reading aloud'],
+  ['pea-device-voice-v1', 'Device voice and speed'],
+  ['pea-weather-v1', 'Weather place and units'],
+  ['pea-headlines-v1', 'Headline feeds'],
+  ['pea-curated-v1', 'Curated sources you follow'],
+  ['pea-presence-v1', 'Local-time presence'],
+  ['pea-life-notes-v1', 'Whether PEA keeps notes from Chat'],
+  ['pea-save-chats-v1', 'Whether chats are saved'],
+  ['pea-mac-reminders-v1', 'Reminders on the Mac'],
+  ['pea-life-v1', 'PEA’s interests and people'],
+  ['pea-workspace-v1', 'Window arrangement (Personal)'],
+  ['pea-workspace-v1:work', 'Window arrangement (Work)'],
+  ['pea-workspace-v1:blended', 'Window arrangement (Blended)'],
+];
+const settingLabel = new Map(travellingSettings);
+const fullRefusal = 'Could not verify this backup file. Check the file and passphrase; nothing was changed.';
+const validSetting = (text) =>
+  typeof text === 'string' &&
+  text.length > 0 &&
+  text.length <= fullLimits.setting &&
+  !/[\u0000-\u0008\u000b-\u001f\u007f]/.test(text) &&
+  !containsCredential(text);
+// The settings this browser holds now, by name. One that cannot travel is left out and named.
+export function gatherSettings(storage = globalThis.localStorage) {
+  const settings = {},
+    left = [];
+  for (const [name, label] of travellingSettings) {
+    let text = null;
+    try {
+      text = storage.getItem(name);
+    } catch {
+      // A browser that refuses storage has nothing saved.
+    }
+    if (text === null) continue;
+    if (validSetting(text)) settings[name] = text;
+    else left.push(label);
+  }
+  return { settings, left };
+}
+export function validFull(content) {
+  return Boolean(
+    exact(content, ['made', 'version', 'settings', 'profiles']) &&
+      time(content.made) &&
+      typeof content.version === 'string' &&
+      /^[0-9A-Za-z.+-]{1,80}$/.test(content.version) &&
+      content.settings &&
+      typeof content.settings === 'object' &&
+      !Array.isArray(content.settings) &&
+      Object.entries(content.settings).every(([name, text]) => settingLabel.has(name) && validSetting(text)) &&
+      exact(content.profiles, profiles) &&
+      profiles.every((who) => validBackup(content.profiles[who]) && content.profiles[who].profile === who),
+  );
+}
+export async function sealFull(content, passphrase) {
+  if (!validFull(content))
+    throw new ServiceError('Something here cannot be put in a backup. Nothing was written.');
+  const plain = new TextEncoder().encode(JSON.stringify(content));
+  if (plain.byteLength > fullLimits.contentBytes)
+    throw new ServiceError('There is too much here for one backup file. Nothing was written.');
+  return sealBytes(plain, passphrase, { format: fullFormat });
+}
+export const openFull = (serialized, passphrase) =>
+  openSealed(serialized, passphrase, {
+    format: fullFormat,
+    limits: fullLimits,
+    size: 'Choose a backup file under 3.4 MB.',
+    valid: validFull,
+  });
+// Which settings a file would replace here, which are already the same, and which it would add.
+export function planSettings(current, incoming) {
+  const plan = { replace: [], add: [], same: 0, write: {} };
+  for (const [name, label] of travellingSettings) {
+    if (!Object.hasOwn(incoming, name)) continue;
+    if (current[name] === incoming[name]) plan.same++;
+    else {
+      (Object.hasOwn(current, name) ? plan.replace : plan.add).push(label);
+      plan.write[name] = incoming[name];
+    }
+  }
+  return plan;
+}
+const contents = (c) =>
+  `${count(Object.values(c.introduction).filter((v) => v.trim()).length, 'interview answer')}, ${count(c.memories.length, 'memory', 'memories')}, ${count(c.todos.length, 'to-do')}, ${count(c.history.length, 'history card')}, ${count(c.days.length, 'day line')}, ${count(c.decks.length, 'deck project')}`;
+// What is in a whole backup about to be written.
+export function describeFull(content, left = []) {
+  const names = Object.keys(content.settings).map((name) => '  - ' + settingLabel.get(name));
+  return [
+    `PEA ${content.version}, both profiles and this browser’s settings`,
+    '',
+    `Settings (${names.length}):`,
+    ...(names.length ? names : ['  - none saved yet']),
+    ...(left.length ? ['', 'Left out because they cannot travel: ' + left.join('; ') + '.'] : []),
+    '',
+    `Personal: ${contents(content.profiles.personal)}.`,
+    `Work: ${contents(content.profiles.work)}.`,
+    '',
+    'Left out: provider and service keys, the connection token, chats, files, the story board, permissions and “may retain or train” consents. Chats have their own encrypted library backup, and the board has its own.',
+    '',
+    'The file is encrypted with the passphrase you choose. PEA does not keep the passphrase and cannot recover it; without it the file cannot be opened by anyone, including you.',
+  ].join('\n');
+}
+// What bringing a whole backup in would do. `plans` holds one planRestore result per profile.
+export function describeFullRestore(content, settings, plans, extra = '') {
+  const added = (plan) =>
+    plan.nothing
+      ? 'nothing to add; everything in the file is already here'
+      : [
+          plan.introduction.changes.length && count(plan.introduction.changes.length, 'interview answer'),
+          plan.memories.add.length && count(plan.memories.add.length, 'memory', 'memories'),
+          plan.todos.add.length && count(plan.todos.add.length, 'to-do'),
+          plan.history.add.length && count(plan.history.add.length, 'history card'),
+          plan.days.add.length && count(plan.days.add.length, 'day line'),
+          plan.decks.add.length && count(plan.decks.add.length, 'deck project'),
+        ]
+          .filter(Boolean)
+          .join(', ') + ' added';
+  return [
+    `Backup made: ${new Date(content.made).toISOString().slice(0, 16).replace('T', ' ')} UTC, by PEA ${content.version}`,
+    '',
+    settings.replace.length || settings.add.length
+      ? 'Settings that will be set to what the file holds:'
+      : 'Settings: all ' + settings.same + ' in the file are already the same here.',
+    ...settings.replace.map((label) => '  - ' + label + ' (replaces what is here)'),
+    ...settings.add.map((label) => '  - ' + label),
+    '',
+    `Personal: ${added(plans.personal)}.`,
+    `Work: ${added(plans.work)}.`,
+    '',
+    'Interview answers, memories, to-dos, history, days and decks are only added; nothing already here is changed or removed. Settings are replaced, and take effect when the page reloads.' +
+      extra,
+    '',
+    'Keys, tokens, chats and permissions are not in the file and are not touched.',
+  ].join('\n');
 }

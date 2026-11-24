@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.68] - 2026-11-24
+
+### Added
+
+- **Backup & restore: everything in one encrypted file.** A new tile in Settings writes one passphrase-encrypted file holding what PEA keeps in this browser: your settings (model choices, sharing switches, Google client ID and repository name, provider and device voice, weather place, headline feeds, the sources you follow, presence, the notes and saved-chats switches, window arrangement) and, for both Work and Personal at once, interview answers, memories, to-dos, PEA's history and days, and deck projects. Restoring shows every setting it would replace and every item it would add before anything changes; items are only added, settings are replaced and take effect after a reload. It is for a reinstall, a move to another browser or cleared browser data; an update of PEA does not need it.
+- The file never holds provider or service keys, the connection token, chats, files, the story board, permissions or "may retain or train" consents. Chats and the board keep their own encrypted backups. A setting that looks like a key is left out and named.
+- Settings shows when a backup file was last made in this browser.
+
 ## [0.1.0-rc.4.dev.67] - 2026-11-24
 
 ### Changed

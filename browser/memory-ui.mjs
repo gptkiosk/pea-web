@@ -1227,10 +1227,10 @@ export function installMemory(hooks) {
     profileChanged,
     render,
     // For a backup: this profile's answers and every memory, and how many more memories fit.
-    portable() {
+    portable(who = profile()) {
       return eligible() && !failed
         ? {
-            introduction: library.introductions[profile()],
+            introduction: library.introductions[who],
             memories: library.memories,
             memoryRoom: 150 - library.memories.length,
             threadRoom: library.threads.length < 40,
@@ -1239,10 +1239,9 @@ export function installMemory(hooks) {
     },
     // From a reviewed backup: answers to fill in (or null) and memories to add. Resolves true if
     // the result was also saved to the encrypted library, false if it lives in this tab only.
-    async bringIn({ introduction, memories }) {
+    async bringIn({ introduction, memories }, who = profile()) {
       ensure();
       if (failed) throw new ServiceError('Resolve the local library warning first.');
-      const who = profile();
       let next = library;
       if (introduction)
         next = {

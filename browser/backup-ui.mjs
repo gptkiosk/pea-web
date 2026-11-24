@@ -4,11 +4,18 @@
 import {
   backupLimits,
   describeBackup,
+  describeFull,
+  describeFullRestore,
   describeRestore,
+  fullLimits,
   gatherBackup,
+  gatherSettings,
   openBackup,
+  openFull,
   planRestore,
+  planSettings,
   sealBackup,
+  sealFull,
 } from './backup.mjs';
 import { ServiceError } from './connections.mjs';
 
@@ -62,6 +69,7 @@ export function installBackup({ profile, review, isBusy, notice, memory, todos, 
       'portable-open',
     ])
       $(id).disabled = !on || working;
+    for (const id of ['full-pass', 'full-make', 'full-file', 'full-open-pass', 'full-open']) $(id).disabled = working;
     $('portable-status').textContent = on
       ? `This is about the ${profile() === 'work' ? 'Work' : 'Personal'} profile only. Switch profile to move the other one.`
       : 'Choose Work or Personal to move a profile. A Blended profile has nothing of its own.';
@@ -175,6 +183,198 @@ export function installBackup({ profile, review, isBusy, notice, memory, todos, 
         );
       }
     });
+
+  // Everything in one file: this browser's settings and both profiles. Under Settings.
+  const lastKey = 'pea-full-backup-made-v1',
+    people = ['personal', 'work'];
+  let fullURL = null;
+  const tell = (text) => ($('full-note').textContent = text);
+  const forgetFull = () => {
+    if (fullURL) URL.revokeObjectURL(fullURL);
+    fullURL = null;
+    $('full-download').hidden = true;
+    $('full-download').removeAttribute('href');
+  };
+  function showLast() {
+    let at = 0;
+    try {
+      at = Number(globalThis.localStorage.getItem(lastKey)) || 0;
+    } catch {
+      // Not known.
+    }
+    $('full-last').textContent = at
+      ? `Last backup file made in this browser: ${new Date(at).toLocaleString()}.`
+      : 'No backup file has been made in this browser yet.';
+  }
+  // Both profiles in the travelling shape. The library must be open, whichever profile is in view.
+  function gatherAll(now) {
+    const first = memory().portable('personal');
+    if (!first)
+      throw new ServiceError(
+        usable()
+          ? 'The saved library is not ready. Finish or resolve its save first.'
+          : 'Choose Work or Personal first, then back up or restore.',
+      );
+    const list = todos().portable();
+    const profiles = Object.fromEntries(
+      people.map((who) => [
+        who,
+        gatherBackup({
+          profile: who,
+          introduction: memory().portable(who).introduction,
+          memories: first.memories,
+          todos: list ?? [],
+          cards: who === 'personal' ? canon().cards(true) : [],
+          days: who === 'personal' ? days().entries(true) : [],
+          decks: decks().all(),
+          now,
+        }),
+      ]),
+    );
+    return { library: first, todosLocked: list === null, profiles };
+  }
+  async function guardedFull(action) {
+    if (working || isBusy()) return tell('Finish the current request first.');
+    working = true;
+    render();
+    try {
+      await action();
+    } catch (error) {
+      const why = error instanceof ServiceError ? error.message : 'That did not work. Nothing was changed.';
+      tell(why);
+      notice(why);
+    } finally {
+      working = false;
+      render();
+    }
+  }
+  $('full-make').onclick = () =>
+    guardedFull(async () => {
+      const input = $('full-pass'),
+        passphrase = input.value;
+      input.value = '';
+      forgetFull();
+      if (passphrase.length < 12 || passphrase.length > 256)
+        throw new ServiceError('Choose a passphrase of 12–256 characters for the file. Nothing was written.');
+      const now = Date.now(),
+        { profiles, todosLocked } = gatherAll(now),
+        { settings, left } = gatherSettings(),
+        content = {
+          made: now,
+          version: $('release-version').textContent.replace(/^v/, '') || 'unknown',
+          settings,
+          profiles,
+        };
+      if (
+        !(await review('Back up everything?', describeFull(content, left) + (todosLocked ? lockedNote : '')))
+      )
+        return tell('No backup was made.');
+      const file = await sealFull(content, passphrase);
+      fullURL = URL.createObjectURL(new Blob([file], { type: 'application/json' }));
+      const link = $('full-download');
+      link.href = fullURL;
+      link.download = `pea-everything-${new Date(now).toISOString().slice(0, 10)}.json`;
+      link.hidden = false;
+      try {
+        globalThis.localStorage.setItem(lastKey, String(now));
+      } catch {
+        // The date of the last backup is a convenience only.
+      }
+      showLast();
+      tell('Backup ready. Download it and keep the passphrase somewhere safe; PEA cannot recover it.');
+    });
+  $('full-open').onclick = () =>
+    guardedFull(async () => {
+      const input = $('full-open-pass'),
+        passphrase = input.value,
+        file = $('full-file').files?.[0];
+      input.value = '';
+      if (!file) throw new ServiceError('Choose a backup file first.');
+      if (file.size > fullLimits.fileCharacters) throw new ServiceError('Choose a backup file under 3.4 MB.');
+      const now = Date.now(),
+        incoming = await openFull(await file.text(), passphrase),
+        here = gatherAll(now),
+        kept = gatherSettings().settings,
+        settings = planSettings(kept, incoming.settings);
+      let room = here.library.memoryRoom,
+        extra = '';
+      const plans = {};
+      for (const who of people) {
+        const plan = planRestore(here.profiles[who], incoming.profiles[who], { now, memoryRoom: room });
+        if (here.todosLocked && plan.todos.add.length)
+          plan.todos = { add: [], same: 0, differ: [], noRoom: 0, skipped: {} };
+        if (plan.memories.add.length && !here.library.threadRoom)
+          plan.memories = { add: [], same: plan.memories.same, differ: [], noRoom: 0, skipped: {} };
+        room -= plan.memories.add.length;
+        plan.nothing =
+          !plan.introduction.changes.length &&
+          ['memories', 'todos', 'history', 'days', 'decks'].every((name) => !plan[name].add.length);
+        plans[who] = plan;
+        if (!plan.nothing) extra += '\n\n' + describeRestore(plan);
+      }
+      if (here.todosLocked && people.some((who) => incoming.profiles[who].todos.length))
+        extra +=
+          '\n\nTo-dos in this file are not added: the saved board is locked. Unlock it under Today and restore again.';
+      if (!here.library.threadRoom && people.some((who) => incoming.profiles[who].memories.length))
+        extra +=
+          '\n\nMemories in this file are not added: the library already holds 40 conversations, and brought-in memories need one. Forget a conversation and restore again.';
+      if (people.some((who) => plans[who].todos.add.length))
+        extra +=
+          '\n\nTo-dos are kept the way your story board is. Unless the board is saved with a passphrase on this browser (under Today), restored to-dos last only until the page reloads; save the board first if you want to keep them.';
+      const writes = Object.entries(settings.write);
+      if (!writes.length && people.every((who) => plans[who].nothing)) {
+        $('full-file').value = '';
+        return tell('Everything in this file is already here. Nothing was changed.');
+      }
+      if (
+        !(await review(
+          'Restore from this backup?',
+          describeFullRestore(incoming, settings, plans, extra),
+        ))
+      )
+        return tell('Nothing was changed.');
+      // What is here must still be what the owner compared against.
+      if (
+        JSON.stringify(gatherAll(now).profiles) !== JSON.stringify(here.profiles) ||
+        JSON.stringify(gatherSettings().settings) !== JSON.stringify(kept)
+      )
+        throw new ServiceError('Something here changed while you were reading. Nothing was changed; restore again.');
+      const done = [];
+      try {
+        // The library goes first: it is the one step that can refuse, and then nothing else is touched.
+        for (const who of people) {
+          const plan = plans[who],
+            answers = plan.introduction.changes.length;
+          if (answers || plan.memories.add.length)
+            await memory().bringIn(
+              { introduction: answers ? plan.introduction.next : null, memories: plan.memories.add },
+              who,
+            );
+          const n =
+            answers +
+            plan.memories.add.length +
+            (plan.todos.add.length ? todos().bringIn(plan.todos.add, who) : 0) +
+            (plan.history.add.length ? canon().bringIn(plan.history.add, true) : 0) +
+            (plan.days.add.length ? days().bringIn(plan.days.add, true) : 0) +
+            (plan.decks.add.length ? decks().bringIn(plan.decks.add, who) : 0);
+          if (n) done.push(`${n} ${n === 1 ? 'item' : 'items'} added to ${who === 'work' ? 'Work' : 'Personal'}`);
+        }
+        for (const [name, text] of writes) globalThis.localStorage.setItem(name, text);
+        if (writes.length) done.push(`${writes.length} ${writes.length === 1 ? 'setting' : 'settings'} restored`);
+      } catch (error) {
+        throw new ServiceError(
+          `${error instanceof ServiceError ? error.message : 'One part could not be restored.'} Done before that: ${done.join(', ') || 'nothing'}. Restoring again adds only what is still missing.`,
+        );
+      }
+      $('full-file').value = '';
+      $('full-reload').hidden = !writes.length;
+      tell(
+        `Restored: ${done.join(', ')}.${writes.length ? ' Reload this page now: the restored settings take effect when it loads, and a change made before then could be saved over them.' : ''}`,
+      );
+    });
+  $('full-reload').onclick = () => location.reload();
+  globalThis.addEventListener('pagehide', forgetFull);
+  showLast();
 
   render();
   return { render, profileChanged: forgetFile };

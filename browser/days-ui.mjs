@@ -212,10 +212,10 @@ export function installDays({
     },
     count: () => saved.entries.length,
     // For a backup: the kept lines, in Personal only.
-    entries: () => (personal() ? saved.entries : []),
+    entries: (whole = false) => (whole || personal() ? saved.entries : []),
     // Lines from a reviewed backup. Gives how many were added.
-    bringIn(lines) {
-      if (!personal() || !lines.length) return 0;
+    bringIn(lines, whole = false) {
+      if (!(whole || personal()) || !lines.length) return 0;
       const next = validSavedDays({ notes: saved.notes, entries: [...saved.entries, ...lines] });
       if (next.entries.length !== saved.entries.length + lines.length)
         throw new Error('These lines do not fit PEA’s days. Nothing was added.');
