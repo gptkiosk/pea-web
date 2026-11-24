@@ -308,11 +308,14 @@ export function installSettings({ openers, tab, notice, status = () => '' }) {
   };
   $('guided-back').onclick = () => {
     if (at > 0) return showStep(at - 1);
+    // Ended here, not only when the window's close event arrives: that comes a moment later.
+    endSetup();
     connections.panel.close();
     setup();
   };
   $('setup-next').onclick = () => {
     if (at < steps.length - 1) return showStep(at + 1);
+    endSetup();
     connections.panel.close();
     setup();
   };
@@ -323,6 +326,7 @@ export function installSettings({ openers, tab, notice, status = () => '' }) {
     };
   $('setup-sources-open').onclick = () => {
     const off = !steps.at(-1).done();
+    endSetup();
     connections.panel.close();
     if (go('curated-sources') && off) $('curated-browse').click();
   };
