@@ -11,6 +11,7 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 - **Harvest with nothing in it is a card** that says what will appear there, and its lists are framed like the rest of PEA.
 - **The footer is one slim line of small buttons** (Changelog, Updates & rollback, Suggest an improvement, Source commit). On a phone it is two short rows, not a tall block.
 - **On a phone every dialog is a sheet that rises from the foot of the screen**, as wide as the screen, with a smaller heading and the close button always in reach while you scroll. The command palette stays a small card near the top.
+- **The line under “Ideas grow in good company.”** now reads “A curious mind. A scrutinous advocate. Distilled vetted ideas…”.
 - **Dialogs on a computer** have a smaller heading with a line under it that stays put while the rest scrolls, their fold-out sections look like rows you can press, and "Review upstream releases" and the palette's "Keyboard shortcuts" are buttons. Dialogs fade in; with reduced motion they appear at once.
 
 ## [0.1.0-rc.4.dev.66] - 2026-11-24
