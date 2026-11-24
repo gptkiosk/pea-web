@@ -10,6 +10,7 @@ import {
   validSpeechKey,
   validVoiceId,
   voiceRows,
+  voicesFound,
 } from '../speech.mjs';
 import { LocalModel } from '../local-model.mjs';
 
@@ -184,4 +185,28 @@ test('a gateway answer that is not sound is a failure, and its words are not sho
     .catch((e) => e);
   assert.match(refused.message, /ElevenLabs rejected your key/);
   await assert.rejects(() => gateway(() => new Response('{}')).speak('short', {}), /connection token/);
+});
+
+test('what was found is said plainly, including when a key has made no voices of its own', () => {
+  assert.match(voicesFound('elevenlabs', 3, 0), /^3 voices listed\. Listing costs nothing/);
+  assert.match(voicesFound('elevenlabs', 1, 0), /^1 voice listed\./);
+  assert.match(
+    voicesFound('elevenlabs', 0, 0),
+    /ElevenLabs listed no voices for this key\. Paste a voice ID below\./,
+  );
+  assert.match(voicesFound('fish', 2, 40), /^2 voices of your own and 40 licensed voices listed\./);
+  assert.match(voicesFound('fish', 1, 0), /^1 voice of your own listed\./);
+  assert.match(
+    voicesFound('fish', 0, 40),
+    /made no voices of your own on Fish Audio, so these are 40 voices it has licensed\. For any other voice, paste its ID below\./,
+  );
+  assert.match(voicesFound('fish', 0, 0), /Fish Audio listed no voices\. Paste a voice ID below\./);
+  assert.match(
+    voicesFound('fish', 2, null),
+    /2 voices of your own listed\. Fish Audio’s licensed voices could not be listed/,
+  );
+  assert.match(
+    voicesFound('fish', 0, null),
+    /could not be listed just now\. Paste a voice ID below, or try again\./,
+  );
 });

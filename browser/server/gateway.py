@@ -246,11 +246,16 @@ class SpeechRefusal(Exception):
 
 def validate_speech(raw, listing=False):
     """Checks a request to speak, or to list voices. Returns it unchanged or raises ValueError."""
-    if not isinstance(raw, dict) or set(raw) != set(SPEECH['voicesFields' if listing else 'fields']):
+    if not isinstance(raw, dict):
+        raise ValueError()
+    library = listing and set(raw) == set(SPEECH['libraryFields'])
+    if not library and set(raw) != set(SPEECH['voicesFields' if listing else 'fields']):
         raise ValueError()
     if not isinstance(raw['provider'], str) or raw['provider'] not in SPEECH['providers']:
         raise ValueError()
     if not isinstance(raw['key'], str) or not SPEECH_KEY.fullmatch(raw['key']):
+        raise ValueError()
+    if library and (raw['library'] is not True or 'library' not in SPEECH['providers'][raw['provider']]):
         raise ValueError()
     if listing:
         return raw
@@ -275,7 +280,7 @@ def speech_voices(provider, data):
         raise SpeechRefusal('failed')
     voices = []
     for row in rows:
-        if not isinstance(row, dict) or (provider == 'fish' and row.get('type', 'tts') != 'tts'):
+        if not isinstance(row, dict) or (provider == 'fish' and (row.get('type', 'tts') != 'tts' or row.get('state', 'trained') != 'trained')):
             continue
         identity, name = (row.get('voice_id'), row.get('name')) if provider == 'elevenlabs' else (row.get('_id'), row.get('title'))
         if not isinstance(identity, str) or not SPEECH_VOICE.fullmatch(identity) or not isinstance(name, str):
@@ -551,7 +556,7 @@ class Gateway(ThreadingHTTPServer):
         headers = {rules['keyHeader']: rules['keyPrefix'] + request['key'], 'Accept-Encoding': 'identity', 'Connection': 'close',
                    'User-Agent': SPEECH['userAgent']}
         if listing:
-            method, path, body = 'GET', rules['list'], None
+            method, path, body = 'GET', rules['library' if request.get('library') else 'list'], None
             headers['Accept'] = 'application/json'
         else:
             method, path = 'POST', rules['speak'].replace('{voice}', request['voice'])

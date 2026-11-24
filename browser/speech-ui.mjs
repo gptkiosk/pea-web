@@ -6,6 +6,7 @@ import {
   speechChoice,
   speechFailure,
   speechProviders,
+  voicesFound,
   speechText,
   validSpeechKey,
   validVoiceId,
@@ -45,14 +46,16 @@ export function installSpeech({ voices, speak, localKey, profile, review, notice
   function render() {
     const on = Boolean(choice.provider);
     $('provider-voice').value = choice.provider;
-    for (const id of [
-      'provider-voice-key-row',
-      'provider-voice-load',
-      'provider-voice-pick',
-      'provider-voice-test',
-    ])
-      $(id).hidden = !on;
+    // One step at a time: the key first, then finding a voice, then trying it.
+    const keyed = on && validSpeechKey(key);
+    $('provider-voice-key-row').hidden = !on;
+    $('provider-voice-load').hidden = $('provider-voice-pick').hidden = !keyed;
+    $('provider-voice-test').hidden = !keyed || !choice.voice;
     $('provider-voice-forget').hidden = !on && !key;
+    $('provider-voice-actions').hidden = $('provider-voice-test').hidden && $('provider-voice-forget').hidden;
+    $('provider-voice-key-label').textContent = on ? `Your ${name()} key` : 'Provider key';
+    $('provider-voice-id-help').textContent = speechProviders[choice.provider]?.idHelp ?? '';
+    $('provider-voice-load').textContent = listed.length ? 'Load voices again' : 'Load voices';
     $('provider-voice-load').disabled = $('provider-voice-test').disabled = working;
     const select = $('provider-voice-choice'),
       rows = listed.some((v) => v.id === choice.voice)
@@ -60,9 +63,23 @@ export function installSpeech({ voices, speak, localKey, profile, review, notice
         : choice.voice
           ? [{ id: choice.voice, name: choice.name }, ...listed]
           : listed;
+    const option = (v) => new Option(v.name, v.id),
+      group = (label, list) => {
+        const g = document.createElement('optgroup');
+        g.label = label;
+        g.append(...list.map(option));
+        return g;
+      },
+      own = rows.filter((v) => !v.shared),
+      shared = rows.filter((v) => v.shared);
     select.replaceChildren(
-      new Option(rows.length ? 'Choose a voice' : 'Load voices, or enter a voice ID below', ''),
-      ...rows.map((v) => new Option(v.name, v.id)),
+      new Option(rows.length ? 'Choose a voice' : 'Press Load voices, or paste a voice ID below', ''),
+      ...(shared.length
+        ? [
+            ...(own.length ? [group('Your voices', own)] : []),
+            group(speechProviders[choice.provider].library, shared),
+          ]
+        : own.map(option)),
     );
     select.value = choice.voice;
     $('provider-voice-status').textContent = !on
@@ -72,7 +89,7 @@ export function installSpeech({ voices, speak, localKey, profile, review, notice
         : !validSpeechKey(key)
           ? `Paste your ${name()} key to use this voice. It is kept in this tab only and is asked for again after a reload.`
           : !choice.voice
-            ? 'Load your voices and choose one.'
+            ? 'Load voices and choose one, or paste a voice ID.'
             : `Read aloud uses ${choice.name} from ${name()}. Each read-aloud is billed to your ${name()} account.`;
   }
   function changed() {
@@ -207,6 +224,11 @@ export function installSpeech({ voices, speak, localKey, profile, review, notice
     render();
     say(typed && !key ? 'That does not look like a provider key. Nothing was sent.' : '');
   };
+  // Pasting or typing a whole key moves to the next step at once, without waiting for the field to lose focus.
+  $('provider-voice-key').oninput = () => {
+    const typed = $('provider-voice-key').value.trim();
+    if (validSpeechKey(typed) !== Boolean(key) || (key && typed !== key)) $('provider-voice-key').onchange();
+  };
   $('provider-voice-load').onclick = async () => {
     if (working) return;
     $('provider-voice-key').onchange();
@@ -215,16 +237,24 @@ export function installSpeech({ voices, speak, localKey, profile, review, notice
     const provider = choice.provider;
     working = true;
     render();
-    say(`Asking ${name()} for your voices…`);
+    say(`Asking ${name()} for voices…`);
     try {
-      const rows = voiceRows(await voices(localKey(), provider, key));
-      if (provider !== choice.provider) return;
-      listed = rows;
-      say(
-        rows.length
-          ? `${rows.length} ${rows.length === 1 ? 'voice' : 'voices'} listed. Listing costs nothing; reading aloud does.`
-          : `${name()} listed no voices for this key. You can enter a voice ID below.`,
-      );
+      const sent = key,
+        own = voiceRows(await voices(localKey(), provider, sent));
+      // A provider with licensed voices is asked for those too, so someone who has made no voice
+      // of their own still has a list to choose from. That list failing does not hide their own.
+      let shared = speechProviders[provider].library ? null : [];
+      if (shared === null && provider === choice.provider && sent === key)
+        try {
+          shared = voiceRows(await voices(localKey(), provider, sent, true))
+            .filter((v) => !own.some((mine) => mine.id === v.id))
+            .map((v) => ({ ...v, shared: true }));
+        } catch {
+          // Said below; the owner's own voices are still listed.
+        }
+      if (provider !== choice.provider || sent !== key) return;
+      listed = [...own, ...(shared ?? [])];
+      say(voicesFound(provider, own.length, shared && shared.length));
     } catch (error) {
       if (provider === choice.provider) say(error.message);
     } finally {

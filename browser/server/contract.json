@@ -216,11 +216,12 @@
     "concurrent": 2
   },
   "speech": {
-    "about": "POST path {provider, key, voice, text} turns text the owner reviewed into speech with the owner's own key at one named provider; POST voicesPath {provider, key} lists that key's voices. It is not a proxy: one fixed HTTPS request to the provider's own host on port 443 with its certificate checked, no redirects followed, bounded in time and size. The key is used for that one request and is never kept or logged, and the provider's own words are never passed on.",
+    "about": "POST path {provider, key, voice, text} turns text the owner reviewed into speech with the owner's own key at one named provider; POST voicesPath {provider, key} lists that key's own voices; where a provider has a library path, {provider, key, library: true} lists that provider's fixed page of licensed voices instead. It is not a proxy: one fixed HTTPS request to the provider's own host on port 443 with its certificate checked, no redirects followed, bounded in time and size. The key is used for that one request and is never kept or logged, and the provider's own words are never passed on.",
     "path": "/v1/speak",
     "voicesPath": "/v1/voices",
     "fields": ["provider", "key", "voice", "text"],
     "voicesFields": ["provider", "key"],
+    "libraryFields": ["provider", "key", "library"],
     "textCharacters": 3000,
     "keyPattern": "[A-Za-z0-9_-]{16,200}",
     "voicePattern": "[A-Za-z0-9]{8,64}",
@@ -246,6 +247,7 @@
         "host": "api.fish.audio",
         "speak": "/v1/tts",
         "list": "/model?self=true&page_size=100",
+        "library": "/model?licensed=true&language=en&page_size=100",
         "keyHeader": "Authorization",
         "keyPrefix": "Bearer ",
         "model": "s2.1-pro"
