@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Today, Harvest, footer and dialogs tidied — 2026-11-24
+
+Version `0.1.0-rc.4.dev.67`. The second part of the look-and-phone cleanup that began with the one-row bar. The landing page and the setup wizard were left as they are at the owner's word.
+
+- **Source:** `browser/index.html` (Today's sections are wrapped in `.today-sections`; the "Quick glance" pill is removed; Story board and Created by PEA summaries have a `strong` and a `small` like the others; `#harvest-empty` is a `div.empty-state` with a picture, a title and the same sentence) and the last four sections of `browser/styles.css` (Today rows and the `today` container for two columns at 900px of pane width; button shape for actions inside `.home-card`, `.today-sections` and `.harvest-list`; the footer; dialogs, with the phone sheet under 700px). No script changed.
+- **Tests:** two added to `browser/tests/dom/workspace.test.mjs`: "Today is a list of short rows, two columns in a wide pane, and Harvest starts as a card" and "on a phone a dialog is a sheet at the foot of the screen with its close button in reach".
+- **Known gaps:** looked at only in headless Chrome at 1440×900 and 390×844, not on a real phone, Safari or Firefox. The inside of each Today section and of each settings section keeps its earlier layout. Dialogs opened beside the page are unchanged apart from the heading. The two-column Today uses CSS columns, so rows read down the left column and then the right.
+- **Next action:** the owner looks at it on a phone over their own private network and says what still feels cluttered.
+
 ## One-row bar, status in the menu, and a phone layout — 2026-11-24
 
 Development identity `0.1.0-rc.4.dev.66`. The owner found the header cramped (two status pills, a system profile pop-up that covered the bar) and the app poor on a phone reached over a private network.

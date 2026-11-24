@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.67] - 2026-11-24
+
+### Changed
+
+- **Today is a list of short rows.** Each section (Upcoming, Inbox, Weather, Curated sources, Headlines, To-do list, Story board, Projects, Created by PEA) is one row with its name, a line about it, its state and a chevron, and opens in place. When Today has the window to itself on a wide screen the rows are two columns. The "Quick glance" label that did nothing is gone, and Story board and Created by PEA have the same heading as the rest.
+- **Adding a to-do is tidier**: the words on a line of their own, then when, "Remind me" and Add. "Also show a system notification" and Today's other actions are buttons, not link-style text.
+- **Harvest with nothing in it is a card** that says what will appear there, and its lists are framed like the rest of PEA.
+- **The footer is one slim line of small buttons** (Changelog, Updates & rollback, Suggest an improvement, Source commit). On a phone it is two short rows, not a tall block.
+- **On a phone every dialog is a sheet that rises from the foot of the screen**, as wide as the screen, with a smaller heading and the close button always in reach while you scroll. The command palette stays a small card near the top.
+- **Dialogs on a computer** have a smaller heading with a line under it that stays put while the rest scrolls, their fold-out sections look like rows you can press, and "Review upstream releases" and the palette's "Keyboard shortcuts" are buttons. Dialogs fade in; with reduced motion they appear at once.
+
 ## [0.1.0-rc.4.dev.66] - 2026-11-24
 
 ### Changed
