@@ -158,7 +158,7 @@ export function validLibrary(value) {
 function check(value) {
   if (Array.isArray(value?.threads) && value.threads.length > 40)
     throw new ServiceError(
-      'The library holds 40 conversations. Forget one in Conversations & memory to save this one; it stays in this tab meanwhile. Nothing was overwritten.',
+      'The library holds 40 conversations. Forget one in Past chats & memory to save this one; it stays in this tab meanwhile. Nothing was overwritten.',
     );
   if (!validLibrary(value) || new TextEncoder().encode(JSON.stringify(value)).byteLength > 1900000)
     throw new ServiceError(
@@ -463,6 +463,8 @@ export class ConversationVault {
     this.revision = null;
     this.chain = Promise.resolve();
     this.epoch = 0;
+    // True while the library is open with the key this browser keeps, not a passphrase.
+    this.device = false;
   }
   static async open() {
     const db = await new Promise((resolve, reject) => {
@@ -606,6 +608,107 @@ export class ConversationVault {
       ['encrypt', 'decrypt'],
     );
   }
+  // The key this browser keeps for saving without a passphrase: made here, not extractable, and
+  // stored beside the library. It protects the saved record from being read as a plain file; it
+  // does not protect it from anyone who can use this browser profile.
+  async hasDeviceKey() {
+    return (await this.storage.getAt?.('device-key')) instanceof CryptoKey;
+  }
+  // Opens the library with this browser's own key, making the key and the first record when
+  // there is neither. A record saved under a passphrase is never opened or replaced here.
+  async unlockDevice(current = emptyLibrary()) {
+    const epoch = ++this.epoch;
+    await this.chain.catch(() => {});
+    this.chain = Promise.resolve();
+    this.lock();
+    const saved = await this.storage.get();
+    let key = await this.storage.getAt('device-key'),
+      library;
+    if (key !== undefined && !(key instanceof CryptoKey))
+      throw new ServiceError('Stored library format is not recognized. Nothing was overwritten.');
+    if (saved) {
+      if (!key) throw new ServiceError('This library is saved under a passphrase. Unlock it with that.');
+      if (
+        !fields(saved, ['version', 'revision', 'salt', 'iv', 'data']) ||
+        saved.version !== 2 ||
+        !id(saved.revision) ||
+        !(saved.salt instanceof Uint8Array) ||
+        saved.salt.length !== 16 ||
+        !(saved.iv instanceof Uint8Array) ||
+        saved.iv.length !== 12 ||
+        !(saved.data instanceof ArrayBuffer) ||
+        saved.data.byteLength > 2000000
+      )
+        throw new ServiceError('Stored library format is not recognized. Nothing was overwritten.');
+      try {
+        library = check(
+          JSON.parse(
+            new TextDecoder().decode(
+              await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: saved.iv, additionalData: aad },
+                key,
+                saved.data,
+              ),
+            ),
+          ),
+        );
+      } catch {
+        throw new ServiceError('Could not open the chats saved on this browser. Nothing was overwritten.');
+      }
+    } else {
+      library = check(structuredClone(current));
+      if (!key) {
+        key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+          'encrypt',
+          'decrypt',
+        ]);
+        await this.storage.putAt('device-key', key);
+      }
+    }
+    if (epoch + 1 !== this.epoch) throw new ServiceError('Library unlock was cancelled.');
+    this.key = key;
+    this.salt = saved?.salt ?? crypto.getRandomValues(new Uint8Array(16));
+    this.revision = saved?.revision ?? null;
+    this.device = true;
+    if (!saved) {
+      try {
+        await this.save(library);
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+    }
+    return library;
+  }
+  // Moves an open library from this browser's key to a passphrase. The browser's key is removed
+  // only after the record has been written under the passphrase.
+  async setPassphrase(passphrase, library) {
+    if (!this.key || !this.device) throw new ServiceError('Nothing to move to a passphrase.');
+    const salt = crypto.getRandomValues(new Uint8Array(16)),
+      key = await this.derive(passphrase, salt),
+      before = [this.key, this.salt];
+    await this.chain.catch(() => {});
+    this.chain = Promise.resolve();
+    [this.key, this.salt, this.device] = [key, salt, false];
+    try {
+      await this.save(library);
+    } catch (error) {
+      [this.key, this.salt, this.device] = [...before, true];
+      this.chain = Promise.resolve();
+      throw error;
+    }
+    await this.storage.deleteAt('device-key');
+  }
+  // Removes what this browser saved under its own key: the record and the key. A library saved
+  // under a passphrase is left alone.
+  async forgetDevice() {
+    if (!(await this.hasDeviceKey())) throw new ServiceError('Nothing saved under this browser’s key.');
+    await this.chain.catch(() => {});
+    this.chain = Promise.resolve();
+    this.lock();
+    await this.storage.deleteAt('library');
+    await this.storage.deleteAt('device-key');
+  }
   async unlock(passphrase, current = emptyLibrary()) {
     const epoch = ++this.epoch;
     await this.chain.catch(() => {});
@@ -618,6 +721,8 @@ export class ConversationVault {
       salt,
       library,
       upgrade = false;
+    if (saved && (await this.hasDeviceKey()))
+      throw new ServiceError('These chats are saved with this browser’s own key, not a passphrase.');
     if (saved) {
       if (
         !fields(saved, ['version', 'revision', 'salt', 'iv', 'data']) ||
@@ -701,6 +806,10 @@ export class ConversationVault {
   }
   async exportEncrypted() {
     await this.chain;
+    if (this.device || (await this.hasDeviceKey()))
+      throw new ServiceError(
+        'Set a passphrase first. A backup made with this browser’s own key could not be opened anywhere else.',
+      );
     const record = await this.storage.get();
     if (!record || (this.key && record.revision !== this.revision))
       throw new ServiceError('No current saved library to export. Resolve any save conflict first.');
@@ -788,5 +897,6 @@ export class ConversationVault {
     this.key = null;
     this.salt = null;
     this.revision = null;
+    this.device = false;
   }
 }

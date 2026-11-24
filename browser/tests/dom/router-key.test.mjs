@@ -116,7 +116,7 @@ test(
 
     // With the library locked the box cannot be ticked, and a verified key is kept nowhere.
     assert.deepEqual(await box(page), { checked: false, disabled: true });
-    assert.match(await page.text('#router-remember-note'), /unlock or enable encrypted saving/);
+    assert.match(await page.text('#router-remember-note'), /set or unlock a passphrase/);
     await page.fill('#router-key', key);
     await page.click('#router-connect');
     await page.waitFor(

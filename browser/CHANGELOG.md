@@ -2,6 +2,20 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.58] - 2026-11-23
+
+### Changed
+
+- **Chats are saved as you go, with no passphrase.** A reload used to empty the chat unless you had set a passphrase and typed it again. PEA now makes a key that stays in this browser and saves your conversations, interview answers and memories with it. After a reload the chat you had open is there again, and nothing is asked.
+- **Anyone who can use this browser profile can open saved chats.** The saved record is sealed, not readable as a plain file, but the key is in the same browser. Privacy & voice and Past chats & memory now say so.
+- **A passphrase is still there for more.** "Set a passphrase…" in Past chats & memory moves everything under a passphrase and removes the browser's key; PEA then asks for it after each reload, as before. Keeping a provider key between reloads, and making a library backup, need a passphrase.
+- If you already use a passphrase, nothing changes for you.
+
+### Added
+
+- **An empty Chat lists your newest saved chats.** Up to five, newest first; one press continues one. A new chat stays new after a reload, with the earlier ones listed under it.
+- **Save chats on this browser**, a switch in Past chats & memory. Turning it off deletes what was saved, after a review, and stops saving.
+
 ## [0.1.0-rc.4.dev.57] - 2026-11-23
 
 ### Added

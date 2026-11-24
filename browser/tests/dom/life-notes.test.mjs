@@ -90,17 +90,14 @@ test(
     assert.match(terms, /kept for 60 days, up to 60 at a time/);
     assert.match(terms, /otherwise in this tab only/);
     await page.waitFor(`document.getElementById('notes-keep').checked`, 'the switch to be on');
-    assert.equal(
-      JSON.parse(await page.evaluate(`localStorage.getItem('pea-life-notes-v1')`)).personal,
-      true,
-    );
+    assert.equal(JSON.parse(await page.evaluate(`localStorage.getItem('pea-life-notes-v1')`)).personal, true);
     assert.deepEqual(await notes(page), [], 'what was said before the switch is not gone back over');
 
     // Her own sentence is kept; the question, and everything the model said, is not.
     await askModel(stack, page, sentence + ' What should I cook?');
     await page.waitFor(`document.querySelectorAll('#notes-list article').length === 1`, 'the note');
     assert.deepEqual(await notes(page), [sentence]);
-    assert.match(await status(), /^1 of up to 60 kept for this profile, in this tab only/);
+    assert.match(await status(), /^1 of up to 60 kept for this profile, saved on this browser/);
     assert.ok(!system().includes('Things this person told you'), 'not repeated into the same conversation');
 
     // A later conversation is given it, and the review before sharing lists it.
@@ -129,7 +126,7 @@ test(
 
     // Sealed in the encrypted library: unreadable at rest, and back after a reload and unlock.
     await unlock(page);
-    assert.match(await status(), /^1 of up to 60 kept for this profile, encrypted on this browser\.$/);
+    assert.match(await status(), /^1 of up to 60 kept for this profile, saved on this browser\.$/);
     assert.ok(!(await stored(page)).includes('Ana is visiting'), 'not readable in this browser’s storage');
     await page.goto(stack.gateway.origin + '/');
     await page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be ready');

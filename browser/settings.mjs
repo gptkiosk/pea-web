@@ -286,7 +286,7 @@ export function placeInMessage(text) {
   if (/\bPEA folder in Connections\b/.test(text)) return 'google';
   if (/\b(?:in|from|under) Connections\b/.test(text)) return 'connections';
   if (/\bCurated sources on Today\b/.test(text)) return 'curated-sources';
-  if (/\bConversations & memory\b/.test(text)) return 'memory';
+  if (/\b(?:Conversations|Past chats) & memory\b/.test(text)) return 'memory';
   return null;
 }
 

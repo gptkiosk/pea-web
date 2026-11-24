@@ -214,7 +214,7 @@ export function installConnections(hooks) {
     $('router-remember').disabled = !libraryOpen;
     $('router-remember-note').textContent = libraryOpen
       ? 'Off, the key stays in this tab’s memory and a reload asks for it again. On, it is sealed with your library passphrase on this browser, comes back when you unlock the library and leaves the tab when you lock it. It is never in a backup or a profile file.'
-      : 'To keep this key between reloads, unlock or enable encrypted saving under Conversations & memory. Until then it stays in this tab’s memory only.';
+      : 'To keep this key between reloads, set or unlock a passphrase under Past chats & memory. Until then it stays in this tab’s memory only.';
     $('context-drive').textContent = s.workspace
       ? s.workspace.folder.title
       : s.google
@@ -1686,7 +1686,7 @@ export function installConnections(hooks) {
         note('The OpenRouter key is no longer kept in your library. It stays in this tab until you reload.');
       } else if (!lib()?.open()) {
         wanted.delete(who);
-        note('Unlock or enable encrypted saving under Conversations & memory first. The key was not kept.');
+        note('Set or unlock a passphrase under Past chats & memory first. The key was not kept.');
       } else if (s.key) {
         if (await keepRouter(s, who)) note('The OpenRouter key is now kept in your encrypted library.');
       } else note('The next key you verify will be kept in your encrypted library.');
