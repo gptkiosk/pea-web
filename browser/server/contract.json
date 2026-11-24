@@ -291,9 +291,9 @@
     }
   },
   "updates": {
-    "about": "GET path says whether this gateway can update its own installed copy and what happened last time. POST path {\"action\":\"check\"} looks for an update; POST path {\"action\":\"apply\",\"commit\"} installs exactly the commit the owner reviewed. Only a gateway its operator started with an installed checkout and service named can do either; any other answers that it is not available. Nothing in a request chooses the checkout, the channel, the service or the source of the update.",
+    "about": "GET path says whether this gateway can update its own installed copy and what happened last time. POST path {\"action\":\"check\"} looks for an update; POST path {\"action\":\"apply\",\"commit\"} installs exactly the commit the owner reviewed; POST path {\"action\":\"rollback\",\"commit\"} goes back to exactly the commit the last update replaced, and only while the installed copy is still the one that update left. The status carries the stage the last update reached and a short log in the gateway's own words. Only a gateway its operator started with an installed checkout and service named can do either; any other answers that it is not available. Nothing in a request chooses the checkout, the channel, the service or the source of the update.",
     "path": "/v1/update",
-    "actions": ["check", "apply"],
+    "actions": ["check", "apply", "rollback"],
     "commitPattern": "[a-f0-9]{40}",
     "unavailable": "Updating from the app is not set up for this PEA."
   },

@@ -109,7 +109,11 @@ What the page can do is narrow on purpose. It can ask whether updating is availa
 
 When an update is approved, the gateway starts a one-off launchd job of its own (the service's label with `.update` added) and answers at once. That job runs `update.py apply` for exactly the approved commit, with the same refusals, restart, health check and rollback as the command line, and then removes itself. It is a separate job because restarting PEA stops anything PEA started directly. The page loses contact for a moment, keeps asking, and reports the recorded outcome: updated, refused with the reason, or put back. The job's log and the record are in `~/.config/pea/updates`, private to you.
 
-Not done from the page: going back to an earlier release when yours was withdrawn (use the command with `--allow-older`), and `rollback`. PEA for Mac is not installed this way; its gateway always answers that updating is not available.
+While that job works, the page shows a bar and five steps, read from the stage the job records as it goes, and afterwards a log of what it did. Before an update starts the page notes a mark for each setting saved in the browser and, after the reload, says whether each is as it was.
+
+After an update from the page, **Go back** returns to the commit that update replaced: the gateway starts the same kind of job running `update.py rollback` for exactly that commit, and only while the installed copy is still the one that update left. The review says what changes and what does not, and the copy you have is kept if the older one does not come back healthy.
+
+Not done from the page: going back to an earlier release when yours was withdrawn (use the command with `--allow-older`), and going back further than the version the last update replaced. PEA for Mac is not installed this way; its gateway always answers that updating is not available.
 
 ## Rollback and interrupted switches
 

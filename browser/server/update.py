@@ -36,6 +36,10 @@ LABEL = re.compile(r'[A-Za-z0-9._-]{1,100}\Z')
 LOCAL = re.compile(r'http://(?:127\.0\.0\.1|localhost):([1-9]\d{0,4})\Z')
 
 
+# How far an update got, as the app may show it.
+STAGES = ('starting', 'files', 'restarting', 'checking', 'done', 'putting back', 'put back')
+
+
 class Refusal(Exception):
     """A plain reason nothing was changed."""
 
@@ -301,9 +305,13 @@ def last_record(state):
     if not isinstance(entry, dict) or not isinstance(entry.get('outcome'), str) or type(entry.get('at')) is not int:
         return None
     shown = {'kind': entry['kind'] if entry.get('kind') in ('apply', 'rollback') else 'apply', 'outcome': entry['outcome'][:60], 'at': entry['at']}
+    shown['stage'] = entry['stage'] if entry.get('stage') in STAGES else None
+    shown['log'] = [{'at': line['at'], 'text': line['text'][:200]} for line in (entry.get('log') if isinstance(entry.get('log'), list) else [])
+                    if isinstance(line, dict) and type(line.get('at')) is int and isinstance(line.get('text'), str)][-30:]
     for name in ('previous', 'target'):
         shown[name] = entry[name] if isinstance(entry.get(name), str) and COMMIT.fullmatch(entry[name]) else None
-    for name, most in (('previousVersion', 80), ('targetVersion', 80), ('message', 400)):
+    shown['noteAt'] = entry['noteAt'] if type(entry.get('noteAt')) is int else None
+    for name, most in (('previousVersion', 80), ('targetVersion', 80), ('message', 400), ('note', 400)):
         shown[name] = entry[name][:most] if isinstance(entry.get(name), str) else None
     return shown
 
@@ -322,14 +330,14 @@ def offer(checkout, *, channel, prerelease, state, official=None, read=download)
                        'notes': target['notes']} if available else None}
 
 
-def helper_plist(*, python, checkout, url, label, state, channel, prerelease, commit, path):
+def helper_plist(*, python, checkout, url, label, state, channel, prerelease, commit, path, command='apply'):
     """The one-off launchd job that carries out an update the owner approved in the app. It is its
     own job so that restarting PEA cannot stop it, and it removes itself when it is done."""
-    if not LABEL.fullmatch(label) or not COMMIT.fullmatch(commit) or not LOCAL.fullmatch(url) or channel not in ('development', 'release'):
+    if not LABEL.fullmatch(label) or not COMMIT.fullmatch(commit) or not LOCAL.fullmatch(url) or channel not in ('development', 'release') or command not in ('apply', 'rollback'):
         raise Refusal('That update cannot be started.')
     helper = label + '.update'
     state = Path(state).expanduser()
-    arguments = [str(python), str(Path(checkout) / 'browser' / 'server' / 'update.py'), 'apply', '--checkout', str(checkout), '--url', url,
+    arguments = [str(python), str(Path(checkout) / 'browser' / 'server' / 'update.py'), command, '--checkout', str(checkout), '--url', url,
                  '--launchd-label', label, '--state-dir', str(state), '--channel', channel, '--expect', commit, '--report',
                  '--self-label', helper, '--confirm']
     if prerelease:
@@ -359,19 +367,30 @@ def move(installed, commit, version, *, url, restart, state, wait, kind):
     """Moves the checkout to `commit`, restarts, and puts the old commit back if PEA is not healthy on it."""
     checkout, before = installed['checkout'], installed['commit']
     entry = {'kind': kind, 'previous': before, 'previousVersion': installed['version'], 'target': commit, 'targetVersion': version,
-             'at': int(time.time()), 'outcome': 'started'}
-    record(state, entry)
+             'at': int(time.time()), 'outcome': 'started', 'stage': 'starting', 'log': []}
+
+    def note(stage, text, **more):
+        """Records the stage reached and one line about it, in this program's own words, for the app to show."""
+        entry.update(stage=stage, **more)
+        entry['log'] = (entry['log'] + [{'at': int(time.time()), 'text': text}])[-30:]
+        record(state, entry)
+
+    note('starting', f'{"Going back" if kind == "rollback" else "Updating"} from {installed["version"]} ({before[:12]}) to {version} ({commit[:12]}). Settings and saved data are not touched: only program files change.')
     # --keep moves the branch and files but refuses rather than overwrite a local change.
     git(checkout, 'reset', '--keep', commit)
+    note('files', f'Program files are now {version}.')
     try:
+        note('restarting', 'Restarting PEA.')
         restart()
+        note('checking', f'Waiting for PEA to report {version}.')
         good = healthy(url, commit, version, wait)
         why = 'PEA did not come back reporting the new commit and version.'
     except Refusal as refusal:
         good, why = False, str(refusal)
     if good:
-        record(state, {**entry, 'outcome': 'succeeded'})
+        note('done', f'PEA is running {version}. Reload the page to use it.', outcome='succeeded')
         return entry
+    note('putting back', f'{why} Putting {installed["version"]} back.')
     git(checkout, 'reset', '--keep', before)
     restored = False
     try:
@@ -381,7 +400,7 @@ def move(installed, commit, version, *, url, restart, state, wait, kind):
         pass
     message = (f'{why} The previous version ({installed["version"]}, {before[:12]}) was put back'
                + ('.' if restored else ', but PEA did not confirm it is running. Check the service.'))
-    record(state, {**entry, 'outcome': 'rolled back' if restored else 'rolled back, not confirmed healthy', 'message': message})
+    note('put back', message, outcome='rolled back' if restored else 'rolled back, not confirmed healthy', message=message)
     refusal = Refusal(message)
     refusal.recorded = True
     raise refusal
@@ -462,6 +481,13 @@ def main(argv=None):
         print(f'PEA update: {refusal}', file=sys.stderr)
         if args.report and args.command == 'apply' and not getattr(refusal, 'recorded', False):
             record(args.state_dir, {'kind': 'apply', 'outcome': 'refused', 'message': str(refusal), 'at': int(time.time())})
+        if args.report and args.command == 'rollback' and not getattr(refusal, 'recorded', False):
+            # The record of the update is kept, so the way back is still there to try again.
+            try:
+                kept = last(args.state_dir)
+                record(args.state_dir, {**kept, 'note': str(refusal)[:400], 'noteAt': int(time.time())})
+            except Refusal:
+                pass
         return 1
     finally:
         # A one-off helper job takes itself out of launchd as its last act.

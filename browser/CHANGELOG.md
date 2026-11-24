@@ -2,6 +2,21 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.69] - 2026-11-24
+
+### Added
+
+- **An update shows what it is doing.** While PEA updates from the Versions & updates window there is a progress bar and five steps (note where you are, put the program files in place, restart PEA, check it answers on that version, finished) with a tick on each as it is done, and "PEA is restarting; this page will reconnect by itself" while it is out of reach. If the new version does not come back healthy the list shows where it stopped and that the version you had was put back.
+- **A log of the last update**, folded under "What PEA did, step by step": each line with its time, in PEA's own words. It stays after a reload.
+- **Your settings are checked across an update.** Before an update starts PEA notes a mark for each setting saved in this browser; after you reload it compares and says "all N are exactly as they were", or names any that differ. An update replaces program files only; this shows it.
+- **Go back to the previous version from the app.** After an update from here, "Go back to …" returns to exactly the version that update replaced, after a review that says what changes and what does not. It is offered only while the installed copy is still the one that update left, and PEA keeps the version you have if the older one does not come back healthy. Before this it could only be done with the update command.
+- **"Back up everything first…"** in the same window opens Backup & restore in Settings.
+
+### Changed
+
+- While an update or a go-back is under way its own buttons are put away, so it cannot be asked for twice.
+- A proxy in front of PEA that answers for it while it restarts (a private-network address, for example) is now understood as "restarting", not "working on it".
+
 ## [0.1.0-rc.4.dev.68] - 2026-11-24
 
 ### Added

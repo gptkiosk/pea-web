@@ -296,12 +296,13 @@ UPDATE_COMMIT = re.compile(UPDATES['commitPattern'] + r'\Z')
 
 
 def validate_update(raw):
-    """A request to look for an update, or to install exactly one commit. Nothing else can be asked."""
+    """A request to look for an update, to install exactly one commit, or to go back to exactly the
+    commit the last update replaced. Nothing else can be asked."""
     if not isinstance(raw, dict) or raw.get('action') not in UPDATES['actions']:
         raise ValueError()
     if raw['action'] == 'check' and set(raw) == {'action'}:
         return raw
-    if raw['action'] == 'apply' and set(raw) == {'action', 'commit'} and isinstance(raw['commit'], str) and UPDATE_COMMIT.fullmatch(raw['commit']):
+    if raw['action'] in ('apply', 'rollback') and set(raw) == {'action', 'commit'} and isinstance(raw['commit'], str) and UPDATE_COMMIT.fullmatch(raw['commit']):
         return raw
     raise ValueError()
 
@@ -700,16 +701,25 @@ class Gateway(ThreadingHTTPServer):
         if not self.update_lock.acquire(blocking=False):
             return 429, {'error': 'An update check is already running. No automatic retry.'}
         try:
+            start = lambda command: settings.get('start', updater.start_helper)(
+                python=sys.executable, checkout=settings['checkout'], url=f'http://127.0.0.1:{self.server_port}', label=settings['label'],
+                state=settings['state'], channel=settings['channel'], prerelease=settings['prerelease'], commit=request['commit'],
+                path=os.environ.get('PATH', '/usr/bin:/bin:/usr/sbin:/sbin'), **({'command': command} if command != 'apply' else {}))
+            if request['action'] == 'rollback':
+                # Only the commit the last update replaced, and only while that update's result is what is installed.
+                entry = updater.last(settings['state'])
+                installed = updater.inspect(settings['checkout'], settings.get('official'))
+                if entry.get('kind', 'apply') != 'apply' or entry.get('outcome') != 'succeeded' or entry['target'] != installed['commit'] or entry['previous'] != request['commit']:
+                    return 409, {'error': 'There is no earlier version to go back to from the installed copy. Nothing was changed.'}
+                start('rollback')
+                return 202, {'started': True, 'commit': request['commit']}
             found = updater.offer(settings['checkout'], channel=settings['channel'], prerelease=settings['prerelease'], state=settings['state'],
                                   official=settings.get('official'), **({'read': settings['read']} if 'read' in settings else {}))
             if request['action'] == 'check':
                 return 200, found
             if found['upToDate'] or found['target']['commit'] != request['commit']:
                 return 409, {'error': 'The update on offer changed after it was reviewed. Check again; nothing was changed.'}
-            settings.get('start', updater.start_helper)(
-                python=sys.executable, checkout=settings['checkout'], url=f'http://127.0.0.1:{self.server_port}', label=settings['label'],
-                state=settings['state'], channel=settings['channel'], prerelease=settings['prerelease'], commit=request['commit'],
-                path=os.environ.get('PATH', '/usr/bin:/bin:/usr/sbin:/sbin'))
+            start('apply')
             return 202, {'started': True, 'commit': request['commit']}
         except updater.Refusal as refusal:
             return 409, {'error': str(refusal)}

@@ -358,3 +358,125 @@ test(
     await page.close();
   },
 );
+
+// The same update with every step shown, a log kept, the settings checked after the reload, and
+// the way back to the version it replaced.
+test(
+  'an update shows each step and a log, checks the settings after the reload, and can be undone after a review',
+  { skip, timeout: 120000 },
+  async () => {
+    const at = () => Math.floor(Date.now() / 1000);
+    const log = (...texts) => texts.map((text) => ({ at: at(), text }));
+    const said = [
+      'Updating from 0.1.0-rc.1 (aaaaaaaaaaaa) to 0.1.0-rc.2 (bbbbbbbbbbbb). Settings and saved data are not touched: only program files change.',
+      'Program files are now 0.1.0-rc.2.',
+      'Restarting PEA.',
+      'Waiting for PEA to report 0.1.0-rc.2.',
+      'PEA is running 0.1.0-rc.2. Reload the page to use it.',
+    ];
+    const op = (over) => ({ kind: 'apply', at: at(), previous: a, previousVersion: '0.1.0-rc.1', target: b, targetVersion: '0.1.0-rc.2', ...over });
+    let phase = 'before',
+      polls = 0,
+      hold = true;
+    const answer = (method, body) => {
+      if (method === 'GET') {
+        if (phase === 'before') return { body: status() };
+        if (phase === 'done')
+          return { body: status({ installed: { version: '0.1.0-rc.2', commit: b }, operation: op({ outcome: 'succeeded', stage: 'done', log: log(...said) }) }) };
+        if (phase === 'refused')
+          return { body: status({ installed: { version: '0.1.0-rc.2', commit: b }, operation: op({ at: 5, outcome: 'succeeded', stage: 'done', log: log(...said), note: 'The installed copy has changes to tracked files. Nothing was changed.', noteAt: at() }) }) };
+        polls++;
+        if (polls === 1) return { body: status({ operation: op({ outcome: 'started', stage: 'files', log: log(...said.slice(0, 2)) }) }) };
+        if (polls === 2 || hold) return { status: 502, body: {} };
+        phase = 'done';
+        return answer('GET');
+      }
+      if (body.action === 'check') return { body: found() };
+      if (body.action === 'rollback') {
+        phase = 'refused';
+        return { status: 202, body: { started: true, commit: body.commit } };
+      }
+      phase = 'updating';
+      return { status: 202, body: { started: true, commit: body.commit } };
+    };
+    const page = await openWith(answer);
+    await page.evaluate(
+      `(() => { localStorage.setItem('pea-device-voice-v1', JSON.stringify({ voice: '', rate: 1.2 })); localStorage.setItem('pea-presence-v1', JSON.stringify({ personal: true, work: false })); })()`,
+    );
+    assert.equal(await hidden(page, '#update-progress'), true, 'no bar until something is under way');
+    assert.equal(await hidden(page, '#update-back'), true, 'nothing to go back to yet');
+    assert.equal(await hidden(page, '#update-backup'), false, 'a backup file is one press away');
+    await page.click('#update-check');
+    await page.waitFor(`!document.querySelector('#update-apply').hidden`, 'the offer');
+    await page.click('#update-apply');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review');
+    assert.match(await page.text('#review-body'), /PEA notes your settings now and checks them again when you reload/);
+    await page.click('#review-approve');
+    // While PEA restarts the page cannot reach it: the bar holds at Restart and says so.
+    const steps = () =>
+      page.evaluate(
+        `JSON.stringify([...document.querySelectorAll('#update-steps li')].map((li) => li.dataset.state))`,
+      );
+    await page.waitFor(
+      `!document.querySelector('#update-progress').hidden && /PEA is restarting/.test(document.querySelector('#update-note').textContent)`,
+      'the restart to be shown',
+    );
+    assert.equal(await words(page, '#update-progress-title'), 'Updating to 0.1.0-rc.2');
+    assert.equal(await steps(), JSON.stringify(['done', 'done', 'now', 'todo', 'todo']));
+    assert.equal(await page.evaluate(`document.querySelector('#update-bar').value`), 2);
+    assert.equal(
+      await page.evaluate(`document.querySelector('#update-steps [aria-current="step"]').textContent`),
+      'Restart PEA',
+    );
+    assert.equal(await page.evaluate(`document.querySelectorAll('#update-log li').length`), 2, 'the log so far');
+    hold = false;
+    await noted(page, /Updated to 0\.1\.0-rc\.2\. Reload this page to load the new version/);
+    assert.equal(await steps(), JSON.stringify(['done', 'done', 'done', 'done', 'done']));
+    assert.equal(await page.evaluate(`document.querySelector('#update-bar').value`), 5);
+    assert.equal(await words(page, '#update-progress-title'), 'Updated to 0.1.0-rc.2');
+    const lines = JSON.parse(
+      await page.evaluate(
+        `JSON.stringify([...document.querySelectorAll('#update-log li')].map((li) => li.textContent.replace(li.querySelector('time').textContent, '').trim()))`,
+      ),
+    );
+    assert.deepEqual(lines, said);
+    assert.equal(await page.evaluate(`document.querySelector('#update-log-box').open`), false, 'the log is there, folded');
+    assert.equal(await hidden(page, '#update-settings'), true, 'the settings are checked on the next load, not this one');
+
+    // After the reload: the settings were checked, and the version it replaced is on offer.
+    await page.reload();
+    await page.waitFor(
+      `/all \\d+ saved in this browser are exactly as they were before the move to 0\\.1\\.0-rc\\.2/.test(document.querySelector('#update-settings').textContent)`,
+      'the settings check',
+    );
+    assert.equal(await hidden(page, '#update-settings'), false);
+    assert.equal(await page.evaluate(`localStorage.getItem('pea-update-check-v1')`), null, 'said once');
+    assert.equal(await page.evaluate(`JSON.parse(localStorage.getItem('pea-device-voice-v1')).rate`), 1.2);
+    await page.click('#local-forget');
+    await page.fill('#local-token', stack.gateway.token);
+    await page.click('#local-connect');
+    await page.waitFor(`!document.querySelector('#update-back').hidden`, 'the way back');
+    assert.equal(await words(page, '#update-back'), 'Go back to 0.1.0-rc.1…');
+    assert.equal(await page.evaluate(`document.querySelectorAll('#update-log li').length`), 5, 'the last update’s log is kept');
+    await page.click('#update-back');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review');
+    assert.match(await page.text('#review-title'), /Go back to 0\.1\.0-rc\.1\?/);
+    const back = await page.text('#review-body');
+    assert.match(back, /Now: 0\.1\.0-rc\.2\s+After: 0\.1\.0-rc\.1 \(aaaaaaaaaaaa\), the version the last update replaced/);
+    assert.match(back, /Only program files change\./);
+    assert.match(back, /make a backup file first/);
+    await page.click('#review-cancel');
+    await noted(page, /Not changed\. You are still on 0\.1\.0-rc\.2/);
+    assert.ok(!posts(page).some((p) => p.action === 'rollback'), 'cancel asks for nothing');
+    await page.click('#update-back');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review again');
+    await page.click('#review-approve');
+    // This time PEA refuses, and its reason is shown; the update's record and the way back stay.
+    await noted(page, /Did not go back\. The installed copy has changes to tracked files\. Nothing was changed\./);
+    assert.deepEqual(posts(page).at(-1), { action: 'rollback', commit: a }, 'only the replaced commit is named');
+    assert.equal(await hidden(page, '#update-progress'), true);
+    assert.equal(await hidden(page, '#update-back'), false);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);
