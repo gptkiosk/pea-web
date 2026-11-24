@@ -5117,3 +5117,51 @@ summary + .settings-step {
 #recent-chats-all {
   justify-self: start;
 }
+
+/* Actions in settings and tool windows are buttons, never link-style text. */
+dialog .dialog-body :is(button, a).text-button,
+.today-section .settings-group :is(button, a).text-button {
+  min-height: 44px;
+  padding: 8px 18px;
+  margin: 4px 8px 4px 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+dialog .dialog-body :is(button, a).text-button:hover,
+dialog .dialog-body :is(button, a).text-button:focus-visible,
+.today-section .settings-group :is(button, a).text-button:hover,
+.today-section .settings-group :is(button, a).text-button:focus-visible {
+  border-color: var(--green);
+  background: var(--tint);
+  color: var(--green);
+}
+dialog .dialog-body :is(button, a).text-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+dialog .dialog-body .primary + .text-button {
+  margin-inline-start: 8px;
+}
+dialog .dialog-body .action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+}
+/* The small ones: the way back, and "More" under a shortened text. */
+dialog .dialog-body .text-button.settings-back {
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+dialog .dialog-body .text-button.settings-more {
+  min-height: 30px;
+  padding: 2px 12px;
+  margin: 6px 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+}

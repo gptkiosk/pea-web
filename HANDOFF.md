@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Buttons in place of link-style actions — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.60`. Owner instruction with a picture of Past chats: "all through settings and tools nice modern buttons instead of clickable link style."
+
+- `browser/styles.css` (end of file): every `.text-button` inside a dialog's body, and inside a settings group on Today, is drawn as a button (border, pill shape, padding, 44px); `.settings-back` and `.settings-more` are the small variants; `.action-row` wraps. No markup or behaviour changed.
+- Tests: one more in `browser/tests/dom/settings-links.test.mjs` (nine there now), measuring actions in Past chats & memory, Settings and Privacy & voice.
+- Known gaps: text buttons outside dialogs (the Today cards' own rows, the footer, the chat's "Copy") keep the link look; destructive actions are not coloured differently. Looked at by eye in the test browser only (Past chats, Google), dark theme.
+- Standing rule from the owner: new or touched actions in these windows are buttons, never link-style.
+
 ## The model is given the real followed shows — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.59`. Owner report with a picture: asked for the shows, the local model listed eight invented ones as "the shows you follow", and at other times the real rows appeared.

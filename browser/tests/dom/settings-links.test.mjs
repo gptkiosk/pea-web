@@ -587,3 +587,48 @@ test(
     await page.close();
   },
 );
+
+test('actions in settings and tool windows are buttons, not link-style text', options, async () => {
+  const page = await openConnectedPage(stack, { width: 1000, height: 1200 });
+  await askModel(stack, page, 'A plain synthetic question to save.');
+  const look = (selector) =>
+    page.evaluate(`(() => {
+      const b = [...document.querySelectorAll(${JSON.stringify(selector)})].find((e) => e.getClientRects().length);
+      if (!b) return null;
+      const c = getComputedStyle(b), r = b.getBoundingClientRect();
+      return {
+        border: parseFloat(c.borderTopWidth) >= 1 && c.borderTopStyle === 'solid',
+        round: parseFloat(c.borderTopLeftRadius) >= 12,
+        padded: parseFloat(c.paddingLeft) >= 12,
+        tall: r.height >= 44,
+        plain: !c.textDecorationLine.includes('underline'),
+      };
+    })()`);
+  const button = { border: true, round: true, padded: true, tall: true, plain: true };
+  await press(page, 'menu-history');
+  for (const selector of ['#library-storage', '#library-interview', '#library-new-chat'])
+    assert.deepEqual(await look(selector), button, selector);
+  await tile(page, 'past-chats');
+  await page.waitFor(
+    `document.querySelectorAll('#library-threads .memory-card').length > 0`,
+    'the saved chat',
+  );
+  for (const selector of ['#library-back', '#library-threads .memory-card .text-button'])
+    assert.deepEqual(await look(selector), button, selector);
+  await page.evaluate(`document.getElementById('library').close()`);
+  await closed(page, 'library');
+
+  await press(page, 'menu-settings');
+  await tile(page, 'google');
+  for (const selector of ['#settings-back', '#google-group .text-button:not(.settings-more)'])
+    assert.deepEqual(await look(selector), button, selector);
+  // "More" is a small button: bordered and padded, shorter than an action.
+  assert.deepEqual(await look('#google-group .settings-more'), { ...button, tall: false });
+  await page.evaluate(`document.getElementById('connections').close()`);
+  await closed(page, 'connections');
+  await press(page, 'menu-privacy');
+  await tile(page, 'privacy-boundary');
+  assert.deepEqual(await look('#privacy-data-group .settings-go'), button);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
