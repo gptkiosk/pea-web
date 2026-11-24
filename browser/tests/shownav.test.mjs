@@ -522,6 +522,7 @@ test('asking which shows PEA knows lists the shows, and ordinary questions are l
     'which shows should I watch',
     'I listened to a podcast about bread yesterday and it made me want to bake',
     'the show starts at eight',
+    'show podcasts settings',
   ])
     assert.equal(showCommand(said, { at: idle(), shows: [] }), null, said);
 });

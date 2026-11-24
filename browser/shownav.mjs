@@ -263,6 +263,8 @@ export function showCommand(text, { at = idle(), shows = [] } = {}) {
   // left to make a list up.
   if (
     said.split(' ').length <= 16 &&
+    // "show podcasts settings" asks for a place in PEA, which is not this rule's to answer.
+    !/\b(?:settings?|setup|options|preferences)\b/.test(said) &&
     /^(?:what|which|list|show|tell|can|could|would|will|do|does|give|any|are|is|who|name|remind|have)\b/.test(
       said,
     ) &&
