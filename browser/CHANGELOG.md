@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.61] - 2026-11-23
+
+### Fixed
+
+- **A message sent in the first moment after the page loads waits for your saved chats to open.** They open just after loading; on a slow machine that could land in the middle of a first request and redraw the chat under it. The wait is a few milliseconds on an ordinary machine.
+
 ## [0.1.0-rc.4.dev.60] - 2026-11-23
 
 ### Changed

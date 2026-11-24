@@ -1190,7 +1190,8 @@ export function installMemory(hooks) {
     invalidate();
     render();
   });
-  void (async () => {
+  // Resolves once the saved chats have been opened (or found to need a passphrase, or to be off).
+  const ready = (async () => {
     try {
       vault = await ConversationVault.open();
       hasSaved = !!(await vault.storage.get());
@@ -1216,6 +1217,8 @@ export function installMemory(hooks) {
       forget: (name) => (vault ? vault.forgetSecret(name) : Promise.resolve()),
     },
     record,
+    // A message waits for this, so opening the saved chats never lands in the middle of a request.
+    ready,
     profileChanged,
     render,
     // For a backup: this profile's answers and every memory, and how many more memories fit.

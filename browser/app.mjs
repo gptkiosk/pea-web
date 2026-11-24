@@ -1569,6 +1569,9 @@ showListenMode();
 // `room` is set by the voice room, which reads its own replies, and `spoken` when it will.
 async function submit(surface, { aloud = false, plain = false, room = false, spoken = false } = {}) {
   voice?.stop();
+  // The saved chats open in the first moment after the page loads. A message sent in that moment
+  // waits for it, so the chat is never redrawn under a request.
+  await memory?.ready;
   const listening = listenMode && !room,
     who = profile,
     previous = history(surface, who).at(-1)?.id;
