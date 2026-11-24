@@ -67,8 +67,10 @@ export function installMemory(hooks) {
   }
   const fields = Object.keys(introductionLimits);
   const eligible = () => profiles.includes(profile());
+  // A save under way does not make the library busy: saves are queued one after another by the
+  // vault, and with chats saved as they go one is often in flight for a moment after a reply.
   function idle() {
-    if (initializing || pending || porting || hooks.busy())
+    if (initializing || porting || hooks.busy())
       throw new ServiceError('Finish the current request or local save first.');
   }
   // Chats are saved as they go, so a save is often under way for a moment. Something the owner
