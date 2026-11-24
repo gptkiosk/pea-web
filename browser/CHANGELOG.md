@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.60] - 2026-11-23
+
+### Changed
+
+- **Actions in settings and tool windows are buttons.** "Continue in chat", "Forget conversation…", the way back from a section, "Set a passphrase…", "Fresh Chat…" and every other action that was drawn as green link-style text now has a button's shape: a border, rounded ends, padding, and at least 44 pixels of height. "More" under a shortened text is a small button. Links to other sites stay links.
+
 ## [0.1.0-rc.4.dev.59] - 2026-11-23
 
 ### Fixed
