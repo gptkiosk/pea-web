@@ -5245,8 +5245,19 @@ dialog .dialog-body .setup-nav :is(button, .text-button) {
     grid-area: 3 / 1 / 4 / -1;
   }
 }
-/* A narrower desktop window keeps the one row by leaving the chips' small pictures out. */
+/* A narrower desktop window keeps the one row by leaving the chips' small pictures out, and the
+   chips take the room between the brand and the controls instead of the middle of the window, so
+   a wider typeface cannot push them into either. */
 @media (min-width: 901px) and (max-width: 1180px) {
+  .shell {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .shell > .rail nav {
+    justify-content: safe center;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
   .shell > .rail .nav > svg,
   .shell > .rail .nav > span:not(.chip-count) {
     display: none;

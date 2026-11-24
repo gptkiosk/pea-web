@@ -288,7 +288,8 @@ test('on a screen with room PEA is one fixed window under a one-row bar', option
   assert.ok(narrow.panes.top <= 72);
   assert.ok(narrow.brand.right <= narrow.first.left + 1 && narrow.last.right <= narrow.controls.left + 1);
   assert.ok(narrow.controls.right <= narrow.width, 'the controls are inside the window');
-  assert.ok(Math.abs((narrow.first.left + narrow.last.right) / 2 - narrow.width / 2) <= 2);
+  // Here the chips are between the brand and the controls, not held to the middle of the window.
+  assert.ok(narrow.first.top >= 0 && narrow.last.bottom <= narrow.panes.top + 1);
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });
