@@ -133,7 +133,204 @@ export function installSettings({ openers, tab, notice, status = () => '' }) {
     showHome();
     panels.set(spec.dialog, { panel, sections, showHome, showSection });
   }
-  $('guided-all').addEventListener('click', panels.get('connections').showHome);
+  // The guided setup: the sections Settings already has, one at a time, in the order a new owner
+  // needs them, with what is known about each. It opens and shows; it reads no key, fills no
+  // field and connects nothing. Every step can be skipped.
+  const connections = panels.get('connections'),
+    picked = (id) => $(id).selectedOptions[0]?.textContent.trim() ?? '',
+    text = (id) => $(id).textContent.trim();
+  let at = -1,
+    route = 'local-model',
+    watching = 0;
+  const steps = [
+    {
+      id: 'model',
+      title: 'Connect a model',
+      hint: 'Use a model on this machine, or your own OpenRouter key.',
+      place: () => route,
+      done: () => [...$('chat-model').options].some((o) => o.value),
+      state: (done) => (done ? status('models') || 'Connected' : 'Not connected'),
+    },
+    {
+      id: 'areas',
+      title: 'Choose your models',
+      hint: 'One for Chat, and one for each kind of Greenhouse work.',
+      place: () => 'models',
+      done: () => Boolean($('chat-model').value),
+      state: (done) => (done ? 'Chat: ' + picked('chat-model') : 'No Chat model yet'),
+    },
+    {
+      id: 'voice',
+      title: 'Voice',
+      hint: 'Your device already reads aloud. Add a provider voice if you like.',
+      place: () => 'voices',
+      done: () => text('provider-voice-status').startsWith('Read aloud uses'),
+      state: (done) => (done ? picked('provider-voice') + ' voice' : 'Device voice'),
+    },
+    {
+      id: 'search',
+      title: 'Web search',
+      hint: 'Let Chat look things up with your own search key.',
+      place: () => 'web-search',
+      done: () => status('web-search') === 'Key entered',
+      state: (done) => (done ? 'Key entered' : 'No key'),
+    },
+    {
+      id: 'google',
+      title: 'Google',
+      hint: 'Calendar, Gmail, and a Drive folder for your Docs.',
+      place: () => 'google',
+      done: () => status('google') === 'Connected',
+      state: (done) => (done ? 'Connected' : 'Not connected'),
+    },
+    {
+      id: 'sources',
+      title: 'Knowledge sources',
+      hint: 'Follow shows PEA can talk about with you.',
+      place: () => null,
+      done: () => !/^off\b/i.test(text('curated-status')),
+      state: (done) => (done ? text('curated-peek') || 'On' : 'Off'),
+    },
+  ];
+  function drawStep() {
+    if (at < 0) return;
+    const step = steps[at],
+      done = step.done(),
+      last = at === steps.length - 1,
+      line = (done ? '✓ ' : '') + step.state(done);
+    // Written only when it changes, so a screen reader hears each state once.
+    if ($('setup-state').textContent !== line) $('setup-state').textContent = line;
+    $('setup-state').dataset.done = String(done);
+    $('setup-next').textContent = last ? 'Finish' : done ? 'Next →' : 'Skip →';
+    $('setup-next').classList.toggle('primary', done || last);
+    $('setup-next').classList.toggle('text-button', !done && !last);
+    [...$('setup-track').children].forEach((dot, i) => {
+      dot.dataset.done = String(steps[i].done());
+      dot.dataset.here = String(i === at);
+    });
+    if (step.id === 'sources') {
+      $('setup-sources-state').textContent = done
+        ? 'Knowledge sources are on. ' + text('curated-peek')
+        : 'Knowledge sources are off. Browsing asks before it fetches the list of shows.';
+      $('setup-sources-open').textContent = done ? 'Open knowledge sources' : 'Browse shows';
+    }
+  }
+  function showStep(index) {
+    const { panel } = connections,
+      step = steps[index];
+    if (!panel.open) openers.connections();
+    if (!panel.open) return;
+    at = index;
+    if (step.id === 'model' && index === 0 && status('local-model') !== 'Connected' && steps[0].done())
+      route = 'models';
+    const place = step.place();
+    if (place) connections.showSection(place);
+    else {
+      connections.showHome();
+      panel.dataset.section = 'setup';
+    }
+    panel.dataset.setup = step.id;
+    $('connections-title').textContent = 'Set up PEA';
+    $('guided-connection').hidden = $('setup-nav').hidden = false;
+    $('setup-sources').hidden = step.id !== 'sources';
+    $('setup-count').textContent = `Step ${index + 1} of ${steps.length}`;
+    $('guided-title').textContent = step.title;
+    $('guided-description').textContent = step.hint;
+    $('setup-switch').hidden = step.id !== 'model';
+    for (const button of $('setup-switch').children)
+      button.setAttribute('aria-pressed', String(button.dataset.route === route));
+    $('setup-track').replaceChildren(...steps.map(() => document.createElement('i')));
+    $('guided-back').textContent = index ? '← Back' : '← Overview';
+    drawStep();
+    clearInterval(watching);
+    // Connecting happens in the section's own controls; this only notices that it did.
+    watching = setInterval(drawStep, 500);
+    panel.querySelector('.dialog-body')?.scrollTo?.(0, 0);
+    $('guided-title').focus?.();
+  }
+  function endSetup() {
+    if (at < 0) return;
+    at = -1;
+    clearInterval(watching);
+    delete connections.panel.dataset.setup;
+    $('guided-connection').hidden = $('setup-nav').hidden = $('setup-sources').hidden = true;
+  }
+  function setup() {
+    if ([...document.querySelectorAll('dialog[open]')].some((d) => d.matches(':modal'))) {
+      notice('Finish what is open first, then try again.');
+      return;
+    }
+    const states = steps.map((step) => step.done()),
+      count = states.filter(Boolean).length,
+      next = states.indexOf(false);
+    $('setup-steps').replaceChildren(
+      ...steps.map((step, i) => {
+        const row = document.createElement('button'),
+          mark = document.createElement('span'),
+          words = document.createElement('span'),
+          title = document.createElement('strong'),
+          state = document.createElement('small'),
+          arrow = document.createElement('span');
+        row.type = 'button';
+        row.className = 'setup-step';
+        row.setAttribute('role', 'listitem');
+        row.dataset.step = step.id;
+        row.dataset.done = String(states[i]);
+        mark.className = 'setup-mark';
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = states[i] ? '✓' : String(i + 1);
+        title.textContent = step.title;
+        state.textContent = step.state(states[i]);
+        words.append(title, state);
+        arrow.setAttribute('aria-hidden', 'true');
+        arrow.textContent = '→';
+        row.append(mark, words, arrow);
+        row.onclick = () => {
+          $('setup-wizard').close();
+          showStep(i);
+        };
+        return row;
+      }),
+    );
+    $('setup-summary').textContent = count
+      ? `${count} of ${steps.length} set up.`
+      : `${steps.length} short steps. Skip any of them.`;
+    $('setup-start').textContent = !count ? 'Start' : next < 0 ? 'Go through again' : 'Continue';
+    $('setup-start').onclick = () => {
+      $('setup-wizard').close();
+      showStep(Math.max(next, 0));
+    };
+    $('setup-wizard').showModal();
+  }
+  $('setup-all').onclick = () => {
+    $('setup-wizard').close();
+    openers.connections();
+  };
+  $('guided-back').onclick = () => {
+    if (at > 0) return showStep(at - 1);
+    connections.panel.close();
+    setup();
+  };
+  $('setup-next').onclick = () => {
+    if (at < steps.length - 1) return showStep(at + 1);
+    connections.panel.close();
+    setup();
+  };
+  for (const button of $('setup-switch').children)
+    button.onclick = () => {
+      route = button.dataset.route;
+      showStep(at);
+    };
+  $('setup-sources-open').onclick = () => {
+    const off = !steps.at(-1).done();
+    connections.panel.close();
+    if (go('curated-sources') && off) $('curated-browse').click();
+  };
+  $('guided-all').addEventListener('click', () => {
+    endSetup();
+    connections.showHome();
+  });
+  connections.panel.addEventListener('close', endSetup);
   whenShown = (dialog) => {
     const tiles = panels.get(dialog.id);
     if (tiles && !dialog.open) tiles.showHome();
@@ -161,6 +358,7 @@ export function installSettings({ openers, tab, notice, status = () => '' }) {
   function go(id) {
     const place = settingsPlace(id);
     if (!place) return false;
+    endSetup();
     // A review or another question over the page comes first.
     if ([...document.querySelectorAll('dialog[open]')].some((d) => d.matches(':modal'))) {
       notice('Finish what is open first, then try again.');
@@ -196,6 +394,7 @@ export function installSettings({ openers, tab, notice, status = () => '' }) {
   globalThis.addEventListener('hashchange', fromAddress);
   return {
     go,
+    setup,
     fromAddress,
     // The place whose panel is open beside the page now, or null.
     open: () =>

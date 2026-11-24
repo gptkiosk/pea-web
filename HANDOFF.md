@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Guided setup in six steps — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.63`, on top of the Fish Audio change below. Owner instruction: "a more wizard like setup approach that is more intuitive leading the user through gathering the keys necessary for the setup in each step (model (each area), voice, search, google (gmail, calendar and docs integration), setup of knowledge sources). again with little text, nice modern buttons and dropdowns and intuitive design."
+
+- `browser/settings-ui.mjs` (`steps`, `showStep`, `drawStep`, `endSetup`, `setup`; returned as `settings.setup`): the steps, what counts as done for each (read from the page: a loaded model list, a chosen Chat model, the voice status line, `status('web-search')`, `status('google')`, the Curated sources pill), and the walk. It shows a Settings section through the tiled window's own `showSection`.
+- `browser/index.html`: `#setup-wizard` is the overview (`setup-steps`, `setup-start`, `setup-all`); in Connections, `#guided-connection` is the progress bar with `setup-switch`, plus `setup-sources` and `setup-nav`. `browser/app.mjs`: the old chooser wiring is removed; `status('google')`. `browser/live-ui.mjs`: `googleAccount()` returns a yes or no only.
+- `browser/styles.css`: the `[data-guided]` route rules are removed; the guided setup's rules are at the end of the file, including what part of a section each step shows (`[data-setup="model"]`, `[data-setup="areas"]`).
+- Test: `browser/tests/dom/settings-links.test.mjs`, "the guided setup lists six steps…" (overview states, Continue target, each step's one section, the switch, the walk to Finish, plain Settings afterwards).
+- Known gaps: the inside of each section is unchanged, so Local model and Google still carry long explanations; the guide hides only two leftovers. Done is read from the page twice a second while a step is open. Knowledge sources is a button to Today, not a section in the window. GitHub, Images, updates and shared configuration are not steps. Looked at in pictures from the test browser with a stand-in model; not tried on the owner's copy, a phone, or with real keys.
+
 ## Fish Audio voices and a stepped voice setup — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.62`. Owner report with a picture of Voice providers: "the voice setup settings are not super clear and do not load the Fish audio voices even with my key."

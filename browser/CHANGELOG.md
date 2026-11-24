@@ -2,6 +2,14 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.63] - 2026-11-23
+
+### Changed
+
+- **"Set up" is a guided setup.** The button on Chat opens "Set up PEA": six steps, each a big button that says what is already known (connected, the Chat model, device voice, no key, off). Start or Continue goes to the first step that is not set up. The steps are: connect a model (a switch between "On this machine" and "OpenRouter"), choose your models (Chat, Greenhouse collaboration, Greenhouse coding), voice, web search, Google, and knowledge sources.
+- **One section at a time, with a way on.** Each step shows only the part of Settings it is about, under a progress bar with the step's name and one line of help. Back and Next stay at the bottom; Next reads "Skip" until the step is set up, and says what it found ("✓ Local model connected"). "All settings" leaves the guide for the usual Settings home. Finish returns to the list of steps.
+- The guide uses the controls Settings already has. It reads no key, fills no field and connects nothing by itself; every step can be skipped. The earlier chooser ("Set up your connections", five routes) is gone; GitHub is under All settings.
+
 ## [0.1.0-rc.4.dev.62] - 2026-11-23
 
 ### Fixed
