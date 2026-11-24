@@ -77,7 +77,7 @@ test('gathering keeps one profile and leaves ids, switches and the other profile
     },
     memories: [memory('Likes tea.', 'I like tea'), memory('Work fact.', 'at work', { profile: 'work' })],
     todos: [todo('Buy milk'), todo('Work item', { profile: 'work' })],
-    cards: [card('Home', 'She grew up on a steep street by the river.')],
+    cards: [card('Home', 'PEA grew up on a steep street by the river.')],
     days: [{ day: day(0), text: 'Walked up to the viewpoint before the fog lifted.', from: 'week' }],
     decks: [deck('Mine'), deck('Theirs', 'work')],
   });
@@ -101,7 +101,7 @@ test('gathering keeps one profile and leaves ids, switches and the other profile
   assert.doesNotMatch(JSON.stringify(content), /"id"|"profile":"work"|threadID|changed/);
   const work = here({
     profile: 'work',
-    cards: [card('Home', 'She grew up on a steep street by the river.')],
+    cards: [card('Home', 'PEA grew up on a steep street by the river.')],
     days: [{ day: day(0), text: 'Walked up to the viewpoint before the fog lifted.', from: 'week' }],
   });
   assert.deepEqual([work.history, work.days], [[], []], 'the character belongs to Personal only');
@@ -113,7 +113,7 @@ test('combining only adds, keeps what is here, and reports differences', () => {
     introduction: { ...blank, ownerName: 'Sam', hobbies: 'Chess.' },
     memories: [memory('Likes tea.', 'I like tea')],
     todos: [todo('Buy milk'), todo('Call dentist', { due: now + 86400000 })],
-    cards: [card('Home', 'She grew up on a steep street by the river.')],
+    cards: [card('Home', 'PEA grew up on a steep street by the river.')],
     decks: [deck('Plan')],
   });
   const theirs = here({
@@ -121,8 +121,8 @@ test('combining only adds, keeps what is here, and reports differences', () => {
     memories: [memory('likes tea.', 'another quote'), memory('Visits Porto in spring.', 'we go to Porto')],
     todos: [todo('buy milk'), todo('Call dentist', { done: true, completed: 9 }), todo('Water plants')],
     cards: [
-      card('home', 'A different account of her home street entirely.'),
-      card('First job', 'Her first job was sorting postcards by the river.'),
+      card('home', 'A different account of PEA’s home street entirely.'),
+      card('First job', 'PEA’s first job was sorting postcards by the river.'),
     ],
     decks: [deck('plan', 'personal', 'Another point'), deck('Kickoff')],
   });
@@ -198,7 +198,7 @@ test('room, expiry and the days PEA keeps limit what is added, and say so', () =
   const days = planRestore(
     here({
       days: [
-        line(0, 'First thing she did was open the window wide.'),
+        line(0, 'First thing PEA did was open the window wide.'),
         line(0, 'Second thing was coffee on the balcony.'),
         line(0, 'Third thing was a slow walk downhill.'),
       ],
@@ -207,8 +207,8 @@ test('room, expiry and the days PEA keeps limit what is added, and say so', () =
       days: [
         line(0, 'A fourth line for a day that is already full.'),
         line(-60, 'Something from two months ago that PEA no longer keeps.'),
-        line(1, 'Tomorrow she plans to visit the tile museum.'),
-        line(0, 'first thing she did was open the window wide.'),
+        line(1, 'Tomorrow PEA plans to visit the tile museum.'),
+        line(0, 'first thing PEA did was open the window wide.'),
       ],
     }),
     { now },

@@ -23,6 +23,14 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## The assistant is PEA, not "her" — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.64`, on top of the guided setup below. Owner instruction with a picture of Past chats & memory: "Her" is often used here when the assistant could be a "him", best to just use PEA as the assistant's name for now until configured.
+
+- Wording only, in `browser/index.html`, `settings.mjs` (titles and descriptions; the place ids `her-history` and `her-days` are kept so saved links still open), `activity.mjs`, `canon.mjs`, `canon-ui.mjs`, `days.mjs`, `days-ui.mjs`, `life.mjs` (the dealt interests and people, and what a model is told), `live-ui.mjs` (the request review), `memory-ui.mjs`, and the docs that name those sections.
+- Guard: `browser/tests/settings.test.mjs`, "the assistant is called PEA…", reads `index.html` and every `browser/*.mjs` outside comments and fails on "her", "hers", "herself" or "she". Left alone on purpose: the owner's search words in `also: [...]`, the bread pattern in `life.mjs` that reads a model's line, the common-word list in `transcript.mjs`, the published schema, and sample model lines in `tests/cliche.test.mjs`.
+- Known gaps: code comments still say "her". No setting yet for the assistant's name or pronoun; when there is one, these strings should take it. Kept cards and days are not rewritten. Whether a model's own replies avoid "she" was not measured.
+
 ## Guided setup in six steps — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.63`, on top of the Fish Audio change below. Owner instruction: "a more wizard like setup approach that is more intuitive leading the user through gathering the keys necessary for the setup in each step (model (each area), voice, search, google (gmail, calendar and docs integration), setup of knowledge sources). again with little text, nice modern buttons and dropdowns and intuitive design."

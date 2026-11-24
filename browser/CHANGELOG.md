@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.64] - 2026-11-23
+
+### Changed
+
+- **The assistant is called PEA, not "her".** Past chats & memory now reads "PEA’s history", "PEA’s days" and "What you have told PEA"; buttons, reviews, notices and the list of what PEA did follow ("Write PEA’s week…", "Included PEA’s days around today"). The same goes for what your model is told when it writes the character's history and days, and for the small set of interests and people PEA deals out: none of it says "she" or "her" any more. Cards and days already written keep their own words; write them again if you want them to match.
+
 ## [0.1.0-rc.4.dev.63] - 2026-11-23
 
 ### Changed

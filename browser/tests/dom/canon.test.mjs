@@ -113,7 +113,7 @@ const home = {
 async function writeToCards(page) {
   await page.click('#canon-write');
   await page.waitFor(reviewOpen, 'the request review');
-  assert.equal(await title(page), 'Write her history with your model?');
+  assert.equal(await title(page), 'Write PEA’s history with your model?');
   await page.click('#review-approve');
   await page.waitFor(
     `${reviewOpen} && document.getElementById('review-title').textContent === 'Keep these cards?'`,
@@ -128,41 +128,45 @@ async function keepHistory(page) {
   await page.waitFor(`document.getElementById('canon-list').children.length === 7`, 'the kept cards');
 }
 
-test('nothing is written until the owner asks, has chosen her home and is in Personal', options, async () => {
-  mode = 'good';
-  const page = await openConnectedPage(stack, { width: 1500 });
-  const before = stack.model.requests.length;
-  assert.match(await page.text('#canon-status'), /No cards yet\. Nothing is written until you ask\./);
-  assert.equal(await shown(page), 0);
-  await page.click('#canon-write');
-  await pause(page);
-  assert.match(await note(page), /which city she should call home first/);
-  assert.equal(await page.evaluate(reviewOpen), false);
+test(
+  'nothing is written until the owner asks, has chosen PEA’s home and is in Personal',
+  options,
+  async () => {
+    mode = 'good';
+    const page = await openConnectedPage(stack, { width: 1500 });
+    const before = stack.model.requests.length;
+    assert.match(await page.text('#canon-status'), /No cards yet\. Nothing is written until you ask\./);
+    assert.equal(await shown(page), 0);
+    await page.click('#canon-write');
+    await pause(page);
+    assert.match(await note(page), /which city PEA should call home first/);
+    assert.equal(await page.evaluate(reviewOpen), false);
 
-  await setInterview(page, { assistantHome: 'skip' });
-  await page.click('#canon-write');
-  await pause(page);
-  assert.match(await note(page), /which city she should call home first/, 'a skipped answer is no home');
+    await setInterview(page, { assistantHome: 'skip' });
+    await page.click('#canon-write');
+    await pause(page);
+    assert.match(await note(page), /which city PEA should call home first/, 'a skipped answer is no home');
 
-  await setInterview(page, home);
-  await page.fill('#profile', 'work');
-  assert.equal(await page.evaluate(`document.getElementById('canon-write').disabled`), true);
-  assert.match(await page.text('#canon-status'), /belongs to the Personal profile/);
-  await page.fill('#profile', 'personal');
+    await setInterview(page, home);
+    await page.fill('#profile', 'work');
+    assert.equal(await page.evaluate(`document.getElementById('canon-write').disabled`), true);
+    assert.match(await page.text('#canon-status'), /belongs to the Personal profile/);
+    await page.fill('#profile', 'personal');
 
-  // Declining the review sends nothing.
-  await page.click('#canon-write');
-  await page.waitFor(reviewOpen, 'the request review');
-  await page.click('#review-cancel');
-  await page.waitFor(settled, 'the review to close');
-  assert.match(await note(page), /No cards were written\. Nothing was kept\./);
-  assert.equal(stack.model.requests.length, before, 'no request was made');
-  assert.equal(await shown(page), 0);
-  await page.close();
-});
+    // Declining the review sends nothing.
+    await page.click('#canon-write');
+    await page.waitFor(reviewOpen, 'the request review');
+    await page.click('#review-cancel');
+    await page.waitFor(settled, 'the review to close');
+    assert.match(await note(page), /No cards were written\. Nothing was kept\./);
+    assert.equal(stack.model.requests.length, before, 'no request was made');
+    assert.equal(await shown(page), 0);
+    await page.close();
+  },
+);
 
 test(
-  'one reviewed request carries her home and none of the owner’s own answers; cards are kept only after a second review',
+  'one reviewed request carries PEA’s home and none of the owner’s own answers; cards are kept only after a second review',
   options,
   async () => {
     mode = 'good';
@@ -174,7 +178,7 @@ test(
     await page.waitFor(reviewOpen, 'the request review');
     const review = await page.text('#review-body');
     assert.match(review, /This is one request to your model/);
-    assert.match(review, /Her home, in your words: Synthetic Harbour, the old quarter/);
+    assert.match(review, /PEA’s home, in your words: Synthetic Harbour, the old quarter/);
     assert.match(review, /No page about the place/);
     assert.match(review, /Everything the model is told \(exactly what is sent\):/);
     assert.match(review, /SYNTHETIC PERSONA: dry wit\./);
@@ -278,7 +282,7 @@ test('a reply that is not cards, or cards the owner turns down, keep nothing', o
 });
 
 test(
-  'a public page about her home is read only after its own review, and its words are shown before they are sent',
+  'a public page about PEA’s home is read only after its own review, and its words are shown before they are sent',
   options,
   async () => {
     mode = 'good';
@@ -312,7 +316,7 @@ test(
     assert.equal(stack.site.requests.length, reads + 1, 'the page is not read before approval');
     await page.click('#review-approve');
     await page.waitFor(
-      `${reviewOpen} && document.getElementById('review-title').textContent === 'Write her history with your model?'`,
+      `${reviewOpen} && document.getElementById('review-title').textContent === 'Write PEA’s history with your model?'`,
       'the request review',
       15000,
     );
@@ -350,7 +354,7 @@ test(
     await page.fill('#thought', 'Where did you grow up? On which street?');
     await page.evaluate(`document.getElementById('composer').requestSubmit()`);
     await page.waitFor(reviewOpen, 'the model sharing review');
-    assert.match(await page.text('#review-body'), /Her history \(fiction[^\n]*\):\nNot shared/);
+    assert.match(await page.text('#review-body'), /PEA’s history \(fiction[^\n]*\):\nNot shared/);
     await page.click('#review-approve');
     await page.waitFor(settled, 'the reply');
     assert.doesNotMatch(system(), /From your character’s own story|SYNTHETIC STREET/);
@@ -362,7 +366,7 @@ test(
     const review = await page.text('#review-body');
     assert.match(
       review,
-      /Her history \(fiction your model wrote and you kept; at most two cards go with a message/,
+      /PEA’s history \(fiction your model wrote and you kept; at most two cards go with a message/,
     );
     for (const word of ['SYNTHETIC STREET', 'SYNTHETIC COFFEE', 'SYNTHETIC SOUP', 'SYNTHETIC LIBRARY'])
       assert.ok(review.includes(word), 'the review lists every card that may be sent: ' + word);
@@ -406,7 +410,7 @@ test(
     await page.fill('#thought', 'Where did you grow up?');
     await page.evaluate(`document.getElementById('composer').requestSubmit()`);
     await page.waitFor(reviewOpen, 'the Work review');
-    assert.match(await page.text('#review-body'), /Her history \(fiction[^\n]*\):\nNot shared/);
+    assert.match(await page.text('#review-body'), /PEA’s history \(fiction[^\n]*\):\nNot shared/);
     await page.click('#review-approve');
     await page.waitFor(settled, 'the Work reply');
     assert.doesNotMatch(system(), /From your character’s own story|SYNTHETIC/);

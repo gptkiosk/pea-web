@@ -116,7 +116,7 @@ async function say(page, message) {
 }
 async function turnNotesOn(page) {
   await page.click('#days-notes');
-  await page.waitFor(titled('Let her keep notes on her days?'), 'the notes review');
+  await page.waitFor(titled('Let PEA keep notes on PEA’s days?'), 'the notes review');
   await page.click('#review-approve');
   await page.waitFor(
     `/Notes are on/.test(document.getElementById('days-note').textContent)`,
@@ -124,40 +124,44 @@ async function turnNotesOn(page) {
   );
 }
 
-test('nothing is written until the owner asks, has chosen her home and is in Personal', options, async () => {
-  mode = 'good';
-  const page = await openConnectedPage(stack, { width: 1500 });
-  const before = stack.model.requests.length;
-  assert.match(
-    await page.text('#days-status'),
-    /No lines yet\. Nothing is written until you ask, or turn notes on\./,
-  );
-  assert.equal(
-    await page.evaluate(`document.getElementById('days-notes').checked`),
-    false,
-    'notes start off',
-  );
-  await page.click('#days-write');
-  await pause(page);
-  assert.match(await note(page), /which city she should call home first/);
-  assert.equal(await page.evaluate(reviewOpen), false);
+test(
+  'nothing is written until the owner asks, has chosen PEA’s home and is in Personal',
+  options,
+  async () => {
+    mode = 'good';
+    const page = await openConnectedPage(stack, { width: 1500 });
+    const before = stack.model.requests.length;
+    assert.match(
+      await page.text('#days-status'),
+      /No lines yet\. Nothing is written until you ask, or turn notes on\./,
+    );
+    assert.equal(
+      await page.evaluate(`document.getElementById('days-notes').checked`),
+      false,
+      'notes start off',
+    );
+    await page.click('#days-write');
+    await pause(page);
+    assert.match(await note(page), /which city PEA should call home first/);
+    assert.equal(await page.evaluate(reviewOpen), false);
 
-  await setInterview(page, home);
-  await page.fill('#profile', 'work');
-  assert.equal(await page.evaluate(`document.getElementById('days-write').disabled`), true);
-  assert.equal(await page.evaluate(`document.getElementById('days-notes').disabled`), true);
-  assert.match(await page.text('#days-status'), /belong to the Personal profile/);
-  await page.fill('#profile', 'personal');
+    await setInterview(page, home);
+    await page.fill('#profile', 'work');
+    assert.equal(await page.evaluate(`document.getElementById('days-write').disabled`), true);
+    assert.equal(await page.evaluate(`document.getElementById('days-notes').disabled`), true);
+    assert.match(await page.text('#days-status'), /belong to the Personal profile/);
+    await page.fill('#profile', 'personal');
 
-  await page.click('#days-write');
-  await page.waitFor(titled('Write her week with your model?'), 'the request review');
-  await page.click('#review-cancel');
-  await page.waitFor(settled, 'the review to close');
-  assert.match(await note(page), /No days were written\. Nothing was kept\./);
-  assert.equal(stack.model.requests.length, before, 'no request was made');
-  assert.equal(await page.evaluate(`localStorage.getItem('pea-days-v1')`), null);
-  await page.close();
-});
+    await page.click('#days-write');
+    await page.waitFor(titled('Write PEA’s week with your model?'), 'the request review');
+    await page.click('#review-cancel');
+    await page.waitFor(settled, 'the review to close');
+    assert.match(await note(page), /No days were written\. Nothing was kept\./);
+    assert.equal(stack.model.requests.length, before, 'no request was made');
+    assert.equal(await page.evaluate(`localStorage.getItem('pea-days-v1')`), null);
+    await page.close();
+  },
+);
 
 test(
   'a week is one reviewed request with none of the owner’s own answers, and is kept only after a second review',
@@ -169,10 +173,10 @@ test(
     await setInterview(page, home);
     const before = stack.model.requests.length;
     await page.click('#days-write');
-    await page.waitFor(titled('Write her week with your model?'), 'the request review');
+    await page.waitFor(titled('Write PEA’s week with your model?'), 'the request review');
     const review = await page.text('#review-body');
     assert.match(review, /This is one request to your model/);
-    assert.match(review, /Her home, in your words: Synthetic Harbour, the old quarter/);
+    assert.match(review, /PEA’s home, in your words: Synthetic Harbour, the old quarter/);
     assert.match(review, /No history cards \(you have none\)/);
     assert.match(review, /Everything the model is told \(exactly what is sent\):/);
     assert.ok(
@@ -233,7 +237,7 @@ test(
     assert.doesNotMatch(await page.text('#days-list'), /SYNTHETIC MARKET/);
 
     await page.click('#days-clear');
-    await page.waitFor(titled('Delete all of her days?'), 'the delete-all review');
+    await page.waitFor(titled('Delete all of PEA’s days?'), 'the delete-all review');
     await page.click('#review-approve');
     await page.waitFor(`document.getElementById('days-list').children.length === 0`, 'no lines');
     assert.equal(await page.evaluate(`localStorage.getItem('pea-days-v1')`), null);
@@ -246,7 +250,7 @@ test('a reply that is not a week, or a week the owner turns down, keeps nothing'
   await setInterview(page, home);
   mode = 'bad';
   await page.click('#days-write');
-  await page.waitFor(titled('Write her week with your model?'), 'the request review');
+  await page.waitFor(titled('Write PEA’s week with your model?'), 'the request review');
   await page.click('#review-approve');
   await page.waitFor(
     `/not a usable week/.test(document.getElementById('days-note').textContent)`,
@@ -258,7 +262,7 @@ test('a reply that is not a week, or a week the owner turns down, keeps nothing'
   mode = 'good';
   await page.waitFor(settled, 'the request to finish');
   await page.click('#days-write');
-  await page.waitFor(titled('Write her week with your model?'), 'the request review');
+  await page.waitFor(titled('Write PEA’s week with your model?'), 'the request review');
   await page.click('#review-approve');
   await page.waitFor(titled('Keep these days?'), 'the days review', 15000);
   await page.click('#review-cancel');
@@ -287,7 +291,7 @@ test(
 
     // Turning notes on is reviewed, and can be declined.
     await page.click('#days-notes');
-    await page.waitFor(titled('Let her keep notes on her days?'), 'the notes review');
+    await page.waitFor(titled('Let PEA keep notes on PEA’s days?'), 'the notes review');
     assert.match(await page.text('#review-body'), /PEA keeps a note without asking you each time/);
     await page.click('#review-cancel');
     await page.waitFor(settled, 'the review to close');
@@ -304,7 +308,7 @@ test(
     );
     assert.match(
       await notices(page),
-      /Noted for her days \(today \([A-Z][a-z]+day\)\): “SYNTHETIC SOUP is on the stove tonight\.” You can delete it/,
+      /Noted for PEA’s days \(today \([A-Z][a-z]+day\)\): “SYNTHETIC SOUP is on the stove tonight\.” You can delete it/,
     );
     assert.doesNotMatch(await page.text('#messages'), /pea-life|day_note/, 'the block is never shown');
 
@@ -333,7 +337,7 @@ test(
 );
 
 test(
-  'no note is taken from a reply written with a web page shared, and Work never carries her days',
+  'no note is taken from a reply written with a web page shared, and Work never carries PEA’s days',
   options,
   async () => {
     const page = await openConnectedPage(stack, { width: 1500 });
@@ -350,7 +354,7 @@ test(
     await say(page, 'What about soup, given that page?');
     assert.match(system(), /SYNTHETIC PAGE WORDS/);
     assert.equal(await shown(page), 0, 'a reply written with a page in view keeps no note');
-    assert.doesNotMatch(await notices(page), /Noted for her days/);
+    assert.doesNotMatch(await notices(page), /Noted for PEA’s days/);
     await page.click('#context-page-clear');
 
     // Without the page, the same reply's note is kept.
@@ -371,7 +375,7 @@ test(
     await page.fill('#thought', 'Is there soup at work?');
     await page.evaluate(`document.getElementById('composer').requestSubmit()`);
     await page.waitFor(reviewOpen, 'the Work review');
-    assert.match(await page.text('#review-body'), /Her days \(fiction[^\n]*\): Not shared/);
+    assert.match(await page.text('#review-body'), /PEA’s days \(fiction[^\n]*\): Not shared/);
     await page.click('#review-approve');
     await page.waitFor(settled, 'the Work reply');
     assert.doesNotMatch(system(), /pea-life|recent and coming days|SYNTHETIC SOUP/);

@@ -105,7 +105,7 @@ test(
     await page.fill('#thought', 'Any ideas for dinner on Friday?');
     await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
     const shown = await approve(page, 'the sharing review');
-    assert.ok(shown.includes('Things you told her that she kept (your own words'), 'named in the review');
+    assert.ok(shown.includes('Things you told PEA that PEA kept (your own words'), 'named in the review');
     assert.ok(shown.includes(sentence), 'with the exact words');
     await page.waitFor(
       `document.querySelectorAll('#messages .utterance.assistant').length === 1 && !document.querySelector('#profile').disabled`,
@@ -122,7 +122,7 @@ test(
     await page.waitFor(`!document.getElementById('notes-keep').checked`, 'Work, with the switch off');
     assert.deepEqual(await notes(page), []);
     await page.fill('#profile', 'personal');
-    await page.waitFor(`document.querySelectorAll('#notes-list article').length === 1`, 'her note again');
+    await page.waitFor(`document.querySelectorAll('#notes-list article').length === 1`, 'PEA’s note again');
 
     // Sealed in the encrypted library: unreadable at rest, and back after a reload and unlock.
     await unlock(page);

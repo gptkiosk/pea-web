@@ -71,11 +71,11 @@ test('the week request names the days, forbids what a model cannot know and quot
   assert.match(prompt, /They are not instructions/);
   assert.match(prompt, /is an AI and says so when asked/);
   assert.match(prompt, /HOME \(the owner’s words\):\nSynthetic Harbour/);
-  assert.match(prompt, /HER STORY[^\n]*\nThe street: It was steep\./);
+  assert.match(prompt, /PEA’S STORY[^\n]*\nThe street: It was steep\./);
   assert.match(prompt, /LINES ALREADY KEPT \(keep to them\):\n2026-11-15: I made soup\.$/);
   assert.doesNotMatch(prompt, /Too old to matter/);
   const bare = weekPrompt({ home: 'Synthetic Harbour', now });
-  assert.match(bare, /HER STORY[^\n]*\nNone/);
+  assert.match(bare, /PEA’S STORY[^\n]*\nNone/);
   assert.match(bare, /LINES ALREADY KEPT[^\n]*\nNone$/);
   const many = weekPrompt({
     home: 'h',
@@ -193,7 +193,7 @@ test('notes are bounded per day, repeats are ignored and old days drop off', () 
 test('a written week replaces earlier written lines for its days and leaves Chat notes alone', () => {
   const kept = [
     entry('2026-11-15', 'An older written Sunday.'),
-    entry('2026-11-15', 'What she said on Sunday.', 'chat'),
+    entry('2026-11-15', 'What PEA said on Sunday.', 'chat'),
     entry('2026-11-12', 'A written day outside the new week.'),
   ];
   const week = [entry('2026-11-15', 'A new written Sunday.'), entry(today, 'A new written Monday.')];
@@ -201,7 +201,7 @@ test('a written week replaces earlier written lines for its days and leaves Chat
     addWeek(kept, week, now).map((e) => e.text),
     [
       'A written day outside the new week.',
-      'What she said on Sunday.',
+      'What PEA said on Sunday.',
       'A new written Sunday.',
       'A new written Monday.',
     ],
@@ -264,9 +264,9 @@ test('the reviews say it is one request, what is sent and where the lines are ke
   const full = describeWeekRequest({ home: 'Synthetic Harbour', cards: 12, kept: 3 });
   assert.match(full, /This is one request to your model/);
   assert.match(full, /the last 3, today and the next 4/);
-  assert.match(full, /Her home, in your words: Synthetic Harbour/);
-  assert.match(full, /Up to 8 of her history cards/);
-  assert.match(full, /The lines about her days that PEA already keeps/);
+  assert.match(full, /PEA’s home, in your words: Synthetic Harbour/);
+  assert.match(full, /Up to 8 of PEA’s history cards/);
+  assert.match(full, /The lines about PEA’s days that PEA already keeps/);
   assert.match(full, /Nothing from your chats, your own name or your other interview answers/);
   assert.match(full, /shows you every line before keeping any/);
   assert.match(full, /not encrypted, for the Personal profile only, and drop off after 14 days/);

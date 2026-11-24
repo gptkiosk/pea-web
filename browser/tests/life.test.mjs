@@ -51,7 +51,7 @@ test('a seed always deals the same hand of five and five, and different seeds di
   assert.equal(describeLife(null), '');
 });
 
-test('what is on her mind changes every day and covers her whole hand within a week', () => {
+test('what is on PEA’s mind changes every day and covers PEA’s whole hand within a week', () => {
   const life = lifeOf(777);
   const days = Array.from({ length: 14 }, (_, i) => `2026-11-${String(10 + i).padStart(2, '0')}`).map((d) =>
     lifeToday(life, d),
@@ -71,7 +71,7 @@ test('what is on her mind changes every day and covers her whole hand within a w
   assert.deepEqual(lifeToday(life, '2026-11-22'), lifeToday(life, '2026-11-22'));
 });
 
-test('the model is told to use her life rarely, one thing at a time, and to ask about the owner', () => {
+test('the model is told to use PEA’s life rarely, one thing at a time, and to ask about the owner', () => {
   const life = lifeOf(42),
     said = lifeContext(life, '2026-11-22');
   assert.match(
@@ -86,22 +86,22 @@ test('the model is told to use her life rarely, one thing at a time, and to ask 
   assert.match(said, /more curious about the owner’s life/);
   assert.ok(said.length < 1500);
   assert.equal(lifeContext(null, '2026-11-22'), '');
-  assert.notEqual(lifeContext(life, '2026-11-23'), said, 'tomorrow she has something else on her mind');
+  assert.notEqual(lifeContext(life, '2026-11-23'), said, 'tomorrow PEA has something else on PEA’s mind');
 });
 
-test('the prompts that write her history and her week are held to her hand and to variety', () => {
+test('the prompts that write PEA’s history and PEA’s week are held to PEA’s hand and to variety', () => {
   const brief = lifeBrief(lifeOf(42));
-  assert.match(brief, /^HER INTERESTS AND PEOPLE \(fiction already chosen for her/);
+  assert.match(brief, /^PEA’S INTERESTS AND PEOPLE \(fiction already chosen for PEA/);
   const history = historyPrompt({ home: 'Lisbon', persona: '', facts: '', life: brief });
   assert.match(
     history,
-    /At least eight cards are about the interests and people listed under HER INTERESTS AND PEOPLE/,
+    /At least eight cards are about the interests and people listed under PEA’S INTERESTS AND PEOPLE/,
   );
   assert.match(history, /do not let one interest or one food appear in more than two cards/);
   assert.ok(history.endsWith(brief));
   const plain = historyPrompt({ home: 'Lisbon' });
-  assert.match(plain, /Give her varied interests and friends/);
-  assert.doesNotMatch(plain, /HER INTERESTS AND PEOPLE/);
+  assert.match(plain, /Give PEA varied interests and friends/);
+  assert.doesNotMatch(plain, /PEA’S INTERESTS AND PEOPLE/);
   const week = weekPrompt({ home: 'Lisbon', now: Date.UTC(2026, 10, 22, 12), life: brief });
   assert.match(week, /no activity, food or person on more than two of them/);
   assert.match(week, /touch at least three of the interests and three of the people/);
