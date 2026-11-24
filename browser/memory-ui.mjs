@@ -71,6 +71,12 @@ export function installMemory(hooks) {
     if (initializing || pending || porting || hooks.busy())
       throw new ServiceError('Finish the current request or local save first.');
   }
+  // Chats are saved as they go, so a save is often under way for a moment. Something the owner
+  // presses waits that moment out; it is not refused for it.
+  async function settle() {
+    for (let waited = 0; pending && waited < 3000; waited += 20)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+  }
   function ensure() {
     idle();
     if (!eligible())
@@ -319,6 +325,7 @@ export function installMemory(hooks) {
   $('library-save').onchange = async () => {
     const on = $('library-save').checked;
     try {
+      await settle();
       idle();
       if (on) {
         localStorage.removeItem(savingKey);
@@ -426,6 +433,7 @@ export function installMemory(hooks) {
     render();
   }
   async function fresh(surface) {
+    await settle();
     ensure();
     const who = profile();
     if (
@@ -439,6 +447,7 @@ export function installMemory(hooks) {
     await clearSurface(surface);
   }
   async function restore(thread, ask = true) {
+    await settle();
     ensure();
     const who = profile();
     if (
@@ -700,6 +709,7 @@ export function installMemory(hooks) {
   };
   $('interview-save').onclick = async () => {
     try {
+      await settle();
       ensure();
       const who = profile(),
         before = library,
@@ -787,6 +797,7 @@ export function installMemory(hooks) {
   $('library-new-greenhouse').onclick = () => fresh('greenhouse').catch(say);
   $('library-storage').onclick = async () => {
     try {
+      await settle();
       idle();
       if (vault?.key && vault.device) $('library-unlock').showModal();
       else if (vault?.key) {

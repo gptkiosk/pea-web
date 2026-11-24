@@ -124,13 +124,22 @@ test('leaving the page during a request starts clean on return', options, async 
   const page = await openConnectedPage(stack, { width: 1500 });
   await send(page, 'Answer slowly please.');
   await page.waitFor(`document.getElementById('profile').disabled`, 'the request to be in progress');
+  // The question is saved when it is sent; that takes a moment, and the reply is still to come.
+  await page.waitFor(
+    `document.getElementById('memory-status').textContent === 'Saved on this browser'`,
+    'the question to be saved',
+  );
+  assert.equal(await page.evaluate(`document.getElementById('profile').disabled`), true);
   await page.goto(stack.gateway.origin + '/');
   await page.waitFor(
     `document.getElementById('local-connect').onclick && !document.getElementById('profile').disabled`,
     'a clean start',
   );
-  // The chat is saved as it goes, so what was asked is back, and nothing is still in progress.
-  assert.match(await page.text('#messages .utterance'), /Answer slowly please\./);
+  // So what was asked is back, and nothing is still in progress.
+  await page.waitFor(
+    `/Answer slowly please\\./.test(document.querySelector('#messages .utterance')?.textContent ?? '')`,
+    'the question again',
+  );
   assert.equal(await page.evaluate(`document.getElementById('profile').disabled`), false);
   assert.deepEqual(page.errors, []);
   await page.close();
