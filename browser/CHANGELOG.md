@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.71] - 2026-11-24
+
+### Added
+
+- **Start a debate.** A new Debate tile on Chat's welcome (and "Start a debate" in the command palette) lets you pick a question people really disagree on, say where you stand, and have PEA argue the other side with you, one question at a time. Eight questions are built in, each shown with a short case for both sides: conflict minerals, voting, fast fashion, AI and creative work, green energy, crime, billionaire philanthropy and animal agriculture. You can also write a question of your own.
+- While a debate is on, a bar over Chat names the question and has **Sum up** (the strongest points on each side, what stayed in dispute and where you seem to have landed, with no winner named) and **End debate**. A new chat ends it too. Each profile has its own.
+- PEA is told to say first what is strong in your view, to concede good points, never to invent a figure, study, quotation or source, not to take the opposite extreme either, and that the other side is a role you asked for, not its own opinion. It is told not to argue for harm to people; it offers a neutral account instead. A model can still be wrong, so check what matters.
+
+### Changed
+
+- On a phone the five welcome tiles are three over two.
+
 ## [0.1.0-rc.4.dev.70] - 2026-11-24
 
 ### Added

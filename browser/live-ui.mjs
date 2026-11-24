@@ -627,6 +627,9 @@ export function installConnections(hooks) {
       '\nText for the owner to copy, such as an outline, a message to paste or code, goes in a plain fenced block; the app shows it with a Copy button and never reads it aloud.';
     // To-do guidance always explains how to propose a change; the items themselves are added only
     // under the owner's sharing setting for this profile.
+    // A debate the owner started in Chat: for that conversation the model argues the other side.
+    const debateText = surface === 'chat' ? (hooks.debate?.(text) ?? '') : '';
+    if (debateText) body.messages[0].content += '\n' + debateText;
     const todoText = hooks.todoGuidance?.(s.shareTodos) ?? '';
     if (todoText) body.messages[0].content += '\n' + todoText;
     // Offered only where this server's operator connected a project engine.

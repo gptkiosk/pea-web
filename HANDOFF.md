@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Start a debate — 2026-11-24
+
+Version `0.1.0-rc.4.dev.71`. The owner is adding the same idea to the iPhone app and described it here in their own words; nothing was read from that repository, and the questions, the two cases for each and the instructions to the model are written for PEA Web.
+
+- **Source:** `browser/presence.mjs` holds the rules, there because the 200-file list is full: `debateTopics` (eight questions, each with a case for both sides and no figures), `validDebate`, `debateOpening`, `debateSumUp`, `debateGuidance`. `browser/app.mjs` has the block after `home-attach`: one debate per profile in tab memory, on for as long as its opening message is in the Chat conversation, with the dialog, the bar, Sum up and End. `browser/live-ui.mjs` adds the guidance to a Chat request through the `debate` hook. `browser/index.html` (`#home-debate`, `#debate`, `#debate-bar`), `browser/commands.mjs` and `commands-ui.mjs` (the command), styles at the end of `browser/styles.css`.
+- **Tests:** three in `browser/tests/presence.test.mjs` (both sides get similar room and claim no figure; what a debate may hold; what the model is told, with the owner's position quoted as a view and not an instruction). One in `browser/tests/dom/chat-window.test.mjs`: no debate until the owner starts one, the exact first message and instructions sent, it holds across messages and a profile switch, Sum up, End, a question of the owner's own, and a new chat ending it.
+- **Known gaps:** not tried with a real model, so how well a given model keeps to one question at a time, concedes points or avoids invented facts is unknown; the instructions ask, they cannot enforce. A debate is not saved: reopening a past chat does not resume it as a debate, and a reload ends it. Greenhouse and voice chat have no debate controls (a debate started in Chat still applies to Chat messages sent by voice). The question list is fixed in the code. The two apps share no wording or list.
+- **Next action:** the owner tries a debate with their own model and says whether PEA pushes too hard or too little.
+
 ## Keys in the backup file, as an opt-in — 2026-11-24
 
 Version `0.1.0-rc.4.dev.70`. The owner chose to allow provider keys in the Backup & restore file as a tick box. This reverses, for this one file and only when ticked, the earlier rule that keys never travel.

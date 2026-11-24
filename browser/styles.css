@@ -6002,3 +6002,68 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
 .update-log-box[open] > summary {
   margin-bottom: 10px;
 }
+
+/* Start a debate: the two cases in the dialog, and the bar over Chat while one is on. */
+.debate-sides {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+}
+.debate-sides p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.debate-sides strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+.debate-bar {
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  border-color: var(--green);
+  background: var(--tint);
+}
+.debate-bar .debate-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.debate-bar .text-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.debate-bar .text-button:hover,
+.debate-bar .text-button:focus-visible {
+  border-color: var(--green);
+  color: var(--green);
+}
+/* Five tiles on a phone: three over two, each row filled. */
+@media (max-width: 520px) {
+  .feature-dock {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .feature-dock button {
+    grid-column: span 2;
+    min-width: 0;
+    width: auto;
+  }
+  .feature-dock button:nth-child(n + 4) {
+    grid-column: span 3;
+  }
+}

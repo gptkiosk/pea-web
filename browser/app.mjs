@@ -16,7 +16,14 @@ import {
   warnsOfUnconfirmedEmail,
   warnsOfUnconfirmedDocument,
 } from './actions.mjs';
-import { presenceAt } from './presence.mjs';
+import {
+  debateGuidance,
+  debateOpening,
+  debateSumUp,
+  debateTopics,
+  presenceAt,
+  validDebate,
+} from './presence.mjs';
 import { installMemory } from './memory-ui.mjs';
 import { installReleaseUI } from './release-ui.mjs';
 import { gate, projectCalendar, recentFiles } from './policy.mjs';
@@ -1486,6 +1493,7 @@ $('profile').onchange = () => {
   research.profileChanged();
   numbered?.clear();
   memory.profileChanged();
+  renderDebate();
 };
 // The theme row in the menu names the theme it switches to.
 const nameTheme = () =>
@@ -1548,6 +1556,87 @@ $('bar-setup').onclick = () => $('connections-open').click();
 for (const id of ['settings-open', 'context-open', 'folder-setup']) $(id).onclick = preferences;
 $('preferences-done').onclick = () => $('preferences').close();
 $('home-attach').onclick = () => tab('greenhouse');
+// Start a debate: a question, where the owner stands, and PEA argues the other side in Chat until
+// the owner ends it or starts a new chat. Held in this tab only, one per profile.
+const debates = new Map();
+// The debate under way in this profile's Chat, or null. It lasts while its opening message is
+// in the conversation; `sending` covers the moment before that message is recorded.
+function debateNow(sending = '') {
+  const debate = debates.get(profile);
+  if (!debate) return null;
+  const opening = debateOpening(debate);
+  if (sending === opening || history('chat').some((m) => m.role === 'user' && m.text === opening)) return debate;
+  if (!debate.starting) debates.delete(profile);
+  return debate.starting ? debate : null;
+}
+const debateText = (sending) => {
+  const debate = debateNow(sending);
+  return debate ? debateGuidance(debate) : '';
+};
+function renderDebate() {
+  const debate = debateNow();
+  $('debate-bar').hidden = !debate;
+  $('debate-bar-topic').textContent = debate?.topic ?? '';
+}
+async function sayInChat(text) {
+  tab('chat');
+  await memory?.ready;
+  await atWork('chat', () => live.run(() => live.chat('chat', text, () => {})));
+  renderDebate();
+}
+{
+  const select = $('debate-topic'),
+    own = 'own';
+  select.replaceChildren(
+    ...debateTopics.map((t) => Object.assign(document.createElement('option'), { value: t.id, textContent: t.title })),
+    Object.assign(document.createElement('option'), { value: own, textContent: 'A question of my own…' }),
+  );
+  const show = () => {
+    const topic = debateTopics.find((t) => t.id === select.value);
+    $('debate-own').hidden = $('debate-own-label').hidden = Boolean(topic);
+    $('debate-sides').hidden = !topic;
+    $('debate-one').textContent = topic?.one ?? '';
+    $('debate-other').textContent = topic?.other ?? '';
+  };
+  select.onchange = show;
+  $('home-debate').onclick = () => {
+    $('debate-note').textContent = '';
+    show();
+    $('debate').showModal();
+  };
+  $('debate-start').onclick = async () => {
+    const topic = debateTopics.find((t) => t.id === select.value),
+      debate = validDebate({ topic: topic ? topic.title : $('debate-own').value, position: $('debate-position').value });
+    if (!debate)
+      return ($('debate-note').textContent = topic
+        ? 'Say where you stand in a few words first.'
+        : 'Write your question and where you stand first.');
+    if (live.isBusy()) return ($('debate-note').textContent = 'Finish the current request first.');
+    if (profile === 'blended')
+      return ($('debate-note').textContent = 'Choose Work or Personal first.');
+    const who = profile;
+    debates.set(who, { ...debate, starting: true });
+    $('debate').close();
+    $('debate-position').value = $('debate-own').value = '';
+    try {
+      await sayInChat(debateOpening(debate));
+    } finally {
+      const kept = debates.get(who);
+      if (kept) delete kept.starting;
+      renderDebate();
+    }
+  };
+  $('debate-sum').onclick = () => {
+    if (live.isBusy()) return notice('Finish the current request first.');
+    void sayInChat(debateSumUp);
+  };
+  $('debate-end').onclick = () => {
+    debates.delete(profile);
+    renderDebate();
+    notice('Debate ended. Chat carries on as usual, and PEA no longer argues the other side.');
+  };
+  new MutationObserver(renderDebate).observe($('messages'), { childList: true });
+}
 $('home-connections').onclick = () => $('connections-open').click();
 function addReply(surface, text) {
   const reply = message('assistant', '', { incomplete: true });
@@ -1821,6 +1910,7 @@ window.addEventListener('pagehide', () => {
 live = installConnections({
   secrets: () => memory?.secrets ?? null,
   todoGuidance: (shared) => todos?.guidance(shared) ?? '',
+  debate: (text) => debateText(text),
   projectGuidance: () => (projects?.available() ? projectGuidance : ''),
   localChanged: () => {
     todos?.connectionChanged();
