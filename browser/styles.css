@@ -1967,61 +1967,6 @@ dialog .dialog-head {
   box-shadow: 0 -32px 0 var(--surface);
 }
 
-/* Compact workspace menu follows the native app's actions without changing the three main tabs. */
-.workspace-menu {
-  position: relative;
-}
-.workspace-menu summary {
-  list-style: none;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  color: var(--green);
-  font-size: 20px;
-}
-.workspace-menu summary::-webkit-details-marker {
-  display: none;
-}
-.workspace-menu-panel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 12;
-  display: grid;
-  min-width: 230px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-.workspace-menu-panel button {
-  text-align: left;
-  padding: 12px 14px;
-  border-radius: 10px;
-  color: var(--ink);
-}
-.workspace-menu-panel button:hover,
-.workspace-menu-panel button:focus-visible {
-  background: var(--tint);
-}
-.workspace-menu summary:focus-visible {
-  outline: 2px solid var(--green);
-  outline-offset: 3px;
-}
-@media (max-width: 700px) {
-  .header-actions {
-    flex-wrap: nowrap;
-  }
-  .workspace-menu-panel {
-    min-width: 220px;
-  }
-}
-
 /* A calmer, touch-friendly workspace and guided setup. */
 .brand img {
   border-radius: 0;
@@ -2045,23 +1990,6 @@ header h1 {
 .context-card {
   display: none;
 }
-.setup-strip {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 20px 0 0;
-}
-.setup-card {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
-}
-.setup-icon,
 .choice-mark {
   flex: 0 0 auto;
   width: 42px;
@@ -2072,41 +2000,6 @@ header h1 {
   color: var(--green);
   background: var(--tint);
   font-size: 20px;
-}
-.setup-copy {
-  min-width: 0;
-  flex: 1;
-  display: grid;
-  gap: 2px;
-}
-.setup-copy strong {
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--ink);
-}
-.setup-copy > span {
-  color: var(--sub);
-  font-size: 11px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-.setup-copy .dot {
-  display: inline-block;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-.setup-action {
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  color: var(--green);
-  font-weight: 600;
-  font-size: 12px;
-}
-.setup-action:hover,
-.setup-action:focus-visible {
-  background: var(--tint);
 }
 .setup-choices {
   display: grid;
@@ -2220,33 +2113,6 @@ header h1 {
     min-width: 124px;
     max-width: 124px;
   }
-  .setup-strip {
-    gap: 8px;
-    margin-top: 14px;
-  }
-  .setup-card {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px;
-  }
-  .setup-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
-    font-size: 16px;
-  }
-  .setup-copy strong {
-    font-size: 12px;
-  }
-  .setup-copy > span {
-    font-size: 11px;
-  }
-  .setup-action {
-    min-height: 36px;
-    margin-left: 40px;
-    padding: 6px 0;
-  }
   .panel {
     padding-top: 18px;
   }
@@ -2313,26 +2179,12 @@ header h1 {
   }
 }
 @media (max-width: 360px) {
-  .setup-strip {
-    grid-template-columns: 1fr;
-  }
-  .setup-card {
-    flex-wrap: nowrap;
-    align-items: center;
-  }
-  .setup-action {
-    margin-left: 0;
-  }
   .header-actions select {
     width: 112px;
     min-width: 112px;
     max-width: 112px;
     padding-left: 10px;
   }
-}
-.setup-copy .model-ticker {
-  margin-left: 0;
-  max-width: 100%;
 }
 
 .voice-entry {
@@ -2393,28 +2245,6 @@ header h1 {
 }
 .voice-room-body .primary {
   min-height: 48px;
-}
-@media (max-width: 700px) {
-  .setup-strip {
-    gap: 8px;
-  }
-  .setup-card {
-    padding: 12px;
-    gap: 6px 8px;
-    border-radius: 16px;
-  }
-  .setup-copy strong {
-    font-size: 13px;
-    line-height: 1.3;
-  }
-  .setup-copy > span {
-    font-size: 12px;
-    line-height: 1.35;
-  }
-  .setup-action {
-    min-height: 40px;
-    padding: 4px 0;
-  }
 }
 .welcome h2 {
   font-size: clamp(38px, 4vw, 48px);
@@ -2491,30 +2321,6 @@ header h1 {
     height: 110px;
   }
 }
-@media (max-width: 700px) {
-  .setup-card {
-    display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
-    align-content: start;
-  }
-  .setup-copy {
-    grid-column: 2;
-  }
-  .setup-action {
-    grid-column: 2;
-    justify-self: start;
-    margin: 0;
-  }
-}
-@media (max-width: 360px) {
-  .setup-card {
-    grid-template-columns: 32px minmax(0, 1fr) auto;
-    align-items: center;
-  }
-  .setup-action {
-    grid-column: 3;
-  }
-}
 
 /* Shared reading, touch-target and dialog spacing scale. */
 html {
@@ -2541,7 +2347,6 @@ body {
 }
 .text-button,
 .quiet,
-.setup-action,
 .primary {
   font-size: 14px;
   line-height: 1.4;
@@ -2560,19 +2365,10 @@ body {
 .settings-group p,
 .dialog-body p,
 .setup-choice small,
-.setup-copy > span,
 .wizard-progress,
 .interview-wizard section > p {
   font-size: 14px;
   line-height: 1.55;
-}
-.setup-copy strong {
-  font-size: 15px;
-  line-height: 1.35;
-}
-.setup-action {
-  min-height: 44px;
-  font-size: 14px;
 }
 .pill,
 .file-row small,
@@ -2708,13 +2504,6 @@ select:disabled {
 @media (max-width: 700px) {
   .rail .nav {
     font-size: 14px;
-  }
-  .setup-copy strong {
-    font-size: 14px;
-  }
-  .setup-copy > span,
-  .setup-action {
-    font-size: 13px;
   }
   .feature-dock button {
     min-height: 60px;
@@ -2949,28 +2738,6 @@ select:disabled {
   align-items: center;
   justify-content: center;
   flex: none;
-}
-@media (max-width: 700px) {
-  .setup-strip {
-    gap: 8px;
-  }
-  .setup-card {
-    padding: 12px;
-    gap: 6px 8px;
-    border-radius: 16px;
-  }
-  .setup-copy strong {
-    font-size: 13px;
-    line-height: 1.3;
-  }
-  .setup-copy > span {
-    font-size: 13px;
-    line-height: 1.35;
-  }
-  .setup-action {
-    min-height: 40px;
-    padding: 4px 0;
-  }
 }
 
 /* Two workspaces side by side on a wide screen. A narrow screen never gets here: the split
@@ -3682,20 +3449,6 @@ kbd {
   .shell > main {
     padding-top: 16px;
   }
-  .shell .setup-strip,
-  .shell .setup-strip {
-    margin-top: 12px;
-  }
-  .shell .setup-card,
-  .shell .setup-card {
-    padding-top: 8px;
-    padding-bottom: 8px;
-    min-height: 0;
-  }
-  .shell .setup-icon,
-  .shell .setup-icon {
-    display: none;
-  }
   #panes:not(.split) > #chat {
     padding-top: 12px;
   }
@@ -3761,12 +3514,6 @@ kbd {
 .use-only-model {
   color: var(--green);
   font-weight: 600;
-}
-.setup-copy .use-only-model {
-  justify-self: start;
-  align-self: start;
-  padding: 2px 0;
-  text-align: left;
 }
 
 /* What PEA did for a reply: a short list of steps with icons, over the reply. */
@@ -3990,50 +3737,9 @@ kbd {
     font-weight: 600;
   }
   .shell > .rail,
-  .shell .setup-strip,
   .shell main > header {
     align-self: center;
     min-height: 56px;
-  }
-  .shell .setup-strip {
-    grid-area: 1 / 2;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    min-width: 0;
-    margin: 0;
-  }
-  .shell .setup-card {
-    flex: 0 1 auto;
-    min-width: 0;
-    gap: 8px;
-    padding: 4px 6px 4px 12px;
-    border-radius: 999px;
-  }
-  .shell .setup-copy {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    white-space: nowrap;
-  }
-  .shell .setup-copy > strong {
-    display: none;
-  }
-  .shell .setup-copy > span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 12px;
-  }
-  .shell .setup-card .model-ticker {
-    max-width: 200px;
-  }
-  .shell .setup-action {
-    min-height: 32px;
-    padding: 0 8px;
-    font-size: 12px;
-    white-space: nowrap;
   }
   .shell main > header {
     grid-area: 1 / 3;
@@ -5276,4 +4982,524 @@ dialog .dialog-body .setup-nav :is(button, .text-button) {
 #connections[data-setup="model"] #router-group > h4:nth-of-type(2) ~ *,
 #connections[data-setup="areas"] #router-group > :not(summary):not(h4:nth-of-type(2)):not(h4:nth-of-type(2) ~ *) {
   display: none;
+}
+
+/* One bar: the brand, the workspaces, the profile and the menu. What PEA is connected to and where
+   chats are kept are the first two rows of the menu, not parts of the bar. */
+.profile-field {
+  display: none;
+}
+.bar-menu {
+  position: relative;
+}
+.bar-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.bar-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.bar-menu > summary:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.profile-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.profile-menu > summary svg {
+  width: 18px;
+  height: 18px;
+  color: var(--green);
+}
+.profile-menu[open] > summary svg {
+  transform: rotate(180deg);
+}
+.profile-menu > summary[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+.workspace-menu > summary {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--green);
+}
+.workspace-menu > summary svg {
+  width: 20px;
+  height: 20px;
+}
+.bar-menu[open] > summary {
+  border-color: var(--green);
+}
+.header-actions .icon {
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--green);
+}
+.header-actions .icon svg {
+  width: 20px;
+  height: 20px;
+}
+.bar-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  min-width: 100%;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+  transform-origin: top right;
+}
+.workspace-menu-panel {
+  width: min(320px, calc(100vw - 16px));
+  min-width: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .profile-menu > summary svg {
+    transition: transform 0.16s ease;
+  }
+  .bar-menu[open] > .bar-menu-panel {
+    animation: bar-menu-in 0.16s ease-out;
+  }
+  @keyframes bar-menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+}
+.bar-menu-panel > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: var(--ink);
+  text-align: left;
+}
+.bar-menu-panel > button:hover,
+.bar-menu-panel > button:focus-visible {
+  background: var(--tint);
+}
+.profile-menu .bar-menu-panel {
+  min-width: 180px;
+}
+.profile-menu [role="menuitemradio"]::after {
+  content: "";
+  width: 8px;
+  height: 14px;
+  margin: 0 4px 4px auto;
+  border: solid var(--green);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  opacity: 0;
+}
+.profile-menu [aria-checked="true"] {
+  font-weight: 600;
+}
+.profile-menu [aria-checked="true"]::after {
+  opacity: 1;
+}
+.menu-status {
+  display: grid;
+  gap: 6px;
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 14px;
+  background: var(--tint);
+}
+.status-copy {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.status-copy > strong {
+  color: var(--sub);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.status-copy > span {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+.status-copy .dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  vertical-align: 1px;
+}
+.status-copy .model-ticker {
+  max-width: 100%;
+  margin: 0;
+  color: var(--sub);
+  font-size: 12px;
+}
+.status-copy .use-only-model {
+  justify-self: start;
+  min-height: 32px;
+  margin-top: 4px;
+  padding: 0 12px;
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.workspace-menu-panel .status-action,
+.bar-setup {
+  flex: none;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-action:hover,
+.status-action:focus-visible {
+  background: var(--surface);
+}
+.bar-setup {
+  min-height: 40px;
+  background: var(--green);
+  color: var(--bg);
+}
+.workspace-menu-panel .menu-rule {
+  margin: 6px 8px;
+}
+@media (hover: none) {
+  .status-action {
+    min-height: 44px;
+  }
+}
+
+/* With room, everything is one row: the brand at the left, the workspaces in the middle of the
+   window, the profile and the menu at the right. */
+@media (min-width: 901px) and (min-height: 640px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    column-gap: 12px;
+  }
+  .shell > .rail .brand {
+    grid-area: 1 / 1;
+    justify-self: start;
+  }
+  .shell > .rail nav {
+    grid-area: 1 / 2;
+    align-self: center;
+    padding: 0;
+  }
+  .shell main > header {
+    grid-area: 1 / 3;
+    justify-self: end;
+    min-height: 60px;
+  }
+  .shell #panes {
+    grid-area: 2 / 1 / 3 / -1;
+    padding-top: 4px;
+  }
+  .shell > .release-footer {
+    grid-area: 3 / 1 / 4 / -1;
+  }
+}
+/* A narrower desktop window keeps the one row by leaving the chips' small pictures out, and the
+   chips take the room between the brand and the controls instead of the middle of the window, so
+   a wider typeface cannot push them into either. */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .shell {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .shell > .rail nav {
+    justify-content: safe center;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .shell > .rail .nav > svg,
+  .shell > .rail .nav > span:not(.chip-count) {
+    display: none;
+  }
+  .shell > .rail .nav {
+    padding: 0 12px;
+  }
+}
+
+/* A phone, a tablet upright or a short window: a slim bar that stays at the top with the brand,
+   the profile and the menu, the four workspaces as one row under it, then the page. */
+@media (max-width: 900px), (max-height: 639px) {
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .shell > .rail,
+  .shell > main {
+    display: contents;
+  }
+  .shell > .rail .rail-caption,
+  .shell > .rail .grow-space,
+  .shell > .rail #settings-open,
+  .shell > .rail .preview-tag,
+  .shell > .rail .brand small,
+  .shell main > header > div:first-child {
+    display: none;
+  }
+  .shell > .rail .brand,
+  .shell main > header {
+    position: sticky;
+    top: 0;
+    height: 56px;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    background: var(--bg);
+  }
+  .shell > .rail .brand {
+    grid-area: 1 / 1;
+    z-index: 20;
+    gap: 8px;
+    padding: 0 0 0 14px;
+  }
+  .shell > .rail .brand img {
+    width: 34px;
+    height: 34px;
+  }
+  .shell main > header {
+    grid-area: 1 / 2;
+    z-index: 21;
+    padding: 0 12px 0 0;
+  }
+  .shell .header-actions {
+    gap: 8px;
+  }
+  .shell #split-toggle {
+    display: none;
+  }
+  .shell > .rail nav {
+    grid-area: 2 / 1 / 3 / -1;
+    position: sticky;
+    top: 56px;
+    z-index: 19;
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    padding: 0 10px 8px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .shell > .rail .nav {
+    flex: 1 0 auto;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    color: var(--sub);
+    font-size: 14px;
+  }
+  .shell > .rail .nav.selected {
+    background: var(--tint);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .shell #panes {
+    grid-area: 3 / 1 / 4 / -1;
+    min-width: 0;
+    padding: 14px 14px 20px;
+  }
+  .shell > .release-footer {
+    grid-area: 4 / 1 / 5 / -1;
+  }
+  /* Chat fills the screen under the bar and its writing box stays at the foot of it, small, with
+     its buttons as one row of icons. Their names stay for screen readers and as tooltips. */
+  .shell #panes > #chat:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 140px);
+    min-height: calc(100dvh - 140px);
+  }
+  .shell #chat .conversation-layout {
+    flex: 1 0 auto;
+  }
+  .shell #chat #composer {
+    position: sticky;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 5;
+    flex: none;
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--surface);
+    box-shadow: 0 -10px 24px -12px rgba(0, 0, 0, 0.35);
+  }
+  .shell #chat #composer .voice-entry {
+    display: none;
+  }
+  .shell #chat #composer textarea,
+  .shell #chat #composer textarea:focus {
+    min-height: 0;
+    height: 52px;
+    padding: 12px 14px;
+  }
+  .shell #chat #composer textarea:focus {
+    height: 96px;
+  }
+  .shell #chat #composer .compose-bottom {
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+  .shell #chat #composer .compose-bottom .quiet > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .shell #chat #composer .compose-bottom .quiet {
+    position: relative;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .workspace-menu-panel {
+    position: fixed;
+    top: 58px;
+    right: 8px;
+    max-height: calc(100dvh - 68px);
+  }
+}
+@media (max-width: 520px) {
+  .workspace-menu-panel {
+    left: 8px;
+    width: auto;
+  }
+}
+@media (max-width: 430px) {
+  .bar-setup {
+    display: none;
+  }
+}
+/* A short message is a bar across the foot of a phone, not a tall box in the middle of it. */
+@media (max-width: 700px) {
+  #notice {
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    max-width: none;
+    transform: none;
+    font-size: 13px;
+  }
+}
+
+/* Greenhouse: its actions are buttons too, and the deck form's labels sit over their fields. */
+#greenhouse :is(button, a).text-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+#greenhouse :is(button, a).text-button:hover,
+#greenhouse :is(button, a).text-button:focus-visible {
+  border-color: var(--green);
+  background: var(--tint);
+  color: var(--green);
+}
+#greenhouse :is(button, a).text-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#decks-section > label {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+#decks-section > input {
+  width: 100%;
+}
+@media (hover: none) {
+  #greenhouse :is(button, a).text-button {
+    min-height: 44px;
+  }
+}
+
+/* A pane's own two actions are small buttons, the same in every pane. */
+.panel .pane-bar :is(button, a).text-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 500;
+}
+.panel .pane-bar :is(button, a).text-button:hover,
+.panel .pane-bar :is(button, a).text-button:focus-visible {
+  border-color: var(--green);
+  background: var(--tint);
+  color: var(--green);
+}
+#greenhouse .library-heading {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+#greenhouse .library-heading .text-button {
+  white-space: nowrap;
 }

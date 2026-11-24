@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.66] - 2026-11-24
+
+### Changed
+
+- **The top of PEA is one row.** The brand is at the left, Chat, Today, Greenhouse and Harvest are in the middle, and the profile and the menu are at the right. The two status pills ("Choose a model · Set up" and "Saved on this browser · Manage") are no longer in the bar: they are the first two rows of the menu, as Model and Memory, each with its button. Until a Chat model is chosen the bar shows one "Set up" button; it goes once you have one.
+- **The profile is a menu that drops down under its button**, with a tick on the profile in use, in place of the system pop-up that covered the bar. The bar's menus slide down, show one at a time, and close on Escape or a press anywhere else.
+- **The theme switch is the last row of the menu** and names the theme it switches to.
+- **On a phone, or any narrow or short window, PEA has a slim bar that stays at the top** (brand, profile, menu) with the four workspaces as one row under it. The page title row and the two status cards that took the top third of the screen are gone. The menu opens as a sheet across the screen.
+- **Chat on a phone fills the screen, with a small writing box at the foot** and its buttons as one row of icons (their names remain for screen readers and as tooltips). The large "Talk with PEA" button is left out there, as on a computer; Voice chat is the microphone in the row.
+- **Greenhouse's actions are buttons**, not link-style text, and the deck form's labels sit over their fields. A pane's "Swap sides" and "Tuck up" are small buttons in every pane.
+- **A short message on a phone is a bar across the foot of the screen**, not a tall box over the middle of it.
+
 ## [0.1.0-rc.4.dev.65] - 2026-11-23
 
 ### Fixed

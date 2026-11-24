@@ -291,7 +291,7 @@ test(
     // The menu has one entry for help, commands and shortcuts; typing what you want finds the setting.
     assert.deepEqual(
       await page.evaluate(
-        `[...document.querySelectorAll('.workspace-menu-panel button')].map((b) => b.firstChild.textContent.trim())`,
+        `[...document.querySelectorAll('.workspace-menu-panel > button')].map((b) => b.firstChild.textContent.trim())`,
       ),
       [
         'New chat',
@@ -302,7 +302,15 @@ test(
         'Connections & settings',
         'Privacy & voice',
         'Help & commands',
+        'Light theme',
       ],
+    );
+    // Above them, what PEA is connected to and where chats are kept, each with its button.
+    assert.deepEqual(
+      await page.evaluate(
+        `[...document.querySelectorAll('.workspace-menu-panel .menu-status .status-action')].map((b) => b.textContent.trim())`,
+      ),
+      ['Set up', 'Manage'],
     );
     await page.click('#menu-palette');
     await page.waitFor(`document.getElementById('palette').open`, 'help and commands');

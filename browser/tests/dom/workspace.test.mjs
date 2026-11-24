@@ -54,9 +54,9 @@ test('a wide screen can show two workspaces side by side and return to one', opt
   );
 
   const gap = await page.evaluate(
-    `Math.round(document.getElementById('chat').getBoundingClientRect().top - document.querySelector('.setup-strip').getBoundingClientRect().bottom)`,
+    `Math.round(document.getElementById('chat').getBoundingClientRect().top - document.querySelector('main > header').getBoundingClientRect().bottom)`,
   );
-  assert(gap >= 0, 'the panes sit under the bar that holds the status: ' + gap);
+  assert(gap >= 0, 'the panes sit under the bar: ' + gap);
 
   await page.click('#tab-today');
   assert.deepEqual(await shown(page), ['chat', 'today'], 'the chip of an open workspace focuses it');
@@ -170,7 +170,7 @@ test(
   },
 );
 
-test('on a screen with room PEA is one fixed window under a slim bar', options, async () => {
+test('on a screen with room PEA is one fixed window under a one-row bar', options, async () => {
   const page = await stack.browser.newPage();
   await page.setViewport(1600, 900);
   await page.goto(stack.gateway.origin + '/');
@@ -187,7 +187,7 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
       const open = [...document.querySelectorAll('.panel')].filter((p) => !p.hidden);
       return {
         moved, tall: document.documentElement.scrollHeight - innerHeight,
-        brand: box('.rail .brand'), chips: box('.rail nav'), status: box('.setup-strip'), controls: box('main > header'),
+        brand: box('.rail .brand'), chips: box('.rail nav'), controls: box('main > header'),
         panes: box('#panes'), footer: box('.release-footer'), height: innerHeight,
         first: box('#tab-chat'), last: box('#tab-harvest'), width: innerWidth,
         inside: open.every((p) => { const r = p.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }),
@@ -200,15 +200,11 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     const f = await frame();
     assert.equal(f.moved, 0, tab + ': the page does not scroll');
     assert.ok(f.tall <= 1, tab + ': nothing reaches below the window');
-    // Brand, status and controls share the bar; the chips have the row under it, in the middle.
-    assert.ok(f.panes.top <= 108, tab + ': the bar and the chip row are slim');
-    for (const part of [f.brand, f.chips, f.status, f.controls])
+    // Brand, chips and controls share one row; nothing else is in the bar.
+    assert.ok(f.panes.top <= 72, tab + ': the bar is one slim row');
+    for (const part of [f.brand, f.chips, f.controls])
       assert.ok(part.top >= 0 && part.bottom <= f.panes.top + 1, tab + ': a part of the bar is inside it');
-    assert.ok(f.brand.right <= f.status.left + 1 && f.status.right <= f.controls.left + 1);
-    assert.ok(
-      f.first.top >= Math.max(f.brand.bottom, f.status.bottom, f.controls.bottom) - 8,
-      tab + ': the chips sit a level below the bar',
-    );
+    assert.ok(f.brand.right <= f.first.left + 1 && f.last.right <= f.controls.left + 1);
     assert.ok(
       Math.abs((f.first.left + f.last.right) / 2 - f.width / 2) <= 2,
       tab + ': the chips are centred in the window',
@@ -232,16 +228,28 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
       ['harvest', false, 'dashed'],
     ],
   );
-  for (const id of ['connections-open', 'library-open', 'profile', 'theme', 'split-toggle', 'workspace-menu'])
-    assert.equal(
-      await page.evaluate(
-        `(() => { const r = document.getElementById('${id}').getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`,
-      ),
-      true,
-      id + ' is in the bar',
+  const seen = (id) =>
+    page.evaluate(
+      `(() => { const e = document.getElementById('${id}'), r = e.getBoundingClientRect(); return e.checkVisibility() && r.width > 0 && r.height > 0; })()`,
     );
+  for (const id of ['profile-menu', 'split-toggle', 'workspace-menu'])
+    assert.equal(await seen(id), true, id + ' is in the bar');
+  // What PEA is connected to and where chats are kept are in the menu, not in the bar.
+  for (const id of ['connections-open', 'library-open', 'theme'])
+    assert.equal(await seen(id), false, id + ' is not in the bar');
+  await page.click('#workspace-menu summary');
+  for (const id of ['connections-open', 'library-open', 'theme', 'menu-new-chat'])
+    assert.equal(await seen(id), true, id + ' is in the open menu');
   assert.match(await page.text('#connection-status'), /\S/);
   assert.match(await page.text('#memory-status'), /\S/);
+  assert.equal(
+    await page.evaluate(
+      `(() => { const p = document.querySelector('.workspace-menu-panel').getBoundingClientRect(), b = document.querySelector('#workspace-menu summary').getBoundingClientRect(); return p.top >= b.bottom && p.right <= innerWidth && p.bottom <= innerHeight; })()`,
+    ),
+    true,
+    'the menu drops down under its button, inside the window',
+  );
+  await page.click('#workspace-menu summary');
 
   // A long pane scrolls inside itself.
   await alone('today');
@@ -271,18 +279,17 @@ test('on a screen with room PEA is one fixed window under a slim bar', options, 
     'dashed',
   );
 
-  // A smaller desktop window keeps the same two levels and is still a fixed window: the status
-  // gives up width before anything leaves the bar.
+  // A smaller desktop window keeps the one row and is still a fixed window.
   await page.setViewport(1024, 768);
   await page.waitFor(`innerWidth === 1024`, 'the smaller window');
   const narrow = await frame();
   assert.equal(narrow.moved, 0);
   assert.ok(narrow.tall <= 1);
-  assert.ok(narrow.panes.top <= 108);
-  assert.ok(narrow.brand.right <= narrow.status.left + 1 && narrow.status.right <= narrow.controls.left + 1);
+  assert.ok(narrow.panes.top <= 72);
+  assert.ok(narrow.brand.right <= narrow.first.left + 1 && narrow.last.right <= narrow.controls.left + 1);
   assert.ok(narrow.controls.right <= narrow.width, 'the controls are inside the window');
-  assert.ok(narrow.first.top >= narrow.status.bottom - 8, 'the chips are on their own row');
-  assert.ok(Math.abs((narrow.first.left + narrow.last.right) / 2 - narrow.width / 2) <= 2);
+  // Here the chips are between the brand and the controls, not held to the middle of the window.
+  assert.ok(narrow.first.top >= 0 && narrow.last.bottom <= narrow.panes.top + 1);
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });
@@ -741,3 +748,145 @@ test(
     await page.close();
   },
 );
+
+test('the profile is a menu under the bar, and the bar’s menus close each other', options, async () => {
+  const page = await openConnectedPage(stack, { width: 1400, height: 900 });
+  const open = (id) => page.evaluate(`document.getElementById('${id}').open`);
+  assert.equal(await page.text('#profile-name'), 'Personal');
+  assert.equal(
+    await page.evaluate(`getComputedStyle(document.getElementById('profile')).display`),
+    'none',
+    'the plain field is not drawn; the menu stands for it',
+  );
+  await page.click('#profile-menu summary');
+  assert.equal(await open('profile-menu'), true);
+  assert.equal(
+    await page.evaluate(
+      `(() => { const p = document.querySelector('#profile-menu .bar-menu-panel').getBoundingClientRect(), b = document.querySelector('#profile-menu summary').getBoundingClientRect(); return p.top >= b.bottom && p.right <= innerWidth && p.height > 100; })()`,
+    ),
+    true,
+    'the choices drop down under the button',
+  );
+  assert.deepEqual(
+    await page.evaluate(
+      `[...document.querySelectorAll('#profile-menu [data-profile]')].map((b) => [b.textContent, b.getAttribute('aria-checked')])`,
+    ),
+    [
+      ['Personal', 'true'],
+      ['Work', 'false'],
+      ['Blended', 'false'],
+    ],
+  );
+  await page.click('#profile-menu [data-profile="work"]');
+  assert.equal(await open('profile-menu'), false);
+  assert.equal(await page.evaluate(`document.getElementById('profile').value`), 'work');
+  assert.equal(await page.text('#profile-name'), 'Work');
+  assert.equal(
+    await page.evaluate(`document.querySelector('#profile-menu summary').getAttribute('aria-label')`),
+    'Profile: Work',
+  );
+  assert.equal(
+    await page.evaluate(`document.querySelector('#profile-menu [data-profile="work"]').getAttribute('aria-checked')`),
+    'true',
+  );
+  // A change made any other way, such as by a command, shows in the menu too.
+  await page.evaluate(
+    `(() => { const f = document.getElementById('profile'); f.value = 'personal'; f.dispatchEvent(new Event('change', { bubbles: true })); })()`,
+  );
+  assert.equal(await page.text('#profile-name'), 'Personal');
+  // While the profile cannot change, the menu does not open.
+  await page.evaluate(`document.getElementById('profile').disabled = true`);
+  await page.waitFor(
+    `document.querySelector('#profile-menu summary').getAttribute('aria-disabled') === 'true'`,
+    'the menu to follow the field',
+  );
+  await page.click('#profile-menu summary');
+  assert.equal(await open('profile-menu'), false);
+  await page.evaluate(`document.getElementById('profile').disabled = false`);
+  await page.waitFor(
+    `document.querySelector('#profile-menu summary').getAttribute('aria-disabled') === 'false'`,
+    'the menu to follow the field again',
+  );
+
+  // One menu at a time; a press elsewhere or Escape closes the open one.
+  await page.click('#profile-menu summary');
+  await page.click('#workspace-menu summary');
+  await page.waitFor(`!document.getElementById('profile-menu').open`, 'the profile menu to close');
+  assert.equal(await open('workspace-menu'), true);
+  await page.evaluate(`document.getElementById('panes').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+  assert.equal(await open('workspace-menu'), false);
+  await page.click('#workspace-menu summary');
+  await page.evaluate(
+    `document.getElementById('menu-new-chat').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+  );
+  assert.equal(await open('workspace-menu'), false);
+  // The theme row names the theme it switches to.
+  const theme = await page.evaluate(`document.documentElement.dataset.theme`);
+  await page.click('#workspace-menu summary');
+  assert.equal(await page.text('#theme'), theme === 'dark' ? 'Light theme' : 'Dark theme');
+  await page.click('#theme');
+  assert.equal(await page.text('#theme'), theme === 'dark' ? 'Dark theme' : 'Light theme');
+  // Set up is offered in the bar only until a Chat model is chosen.
+  assert.equal(await page.evaluate(`document.getElementById('bar-setup').hidden`), true);
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
+
+test('on a phone the bar stays at the top, the tabs fit and Chat’s writing box is at the foot', options, async () => {
+  const page = await openConnectedPage(stack, { width: 390, height: 844 });
+  await page.evaluate(`document.getElementById('notice').textContent = ''`);
+  const box = (selector) =>
+    page.evaluate(
+      `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width), height: Math.round(r.height) }; })()`,
+    );
+  const brand = await box('.rail .brand'),
+    controls = await box('main > header'),
+    tabs = await box('.rail nav');
+  assert.ok(brand.top === 0 && controls.top === 0 && controls.bottom <= 60, 'one slim bar');
+  assert.ok(brand.right <= controls.left + 1 && controls.right <= 390);
+  assert.ok(tabs.top >= controls.bottom - 1 && tabs.bottom <= 112, 'the tabs are the row under it');
+  for (const name of ['chat', 'today', 'greenhouse', 'harvest']) {
+    const t = await box('#tab-' + name);
+    assert.ok(t.left >= 0 && t.right <= 390 && t.height >= 40, name + ' fits and is easy to press');
+  }
+  assert.equal(await page.evaluate(`document.documentElement.scrollWidth <= innerWidth`), true);
+  for (const selector of ['.setup-strip', '.setup-card'])
+    assert.equal(await page.evaluate(`document.querySelector('${selector}')`), null);
+  assert.equal(await page.evaluate(`getComputedStyle(document.getElementById('split-toggle')).display`), 'none');
+  // The writing box is in view at the foot of the screen, with one row of buttons.
+  const composer = await box('#composer');
+  assert.ok(composer.bottom <= 844 && composer.top >= 600, 'the writing box is at the foot: ' + composer.top);
+  assert.equal(
+    await page.evaluate(
+      `new Set([...document.querySelectorAll('#composer .compose-bottom button')].filter((b) => !b.hidden && b.offsetParent).map((b) => Math.round(b.getBoundingClientRect().top / 30))).size`,
+    ),
+    1,
+    'its buttons are one row',
+  );
+  assert.equal(await page.evaluate(`getComputedStyle(document.getElementById('voice-open')).display`), 'none');
+  // The menu is a sheet inside the screen with the status rows first.
+  await page.click('#workspace-menu summary');
+  await page.waitFor(
+    `document.querySelector('.workspace-menu-panel').getAnimations().length === 0`,
+    'the menu to finish sliding down',
+  );
+  const sheet = await box('.workspace-menu-panel');
+  assert.ok(sheet.left >= 0 && sheet.right <= 390 && sheet.top >= controls.bottom - 2 && sheet.bottom <= 844, JSON.stringify([sheet, controls]));
+  assert.equal(
+    await page.evaluate(`document.querySelector('.workspace-menu-panel').firstElementChild.className`),
+    'menu-status',
+  );
+  await page.click('#workspace-menu summary');
+  // Scrolled, the bar and the tabs stay; on another tab the footer is at the foot of the page.
+  await page.click('#tab-today');
+  await page.waitFor(`!document.getElementById('today').hidden`, 'Today');
+  await page.evaluate(`scrollTo(0, 600)`);
+  await page.waitFor(`scrollY > 300`, 'the page to scroll');
+  assert.equal((await box('main > header')).top, 0);
+  assert.equal((await box('.rail nav')).top, controls.bottom);
+  await page.click('#tab-harvest');
+  await page.waitFor(`!document.getElementById('harvest').hidden`, 'Harvest');
+  assert.ok((await box('.release-footer')).bottom >= 843, 'a short page still ends with the footer');
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});

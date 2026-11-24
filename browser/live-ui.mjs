@@ -208,6 +208,8 @@ export function installConnections(hooks) {
               : s.google
                 ? 'Google connected · no model'
                 : 'Choose a model';
+    // The bar offers Set up only until a Chat model is chosen; after that the menu holds it.
+    $('bar-setup').hidden = Boolean((s.localKey || s.key) && s.chat);
     $('local-origin').textContent = location.origin;
     const libraryOpen = Boolean(lib()?.open());
     $('router-remember').checked = libraryOpen && (wanted.has(p()) || Boolean(s.keyKept));
