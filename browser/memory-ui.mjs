@@ -107,7 +107,10 @@ export function installMemory(hooks) {
     $('bio-presence').disabled = !eligible();
     $('bio-presence').checked = presence.get(profile()) ?? false;
     $('note-count').textContent = String(Object.values(value).filter(Boolean).length);
+    filled = JSON.stringify(readInterview());
   }
+  // What the form held when PEA last filled it, so answers typed since are not written over.
+  let filled = '';
   function render() {
     const saved = !!vault?.key;
     $('interview-storage-status').textContent = initializing
@@ -319,7 +322,9 @@ export function installMemory(hooks) {
     library = await vault.unlockDevice(library);
     hasSaved = true;
     failed = false;
-    fillInterview();
+    // Saved chats open a moment after the page loads. Answers the owner has already started
+    // typing in the interview are theirs and stay.
+    if (JSON.stringify(readInterview()) === filled) fillInterview();
     invalidate();
     reopen();
     hooks.libraryChanged?.(true);
@@ -1190,7 +1195,8 @@ export function installMemory(hooks) {
     invalidate();
     render();
   });
-  void (async () => {
+  // Resolves once the saved chats have been opened (or found to need a passphrase, or to be off).
+  const ready = (async () => {
     try {
       vault = await ConversationVault.open();
       hasSaved = !!(await vault.storage.get());
@@ -1216,6 +1222,8 @@ export function installMemory(hooks) {
       forget: (name) => (vault ? vault.forgetSecret(name) : Promise.resolve()),
     },
     record,
+    // A message waits for this, so opening the saved chats never lands in the middle of a request.
+    ready,
     profileChanged,
     render,
     // For a backup: this profile's answers and every memory, and how many more memories fit.

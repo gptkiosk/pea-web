@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## A message waits for the saved chats to open — 2026-11-23
+
+Development identity `0.1.0-rc.4.dev.65` (first written as `dev.61`, renumbered when it was brought up to main). After #127 merged, the Mac check failed intermittently in different tests that watch a request in progress ("the working sign", "the open list", "the reply to finish"), on GitHub's Mac runners only, including on `main` at `452b927`. Each rerun passed.
+
+- Likely cause, not proven: `autoOpen()` in `browser/memory-ui.mjs` finishes a moment after load and then calls `invalidate()`, `reopen()` and `libraryChanged`, which redraw and reset context. On a slow machine a test's first message was already in flight.
+- Change: `installMemory` returns `ready` (the start-up promise); `submit()` in `browser/app.mjs` awaits it before anything else.
+- Second race, found from the Mac check on this branch (`settings-links.test.mjs`, the interview test: `'' !== 'Sam'`, three times on 2026-11-23): `autoOpen()` called `fillInterview()` after the owner had typed. Now it refills only when the form is as PEA last filled it (`filled` in `browser/memory-ui.mjs`).
+- No new test: the race could not be reproduced locally. Evidence will be whether the Mac check stops failing.
+- Known gap: if the failures continue, the cause is elsewhere (candidates: the extra save after each reply on a slow disk).
+
 ## The assistant is PEA, not "her" — 2026-11-23
 
 Development identity `0.1.0-rc.4.dev.64`, on top of the guided setup below. Owner instruction with a picture of Past chats & memory: "Her" is often used here when the assistant could be a "him", best to just use PEA as the assistant's name for now until configured.
