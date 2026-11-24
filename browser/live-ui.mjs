@@ -2056,6 +2056,8 @@ export function installConnections(hooks) {
     },
     isBusy: () => operationActive,
     localKey,
+    // Whether a Google account is connected in this tab. The account itself is not handed out.
+    googleAccount: () => Boolean(state().google?.account),
     libraryChanged,
     readPage: (key, url) => local.read(key, url),
     searchWeb: (key, provider, providerKey, query) => local.search(key, provider, providerKey, query),

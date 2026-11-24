@@ -2470,27 +2470,6 @@ header h1 {
   min-height: 40px;
   font-size: 13px;
 }
-#connections[data-guided] .dialog-body {
-  display: flex;
-  flex-direction: column;
-}
-#connections[data-guided]
-  .settings-group:not(#router-group):not(#local-group):not(#google-group):not(
-    #github-group
-  ):not(#voice-providers) {
-  display: none;
-}
-#connections[data-guided="router"] #local-group,
-#connections[data-guided="router"] #google-group,
-#connections[data-guided="local"] #google-group {
-  display: none;
-}
-#connections[data-guided="local"] #local-group {
-  order: -1;
-}
-#connections[data-guided="local"] #guided-connection {
-  order: -2;
-}
 @media (max-width: 700px) {
   .welcome h2 {
     font-size: 34px;
@@ -2535,12 +2514,6 @@ header h1 {
   .setup-action {
     grid-column: 3;
   }
-}
-#connections[data-guided="google"] .settings-group:not(#google-group) {
-  display: none;
-}
-#connections[data-guided="google"] #google-group {
-  display: block;
 }
 
 /* Shared reading, touch-target and dialog spacing scale. */
@@ -2839,17 +2812,6 @@ select:disabled {
   margin-top: 0;
 }
 
-#connections[data-guided="router"] #github-group,
-#connections[data-guided="local"] #github-group,
-#connections[data-guided="google"] #github-group {
-  display: none;
-}
-#connections[data-guided="github"] .settings-group:not(#github-group) {
-  display: none;
-}
-#connections[data-guided="github"] #github-group {
-  display: block;
-}
 
 .brand small {
   font-size: 12px;
@@ -2886,18 +2848,6 @@ select:disabled {
 #origin-feedback {
   font-size: 13px;
   color: var(--sub);
-}
-#connections[data-guided="router"] #voice-providers,
-#connections[data-guided="local"] #voice-providers,
-#connections[data-guided="google"] #voice-providers,
-#connections[data-guided="github"] #voice-providers {
-  display: none;
-}
-#connections[data-guided="voice"] .settings-group:not(#voice-providers) {
-  display: none;
-}
-#connections[data-guided="voice"] #voice-providers {
-  display: block;
 }
 .voice-controls {
   gap: 8px;
@@ -4815,12 +4765,10 @@ section.settings-here {
   border: 1px solid var(--line);
   font-size: 12px;
 }
-.tiled:not([data-section]):not([data-guided]) .settings-group,
+.tiled:not([data-section]) .settings-group,
 .tiled[data-section] .settings-group:not(.settings-focus),
 .tiled[data-section] .settings-home,
 .tiled[data-section] .home-only,
-.tiled[data-guided] .settings-home,
-.tiled[data-guided] .settings-back,
 .tiled:not([data-section]) .settings-back {
   display: none;
 }
@@ -5165,4 +5113,167 @@ dialog .dialog-body .text-button.settings-more {
   margin: 6px 0 10px;
   font-size: 12px;
   font-weight: 500;
+}
+
+/* The guided setup: an overview of steps, then one section at a time with a way on. */
+.setup-steps {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 6px;
+}
+.setup-step {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--field);
+}
+.setup-step > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.setup-step strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+.setup-step small {
+  color: var(--sub);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setup-step > span:last-child {
+  color: var(--green);
+  font-size: 18px;
+}
+.setup-step:hover,
+.setup-step:focus-visible {
+  border-color: var(--green);
+}
+.setup-mark {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--sub);
+  font-weight: 600;
+  font-size: 14px;
+}
+.setup-step[data-done="true"] .setup-mark {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--bg);
+}
+.setup-bar {
+  display: grid;
+  gap: 8px;
+}
+.setup-bar[hidden],
+.setup-nav[hidden],
+.setup-sources[hidden],
+.setup-switch[hidden] {
+  display: none;
+}
+.setup-bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.setup-bar p {
+  margin: 0;
+}
+.setup-track {
+  display: flex;
+  gap: 6px;
+}
+.setup-track i {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+}
+.setup-track i[data-done="true"] {
+  background: color-mix(in srgb, var(--green) 55%, transparent);
+}
+.setup-track i[data-here="true"] {
+  background: var(--green);
+}
+.setup-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--field);
+}
+.setup-switch button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sub);
+  font-weight: 600;
+}
+.setup-switch button[aria-pressed="true"] {
+  background: var(--green);
+  color: var(--bg);
+}
+.setup-sources {
+  padding: 6px 0 2px;
+}
+.setup-nav {
+  position: sticky;
+  bottom: -28px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 -28px;
+  padding: 12px 0 24px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.setup-nav .setup-state {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  color: var(--sub);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setup-nav .setup-state[data-done="true"] {
+  color: var(--green);
+}
+dialog .dialog-body .setup-nav :is(button, .text-button) {
+  margin: 0;
+  flex: none;
+}
+/* In the guided setup a section shows only the part its step is about. */
+#connections[data-setup] .settings-back,
+#connections[data-setup] > .dialog-body > p.muted,
+#connections[data-setup] > .dialog-body > p.muted + .settings-more,
+#connections[data-setup] #local-group > p.muted:last-of-type,
+#connections[data-setup] #local-group > p.muted:last-of-type + .settings-more,
+#connections[data-setup] .settings-focus > summary,
+#connections[data-setup] .settings-step > span,
+#connections[data-setup="model"] #router-group > h4:nth-of-type(2),
+#connections[data-setup="model"] #router-group > h4:nth-of-type(2) ~ *,
+#connections[data-setup="areas"] #router-group > :not(summary):not(h4:nth-of-type(2)):not(h4:nth-of-type(2) ~ *) {
+  display: none;
 }

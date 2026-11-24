@@ -632,3 +632,133 @@ test('actions in settings and tool windows are buttons, not link-style text', op
   assert.deepEqual(page.errors, []);
   await page.close();
 });
+
+test(
+  'the guided setup lists six steps with what is known, then walks them one section at a time',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 900 });
+    const seen = (selector) =>
+      page.evaluate(
+        `(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !!e && !e.hidden && e.getClientRects().length > 0; })()`,
+      );
+    const at = () =>
+      page.evaluate(`(() => {
+        const d = document.getElementById('connections');
+        const shown = (e) => e.getClientRects().length > 0;
+        return {
+          open: d.open,
+          step: d.dataset.setup ?? null,
+          count: document.getElementById('setup-count').textContent,
+          title: document.getElementById('guided-title').textContent,
+          groups: [...d.querySelectorAll('.settings-group')].filter(shown).map((g) => g.id),
+          tiles: [...d.querySelectorAll('.settings-tile')].filter(shown).length,
+          back: document.getElementById('guided-back').textContent,
+          next: document.getElementById('setup-next').textContent,
+          state: document.getElementById('setup-state').textContent,
+          here: [...document.getElementById('setup-track').children].findIndex((i) => i.dataset.here === 'true'),
+        };
+      })()`);
+    const press = (id) => page.evaluate(`document.getElementById(${JSON.stringify(id)}).click()`);
+
+    await press('connections-open');
+    assert.equal(await page.evaluate(`document.getElementById('setup-wizard').open`), true);
+    assert.deepEqual(
+      await page.evaluate(
+        `[...document.querySelectorAll('#setup-steps .setup-step')].map((r) => [r.querySelector('strong').textContent, r.dataset.done, r.querySelector('.setup-mark').textContent, r.getBoundingClientRect().height >= 56])`,
+      ),
+      [
+        ['Connect a model', 'true', '✓', true],
+        ['Choose your models', 'true', '✓', true],
+        ['Voice', 'false', '3', true],
+        ['Web search', 'false', '4', true],
+        ['Google', 'false', '5', true],
+        ['Knowledge sources', 'false', '6', true],
+      ],
+    );
+    assert.equal(await page.text('#setup-summary'), '2 of 6 set up.');
+    assert.equal(await page.text('#setup-start'), 'Continue');
+    assert.match(await page.text('.setup-step[data-step="areas"] small'), /^Chat: /);
+
+    // Continue goes to the first step that is not set up, and shows that section alone.
+    await press('setup-start');
+    let now = await at();
+    assert.equal(await page.evaluate(`document.getElementById('setup-wizard').open`), false);
+    assert.deepEqual(
+      [now.open, now.step, now.count, now.title, now.groups, now.tiles, now.here],
+      [true, 'voice', 'Step 3 of 6', 'Voice', ['voice-providers'], 0, 2],
+    );
+    assert.deepEqual([now.next, now.state, now.back], ['Skip →', 'Device voice', '← Back']);
+    assert.equal(await seen('#settings-back'), false, 'the way on is the step buttons');
+    assert.equal(await seen('#provider-voice'), true);
+    const nav = await page.evaluate(
+      `['guided-back', 'setup-next'].map((id) => { const e = document.getElementById(id), s = getComputedStyle(e); return [e.getBoundingClientRect().height >= 44, parseFloat(s.borderTopWidth) >= 1 || s.backgroundColor !== 'rgba(0, 0, 0, 0)']; })`,
+    );
+    assert.deepEqual(nav, [
+      [true, true],
+      [true, true],
+    ]);
+
+    // Back: the models for each area, without the key that the step before is about.
+    await press('guided-back');
+    now = await at();
+    assert.deepEqual(
+      [now.step, now.count, now.groups, now.next],
+      ['areas', 'Step 2 of 6', ['router-group'], 'Next →'],
+    );
+    assert.match(now.state, /^✓ Chat: /);
+    for (const id of ['chat-model', 'collaboration-model', 'coding-model'])
+      assert.equal(await seen('#' + id), true, id);
+    assert.equal(await seen('#router-key'), false);
+
+    // Back again: connecting, on this machine or with OpenRouter.
+    await press('guided-back');
+    now = await at();
+    assert.deepEqual([now.step, now.groups, now.back], ['model', ['local-group'], '← Overview']);
+    assert.equal(await seen('#local-token'), true);
+    assert.deepEqual(
+      await page.evaluate(
+        `[...document.querySelectorAll('#setup-switch button')].map((b) => [b.textContent, b.getAttribute('aria-pressed')])`,
+      ),
+      [
+        ['On this machine', 'true'],
+        ['OpenRouter', 'false'],
+      ],
+    );
+    await page.evaluate(`document.querySelector('#setup-switch [data-route="models"]').click()`);
+    now = await at();
+    assert.deepEqual([now.step, now.groups], ['model', ['router-group']]);
+    assert.equal(await seen('#router-key'), true);
+    assert.equal(await seen('#chat-model'), false, 'choosing models is the next step');
+
+    // Forward through every step to the last, which is not a Settings section.
+    const walked = [];
+    for (let i = 0; i < 5; i++) {
+      await press('setup-next');
+      now = await at();
+      walked.push([now.step, now.groups.join()]);
+    }
+    assert.deepEqual(walked, [
+      ['areas', 'router-group'],
+      ['voice', 'voice-providers'],
+      ['search', 'search-providers'],
+      ['google', 'google-group'],
+      ['sources', ''],
+    ]);
+    assert.deepEqual([now.count, now.next, now.tiles], ['Step 6 of 6', 'Finish', 0]);
+    assert.equal(await seen('#setup-sources-open'), true);
+    assert.match(await page.text('#setup-sources-state'), /Knowledge sources are off/);
+
+    // Finish returns to the overview; opening Settings afterwards is plain Settings again.
+    await press('setup-next');
+    assert.equal(await page.evaluate(`document.getElementById('connections').open`), false);
+    assert.equal(await page.evaluate(`document.getElementById('setup-wizard').open`), true);
+    await press('setup-all');
+    now = await at();
+    assert.deepEqual([now.open, now.step, now.groups], [true, null, []]);
+    assert(now.tiles >= 8, 'the settings home');
+    assert.equal(await seen('#guided-connection'), false);
+    assert.equal(await seen('#setup-nav'), false);
+    await page.close();
+  },
+);

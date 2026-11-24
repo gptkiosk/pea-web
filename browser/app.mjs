@@ -2022,58 +2022,11 @@ $('copy-google-origin').onclick = async () => {
     $('origin-feedback').textContent = 'Could not copy. Select the origin and copy it manually.';
   }
 };
-// Guided entry points open existing connection controls; choosing a route never sends data.
+// The guided setup walks through the same controls Settings has; opening it sends nothing.
 $('connections-open').onclick = () => {
-  if (!live.isBusy()) $('setup-wizard').showModal();
+  if (!live.isBusy()) settings.setup();
   else notice('Finish the current request first.');
 };
-function clearGuidedConnection() {
-  $('connections').removeAttribute('data-guided');
-  $('guided-connection').hidden = true;
-}
-$('connections').addEventListener('close', clearGuidedConnection);
-$('guided-all').onclick = clearGuidedConnection;
-$('guided-back').onclick = () => {
-  $('connections').close();
-  $('setup-wizard').showModal();
-};
-for (const [button, route, group, input] of [
-  ['wizard-router', 'router', 'router-group', 'router-key'],
-  ['wizard-local', 'local', 'local-group', 'local-token'],
-  ['wizard-google', 'google', 'google-group', 'google-client'],
-  ['wizard-github', 'github', 'github-group', 'github-repo'],
-  ['wizard-voice', 'voice', 'voice-providers', null],
-])
-  $(button).onclick = () => {
-    $('setup-wizard').close();
-    $('collab-config').click();
-    $('connections').dataset.guided = route;
-    $('guided-connection').hidden = false;
-    $('guided-title').textContent =
-      route === 'router'
-        ? 'Connect OpenRouter'
-        : route === 'local'
-          ? 'Connect your local model'
-          : route === 'google'
-            ? 'Connect Google workspace'
-            : route === 'github'
-              ? 'Connect GitHub'
-              : 'Choose a provider voice';
-    $('guided-description').textContent =
-      route === 'router'
-        ? 'Enter your OpenRouter API key, load the available models, then choose your Chat model below. Review costs and data terms before you send a message.'
-        : route === 'local'
-          ? 'Enter your server connection token and load its models. Then choose a Local Chat model in the model section below. Your server must already be running.'
-          : route === 'google'
-            ? 'Choose optional previews, enter your Web OAuth client ID, and review Google’s requested access before connecting. PEA enforces the selected folder boundary in the app.'
-            : route === 'github'
-              ? 'Choose a repository and create a fine-grained token limited to it. PEA can prepare a reviewed draft pull request; it does not merge it.'
-              : 'Reading aloud can use your own ElevenLabs or Fish Audio key through your PEA gateway. Connect the gateway under Local model first. Each read-aloud is billed by the provider, and you review that before the first one.';
-    $(group).open = true;
-    requestAnimationFrame(() => {
-      (input ? $(input) : $(group).querySelector('summary')).focus({ preventScroll: true });
-    });
-  };
 board = installBoard({
   boardChanged: () => todos?.render(),
   review: live.review,
@@ -2740,7 +2693,11 @@ settings = installSettings({
           : 'No key'
         : id === 'models'
           ? $('connection-status').textContent.trim()
-          : '',
+          : id === 'google'
+            ? live.googleAccount()
+              ? 'Connected'
+              : ''
+            : '',
 });
 if (placeInAddress(location.hash)) settings.fromAddress();
 else if (location.hash.slice(1)) tab(location.hash.slice(1));
