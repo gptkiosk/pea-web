@@ -1181,14 +1181,15 @@ class Conformance(unittest.TestCase):
         status, headers, body = self.call('GET', UPDATES['path'], token=TOKEN)
         self.assert_contract_headers(headers, 'update status')
         self.assertEqual((status, json.loads(body)), (200, {'available': False}), 'updating is off unless the operator turned it on at start')
-        for good in ({'action': 'check'}, {'action': 'apply', 'commit': 'a' * 40}):
+        for good in ({'action': 'check'}, {'action': 'apply', 'commit': 'a' * 40}, {'action': 'rollback', 'commit': 'a' * 40}):
             status, headers, body = self.call('POST', UPDATES['path'], token=TOKEN, body=good)
             self.assert_contract_headers(headers, 'update refusal')
             self.assertEqual((status, json.loads(body)), (409, {'error': UPDATES['unavailable']}), str(good))
         bad = [[], 'text', {}, {'action': 'install'}, {'action': 'check', 'commit': 'a' * 40}, {'action': 'apply'}, {'action': 'apply', 'commit': 'main'},
                {'action': 'apply', 'commit': 'A' * 40}, {'action': 'apply', 'commit': 'a' * 39}, {'action': 'apply', 'commit': 'a' * 40, 'channel': 'development'},
                {'action': 'apply', 'commit': 'a' * 40, 'checkout': '/tmp/x'}, {'action': 'apply', 'commit': 'a' * 40, 'url': 'https://evil.example/'},
-               {'action': 'rollback'}, {'action': ['check']}, {'action': 'check', 'label': 'x'}]
+               {'action': 'rollback'}, {'action': 'rollback', 'commit': 'main'}, {'action': 'rollback', 'commit': 'a' * 40, 'to': 'b' * 40},
+               {'action': 'rollback', 'commit': 'A' * 40}, {'action': ['check']}, {'action': 'check', 'label': 'x'}]
         for body in bad:
             status, _, data = self.call('POST', UPDATES['path'], token=TOKEN, body=body)
             self.assertEqual((status, json.loads(data)), (400, {'error': 'Invalid update request.'}), repr(body)[:80])

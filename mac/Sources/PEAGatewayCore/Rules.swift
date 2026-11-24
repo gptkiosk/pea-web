@@ -136,7 +136,7 @@ public struct Contract {
         search = try SearchRules(root["search"])
         projects = try ProjectRules(root["projects"])
         guard case .object(let updates)? = root["updates"], let updatesPath = updates["path"]?.string, updatesPath.hasPrefix("/v1/"),
-              case .array(let actions)? = updates["actions"], actions.compactMap({ $0.string }) == ["check", "apply"],
+              case .array(let actions)? = updates["actions"], actions.compactMap({ $0.string }) == ["check", "apply", "rollback"],
               let unavailable = updates["unavailable"]?.string, !unavailable.isEmpty,
               let commit = updates["commitPattern"]?.string, let commitExpression = try? NSRegularExpression(pattern: "\\A(?:" + commit + ")\\z") else {
             throw GatewayError("The rules file has no update rules.")
@@ -154,11 +154,12 @@ public struct Contract {
     public func isModelID(_ text: String) -> Bool { Contract.matches(modelID, text) }
     public func isToken(_ text: String) -> Bool { Contract.matches(token, text) }
 
-    /// Whether a body is a well-formed request to look for an update or to install one named commit.
+    /// Whether a body is a well-formed request to look for an update, to install one named commit,
+    /// or to go back to one named commit.
     public func isUpdateRequest(_ raw: JSONValue) -> Bool {
         guard case .object(let body) = raw, let action = body["action"]?.string else { return false }
         if action == "check" { return body.keys == ["action"] }
-        guard action == "apply", body.keys.count == 2, let commit = body["commit"]?.string else { return false }
+        guard action == "apply" || action == "rollback", body.keys.count == 2, let commit = body["commit"]?.string else { return false }
         return Contract.matches(updateCommit, commit)
     }
 

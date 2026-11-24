@@ -2217,6 +2217,7 @@ updates = installUpdates({
   ask: (key, body) => live.update(key, body),
   review: live.review,
   isBusy: live.isBusy,
+  notice,
 });
 // One encrypted file that carries the profile in view to another PEA; bringing one in only adds.
 portable = installBackup({

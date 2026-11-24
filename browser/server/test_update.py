@@ -128,6 +128,15 @@ class UpdateChecks(unittest.TestCase):
         self.assertEqual((entry['previous'], entry['target'], entry['outcome']), (self.first, self.second, 'succeeded'))
         self.assertEqual(stat.S_IMODE((self.state / 'last-update.json').stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(self.state.stat().st_mode), 0o700)
+        # Each stage it went through is on record, in order, in this program's own words.
+        self.assertEqual(entry['stage'], 'done')
+        said = [line['text'] for line in entry['log']]
+        self.assertEqual(len(said), 5)
+        self.assertRegex(said[0], r'^Updating from 0\.1\.0-dev\.1 \(.{12}\) to 0\.1\.0-dev\.2 \(.{12}\)\. Settings and saved data are not touched')
+        self.assertEqual(said[1:], ['Program files are now 0.1.0-dev.2.', 'Restarting PEA.', 'Waiting for PEA to report 0.1.0-dev.2.',
+                                    'PEA is running 0.1.0-dev.2. Reload the page to use it.'])
+        shown = update.last_record(self.state)
+        self.assertEqual((shown['stage'], len(shown['log']), set(shown['log'][0])), ('done', 5, {'at', 'text'}))
         # Going back uses the record of that update.
         back = update.last(self.state)
         self.move({'commit': back['previous'], 'version': '0.1.0-dev.1'}, kind='rollback')
@@ -140,7 +149,10 @@ class UpdateChecks(unittest.TestCase):
             self.move(target)
         self.assertEqual(self.head(), self.first)
         self.assertEqual(self.restarts, 2, 'restarted for the new copy and again for the old')
-        self.assertEqual(json.loads((self.state / 'last-update.json').read_text())['outcome'], 'rolled back')
+        entry = json.loads((self.state / 'last-update.json').read_text())
+        self.assertEqual((entry['outcome'], entry['stage']), ('rolled back', 'put back'))
+        self.assertEqual([line['text'] for line in entry['log']][-2:], [
+            'PEA did not come back reporting the new commit and version. Putting 0.1.0-dev.1 back.', entry['message']])
         self.assertEqual(update.inspect(self.installed, official=self.origin)['version'], '0.1.0-dev.1', 'and it is clean again')
 
     def test_a_service_that_will_not_restart_is_also_put_back_and_said_so(self):
@@ -483,6 +495,31 @@ class GatewayUpdateChecks(unittest.TestCase):
         self.assertEqual(given['url'], f'http://127.0.0.1:{self.server.server_port}', 'the health check asks this gateway, on this machine')
         self.assertEqual(run(self.installed, 'rev-parse', 'HEAD'), self.first, 'the gateway itself moves nothing')
 
+    def test_going_back_is_only_to_the_commit_the_last_update_replaced_while_that_update_is_installed(self):
+        none = self.call('POST', {'action': 'rollback', 'commit': self.first})
+        self.assertEqual(none[0], 409, 'nothing recorded, nothing to go back to')
+        self.assertIn('No earlier update is recorded', none[1]['error'])
+        # The installed copy is moved to the second commit and a finished update is on record.
+        run(self.installed, 'fetch', '-q', 'origin')
+        run(self.installed, 'reset', '-q', '--keep', self.second)
+        done = {'kind': 'apply', 'previous': self.first, 'previousVersion': '0.1.0-dev.1', 'target': self.second, 'targetVersion': '0.1.0-dev.2', 'at': 5, 'outcome': 'succeeded'}
+        update.record(self.state, done)
+        for wrong in ('f' * 40, self.second):
+            status, answer = self.call('POST', {'action': 'rollback', 'commit': wrong})
+            self.assertEqual(status, 409, wrong)
+            self.assertIn('no earlier version to go back to', answer['error'])
+        for changed in ({'outcome': 'rolled back'}, {'kind': 'rollback'}, {'target': self.first}):
+            update.record(self.state, {**done, **changed})
+            self.assertEqual(self.call('POST', {'action': 'rollback', 'commit': self.first})[0], 409, str(changed))
+        self.assertEqual(self.started, [])
+        update.record(self.state, done)
+        self.assertEqual(self.call('POST', {'action': 'rollback', 'commit': self.first}), (202, {'started': True, 'commit': self.first}))
+        self.assertEqual(len(self.started), 1)
+        self.assertEqual((self.started[0]['command'], self.started[0]['commit'], self.started[0]['label']), ('rollback', self.first, 'synthetic.pea.service'))
+        self.assertEqual(run(self.installed, 'rev-parse', 'HEAD'), self.second, 'the gateway itself moves nothing')
+        self.assertEqual(self.call('POST', {'action': 'rollback', 'commit': self.first}, server=self.plain)[0], 409)
+        self.assertEqual(self.call('POST', {'action': 'rollback'})[0], 400)
+
     def test_a_copy_that_cannot_be_updated_says_why_and_starts_nothing(self):
         (self.installed / 'browser' / 'index.html').write_text('<p>edited by hand</p>')
         status, answer = self.call('POST', {'action': 'check'})
@@ -504,6 +541,12 @@ class GatewayUpdateChecks(unittest.TestCase):
             self.assertEqual(arguments[arguments.index(flag) + 1], value, flag)
         self.assertTrue({'--confirm', '--report', '--prerelease'} <= set(arguments))
         self.assertNotIn('--allow-older', arguments)
+        back = update.helper_plist(python='/usr/bin/python3', checkout=self.installed, url='http://127.0.0.1:18770', label='synthetic.pea.service',
+                                   state=self.state, channel='development', prerelease=False, commit=self.first, path='/usr/bin', command='rollback')[1]['ProgramArguments']
+        self.assertEqual((back[2], back[back.index('--expect') + 1]), ('rollback', self.first))
+        with self.assertRaises(update.Refusal):
+            update.helper_plist(python='/usr/bin/python3', checkout=self.installed, url='http://127.0.0.1:18770', label='synthetic.pea.service',
+                                state=self.state, channel='development', prerelease=False, commit=self.first, path='/usr/bin', command='check; rm')
         for bad in ({'label': 'bad label; rm'}, {'commit': 'main'}, {'url': 'https://example.invalid'}, {'channel': 'nightly'}):
             settings = dict(python='/usr/bin/python3', checkout=self.installed, url='http://127.0.0.1:18770', label='synthetic.pea.service',
                             state=self.state, channel='release', prerelease=False, commit=self.second, path='/usr/bin')
@@ -518,7 +561,13 @@ class GatewayUpdateChecks(unittest.TestCase):
         self.assertIsNone(update.last_record(self.state))
         update.record(self.state, {'kind': 'apply', 'outcome': 'refused', 'message': 'x' * 900, 'at': 5, 'token': 'SECRET', 'previous': '../x'})
         shown = update.last_record(self.state)
-        self.assertEqual(set(shown), {'kind', 'outcome', 'at', 'previous', 'target', 'previousVersion', 'targetVersion', 'message'})
+        self.assertEqual(set(shown), {'kind', 'outcome', 'at', 'previous', 'target', 'previousVersion', 'targetVersion', 'message', 'stage', 'log', 'note', 'noteAt'})
+        self.assertEqual((shown['stage'], shown['log'], shown['note']), (None, [], None))
+        # A stage this program does not write, and log lines of the wrong shape or too many, are not shown.
+        update.record(self.state, {'kind': 'apply', 'outcome': 'started', 'at': 5, 'stage': 'rm -rf', 'log': [{'at': 1, 'text': 'y' * 900}, {'at': 'x', 'text': 'no'}, 'no', {'at': 2}] + [{'at': 3, 'text': 'line'}] * 40})
+        odd = update.last_record(self.state)
+        self.assertEqual((odd['stage'], len(odd['log']), max(len(line['text']) for line in odd['log'])), (None, 30, 4))
+        update.record(self.state, {'kind': 'apply', 'outcome': 'refused', 'message': 'x' * 900, 'at': 5, 'token': 'SECRET', 'previous': '../x'})
         self.assertEqual((shown['outcome'], len(shown['message']), shown['previous']), ('refused', 400, None))
         self.assertEqual(self.call('GET')[1]['operation'], shown)
         (self.state / 'last-update.json').write_text('not json')

@@ -5857,3 +5857,148 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
   font-size: 13px;
   white-space: nowrap;
 }
+
+/* An update under way: a bar, the steps with how far it got, and afterwards a log. */
+.update-progress {
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+}
+.update-progress-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+.update-progress progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line);
+  accent-color: var(--green);
+}
+.update-progress progress::-webkit-progress-bar {
+  background: var(--line);
+}
+.update-progress progress::-webkit-progress-value {
+  background: var(--green);
+  border-radius: 999px;
+}
+.update-progress progress::-moz-progress-bar {
+  background: var(--green);
+}
+.update-progress[data-failed='1'] progress::-webkit-progress-value {
+  background: #c9853f;
+}
+.update-progress[data-failed='1'] progress::-moz-progress-bar {
+  background: #c9853f;
+}
+.update-steps {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.update-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--sub);
+}
+.update-steps li::before {
+  content: '';
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.update-steps li[data-state='done'] {
+  color: var(--ink);
+}
+.update-steps li[data-state='done']::before {
+  content: '✓';
+  display: grid;
+  place-items: center;
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--surface);
+  font-size: 10px;
+  font-weight: 700;
+}
+.update-steps li[data-state='now'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+.update-steps li[data-state='now']::before {
+  border-color: var(--green);
+  border-top-color: transparent;
+}
+.update-steps li[data-state='failed'] {
+  color: #c9853f;
+}
+.update-steps li[data-state='failed']::before {
+  content: '!';
+  display: grid;
+  place-items: center;
+  border-color: #c9853f;
+  color: #c9853f;
+  font-size: 10px;
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .update-steps li[data-state='now']::before {
+    animation: update-turn 0.9s linear infinite;
+  }
+}
+@keyframes update-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.update-settings {
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 13px;
+}
+.update-log {
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sub);
+  overflow-wrap: anywhere;
+}
+.update-log time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.update-log-box {
+  margin-top: 12px;
+}
+.update-log-box > summary {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.update-log-box[open] > summary {
+  margin-bottom: 10px;
+}
