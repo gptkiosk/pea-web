@@ -431,3 +431,78 @@ test(
     await page.close();
   },
 );
+
+// Start a debate: the owner picks a question and a position, and for that conversation the model
+// is told to argue the other side. Nothing a model writes can start one.
+test('a debate is started by the owner, tells the model to argue the other side, and ends when asked', options, async () => {
+  const page = await openConnectedPage(stack);
+  const system = () => stack.model.requests.at(-1).messages[0].content,
+    owner = () => stack.model.requests.at(-1).messages.at(-1).content;
+  const barHidden = () => page.evaluate(`document.getElementById('debate-bar').hidden`);
+  // An ordinary message first: no debate, no bar.
+  await askModel(stack, page, 'A synthetic hello.');
+  assert.doesNotMatch(system(), /DEBATE\./);
+  assert.equal(await barHidden(), true);
+  // The tile opens the window with the built-in questions and both cases for the one chosen.
+  await page.evaluate(`document.getElementById('home-debate').click()`);
+  await page.waitFor(`document.getElementById('debate').open`, 'the debate window');
+  const offered = JSON.parse(
+    await page.evaluate(`JSON.stringify([...document.querySelectorAll('#debate-topic option')].map((o) => o.value))`),
+  );
+  assert.ok(offered.length >= 9 && offered.includes('voting') && offered.at(-1) === 'own');
+  await page.fill('#debate-topic', 'voting');
+  assert.match(await page.evaluate(`document.getElementById('debate-one').textContent`), /One vote rarely decides/);
+  assert.match(await page.evaluate(`document.getElementById('debate-other').textContent`), /Turnout decides/);
+  assert.equal(await page.evaluate(`document.getElementById('debate-own').hidden`), true);
+  // Without a position nothing starts.
+  const before = stack.model.requests.length;
+  await page.click('#debate-start');
+  assert.match(await page.evaluate(`document.getElementById('debate-note').textContent`), /Say where you stand/);
+  assert.equal(stack.model.requests.length, before);
+  await page.fill('#debate-position', 'One vote changes nothing, so I stay home.');
+  await page.click('#debate-start');
+  await page.waitFor(`!document.getElementById('debate-bar').hidden && !document.getElementById('profile').disabled`, 'the debate to start');
+  assert.equal(stack.model.requests.length, before + 1);
+  assert.equal(owner(), 'Let’s debate: Voting: is taking part in elections worth it?\n\nWhere I stand: One vote changes nothing, so I stay home.');
+  assert.match(system(), /DEBATE\. The owner started a debate with you and asked you to argue the other side/);
+  assert.match(system(), /Where the owner stands, in their own words[^\n]*“One vote changes nothing, so I stay home\.”/);
+  assert.match(system(), /Never invent a statistic, study, quotation or source/);
+  assert.match(await page.evaluate(`document.getElementById('debate-bar').textContent`), /PEA argues the other side · Voting: is taking part in elections worth it\?/);
+  // It holds for the next message, and Sum up asks for both sides.
+  await askModel(stack, page, 'But close results are rare.');
+  assert.match(system(), /DEBATE\./);
+  await page.click('#debate-sum');
+  await page.waitFor(`!document.getElementById('profile').disabled`, 'the summary');
+  assert.match(owner(), /^Sum up this debate: the strongest points on each side/);
+  assert.match(system(), /DEBATE\./);
+  // The other profile has no debate; coming back, it is still on.
+  await page.fill('#profile', 'work');
+  assert.equal(await barHidden(), true);
+  await page.fill('#profile', 'personal');
+  assert.equal(await barHidden(), false);
+  // Ended: the bar goes and the model is no longer told to argue.
+  await page.click('#debate-end');
+  assert.equal(await barHidden(), true);
+  await askModel(stack, page, 'A synthetic question about peas.');
+  assert.doesNotMatch(system(), /DEBATE\./);
+  // A question of the owner's own.
+  await page.evaluate(`document.getElementById('home-debate').click()`);
+  await page.fill('#debate-topic', 'own');
+  assert.equal(await page.evaluate(`document.getElementById('debate-own').hidden`), false);
+  assert.equal(await page.evaluate(`document.getElementById('debate-sides').hidden`), true);
+  await page.fill('#debate-own', 'Should synthetic peas be shelled by hand?');
+  await page.fill('#debate-position', 'Yes, always.');
+  await page.click('#debate-start');
+  await page.waitFor(`!document.getElementById('debate-bar').hidden && !document.getElementById('profile').disabled`, 'the second debate');
+  assert.match(system(), /Question: “Should synthetic peas be shelled by hand\?”/);
+  assert.doesNotMatch(system(), /One vote changes nothing/, 'the earlier debate is over');
+  // A new chat ends it.
+  await page.evaluate(`document.getElementById('library-new-chat').click()`);
+  await page.waitFor(`document.getElementById('review').open`, 'the new chat review');
+  await page.click('#review-approve');
+  await page.waitFor(`document.getElementById('debate-bar').hidden`, 'the bar to go with the conversation');
+  await askModel(stack, page, 'A fresh synthetic start.');
+  assert.doesNotMatch(system(), /DEBATE\./);
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});

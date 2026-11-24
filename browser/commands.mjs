@@ -46,6 +46,7 @@ export function commandList(context = {}) {
     { id: 'new-chat', title: 'New chat', keywords: 'start fresh conversation clear' },
     { id: 'compose', title: 'Write a message', keywords: 'type composer focus ask', shortcut: 'compose' },
     { id: 'voice', title: 'Voice chat', keywords: 'talk speak microphone dictate' },
+    { id: 'debate', title: 'Start a debate', keywords: 'argue argument other side socratic topic issue' },
     { id: 'add-todo', title: 'Add a to-do', keywords: 'task list reminder remember todo' },
     { id: 'add-story', title: 'Add a story to Today', keywords: 'board capture work' },
     { id: 'history', title: 'Past chats & memory', keywords: 'library conversations remember search' },

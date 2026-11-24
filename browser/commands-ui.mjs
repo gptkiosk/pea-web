@@ -45,6 +45,7 @@ export function installCommands({ workspace, tab, context, goSetting = () => {} 
     },
     history: () => press('library-open'),
     interview: () => press('interview-open'),
+    debate: () => press('home-debate'),
     connections: () => press('collab-config'),
     privacy: () => press('settings-open'),
     theme: () => press('theme'),
