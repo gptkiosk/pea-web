@@ -17,14 +17,14 @@ before(
 after(() => stack?.close(), { timeout: 30000 });
 
 test(
-  'her interests and people go with Chat only when her story is shared, change by the owner’s choice, and the style rule goes with every Chat message',
+  'PEA’s interests and people go with Chat only when PEA’s story is shared, change by the owner’s choice, and the style rule goes with every Chat message',
   { skip, timeout: 90000 },
   async () => {
     const page = await openConnectedPage(stack);
     const system = () => stack.model.requests.at(-1).messages[0].content;
     const hand = () => page.evaluate(`document.getElementById('life-hand').textContent`);
     const first = await hand();
-    assert.match(first, /^Her interests: [^.]+(?:, [^.]+){4}\. Her people: [^.]+(?:, [^.]+){4}\.$/);
+    assert.match(first, /^PEA’s interests: [^.]+(?:, [^.]+){4}\. PEA’s people: [^.]+(?:, [^.]+){4}\.$/);
     const seed = JSON.parse(await page.evaluate(`localStorage.getItem('pea-life-v1')`)).seed;
     assert.ok(Number.isInteger(seed) && seed > 0);
 
@@ -34,7 +34,7 @@ test(
     assert.doesNotMatch(
       system(),
       /Your character’s own life/,
-      'her life is not sent until her story is shared',
+      'PEA’s life is not sent until PEA’s story is shared',
     );
     // The honesty rule is unchanged and still sent.
     assert.match(system(), /If you are sincerely asked whether you are a human or an AI, say plainly/);
@@ -46,20 +46,20 @@ test(
     await page.waitFor(`document.getElementById('review').open`, 'the sharing review');
     const shown = await page.text('#review-body');
     assert.ok(
-      shown.includes('Her interests and people (fiction PEA deals her'),
+      shown.includes('PEA’s interests and people (fiction PEA deals out'),
       'the review names what is shared',
     );
-    assert.ok(shown.includes(first), 'and shows her set');
+    assert.ok(shown.includes(first), 'and shows PEA’s set');
     await page.click('#review-approve');
     await page.waitFor(
       `document.querySelectorAll('#messages .utterance.assistant').length === 2 && !document.querySelector('#profile').disabled`,
       'the reply',
     );
     assert.match(system(), /Your character’s own life \(fiction written for you; light conversation only/);
-    for (const name of first.match(/Her interests: ([^.]+)\./)[1].split(', '))
+    for (const name of first.match(/PEA’s interests: ([^.]+)\./)[1].split(', '))
       assert.ok(system().includes(name), name);
     assert.match(system(), /most replies say nothing about your own life/);
-    assert.match(system(), /On her mind today: she /);
+    assert.match(system(), /On PEA’s mind today: PEA /);
 
     // The owner can deal her a different set, after a review; nothing is asked of anyone.
     const before = stack.model.requests.length;

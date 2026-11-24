@@ -55,7 +55,7 @@ export function contextSteps(sent = {}) {
   const add = (icon, text) => steps.push({ icon, text });
   if (sent.introduction) add('person', 'Included your introduction');
   if (count(sent.memories)) add('memory', `Recalled ${some(sent.memories, 'memory', 'memories')} of yours`);
-  if (count(sent.notes)) add('memory', `Recalled ${some(sent.notes, 'thing', 'things')} you told her`);
+  if (count(sent.notes)) add('memory', `Recalled ${some(sent.notes, 'thing', 'things')} you told PEA`);
   const file = line(sent.file, 80);
   if (file) add('file', `Included an excerpt of ${file}`);
   const events = count(sent.calendar) + count(sent.ownEvents);
@@ -66,8 +66,8 @@ export function contextSteps(sent = {}) {
   if (page) add('globe', `Included the page you read at ${page}`);
   const brief = line(sent.brief, 80);
   if (brief) add('book', `Included the curated brief of “${brief}”`);
-  if (count(sent.canon)) add('book', `Included ${some(sent.canon, 'card', 'cards')} of her history`);
-  if (sent.days) add('book', 'Included her days around today');
+  if (count(sent.canon)) add('book', `Included ${some(sent.canon, 'card', 'cards')} of PEA’s history`);
+  if (sent.days) add('book', 'Included PEA’s days around today');
   if (count(sent.history))
     add('chat', `Included ${some(sent.history, 'earlier message', 'earlier messages')}`);
   add(

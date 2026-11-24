@@ -66,15 +66,15 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     if (working || isBusy()) return say('Finish the current request first.');
     if (
       !(await review(
-        'Give her a different set of interests and friends?',
-        `Now: ${describeLife(lifeOf(seed))}\n\nA new set is dealt from PEA’s own list. No request is made and nothing is sent anywhere.${saved.cards.length ? '\n\nHer history cards and her days were written around the present set and may no longer fit. Delete and write them again if you want them to match.' : ''}`,
+        'Give PEA a different set of interests and friends?',
+        `Now: ${describeLife(lifeOf(seed))}\n\nA new set is dealt from PEA’s own list. No request is made and nothing is sent anywhere.${saved.cards.length ? '\n\nPEA’s history cards and PEA’s days were written around the present set and may no longer fit. Delete and write them again if you want them to match.' : ''}`,
       ))
     )
       return;
     seed = newSeed();
     keepSeed();
     render();
-    say('She has a new set of interests and friends.');
+    say('PEA has a new set of interests and friends.');
   };
   const personal = () => profile() === 'personal';
 
@@ -83,12 +83,12 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     $('life-hand').textContent = personal() ? describeLife(lifeOf(seed)) : '';
     $('life-deal').hidden = !personal();
     $('canon-status').textContent = !personal()
-      ? 'Her history belongs to the Personal profile. It is never used in Work or Blended.'
+      ? 'PEA’s history belongs to the Personal profile. It is never used in Work or Blended.'
       : count
         ? `${count} cards, written by your model on ${new Date(saved.made).toISOString().slice(0, 10)}.`
         : 'No cards yet. Nothing is written until you ask.';
     $('canon-write').disabled = !personal() || working;
-    $('canon-write').textContent = count ? 'Write her history again…' : 'Write her history…';
+    $('canon-write').textContent = count ? 'Write PEA’s history again…' : 'Write PEA’s history…';
     $('canon-source').disabled = !personal() || working;
     $('canon-clear').hidden = !personal() || !count;
     $('canon-list').replaceChildren(
@@ -169,7 +169,7 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     const home = homeAnswer(answers.assistantHome);
     if (!home)
       return say(
-        'Tell PEA which city she should call home first: Interview & persona, step 1, then Save. Her history is set there.',
+        'Tell PEA which city PEA should call home first: Interview & persona, step 1, then Save. PEA’s history is set there.',
       );
     working = true;
     render();
@@ -184,7 +184,7 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
       say('Waiting for your review…');
       const result = await run(() =>
         compose({
-          title: 'Write her history with your model?',
+          title: 'Write PEA’s history with your model?',
           about: describeHistoryRequest({
             home,
             facts: place.facts,
@@ -225,7 +225,7 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
     if (working || !saved.cards.length) return;
     if (
       !(await review(
-        'Delete all of her history?',
+        'Delete all of PEA’s history?',
         `This deletes all ${saved.cards.length} cards from this browser. Your model is not given them again. It does not undo anything already said in a chat.`,
       ))
     )
@@ -270,7 +270,7 @@ export function installCanon({ profile, interview, review, run, compose, isBusy,
       });
       const next = validSavedCanon({ made: saved.made || Date.now(), cards: [...saved.cards, ...added] });
       if (next.cards.length !== saved.cards.length + added.length)
-        throw new Error('These cards do not fit her history. Nothing was added.');
+        throw new Error('These cards do not fit PEA’s history. Nothing was added.');
       saved = next;
       store();
       render();

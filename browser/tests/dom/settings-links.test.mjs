@@ -349,9 +349,9 @@ test('Past chats & memory opens on tiles and shows one section at a time', optio
   assert.deepEqual(seen.tiles, [
     'Past chats',
     'Memories',
-    'What you have told her',
-    'Her history',
-    'Her days',
+    'What you have told PEA',
+    'PEA’s history',
+    'PEA’s days',
     'Interview file',
     'Profile file',
     'Library backup',

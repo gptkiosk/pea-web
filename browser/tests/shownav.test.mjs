@@ -236,7 +236,7 @@ test('the open episode’s brief is laid out as labelled evidence, and there is 
     headline: 'A headline.',
     claims: [{ text: 'First claim.' }, { text: 'Second claim.' }],
     new: 'Something new.',
-    quotes: [{ speaker: 'Mara', text: 'Her own words.' }],
+    quotes: [{ speaker: 'Mara', text: 'PEA’s own words.' }],
   };
   const held = [
     {
@@ -260,7 +260,7 @@ test('the open episode’s brief is laid out as labelled evidence, and there is 
       'Section 1.1.1: First claim.',
       'Section 1.1.2: Second claim.',
       'New: Something new.',
-      'Quote (Mara): “Her own words.”',
+      'Quote (Mara): “PEA’s own words.”',
     ].join('\n'),
   );
   const plain = briefInPlay(shows, { show: 1, episode: 2, section: null, offset: 0 });

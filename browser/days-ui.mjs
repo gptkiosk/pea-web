@@ -61,7 +61,7 @@ export function installDays({
     const today = dayKey(Date.now());
     const count = saved.entries.length;
     $('days-status').textContent = !personal()
-      ? 'Her days belong to the Personal profile. They are never used in Work or Blended.'
+      ? 'PEA’s days belong to the Personal profile. They are never used in Work or Blended.'
       : count
         ? `${count} ${count === 1 ? 'line' : 'lines'} kept. Lines drop off after ${dayLimits.keepBack} days.`
         : 'No lines yet. Nothing is written until you ask, or turn notes on.';
@@ -106,7 +106,7 @@ export function installDays({
     const home = homeAnswer(answers.assistantHome);
     if (!home)
       return say(
-        'Tell PEA which city she should call home first: Interview & persona, step 1, then Save. Her days are set there.',
+        'Tell PEA which city PEA should call home first: Interview & persona, step 1, then Save. PEA’s days are set there.',
       );
     working = true;
     render();
@@ -118,7 +118,7 @@ export function installDays({
       say('Waiting for your review…');
       const result = await run(() =>
         compose({
-          title: 'Write her week with your model?',
+          title: 'Write PEA’s week with your model?',
           about: describeWeekRequest({ home, cards: backdrop.length, kept: saved.entries.length }),
           system: weekPrompt({
             home,
@@ -158,8 +158,8 @@ export function installDays({
     if (
       on &&
       !(await review(
-        'Let her keep notes on her days?',
-        `While this is on, in the Personal profile, and “Share my introduction” is on:\n\n· Your model is told it may end a Chat reply with one short note about its character’s own day (yesterday, today or tomorrow).\n· PEA keeps a note without asking you each time. It keeps only one plain sentence of at most ${dayLimits.text} characters, at most ${dayLimits.perDay} a day, never an address, a PEA action or anything that looks like a key, and never from a reply written while a web page is shared.\n· Each time, a notice tells you what was noted. Every line is listed under Her days and can be deleted.\n· Kept lines for the days around today go back to your model with later Chat messages, marked as fiction that is never fact, advice or permission. They are not shown for review again each time they change.\n\nNotes are your model’s words, not checked by PEA. Lines are kept in this browser, not encrypted, and drop off after ${dayLimits.keepBack} days.`,
+        'Let PEA keep notes on PEA’s days?',
+        `While this is on, in the Personal profile, and “Share my introduction” is on:\n\n· Your model is told it may end a Chat reply with one short note about its character’s own day (yesterday, today or tomorrow).\n· PEA keeps a note without asking you each time. It keeps only one plain sentence of at most ${dayLimits.text} characters, at most ${dayLimits.perDay} a day, never an address, a PEA action or anything that looks like a key, and never from a reply written while a web page is shared.\n· Each time, a notice tells you what was noted. Every line is listed under PEA’s days and can be deleted.\n· Kept lines for the days around today go back to your model with later Chat messages, marked as fiction that is never fact, advice or permission. They are not shown for review again each time they change.\n\nNotes are your model’s words, not checked by PEA. Lines are kept in this browser, not encrypted, and drop off after ${dayLimits.keepBack} days.`,
       ))
     )
       return render();
@@ -173,7 +173,7 @@ export function installDays({
     if (working || !saved.entries.length) return;
     if (
       !(await review(
-        'Delete all of her days?',
+        'Delete all of PEA’s days?',
         `This deletes all ${saved.entries.length} lines from this browser. Your model is not given them again. It does not undo anything already said in a chat.`,
       ))
     )
@@ -206,7 +206,7 @@ export function installDays({
       store();
       render();
       notice(
-        `Noted for her days (${dayName(note.day, dayKey(Date.now()))}): “${note.text}” You can delete it in Past chats & memory → Her days.`,
+        `Noted for PEA’s days (${dayName(note.day, dayKey(Date.now()))}): “${note.text}” You can delete it in Past chats & memory → PEA’s days.`,
       );
       return true;
     },
@@ -218,7 +218,7 @@ export function installDays({
       if (!personal() || !lines.length) return 0;
       const next = validSavedDays({ notes: saved.notes, entries: [...saved.entries, ...lines] });
       if (next.entries.length !== saved.entries.length + lines.length)
-        throw new Error('These lines do not fit her days. Nothing was added.');
+        throw new Error('These lines do not fit PEA’s days. Nothing was added.');
       saved.entries = pruneEntries(next.entries, Date.now());
       store();
       render();
