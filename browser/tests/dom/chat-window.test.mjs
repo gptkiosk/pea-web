@@ -439,6 +439,13 @@ test('a debate is started by the owner, tells the model to argue the other side,
   const system = () => stack.model.requests.at(-1).messages[0].content,
     owner = () => stack.model.requests.at(-1).messages.at(-1).content;
   const barHidden = () => page.evaluate(`document.getElementById('debate-bar').hidden`);
+  const waitUntil = async (done, what) => {
+    for (let i = 0; i < 400; i++) {
+      if (done()) return;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    assert.fail('timed out waiting for ' + what);
+  };
   // An ordinary message first: no debate, no bar.
   await askModel(stack, page, 'A synthetic hello.');
   assert.doesNotMatch(system(), /DEBATE\./);
@@ -475,6 +482,25 @@ test('a debate is started by the owner, tells the model to argue the other side,
   await page.waitFor(`!document.getElementById('profile').disabled`, 'the summary');
   assert.match(owner(), /^Sum up this debate: the strongest points on each side/);
   assert.match(system(), /DEBATE\./);
+  // Switching sides, typed or pressed: the model is told it now defends the owner's first position.
+  const text = (id) => page.evaluate(`document.getElementById('${id}').textContent`);
+  assert.equal(await text('debate-switch'), 'Switch sides');
+  await askModel(stack, page, 'Switch sides.');
+  assert.match(owner(), /^Switch sides: now you defend the position I started with/);
+  assert.match(system(), /asked to switch sides\. For now you defend the position quoted above/);
+  assert.equal(await text('debate-bar-role'), 'PEA defends your first position');
+  assert.equal(await text('debate-switch'), 'Switch back');
+  const unswitched = stack.model.requests.length;
+  await page.click('#debate-switch');
+  await waitUntil(() => stack.model.requests.length > unswitched, 'the switch back to be sent');
+  await page.waitFor(`!document.getElementById('profile').disabled`, 'the switch back');
+  assert.match(owner(), /^Switch back: argue against the position I started with again/);
+  assert.match(system(), /take the strongest serious case against where they stand/);
+  assert.equal(await text('debate-bar-role'), 'PEA argues the other side');
+  // A written turn is long and structured; "wrap up" in the owner's words asks for the summary.
+  assert.match(system(), /about 200 to 450 words/);
+  await askModel(stack, page, 'Can you wrap up what was learned?');
+  assert.match(owner(), /^Sum up this debate: the strongest points on each side/);
   // The other profile has no debate; coming back, it is still on.
   await page.fill('#profile', 'work');
   assert.equal(await barHidden(), true);
@@ -503,6 +529,36 @@ test('a debate is started by the owner, tells the model to argue the other side,
   await page.waitFor(`document.getElementById('debate-bar').hidden`, 'the bar to go with the conversation');
   await askModel(stack, page, 'A fresh synthetic start.');
   assert.doesNotMatch(system(), /DEBATE\./);
+  // The owner's own words: a named question opens the window with it chosen and asks no model.
+  const say = async (words) => {
+    await page.fill('#thought', words);
+    await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+  };
+  const asked = stack.model.requests.length;
+  await say('Debate me on nuclear power');
+  await page.waitFor(`document.getElementById('debate').open`, 'the window for a named question');
+  assert.equal(await page.evaluate(`document.getElementById('debate-topic').value`), 'nuclear');
+  assert.equal(await page.evaluate(`document.getElementById('thought').value`), '');
+  await page.evaluate(`document.getElementById('debate').close()`);
+  await say('What is a debate, in one line?');
+  await waitUntil(() => stack.model.requests.length > asked, 'an ordinary question to go to the model');
+  await page.waitFor(`!document.getElementById('profile').disabled`, 'the ordinary reply');
+  assert.doesNotMatch(system(), /DEBATE\./);
+  assert.equal(await barHidden(), true);
+  // A long opening argument starts the debate with the owner's message exactly as written.
+  const opening =
+    'Argue with me: synthetic peas should always be shelled by hand because machines bruise them and nobody is in a hurry.';
+  await askModel(stack, page, opening);
+  assert.equal(owner(), opening);
+  assert.match(system(), /DEBATE\./);
+  assert.match(system(), /Question: “The argument in my first message”/);
+  assert.match(system(), /“synthetic peas should always be shelled by hand because machines bruise them and nobody is in a hurry”/);
+  assert.equal(await barHidden(), false);
+  // "End debate" in the owner's words ends it on this page and asks no model.
+  const ended = stack.model.requests.length;
+  await say('end debate');
+  await page.waitFor(`document.getElementById('debate-bar').hidden`, 'the typed end');
+  assert.equal(stack.model.requests.length, ended);
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });

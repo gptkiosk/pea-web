@@ -17,9 +17,13 @@ import {
   warnsOfUnconfirmedDocument,
 } from './actions.mjs';
 import {
+  debateAsk,
+  debateControl,
   debateGuidance,
   debateOpening,
+  debateOwnArgument,
   debateSumUp,
+  debateSwitch,
   debateTopics,
   presenceAt,
   validDebate,
@@ -1564,19 +1568,71 @@ const debates = new Map();
 function debateNow(sending = '') {
   const debate = debates.get(profile);
   if (!debate) return null;
-  const opening = debateOpening(debate);
+  // Its opening message: the one the window writes, or the owner's own when they began by arguing.
+  const opening = debate.opening ?? debateOpening(debate);
   if (sending === opening || history('chat').some((m) => m.role === 'user' && m.text === opening)) return debate;
   if (!debate.starting) debates.delete(profile);
   return debate.starting ? debate : null;
 }
-const debateText = (sending) => {
+const debateText = (sending, options) => {
   const debate = debateNow(sending);
-  return debate ? debateGuidance(debate) : '';
+  return debate ? debateGuidance(debate, options) : '';
 };
 function renderDebate() {
   const debate = debateNow();
   $('debate-bar').hidden = !debate;
+  $('debate-bar-role').textContent = debate?.flipped ? 'PEA defends your first position' : 'PEA argues the other side';
   $('debate-bar-topic').textContent = debate?.topic ?? '';
+  $('debate-switch').textContent = debate?.flipped ? 'Switch back' : 'Switch sides';
+}
+function endDebate() {
+  debates.delete(profile);
+  renderDebate();
+  notice('Debate ended. Chat carries on as usual, and PEA no longer argues the other side.');
+}
+// The debate window, with a question already chosen when the owner named one.
+function openDebate(ask = null) {
+  const select = $('debate-topic');
+  if (ask?.id) select.value = ask.id;
+  else if (ask?.topic) {
+    select.value = 'own';
+    $('debate-own').value = ask.topic;
+  }
+  $('debate-note').textContent = '';
+  select.onchange();
+  $('debate').showModal();
+  if (ask) $('debate-position').focus();
+}
+// The owner's own words in Chat about a debate, by fixed rules. Returns null when the message is
+// none of them, { done: true } when this page answered it, or { send } with the words to send on.
+function debateWords(text) {
+  const debate = debateNow(),
+    control = debate ? debateControl(text) : null;
+  if (control === 'end') {
+    endDebate();
+    return { done: true };
+  }
+  if (control === 'sum') return { send: debateSumUp };
+  if (control === 'switch') {
+    debate.flipped = !debate.flipped;
+    renderDebate();
+    return { send: debateSwitch(debate.flipped) };
+  }
+  const ask = debate ? null : debateAsk(text);
+  if (!ask) return null;
+  if (profile === 'blended') {
+    notice('Choose Work or Personal to start a debate.');
+    return { done: true };
+  }
+  if (ask.kind === 'thesis') {
+    // The message is already the opening argument: the debate starts with it, as the owner wrote it.
+    const started = validDebate({ topic: debateOwnArgument, position: ask.position });
+    if (!started) return null;
+    debates.set(profile, { ...started, opening: text, starting: true });
+    return { send: text, started: profile };
+  }
+  openDebate(ask);
+  return { done: true };
 }
 async function sayInChat(text) {
   tab('chat');
@@ -1599,11 +1655,7 @@ async function sayInChat(text) {
     $('debate-other').textContent = topic?.other ?? '';
   };
   select.onchange = show;
-  $('home-debate').onclick = () => {
-    $('debate-note').textContent = '';
-    show();
-    $('debate').showModal();
-  };
+  $('home-debate').onclick = () => openDebate();
   $('debate-start').onclick = async () => {
     const topic = debateTopics.find((t) => t.id === select.value),
       debate = validDebate({ topic: topic ? topic.title : $('debate-own').value, position: $('debate-position').value });
@@ -1630,11 +1682,17 @@ async function sayInChat(text) {
     if (live.isBusy()) return notice('Finish the current request first.');
     void sayInChat(debateSumUp);
   };
-  $('debate-end').onclick = () => {
-    debates.delete(profile);
+  $('debate-switch').onclick = () => {
+    const debate = debateNow();
+    if (!debate) return;
+    if (live.isBusy()) return notice('Finish the current request first.');
+    debate.flipped = !debate.flipped;
     renderDebate();
-    notice('Debate ended. Chat carries on as usual, and PEA no longer argues the other side.');
+    void sayInChat(debateSwitch(debate.flipped));
   };
+  // Talking suits a debate: the same voice room as Chat's own button, and the debate stays on.
+  $('debate-voice').onclick = () => $('chat-voice').click();
+  $('debate-end').onclick = endDebate;
   new MutationObserver(renderDebate).observe($('messages'), { childList: true });
 }
 $('home-connections').onclick = () => $('connections-open').click();
@@ -1764,8 +1822,22 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     if (settings.go(place)) notice('Opened ' + settingsPlace(place).title + '.');
     return;
   }
+  // "debate me on voting", and "switch sides" or "wrap up" while a debate is on. Chat only.
+  const debating = surface === 'chat' && !plain ? debateWords(text) : null;
+  if (debating?.done) {
+    field.value = '';
+    return;
+  }
+  if (debating?.send) {
+    if (live.isBusy()) {
+      if (debating.started) debates.delete(debating.started);
+      notice('Finish the current request first.');
+      return;
+    }
+    text = field.value = debating.send;
+  }
   // "read https://…" in the owner's own words. Chat only; the review comes before anything is asked.
-  const address = surface === 'chat' ? ownerRead(text) : null;
+  const address = surface === 'chat' && !debating ? ownerRead(text) : null;
   if (address) {
     field.value = '';
     await research.read(address, 'owner');
@@ -1773,14 +1845,22 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
   }
   // "papers on …" in the owner's own words: one reviewed search of the public index of papers.
   // Likewise "wikipedia …" and "tv show …".
-  const search = surface === 'chat' ? (ownerPapers(text) ?? ownerLookup(text) ?? ownerSearch(text)) : null;
+  const search = surface === 'chat' && !debating ? (ownerPapers(text) ?? ownerLookup(text) ?? ownerSearch(text)) : null;
   if (search) {
     field.value = '';
     await research.lookup(search, 'owner');
     return;
   }
+  // A debate begun by this message counts as started only once the message is in the conversation.
+  const settleDebate = (sent) => {
+    if (!debating?.started) return;
+    const kept = debates.get(debating.started);
+    if (kept && !sent) debates.delete(debating.started);
+    else if (kept) delete kept.starting;
+    renderDebate();
+  };
   try {
-    if (board.command(text)) {
+    if (!debating && board.command(text)) {
       field.value = '';
       return;
     }
@@ -1789,13 +1869,19 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     return;
   }
   if (history(surface).length >= 199) {
+    settleDebate(false);
     notice('Start a fresh conversation from Past chats & memory. This thread has reached 200 messages.');
     return;
   }
   // From here until the request ends, the reply being written shows PEA at work.
-  const used = await atWork(surface, () =>
-    live.run(() => live.chat(surface, text, undefined, { spoken: listening || spoken })),
-  );
+  let used;
+  try {
+    used = await atWork(surface, () =>
+      live.run(() => live.chat(surface, text, undefined, { spoken: listening || spoken })),
+    );
+  } finally {
+    settleDebate(true);
+  }
   if (used === false) {
     history(surface).push(
       message('user', text),
@@ -1910,7 +1996,7 @@ window.addEventListener('pagehide', () => {
 live = installConnections({
   secrets: () => memory?.secrets ?? null,
   todoGuidance: (shared) => todos?.guidance(shared) ?? '',
-  debate: (text) => debateText(text),
+  debate: (text, options) => debateText(text, options),
   projectGuidance: () => (projects?.available() ? projectGuidance : ''),
   localChanged: () => {
     todos?.connectionChanged();

@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Debate brought in line with the iPhone handoff — 2026-11-25
+
+Version `0.1.0-rc.4.dev.72`. Written from the owner's mirror handoff document (section 14) as a description of behaviour; no iPhone source was read and no text was copied. The six added questions and their two cases are Web's own wording.
+
+- Source: `browser/presence.mjs` (`debateTopics` now 14, each with a `words` rule for naming it; `validDebate` keeps `flipped`; `debateSwitch`, `debateOwnArgument`, `debateAsk`, `debateControl`; `debateGuidance(debate, { spoken })`), `browser/app.mjs` (`debateWords` in `submit`, `openDebate`, `endDebate`, `settleDebate`, `#debate-switch`, `#debate-voice`), `browser/live-ui.mjs` (passes `spoken` to the debate hook), `browser/index.html` (`#debate-bar-role`, `#debate-switch`, `#debate-voice`).
+- Tests: `browser/tests/presence.test.mjs` (three new, two changed), `browser/tests/dom/chat-window.test.mjs` (the debate test now covers switching by word and by button, the written-turn rule, "wrap up", a named question, an ordinary question about debates, a debate begun by one long message, and "end debate").
+- Known gaps against the handoff: no voice-or-text question before the window opens (Web has the Talk button on the bar instead); a debate is still not saved across a reload; Web has no crisis-support turn to clear a debate on; Web has no topic matching of briefs, so there is nothing to hold back during a debate, and an episode the owner opened by number is still shared as before. The iPhone's question ids and titles differ from Web's and nothing is shared between the apps. Not tried with a real model: whether the longer turns and the switch read well is for the owner to judge.
+- Next action: owner tries a debate with their own model, typed and in the voice room.
+
 ## Start a debate — 2026-11-24
 
 Version `0.1.0-rc.4.dev.71`. The owner is adding the same idea to the iPhone app and described it here in their own words; nothing was read from that repository, and the questions, the two cases for each and the instructions to the model are written for PEA Web.

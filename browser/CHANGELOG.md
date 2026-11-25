@@ -2,6 +2,19 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.72] - 2026-11-25
+
+### Added
+
+- **Six more debate questions**, fourteen in all: AI and work, free speech and platform moderation, digital privacy and public safety, housing costs, nuclear power, and universal basic income. Each shows a short case for both sides.
+- **Switch sides.** A button on the debate bar (or typing "switch sides") has PEA defend the position you started with while you argue against it. **Switch back** returns to the usual arrangement.
+- **Start a debate by typing or saying it.** "Start a debate", "let's debate", "debate me" or "play devil's advocate" opens the debate window. "Debate me on nuclear power" opens it with that question chosen. A message such as "Argue with me: …" followed by an argument of twelve words or more starts the debate at once with your message as written. "Wrap up" asks for the summary and "end debate" ends it. Talk about debates, such as "what is a debate?", is left alone.
+- **Talk** on the debate bar opens Chat's voice room, since a debate is a lot of typing.
+
+### Changed
+
+- In a debate PEA's written turns are longer and follow a set shape: where your argument stands strongest, the counterargument, answers to what you asked, then one or two questions. When the reply will be read aloud (voice chat or I type, you talk) PEA is asked for four to six plain sentences ending in one question.
+
 ## [0.1.0-rc.4.dev.71] - 2026-11-24
 
 ### Added
