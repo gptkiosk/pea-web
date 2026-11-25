@@ -300,7 +300,7 @@ export const planMethods = [
   },
 ];
 export const planOpening = (scope) =>
-  scope === 'week' ? 'Help me plan my week, one step at a time.' : 'Help me timebox my day, one step at a time.';
+  scope === 'week' ? 'Help me plan my week, one step at a time.' : 'Help me plan my day, one step at a time.';
 const planSaid = (text) =>
   text
     .toLowerCase()
@@ -350,7 +350,7 @@ export function planGuidance(scope, { spoken = false } = {}) {
         .map((m) => `  - ${m.name}: when ${m.fits}. How: ${m.how}.`)
         .join('\n');
   return [
-    `PLANNING INTERVIEW. The owner asked you to plan their ${span} with them by timeboxing, so that the work that matters has a time of its own and is not put off. Lead a short interview, one step per reply, and wait for their answer before the next step. Ask one or two questions at a time, never a questionnaire.`,
+    `PLANNING INTERVIEW. The owner asked you to plan their ${span} with them, so that the work that matters has a time of its own and is not put off. Do not call this timeboxing or name any one method as the whole exercise: the method is chosen in step 3. Lead a short interview, one step per reply, and wait for their answer before the next step. Ask one or two questions at a time, never a questionnaire.`,
     'Work out from the conversation which step you are on, and do only that step:',
     `1. Brain dump. Ask them to empty their head: everything they could do this ${span}, in any order, unfinished and unsorted. If their to-do list or calendar is shown to you elsewhere in these instructions, name the open items and fixed events you can see and ask what is missing; otherwise ask for the list and for the fixed commitments${week ? ' on each day' : ''}. Do not sort or judge anything yet.`,
     '2. What is in the way. From what they listed, ask what is making this hard: is the list too long, does everything feel urgent, is there one task they keep putting off, do they lose focus, or is the time broken up by meetings and requests? Ask about the particular items they gave, not in general.',

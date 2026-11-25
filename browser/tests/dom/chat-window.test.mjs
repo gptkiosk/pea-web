@@ -454,8 +454,8 @@ test('a planning interview is started by the owner, tells the model its steps an
   await page.evaluate(`document.getElementById('home-plan').click()`);
   await page.waitFor(`!document.getElementById('plan-bar').hidden && !document.getElementById('profile').disabled`, 'the interview to start');
   assert.equal(stack.model.requests.length, before + 1);
-  assert.equal(owner(), 'Help me timebox my day, one step at a time.');
-  assert.match(system(), /PLANNING INTERVIEW\. The owner asked you to plan their day with them by timeboxing/);
+  assert.equal(owner(), 'Help me plan my day, one step at a time.');
+  assert.match(system(), /PLANNING INTERVIEW\. The owner asked you to plan their day with them, so that/);
   assert.match(system(), /\n1\. Brain dump\.[\s\S]*\n3\. Pick the method\.[\s\S]*the Eisenhower matrix[\s\S]*the Pomodoro technique[\s\S]*\n5\. Time slices\./);
   assert.match(system(), /three most important tasks for today/);
   assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Planning · your day · /);

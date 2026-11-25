@@ -1910,7 +1910,7 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     }
     text = field.value = debating.send;
   }
-  // "timebox my day" or "plan my week", and "end planning" while an interview is on. Chat only.
+  // "plan my day" or "plan my week", and "end planning" while an interview is on. Chat only.
   const planning = surface === 'chat' && !plain && !debating ? planWords(text) : null;
   if (planning?.done) {
     field.value = '';

@@ -262,6 +262,7 @@ test('planning starts and ends only on the owner’s plain request, for a day or
 
 test('the interview walks six steps, picks one method of each kind from the owner’s answers, and adds nothing by itself', () => {
   assert.deepEqual(planScopes, ['day', 'week']);
+  assert.doesNotMatch(planOpening('day') + planOpening('week'), /timebox/i);
   assert.deepEqual(
     planMethods.map((m) => [m.id, m.kind]),
     [
@@ -277,6 +278,7 @@ test('the interview walks six steps, picks one method of each kind from the owne
     heard = planGuidance('day', { spoken: true });
   for (const said of [day, week, heard]) {
     assert.match(said, /^PLANNING INTERVIEW\. /);
+    assert.equal(said.match(/timebox/gi).length, 1, 'named only to say it is not the name');
     assert.match(said, /one step per reply, and wait for their answer/);
     for (const step of ['1. Brain dump.', '2. What is in the way.', '3. Pick the method.', '4. The three that matter most.', '5. Time slices.', '6. Start.'])
       assert.ok(said.includes('\n' + step), step);

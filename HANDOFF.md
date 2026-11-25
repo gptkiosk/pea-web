@@ -23,10 +23,11 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
-## Plan my day: a timeboxing interview that picks its method — 2026-11-25
+## Plan my day: a planning interview that picks its method — 2026-11-25
 
 Version `0.1.0-rc.4.dev.75`. Asked for by the owner for Web first ("I am adding it to the app now"); nothing about the iPhone side was read, so parity is unknown.
 
+- Naming: the owner asked that this not be called timeboxing, since that is one method among several. The feature is “Plan my day”; “timebox my day” is still understood as the owner's own words but appears nowhere in the interface or the model's instructions.
 - Source: `browser/presence.mjs` (`planScopes`, `planMethods`, `planOpening`, `planAsk`, `planControl`, `planGuidance`), `browser/app.mjs` (`plans`, `planNow`, `renderPlan`, `endPlan`, `planWords`; `#home-plan`, `#plan-voice`, `#plan-end`; the `plan` hook), `browser/live-ui.mjs` (`hooks.plan`, Chat only), `browser/index.html` (`#home-plan`, `#plan-bar`), `browser/styles.css` (last section: six tiles on a phone).
 - Tests: `browser/tests/presence.test.mjs` (two new), `browser/tests/dom/chat-window.test.mjs` (one new: tile, opening message, guidance, bar, other profile, ended by words, a week by words).
 - How it works: the page only decides that an interview is on and tells the model the six steps and five methods. The model runs the interview and chooses the pairing from the owner's answers; no rule on the page checks which method was picked or that the steps were followed. To-dos and calendar events go through the existing `pea-task` and `pea-calendar` proposals and their reviews.
