@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.76] - 2026-11-25
+
+### Added
+
+- **Today’s plan, when you want it.** Once a Time management interview has laid your day out in time slices, the bar over Chat shows **Keep on Today**. Press it and Today gets a **Today’s plan** card with the three tasks and the time slices, the one you are in now marked. Nothing goes there unless you press the button, and **Remove** takes it away.
+- The card is for that day only and stays in this tab: it is gone at midnight, on a reload, or when the tab closes, and it is not saved, backed up or sent anywhere. Work and Personal each have their own. A week's plan cannot be kept this way.
+
 ## [0.1.0-rc.4.dev.75] - 2026-11-25
 
 ### Added

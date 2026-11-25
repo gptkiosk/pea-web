@@ -461,19 +461,44 @@ test('a planning interview is started by the owner, tells the model its steps an
   assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Time management · your day · /);
   assert.deepEqual(
     JSON.parse(await page.evaluate(`JSON.stringify([...document.querySelectorAll('#plan-bar button')].map((b) => b.textContent))`)),
-    ['Talk', 'End planning'],
+    ['Keep on Today', 'Talk', 'End planning'],
   );
   // It holds for the owner's answers, and the tile does not start a second one.
   await askModel(stack, page, 'Report draft, expenses, call the plumber, slides.');
   assert.match(system(), /TIME MANAGEMENT INTERVIEW\./);
-  const during = stack.model.requests.length;
+  let during = stack.model.requests.length;
   await page.evaluate(`document.getElementById('home-plan').click()`);
   assert.equal(stack.model.requests.length, during);
-  // The other profile has none; coming back, it is still on.
+  // No day is laid out yet, so there is nothing to keep and no card on Today.
+  const hidden = (id) => page.evaluate(`document.getElementById('${id}').hidden`);
+  const list = async (id) =>
+    JSON.parse(await page.evaluate(`JSON.stringify([...document.querySelectorAll('#${id} > li')].map((li) => li.textContent))`));
+  assert.deepEqual([await hidden('plan-keep'), await hidden('day-plan')], [true, true]);
+  assert.match(system(), /keep that plan on their Today tab with the Keep on Today button over Chat; you cannot put it there/);
+  // A reply that lays the day out offers the button; pressing it is what puts the plan on Today.
+  replies['synthetic slices'] =
+    'Here is the day.\n\n1. **Draft the report**\n2. Expenses\n3. Call the plumber\n\n- 09:00–10:30 Draft the report\n- 10:30–10:45 Break\n- 10:45–11:30 Expenses <b>now</b>\n- 26:00–27:00 Not a time\n';
+  await askModel(stack, page, 'Now the synthetic slices, please.');
+  await page.waitFor(`!document.getElementById('plan-keep').hidden`, 'the Keep on Today button');
+  assert.equal(await hidden('day-plan'), true, 'nothing is kept until the owner presses');
+  await page.click('#plan-keep');
+  await page.click('#tab-today');
+  assert.equal(await hidden('day-plan'), false);
+  assert.deepEqual(await list('day-plan-tasks'), ['Draft the report', 'Expenses', 'Call the plumber']);
+  assert.deepEqual(await list('day-plan-slices'), [
+    '09:00–10:30Draft the report',
+    '10:30–10:45Break',
+    '10:45–11:30Expenses <b>now</b>',
+  ]);
+  assert.equal(await page.evaluate(`document.querySelectorAll('#day-plan b').length`), 0, 'a reply’s words stay words');
+  assert.equal(await page.evaluate(`document.getElementById('day-plan-remove').tagName`), 'BUTTON');
+  // The other profile has neither the interview nor the plan; coming back, both are still there.
   await page.fill('#profile', 'work');
-  assert.equal(await barHidden(), true);
+  assert.deepEqual([await barHidden(), await hidden('day-plan')], [true, true]);
   await page.fill('#profile', 'personal');
-  assert.equal(await barHidden(), false);
+  assert.deepEqual([await barHidden(), await hidden('day-plan')], [false, false]);
+  await page.click('#tab-chat');
+  during = stack.model.requests.length;
   // Ended in the owner's words: no model is asked, the bar goes, and the guidance stops.
   await page.fill('#thought', 'End planning');
   await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
@@ -481,6 +506,12 @@ test('a planning interview is started by the owner, tells the model its steps an
   assert.equal(stack.model.requests.length, during, 'ending asks no model');
   await askModel(stack, page, 'A synthetic question about peas.');
   assert.doesNotMatch(system(), /TIME MANAGEMENT INTERVIEW\./);
+  // The kept plan outlives the interview, until the owner removes it.
+  await page.click('#tab-today');
+  assert.equal(await hidden('day-plan'), false);
+  await page.click('#day-plan-remove');
+  assert.equal(await hidden('day-plan'), true);
+  await page.click('#tab-chat');
 
   // Typed for a week: the owner's own words are the opening message.
   await askModel(stack, page, 'Can you help me plan my week?');
