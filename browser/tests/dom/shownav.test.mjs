@@ -339,3 +339,92 @@ test(
     await page.close();
   },
 );
+
+test(
+  'a tip can be pressed instead of said and goes away by itself, and a section row searches the web only when a search can be made',
+  options,
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1500 });
+    // The page's clock is moved by hand, and the tip's own wait is shortened, so nothing here sleeps.
+    await page.evaluate(`(() => {
+      const wait = window.setTimeout, clock = Date.now.bind(Date);
+      window.tipAhead = 0;
+      Date.now = () => clock() + window.tipAhead;
+      window.setTimeout = (run, ms, ...rest) => wait(run, ms === 12000 ? 400 : ms, ...rest);
+    })()`);
+    const tip = (place = '#numbered') =>
+      page.evaluate(`document.querySelector(${JSON.stringify(place + ' .numbered-tip')})?.textContent ?? null`);
+    const globes = () =>
+      page.evaluate(
+        `[...document.querySelectorAll('#numbered .numbered-search')].map((b) => b.getAttribute('aria-label'))`,
+      );
+    const rest = () => page.evaluate(`void (window.tipAhead += 46000)`);
+    await following(page);
+    const asked = stack.model.requests.length;
+
+    await type(page, 'list shows');
+    await titled(page, 'Your shows');
+    assert.equal(await tip(), 'Try saying “Show 1”');
+    // It goes away by itself and the list stays.
+    await page.waitFor(`!document.querySelector('#numbered .numbered-tip')`, 'the tip to go');
+    assert.deepEqual((await panel(page)).rows, [['1', 'Harbor Voices']]);
+
+    // Too soon for another; after the rest there is one, and pressing it does what saying it does.
+    await type(page, 'list shows');
+    await titled(page, 'Your shows');
+    assert.equal(await tip(), null, 'not again inside the rest');
+    await rest();
+    await type(page, 'list shows');
+    await page.waitFor(`document.querySelector('#numbered .numbered-tip')`, 'the next tip');
+    assert.equal(await tip(), 'Try saying “open 1.1”');
+    await page.evaluate(`document.querySelector('#numbered .numbered-tip').click()`);
+    await titled(page, 'Episode 1.1');
+    await rest();
+    assert.equal(await tip(), null, 'never on two answers running');
+
+    // No search key: no globe, and no tip that names a search.
+    assert.deepEqual(await globes(), []);
+    await type(page, '1.1');
+    await titled(page, 'Episode 1.1');
+    assert.equal(await tip(), 'Try saying “section 1”');
+
+    // With a key, each section row has its own globe, which opens the usual review and asks nothing.
+    await page.fill('#search-key-brave', 'synthetic_brave_key_' + '0'.repeat(12));
+    await page.evaluate(`document.querySelector('#search-key-brave').onchange()`);
+    await page.waitFor(
+      `/ready with Brave Search/.test(document.querySelector('#search-status').textContent)`,
+      'the search key',
+    );
+    await type(page, '1.1');
+    await titled(page, 'Episode 1.1');
+    const offered = await globes();
+    assert.equal(offered.length, 6);
+    assert.equal(offered[1], 'Search the web for section 1.1.2');
+    assert.equal(
+      await page.evaluate(
+        `[...document.querySelectorAll('#numbered ol > li')].every((li) => li.querySelectorAll('button').length === 2)`,
+      ),
+      true,
+      'the row is still its own button',
+    );
+    await page.evaluate(`document.querySelectorAll('#numbered .numbered-search')[1].click()`);
+    await page.waitFor(`document.getElementById('review').open`, 'the search review');
+    assert.match(await page.text('#review-body'), /From: your own message\n\nSearch words \(exactly what is sent\):\n/);
+    assert.match(await page.text('#review-body'), /Provider: Brave Search/);
+    await page.click('#review-cancel');
+    await page.waitFor(`!document.getElementById('review').open`);
+
+    // Web search switched off under Knowledge sources: the globes go.
+    await page.evaluate(`document.getElementById('lookup-search').click()`);
+    await type(page, '1.1');
+    await titled(page, 'Episode 1.1');
+    assert.deepEqual(await globes(), []);
+    assert.equal(stack.model.requests.length, asked, 'no model was asked');
+    assert.deepEqual(
+      page.outsideRequests().filter((url) => !url.startsWith(base)),
+      [],
+      'beyond the catalog the owner approved, the browser contacts no outside host',
+    );
+    await page.close();
+  },
+);

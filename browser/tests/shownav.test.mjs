@@ -12,6 +12,10 @@ import {
   sourcesLine,
   showCommand,
   showMove,
+  nextTip,
+  noTips,
+  tipPhrases,
+  tipTiming,
 } from '../shownav.mjs';
 import { numberedCommand } from '../numbered.mjs';
 
@@ -591,4 +595,55 @@ test('the line every Chat request gives the real shows when shared, and forbids 
     assert.doesNotMatch(line, /[\n`]/);
   }
   assert.doesNotMatch(sourcesLine({ count: 2, names: null }), /Harbor/);
+});
+
+test('a tip names a phrase the rules read at that level, rests between showings, and a section row can be searched', () => {
+  const move = (said, at = idle()) => showMove(showCommand(said, { at, shows }), { shows, at });
+  const levels = {
+    shows: move('list shows'),
+    episodes: move('show 2'),
+    episode: move('1.2'),
+    section: move('1.2.1'),
+  };
+  assert.deepEqual(tipPhrases(levels.shows), ['Show 1', 'open 1.1', 'list shows']);
+  assert.deepEqual(tipPhrases(levels.episodes), ['episode 1', 'more episodes', 'back to shows']);
+  assert.deepEqual(tipPhrases(move('show 1')), ['episode 1', 'back to shows'], 'no more episodes to ask for');
+  assert.deepEqual(tipPhrases(levels.episode), ['section 1', 'next episode', 'where am I', 'back to episodes']);
+  assert.equal(tipPhrases(levels.episode, { search: true })[1], 'search section 1');
+  assert.deepEqual(tipPhrases(levels.section), ['back to episode', 'where am I'], 'no citations, none offered');
+  assert.deepEqual(tipPhrases({ ...levels.section, cited: 2 }).slice(0, 2), ['list citations', 'citation 1']);
+  assert.deepEqual(tipPhrases(move('where am I')), [], 'an answer that lists nothing carries no tip');
+  // Every phrase is a command where it is shown.
+  for (const [level, shown] of Object.entries(levels))
+    for (const phrase of tipPhrases({ ...shown, cited: 1 }, { search: true }))
+      assert.ok(showCommand(phrase, { at: shown.at, shows }), `${level}: ${phrase}`);
+  // A section row of an open episode carries the words that search for it; nothing else does.
+  assert.deepEqual(
+    levels.episode.rows.slice(0, 2).map((row) => row.search),
+    ['search 1.2.1', 'search 1.2.2'],
+  );
+  assert.equal(showCommand('search 1.2.2', { at: idle(), shows }).kind, 'search');
+  for (const other of [levels.shows, levels.episodes, levels.section])
+    assert.ok(other.rows.every((row) => !row.search));
+
+  // One tip, then none on the next answer, then none until the rest has passed.
+  let step = nextTip(noTips(), levels.shows, { now: 1000 });
+  assert.equal(step.phrase, 'Show 1');
+  step = nextTip(step.state, levels.episodes, { now: 1000 + tipTiming.rest + 1 });
+  assert.equal(step.phrase, null, 'never on two answers running');
+  step = nextTip(step.state, levels.episodes, { now: 1000 + tipTiming.rest - 1 });
+  assert.equal(step.phrase, null, 'still resting');
+  step = nextTip(step.state, levels.episodes, { now: 1000 + tipTiming.rest });
+  assert.equal(step.phrase, 'episode 1');
+  // Each level walks through its own phrases.
+  let state = noTips();
+  const seen = [];
+  for (let i = 0; i < 4; i++) {
+    const next = nextTip({ ...state, last: false, at: null }, levels.shows, { now: i });
+    state = next.state;
+    seen.push(next.phrase);
+  }
+  assert.deepEqual(seen, ['Show 1', 'open 1.1', 'list shows', 'Show 1']);
+  assert.equal(nextTip(noTips(), move('where am I'), { now: 5 }).phrase, null);
+  assert.deepEqual([tipTiming.shown, tipTiming.rest], [12000, 45000]);
 });

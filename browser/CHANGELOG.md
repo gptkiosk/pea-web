@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.74] - 2026-11-25
+
+### Added
+
+- **A tip you can press.** When you walk your followed shows by number, the list now and then carries one short tip, such as Try saying “section 1”. Press it and PEA does it, exactly as if you had said or typed the words. A tip stays about twelve seconds, never appears on two answers in a row, and not again for 45 seconds. Every tip is a phrase that works where it is shown.
+- **Search the web from a section's row.** With an episode open, each section has a small globe button beside it that opens the usual review for a web search of that section. It appears only when you have a search key in Connections and Web search is switched on under Knowledge sources. Nothing is asked before you approve the exact words.
+
 ## [0.1.0-rc.4.dev.73] - 2026-11-25
 
 ### Added

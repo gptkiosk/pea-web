@@ -2975,6 +2975,8 @@ numbered = installNumbered({
   groups: () => headlines?.groups() ?? [],
   shows: () => curated?.shows() ?? [],
   quiet: () => stopVoices(),
+  // The globe beside a section, and the tip that names a search, show only when one can be made.
+  canSearch: () => Boolean(research?.canSearch() && lookups.on('search')),
   lastReply: (surface) =>
     history(surface)
       .filter((m) => m.role === 'assistant' && !m.incomplete && !m.preview)
