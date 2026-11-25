@@ -810,3 +810,27 @@ test('a failed search is told in PEA’s own words, with the provider named', ()
   assert.match(searchFailure('brave', 502, 'SYNTHETIC PROVIDER DETAIL'), /^The search did not answer\./);
   assert.match(searchFailure('nobody', 502, 'key'), /^The search provider rejected your key/);
 });
+
+// Built-in lookups the owner can switch off under Knowledge sources.
+test('a lookup is on unless switched off, and only the switched-off ones are kept', async () => {
+  const { lookupOff, lookupSwitches, lookupsOffGuidance, savedLookups, validLookups } = await import('../research.mjs');
+  const ids = lookupSwitches.map((l) => l.id);
+  assert.deepEqual(ids, ['weather', 'headlines', 'tv', 'wiki', 'papers', 'search']);
+  for (const l of lookupSwitches) assert.ok(l.name && l.what.length > 20 && !/\b(?:her|she)\b/i.test(l.what), l.id);
+  const allOn = Object.fromEntries(ids.map((id) => [id, true]));
+  for (const odd of [null, undefined, 'off', [], 7, { papers: 0 }, { papers: 'false' }, { unknown: false }])
+    assert.deepEqual(validLookups(odd), allOn);
+  assert.deepEqual(validLookups({ papers: false, wiki: true }), { ...allOn, papers: false });
+  assert.deepEqual(savedLookups(allOn), {});
+  assert.deepEqual(savedLookups({ ...allOn, tv: false, search: false, extra: false }), { tv: false, search: false });
+  assert.equal(lookupsOffGuidance(allOn), '');
+  assert.equal(lookupsOffGuidance(null), '');
+  const said = lookupsOffGuidance({ wiki: false, search: false });
+  assert.match(said, /switched off these built-in lookups in PEA: Wikipedia, Web search\. Do not offer them and write no block for them/);
+  assert.match(said, /say plainly that it is switched off/);
+  assert.equal(
+    lookupOff('papers'),
+    'Scholarly papers is switched off. Turn it on under Knowledge sources on Today, in Built-in lookups.',
+  );
+  assert.equal(lookupOff('nothing'), '');
+});

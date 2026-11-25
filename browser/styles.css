@@ -6067,3 +6067,40 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
     grid-column: span 3;
   }
 }
+
+/* Built-in lookups: one switch a row under Knowledge sources, name over a line about it. */
+.lookup-switches {
+  margin: 14px 0 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.lookup-switches legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+#lookup-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 6px 18px;
+}
+#lookup-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+#lookup-list input {
+  flex: none;
+  margin-top: 3px;
+}
+#lookup-list span {
+  display: grid;
+  gap: 2px;
+}
+#lookup-list small {
+  color: var(--sub);
+}

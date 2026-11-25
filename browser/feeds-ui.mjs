@@ -15,7 +15,10 @@ import {
 const $ = (id) => document.getElementById(id);
 const storageKey = 'pea-headlines-v1';
 
-export function installHeadlines({ review, key, read, readInChat, changed = () => {} }) {
+// `on` says whether the owner has the headlines lookup switched on under Knowledge sources.
+export function installHeadlines({ review, key, read, readInChat, changed = () => {}, on = () => true }) {
+  const switchedOff =
+    'Headlines are switched off. Turn them on under Knowledge sources on Today, in Built-in lookups.';
   let feeds = [],
     busy = false,
     refreshedAt = 0;
@@ -128,6 +131,7 @@ export function installHeadlines({ review, key, read, readInChat, changed = () =
   $('headline-form').onsubmit = async (event) => {
     event.preventDefault();
     if (busy) return;
+    if (!on()) return say(switchedOff);
     const address = pageAddress($('headline-address').value.trim());
     if (!address) return say('Enter the full https:// address of a site’s RSS or Atom feed.');
     if (feeds.some((f) => f.url === address.url)) return say('That feed is already in your list.');
@@ -155,7 +159,9 @@ export function installHeadlines({ review, key, read, readInChat, changed = () =
   };
 
   $('headline-refresh').onclick = async () => {
-    if (busy || !feeds.length || needsServer()) return;
+    if (busy || !feeds.length) return;
+    if (!on()) return say(switchedOff);
+    if (needsServer()) return;
     busy = true;
     render();
     say('Refreshing…');

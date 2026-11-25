@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Built-in lookup switches under Knowledge sources — 2026-11-25
+
+Version `0.1.0-rc.4.dev.73`. From the owner's mirror handoff (section 9A, item 5) as a description of behaviour; no iPhone source was read.
+
+- Source: `browser/research.mjs` (`lookupsKey`, `lookupSwitches`, `validLookups`, `savedLookups`, `lookupOff`, `lookupsOffGuidance`), `browser/research-ui.mjs` (`installLookups`; the gate at the top of `lookup`), `browser/weather-ui.mjs` and `browser/feeds-ui.mjs` (an `on` option checked before any request), `browser/live-ui.mjs` (guidance lines left out for a lookup that is off, plus the switched-off line), `browser/app.mjs` (wiring, installed before the cards), `browser/backup.mjs` (`pea-lookups-v1` travels), `browser/index.html` (`#lookups`), `browser/styles.css`.
+- Tests: `browser/tests/research.test.mjs` (one new), `browser/tests/dom/papers.test.mjs` (one new: all six listed and on, papers off by word and by a model's button, guidance, wiki/tv/weather off, reload, back on).
+- Known gaps against the handoff's Knowledge sources screen: no "Web briefs" switch, because Web makes no web briefs for it to govern; no Health topics pack (no public source chosen); no health dots or quality-grade labels; no list of followed TV shows. One set of switches per browser, not per profile. Headlines already on screen stay until the tab closes. Reading a headline's own page in Chat is a page read, not the Headlines lookup, and is not governed by the switch. Not tried against the real services.
+- Next action: owner tries the switches on their copy.
+
 ## Debate brought in line with the iPhone handoff — 2026-11-25
 
 Version `0.1.0-rc.4.dev.72`. Written from the owner's mirror handoff document (section 14) as a description of behaviour; no iPhone source was read and no text was copied. The six added questions and their two cases are Web's own wording.

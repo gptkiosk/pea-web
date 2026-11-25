@@ -355,3 +355,74 @@ test(
     await page.close();
   },
 );
+
+// Built-in lookups: each has a switch under Knowledge sources. Off, the page asks that service
+// nothing, the model is not told it can offer it, and the owner is told it is off.
+test('a lookup switched off asks nothing, is not offered to the model, and says it is off', { skip, timeout: 90000 }, async () => {
+  const page = await openConnectedPage(stack);
+  const asked = await standIn(page);
+  const system = () => stack.model.requests.at(-1).messages[0].content,
+    saved = () => page.evaluate(`localStorage.getItem('pea-lookups-v1')`),
+    notices = () => page.evaluate(`JSON.stringify(window.peaNotices)`),
+    set = (id, on) =>
+      page.evaluate(
+        `(() => { const b = document.getElementById('lookup-${id}'); b.checked = ${on}; b.onchange(); })()`,
+      );
+  // Six switches, all on, nothing saved.
+  assert.deepEqual(
+    JSON.parse(
+      await page.evaluate(
+        `JSON.stringify([...document.querySelectorAll('#lookup-list input')].map((b) => [b.id, b.checked]))`,
+      ),
+    ),
+    ['weather', 'headlines', 'tv', 'wiki', 'papers', 'search'].map((id) => ['lookup-' + id, true]),
+  );
+  assert.equal(await saved(), null);
+  await askModel(stack, page, 'A synthetic hello.');
+  assert.match(system(), /pea-papers/);
+  assert.match(system(), /pea-wiki/);
+  assert.doesNotMatch(system(), /switched off these built-in lookups/);
+  // Papers off: only the switched-off lookup is kept, and the owner is told.
+  await set('papers', false);
+  assert.equal(await saved(), '{"papers":false}');
+  assert.match(await page.evaluate(`document.getElementById('lookup-note').textContent`), /^Scholarly papers is off\. PEA asks that service nothing/);
+  // The owner's own words open no review and ask the server nothing.
+  await type(page, 'papers on tide tables');
+  await page.waitFor(`window.peaNotices.some((n) => n.startsWith('Scholarly papers is switched off.'))`, 'the switched-off notice');
+  assert.equal(await page.evaluate(reviewOpen), false);
+  assert.deepEqual(asked, []);
+  // The model is not offered it, is told it is off, and still has the lookups that are on.
+  await askModel(stack, page, 'Another synthetic hello.');
+  assert.doesNotMatch(system(), /pea-papers/);
+  assert.match(system(), /pea-wiki/);
+  assert.match(system(), /switched off these built-in lookups in PEA: Scholarly papers\. Do not offer them/);
+  // A button a model offers anyway asks nothing either.
+  await askModel(stack, page, 'What does research say about tide tables?');
+  const offered = await page.evaluate(
+    `(() => { const b = [...document.querySelectorAll('#messages button')].find((x) => x.textContent === 'Look up papers'); if (b) b.click(); return Boolean(b); })()`,
+  );
+  if (offered) assert.equal(await page.evaluate(reviewOpen), false);
+  assert.deepEqual(asked, []);
+  // Wikipedia and TV off as well: their line goes too. Weather off: the card says so and asks nothing.
+  await set('wiki', false);
+  await set('tv', false);
+  await set('weather', false);
+  assert.equal(await saved(), '{"weather":false,"tv":false,"wiki":false,"papers":false}');
+  await askModel(stack, page, 'A third synthetic hello.');
+  assert.doesNotMatch(system(), /pea-wiki|pea-tv/);
+  assert.match(system(), /lookups in PEA: Weather, TV shows, Wikipedia, Scholarly papers\./);
+  assert.match(await page.evaluate(`document.getElementById('weather-note').textContent`), /^Weather is switched off\./);
+  await page.fill('#weather-place', 'Fixtureville');
+  await page.evaluate(`document.getElementById('weather-form').requestSubmit()`);
+  assert.equal(await page.evaluate(reviewOpen), false);
+  assert.match(await notices(), /Weather is switched off\. Turn it on under Knowledge sources/);
+  // The switches hold across a reload, and turning one on again restores it.
+  await page.reload();
+  await page.waitFor(`document.querySelectorAll('#lookup-list input').length === 6`, 'the switches after a reload');
+  assert.equal(await page.evaluate(`document.getElementById('lookup-papers').checked`), false);
+  assert.equal(await page.evaluate(`document.getElementById('lookup-headlines').checked`), true);
+  for (const id of ['weather', 'tv', 'wiki', 'papers']) await set(id, true);
+  assert.equal(await saved(), null);
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});

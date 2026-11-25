@@ -46,7 +46,7 @@ import { installDragDrop, makeMessageDraggable } from './dragdrop-ui.mjs';
 import { localFileKind } from './dragdrop.mjs';
 import { installTodos } from './todos-ui.mjs';
 import { installWeather } from './weather-ui.mjs';
-import { installResearch } from './research-ui.mjs';
+import { installLookups, installResearch } from './research-ui.mjs';
 import { installSettings, present } from './settings-ui.mjs';
 import { installTranscripts } from './transcript-ui.mjs';
 import { ownerSettings, placeInAddress, placeInMessage, settingsPlace } from './settings.mjs';
@@ -115,6 +115,7 @@ let live,
   todos,
   research,
   weather,
+  lookups,
   headlines,
   home,
   canon,
@@ -2035,6 +2036,8 @@ live = installConnections({
 
   page: () => research?.current() ?? null,
   canSearch: () => research?.canSearch() ?? false,
+  // The built-in lookups the owner has on or off under Knowledge sources.
+  lookups: () => lookups?.all() ?? {},
   // The open episode's brief and digest, unless the owner switched Talk from briefs off.
   brief: () => (curated?.talks() === false ? null : (numbered?.brief() ?? null)),
   // The followed shows, for the line that tells a model the knowledge sources exist. Their names
@@ -2938,8 +2941,24 @@ if (placeInAddress(location.hash)) settings.fromAddress();
 else if (location.hash.slice(1)) tab(location.hash.slice(1));
 
 void installReleaseUI();
-weather = installWeather({ notice, review: live.review, changed: () => home?.render() });
+// The switches for the built-in lookups come first: the cards they govern ask them before fetching.
+lookups = installLookups({
+  changed(id, on) {
+    if (id === 'weather') {
+      weather?.render();
+      if (on) void weather?.refresh();
+    }
+    home?.render();
+  },
+});
+weather = installWeather({
+  notice,
+  review: live.review,
+  changed: () => home?.render(),
+  on: () => lookups.on('weather'),
+});
 research = installResearch({
+  lookupOn: (id) => lookups.on(id),
   profile: () => profile,
   notice,
   review: live.review,
@@ -2995,6 +3014,7 @@ numbered.sendWith((surface, text) => {
 // Curated sources fetch nothing until the owner browses; every file is checked before use.
 curated = installCurated({ review: live.review, key: live.localKey, read: live.readPage });
 headlines = installHeadlines({
+  on: () => lookups.on('headlines'),
   changed: () => home?.render(),
   review: live.review,
   key: live.localKey,

@@ -47,7 +47,9 @@ async function ask(url, max = 100000) {
   return JSON.parse(text);
 }
 
-export function installWeather({ notice, review, changed = () => {} }) {
+const switchedOff = 'Weather is switched off. Turn it on under Knowledge sources on Today, in Built-in lookups.';
+// `on` says whether the owner has the weather lookup switched on under Knowledge sources.
+export function installWeather({ notice, review, changed = () => {}, on = () => true }) {
   let saved = null,
     agreed = false,
     forecast = null,
@@ -68,12 +70,16 @@ export function installWeather({ notice, review, changed = () => {} }) {
   function render(problem = '') {
     // Whatever shows a summary of this card redraws after it.
     queueMicrotask(changed);
-    $('weather-status').textContent = !saved ? 'Off' : forecast ? forecast.now.temperature + degrees() : '…';
-    $('weather-peek').textContent = !saved
+    $('weather-status').textContent = !saved || !on() ? 'Off' : forecast ? forecast.now.temperature + degrees() : '…';
+    $('weather-peek').textContent = !on()
+      ? 'Switched off in Built-in lookups'
+      : !saved
       ? 'Off until you choose a place'
       : forecast
         ? `${placeLabel(saved.place)} · ${describeWeather(forecast.now.code)}`
         : placeLabel(saved.place);
+    // Switched off: the last forecast is put away and nothing is asked.
+    if (!on()) forecast = null;
     $('weather-now').hidden = !saved || !forecast;
     $('weather-form').hidden = !!saved;
     $('weather-credit').hidden = !saved;
@@ -93,16 +99,18 @@ export function installWeather({ notice, review, changed = () => {} }) {
     }
     $('weather-note').textContent =
       problem ||
-      (!saved
+      (!on()
+        ? switchedOff
+        : !saved
         ? 'Type a town or city to see its weather here. Nothing is contacted until you agree.'
         : forecast
           ? `${placeLabel(saved.place)}. Updated ${new Date(fetchedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`
-          : 'Getting the forecast…');
+            : 'Getting the forecast…');
     for (const id of ['weather-find', 'weather-refresh']) $(id).disabled = busy;
   }
 
   async function refresh() {
-    if (!saved || busy) return;
+    if (!saved || busy || !on()) return;
     busy = true;
     render();
     let problem = '';
@@ -134,6 +142,7 @@ export function installWeather({ notice, review, changed = () => {} }) {
   $('weather-form').onsubmit = async (event) => {
     event.preventDefault();
     if (busy) return;
+    if (!on()) return notice(switchedOff);
     let query;
     try {
       query = placeQuery($('weather-place').value);

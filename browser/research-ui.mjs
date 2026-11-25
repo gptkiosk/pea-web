@@ -6,12 +6,17 @@ import {
   describeRead,
   describeSearch,
   lookupKinds,
+  lookupOff,
+  lookupSwitches,
+  lookupsKey,
   pageAddress,
   pageText,
   readSearch,
   researchLimits,
+  savedLookups,
   searchLimits,
   searchProviders,
+  validLookups,
 } from './research.mjs';
 import { beginWork, endWork, workStep, workWaiting } from './activity.mjs';
 import { showWork } from './activity-ui.mjs';
@@ -257,6 +262,11 @@ export function installResearch(hooks) {
   async function lookup(address, from) {
     const kind = lookupKinds[address.lookup];
     if (!kind) return false;
+    // Switched off under Knowledge sources: nothing is asked, and the owner is told why.
+    if (hooks.lookupOn && !hooks.lookupOn(address.lookup)) {
+      hooks.notice(lookupOff(address.lookup));
+      return false;
+    }
     // A web search goes to the provider the owner chose in Connections, with their own key.
     const web = address.lookup === 'search' ? await searchWith() : null;
     if (address.lookup === 'search' && !web) return false;
@@ -379,4 +389,44 @@ export function installResearch(hooks) {
       showSearch();
     },
   };
+}
+
+// The switches for the built-in lookups, under Knowledge sources on Today. One set for this
+// browser. `changed(id, on)` runs after the owner turns one, so the cards it governs can redraw.
+export function installLookups({ changed = () => {} } = {}) {
+  let state = validLookups(null);
+  try {
+    state = validLookups(JSON.parse(globalThis.localStorage.getItem(lookupsKey) || 'null'));
+  } catch {
+    // Nothing usable was saved: every lookup starts on.
+  }
+  const list = document.getElementById('lookup-list');
+  list.replaceChildren(
+    ...lookupSwitches.map(({ id, name, what }) => {
+      const label = document.createElement('label'),
+        box = Object.assign(document.createElement('input'), { type: 'checkbox', id: 'lookup-' + id }),
+        words = document.createElement('span'),
+        strong = Object.assign(document.createElement('strong'), { textContent: name }),
+        small = Object.assign(document.createElement('small'), { textContent: what });
+      box.checked = state[id];
+      box.onchange = () => {
+        state = { ...state, [id]: box.checked };
+        try {
+          const kept = savedLookups(state);
+          if (Object.keys(kept).length) globalThis.localStorage.setItem(lookupsKey, JSON.stringify(kept));
+          else globalThis.localStorage.removeItem(lookupsKey);
+        } catch {
+          // Not kept: the switch still holds for this tab.
+        }
+        document.getElementById('lookup-note').textContent = box.checked
+          ? `${name} is on.`
+          : `${name} is off. PEA asks that service nothing until you turn it on again.`;
+        changed(id, box.checked);
+      };
+      words.append(strong, small);
+      label.append(box, words);
+      return label;
+    }),
+  );
+  return { on: (id) => state[id] !== false, all: () => ({ ...state }) };
 }
