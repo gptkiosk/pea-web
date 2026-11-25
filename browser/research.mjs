@@ -794,3 +794,39 @@ export function describeRead(address, { profile, from, moved = null, feed = '' }
           : `The page at ${moved} says it has moved to this address. Check it is one you are happy to read.`;
   return `Profile: ${profile}\n${source}\n\nAddress (exactly what is requested):\n${address.url}\n\nIf you approve, your PEA server asks ${address.host} for this one page. The site sees your internet address, the whole address above and a fixed description of PEA’s reader, as it would for any visitor. It gets no cookies, no sign-in and nothing from your chats. PEA follows no links and no redirects on its own.\n\nNothing is sent to a model by this step. PEA keeps up to ${researchLimits.excerpt.toLocaleString('en-US')} characters of the page’s plain words in this tab, shows them to you, and shares them with your model only when you next send a message in Chat, after the usual review. Words on a web page can never make PEA take an action.`;
 }
+
+// --- Built-in lookups the owner can switch off -----------------------------------------------------
+// Each public lookup has a switch under Knowledge sources. Off means this page asks that service
+// nothing, the model is not told it can offer it, and PEA says it is switched off when asked.
+// One set of switches for this browser, kept under `lookupsKey`; a lookup is on unless switched off.
+export const lookupsKey = 'pea-lookups-v1';
+export const lookupSwitches = [
+  { id: 'weather', name: 'Weather', what: 'The forecast card on Today, from Open-Meteo.' },
+  { id: 'headlines', name: 'Headlines', what: 'Titles from the news feeds you added, on Today.' },
+  { id: 'tv', name: 'TV shows', what: 'A show’s public listing from TVmaze, in Chat.' },
+  { id: 'wiki', name: 'Wikipedia', what: 'A subject’s summary from Wikipedia, in Chat.' },
+  { id: 'papers', name: 'Scholarly papers', what: 'Studies from OpenAlex, in Chat and for a section of an episode.' },
+  { id: 'search', name: 'Web search', what: 'Brave or Browserbase with your own key, in Chat.' },
+];
+// What was saved, as { id: true | false } for every lookup. Only an exact false switches one off.
+export function validLookups(value) {
+  const saved = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return Object.fromEntries(lookupSwitches.map(({ id }) => [id, saved[id] !== false]));
+}
+// What is kept: only the lookups switched off, so a new lookup starts on.
+export const savedLookups = (state) =>
+  Object.fromEntries(lookupSwitches.filter(({ id }) => state?.[id] === false).map(({ id }) => [id, false]));
+// What the owner is told when they ask for a lookup that is off.
+export function lookupOff(id) {
+  const found = lookupSwitches.find((l) => l.id === id);
+  return found
+    ? `${found.name} is switched off. Turn it on under Knowledge sources on Today, in Built-in lookups.`
+    : '';
+}
+// What the model is told about the lookups that are off, or '' when all are on.
+export function lookupsOffGuidance(state) {
+  const off = lookupSwitches.filter(({ id }) => validLookups(state)[id] === false).map((l) => l.name);
+  return off.length
+    ? `The owner has switched off these built-in lookups in PEA: ${off.join(', ')}. Do not offer them and write no block for them. If the owner asks for one, say plainly that it is switched off and that they can turn it on under Knowledge sources on Today, in Built-in lookups.`
+    : '';
+}

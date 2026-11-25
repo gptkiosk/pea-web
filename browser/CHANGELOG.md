@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.73] - 2026-11-25
+
+### Added
+
+- **Built-in lookups, each with a switch.** Under Curated sources on Today (menu, then Knowledge sources) there is now a switch for Weather, Headlines, TV shows, Wikipedia, Scholarly papers and Web search. All start on. Switch one off and PEA asks that service nothing: typing "papers on …" or pressing a button a model offered opens no review and tells you the lookup is off, the weather card puts its forecast away and stops refreshing, and Headlines will not add or refresh a feed. The Chat model is no longer told it can offer a lookup that is off, and is told to say plainly that it is switched off if you ask.
+- The switches are kept in this browser, hold across reloads and updates, and travel in the Backup & restore file.
+
 ## [0.1.0-rc.4.dev.72] - 2026-11-25
 
 ### Added

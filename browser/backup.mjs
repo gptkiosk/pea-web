@@ -385,6 +385,7 @@ export const travellingSettings = [
   ['pea-device-voice-v1', 'Device voice and speed'],
   ['pea-weather-v1', 'Weather place and units'],
   ['pea-headlines-v1', 'Headline feeds'],
+  ['pea-lookups-v1', 'Built-in lookup switches'],
   ['pea-curated-v1', 'Curated sources you follow'],
   ['pea-presence-v1', 'Local-time presence'],
   ['pea-life-notes-v1', 'Whether PEA keeps notes from Chat'],
