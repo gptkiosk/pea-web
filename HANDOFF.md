@@ -23,6 +23,17 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Time management: a planning interview that picks its method — 2026-11-25
+
+Version `0.1.0-rc.4.dev.75`. Asked for by the owner for Web first ("I am adding it to the app now"); nothing about the iPhone side was read, so parity is unknown.
+
+- Naming: the owner asked that this not be called timeboxing, since that is one method among several. The owner chose the name “Time management”; “timebox my day” is still understood as the owner's own words but appears nowhere in the interface or the model's instructions.
+- Source: `browser/presence.mjs` (`planScopes`, `planMethods`, `planOpening`, `planAsk`, `planControl`, `planGuidance`), `browser/app.mjs` (`plans`, `planNow`, `renderPlan`, `endPlan`, `planWords`; `#home-plan`, `#plan-voice`, `#plan-end`; the `plan` hook), `browser/live-ui.mjs` (`hooks.plan`, Chat only), `browser/index.html` (`#home-plan`, `#plan-bar`), `browser/styles.css` (last section: six tiles on a phone).
+- Tests: `browser/tests/presence.test.mjs` (two new), `browser/tests/dom/chat-window.test.mjs` (one new: tile, opening message, guidance, bar, other profile, ended by words, a week by words).
+- How it works: the page only decides that an interview is on and tells the model the six steps and five methods. The model runs the interview and chooses the pairing from the owner's answers; no rule on the page checks which method was picked or that the steps were followed. To-dos and calendar events go through the existing `pea-task` and `pea-calendar` proposals and their reviews.
+- Known gaps: the plan itself is not kept anywhere but the conversation; there is no daily prompt to start it, no record of which pairing was used on earlier days, and no five-day check-in. The model is not told the time of day or the time zone, so it asks. Calendar blocks are one per reply and need the time zone from the owner, as before. A week has no tile; it is started by words. A debate and a plan cannot run together: the plan is set aside while a debate is on. Not tried with a real model, in the voice room, or on a real phone; the six tiles were not looked at on screen.
+- Next action: owner tries it with their model and says whether the plan should be kept (for example as a card on Today) and whether PEA should offer it each morning.
+
 ## Tips to press and a globe on section rows — 2026-11-25
 
 Version `0.1.0-rc.4.dev.74`. From the owner's mirror handoff (section 2: the suggestion banner and the globe on a section row) as a description of behaviour; no iPhone source was read.

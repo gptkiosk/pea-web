@@ -25,6 +25,10 @@ import {
   debateSumUp,
   debateSwitch,
   debateTopics,
+  planAsk,
+  planControl,
+  planGuidance,
+  planOpening,
   presenceAt,
   validDebate,
 } from './presence.mjs';
@@ -1499,6 +1503,7 @@ $('profile').onchange = () => {
   numbered?.clear();
   memory.profileChanged();
   renderDebate();
+  renderPlan();
 };
 // The theme row in the menu names the theme it switches to.
 const nameTheme = () =>
@@ -1604,6 +1609,51 @@ function openDebate(ask = null) {
   $('debate').showModal();
   if (ask) $('debate-position').focus();
 }
+// Time management: a short interview in Chat that ends in three tasks and a day laid out in time
+// slices. Held in this tab only, one per profile, and set aside while a debate is on.
+const plans = new Map();
+// The interview under way in this profile's Chat, or null. Like a debate, it lasts while its
+// opening message is in the conversation.
+function planNow(sending = '') {
+  const plan = plans.get(profile);
+  if (!plan || debateNow(sending)) return null;
+  if (sending === plan.opening || history('chat').some((m) => m.role === 'user' && m.text === plan.opening)) return plan;
+  if (!plan.starting) plans.delete(profile);
+  return plan.starting ? plan : null;
+}
+function renderPlan() {
+  const plan = planNow();
+  $('plan-bar').hidden = !plan;
+  $('plan-bar-scope').textContent = plan?.scope === 'week' ? 'your week' : 'your day';
+}
+function endPlan() {
+  plans.delete(profile);
+  renderPlan();
+  notice('Time management ended. Chat carries on as usual.');
+}
+// The owner's own words in Chat about planning, by fixed rules. Returns null when the message is
+// none of them, { done: true } when this page answered it, or { started } when it begins one.
+function planWords(text) {
+  const plan = planNow();
+  if (plan) {
+    if (planControl(text) !== 'end') return null;
+    endPlan();
+    return { done: true };
+  }
+  const scope = planAsk(text);
+  if (!scope) return null;
+  if (profile === 'blended') {
+    notice('Choose Work or Personal to plan your ' + scope + '.');
+    return { done: true };
+  }
+  if (debateNow()) {
+    notice('End the debate first, then ask again.');
+    return { done: true };
+  }
+  // The owner's own message opens the interview, as they wrote it.
+  plans.set(profile, { scope, opening: text, starting: true });
+  return { started: profile };
+}
 // The owner's own words in Chat about a debate, by fixed rules. Returns null when the message is
 // none of them, { done: true } when this page answered it, or { send } with the words to send on.
 function debateWords(text) {
@@ -1640,6 +1690,7 @@ async function sayInChat(text) {
   await memory?.ready;
   await atWork('chat', () => live.run(() => live.chat('chat', text, () => {})));
   renderDebate();
+  renderPlan();
 }
 {
   const select = $('debate-topic'),
@@ -1694,7 +1745,29 @@ async function sayInChat(text) {
   // Talking suits a debate: the same voice room as Chat's own button, and the debate stays on.
   $('debate-voice').onclick = () => $('chat-voice').click();
   $('debate-end').onclick = endDebate;
-  new MutationObserver(renderDebate).observe($('messages'), { childList: true });
+  new MutationObserver(() => {
+    renderDebate();
+    renderPlan();
+  }).observe($('messages'), { childList: true });
+  // The tile on Today starts a day; "plan my week" in Chat starts a week.
+  $('home-plan').onclick = async () => {
+    if (live.isBusy()) return notice('Finish the current request first.');
+    if (profile === 'blended') return notice('Choose Work or Personal to plan your day.');
+    if (debateNow()) return notice('End the debate first, then ask again.');
+    if (planNow()) return tab('chat');
+    const who = profile,
+      opening = planOpening('day');
+    plans.set(who, { scope: 'day', opening, starting: true });
+    try {
+      await sayInChat(opening);
+    } finally {
+      const kept = plans.get(who);
+      if (kept) delete kept.starting;
+      renderPlan();
+    }
+  };
+  $('plan-voice').onclick = () => $('chat-voice').click();
+  $('plan-end').onclick = endPlan;
 }
 $('home-connections').onclick = () => $('connections-open').click();
 function addReply(surface, text) {
@@ -1837,6 +1910,17 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     }
     text = field.value = debating.send;
   }
+  // "plan my day" or "plan my week", and "end planning" while an interview is on. Chat only.
+  const planning = surface === 'chat' && !plain && !debating ? planWords(text) : null;
+  if (planning?.done) {
+    field.value = '';
+    return;
+  }
+  if (planning?.started && live.isBusy()) {
+    plans.delete(planning.started);
+    notice('Finish the current request first.');
+    return;
+  }
   // "read https://…" in the owner's own words. Chat only; the review comes before anything is asked.
   const address = surface === 'chat' && !debating ? ownerRead(text) : null;
   if (address) {
@@ -1860,8 +1944,16 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     else if (kept) delete kept.starting;
     renderDebate();
   };
+  // The same for a planning interview begun by this message.
+  const settlePlan = (sent) => {
+    if (!planning?.started) return;
+    const kept = plans.get(planning.started);
+    if (kept && !sent) plans.delete(planning.started);
+    else if (kept) delete kept.starting;
+    renderPlan();
+  };
   try {
-    if (!debating && board.command(text)) {
+    if (!debating && !planning && board.command(text)) {
       field.value = '';
       return;
     }
@@ -1871,6 +1963,7 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
   }
   if (history(surface).length >= 199) {
     settleDebate(false);
+    settlePlan(false);
     notice('Start a fresh conversation from Past chats & memory. This thread has reached 200 messages.');
     return;
   }
@@ -1882,6 +1975,7 @@ async function submit(surface, { aloud = false, plain = false, room = false, spo
     );
   } finally {
     settleDebate(true);
+    settlePlan(true);
   }
   if (used === false) {
     history(surface).push(
@@ -1998,6 +2092,10 @@ live = installConnections({
   secrets: () => memory?.secrets ?? null,
   todoGuidance: (shared) => todos?.guidance(shared) ?? '',
   debate: (text, options) => debateText(text, options),
+  plan(text, options) {
+    const plan = planNow(text);
+    return plan ? planGuidance(plan.scope, options) : '';
+  },
   projectGuidance: () => (projects?.available() ? projectGuidance : ''),
   localChanged: () => {
     todos?.connectionChanged();

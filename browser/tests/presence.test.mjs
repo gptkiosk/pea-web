@@ -225,3 +225,81 @@ test('switch, wrap up and end are matched only as short plain requests', () => {
   ])
     assert.equal(debateControl(said), null, String(said));
 });
+
+import { planAsk, planControl, planGuidance, planMethods, planOpening, planScopes } from '../presence.mjs';
+test('planning starts and ends only on the owner’s plain request, for a day or a week', () => {
+  for (const [said, scope] of [
+    ['timebox my day', 'day'],
+    ['Can you help me plan my day?', 'day'],
+    ['Let’s time block today', 'day'],
+    ['schedule my day please', 'day'],
+    ['Plan my morning with me', 'day'],
+    ['start a timeboxing interview', 'day'],
+    ['brain dump', 'day'],
+    ['Start time management', 'day'],
+    ['time management', 'day'],
+    ['start a time management session', 'day'],
+    ['plan my week', 'week'],
+    ['I need to organise my week', 'week'],
+    ['Start the weekly planning session', 'week'],
+    [planOpening('day'), 'day'],
+    [planOpening('week'), 'week'],
+  ])
+    assert.equal(planAsk(said), scope, said);
+  for (const said of [
+    'What is the plan for my day?',
+    'plan my trip',
+    'I plan my day badly',
+    'How does timeboxing work?',
+    'Is time management a skill?',
+    'Tell me about the brain dump method',
+    'plan my week ' + 'x'.repeat(120),
+    '',
+    null,
+  ])
+    assert.equal(planAsk(said), null, String(said));
+  for (const said of ['End planning', 'stop the interview', 'OK, end the plan now', 'Quit timeboxing please', 'End time management'])
+    assert.equal(planControl(said), 'end', said);
+  for (const said of ['stop', 'the plan ended badly', 'end the debate', 'I want to end early today', null])
+    assert.equal(planControl(said), null, String(said));
+});
+
+test('the interview walks six steps, picks one method of each kind from the owner’s answers, and adds nothing by itself', () => {
+  assert.deepEqual(planScopes, ['day', 'week']);
+  assert.doesNotMatch(planOpening('day') + planOpening('week'), /timebox/i);
+  assert.deepEqual(
+    planMethods.map((m) => [m.id, m.kind]),
+    [
+      ['pareto', 'choose'],
+      ['eisenhower', 'choose'],
+      ['blocking', 'do'],
+      ['frog', 'do'],
+      ['pomodoro', 'do'],
+    ],
+  );
+  const day = planGuidance('day'),
+    week = planGuidance('week'),
+    heard = planGuidance('day', { spoken: true });
+  for (const said of [day, week, heard]) {
+    assert.match(said, /^TIME MANAGEMENT INTERVIEW\. /);
+    assert.equal(said.match(/timebox/gi).length, 1, 'named only to say it is not the name');
+    assert.match(said, /one step per reply, and wait for their answer/);
+    for (const step of ['1. Brain dump.', '2. What is in the way.', '3. Pick the method.', '4. The three that matter most.', '5. Time slices.', '6. Start.'])
+      assert.ok(said.includes('\n' + step), step);
+    for (const method of planMethods) assert.ok(said.includes(`  - ${method.name}: when ${method.fits}.`), method.id);
+    assert.match(said, /choose exactly one way to choose what matters and one way to get it done/);
+    assert.match(said, /If they prefer another, use theirs/);
+    assert.match(said, /Never invent a task, a meeting or a deadline/);
+    assert.match(said, /Nothing is added until they approve it; never say it was added/);
+    assert.match(said, /a buffer of about a quarter of the time/);
+    assert.doesNotMatch(said, /\b(?:she|her)\b/i);
+  }
+  assert.match(day, /three most important tasks for today/);
+  assert.match(day, /“09:00–10:30 Draft the report”/);
+  assert.match(week, /for the week, then at most three for each working day/);
+  assert.match(week, /keep this pairing for five working days/);
+  assert.match(heard, /This reply will be heard, not read/);
+  assert.doesNotMatch(heard, /numbered list/);
+  assert.equal(planGuidance('month'), '');
+  assert.equal(planGuidance(undefined), '');
+});
