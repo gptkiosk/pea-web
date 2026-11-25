@@ -3,7 +3,7 @@
 // model reads them, and nothing here is put in a conversation or given to a model. Headline
 // titles shown here stay in this tab, as they do in the Headlines card.
 import { numberedCommand, numberedMove, replyPoints } from './numbered.mjs';
-import { briefInPlay, idle, showCommand, showMove } from './shownav.mjs';
+import { briefInPlay, idle, nextTip, noTips, showCommand, showMove, tipTiming } from './shownav.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -13,6 +13,7 @@ const $ = (id) => document.getElementById(id);
 // `shows()` gives the followed shows of Curated sources with their kept episodes, and `quiet()`
 // stops anything being read aloud. `lookup({ kind, query })` opens the usual review for one search
 // of published papers or of the web; nothing is asked before the owner approves it.
+// `canSearch()` says whether a web search can be made at all: a key is held and the lookup is on.
 export function installNumbered({
   groups,
   shows = () => [],
@@ -21,13 +22,28 @@ export function installNumbered({
   speak,
   quiet = () => {},
   lookup = () => {},
+  canSearch = () => false,
   transcripts = { of: () => null, fetch: async () => false },
   profile,
 }) {
   let at = { group: null, item: null, point: null },
     showAt = idle(),
     shown = null,
-    whose = null;
+    whose = null,
+    tips = noTips(),
+    tipTimer = null;
+  const svg = (name, attributes) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
+    return node;
+  };
+  // A tip goes away by itself; the list it sat on stays as it is.
+  function dropTip() {
+    clearTimeout(tipTimer);
+    tipTimer = null;
+    if (shown) shown.tip = null;
+    for (const old of document.querySelectorAll('.numbered-tip')) old.remove();
+  }
 
   function draw() {
     const mine = shown && whose === profile() ? shown : null;
@@ -51,6 +67,15 @@ export function installNumbered({
       };
       head.append(title, close);
       place.append(head);
+      if (mine.tip) {
+        const tip = document.createElement('button');
+        tip.type = 'button';
+        tip.className = 'numbered-tip';
+        tip.textContent = `Try saying “${mine.tip}”`;
+        tip.title = 'Press to do this now';
+        tip.onclick = () => press({ say: mine.tip });
+        place.append(tip);
+      }
       if (mine.rows.length) {
         const list = document.createElement('ol');
         for (const row of mine.rows) {
@@ -73,6 +98,32 @@ export function installNumbered({
             b.setAttribute('aria-label', `${row.label}: ${row.text}`);
             b.onclick = () => press(row.go);
             li.append(b);
+            // A section can be searched for on the web from its row, when a search can be made.
+            if (row.search && canSearch()) {
+              const globe = document.createElement('button'),
+                icon = svg('svg', {
+                  class: 'action-icon',
+                  viewBox: '0 0 24 24',
+                  fill: 'none',
+                  stroke: 'currentColor',
+                  'stroke-width': '1.8',
+                  'stroke-linecap': 'round',
+                  'stroke-linejoin': 'round',
+                  'aria-hidden': 'true',
+                });
+              icon.append(
+                svg('circle', { cx: '12', cy: '12', r: '9' }),
+                svg('path', { d: 'M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18' }),
+              );
+              globe.type = 'button';
+              globe.className = 'numbered-search';
+              globe.title = `Search the web for section ${row.label}`;
+              globe.setAttribute('aria-label', globe.title);
+              globe.append(icon);
+              globe.onclick = () => press({ say: row.search });
+              li.className = 'numbered-searchable';
+              li.append(globe);
+            }
           } else {
             li.className = 'numbered-row';
             li.append(label, words);
@@ -129,6 +180,7 @@ export function installNumbered({
     }
   }
   function clear() {
+    dropTip();
     shown = null;
     draw();
   }
@@ -147,6 +199,8 @@ export function installNumbered({
     at = move.at;
     const item = move.open ? sources[move.open.group]?.items[move.open.item] : null;
     whose = profile();
+    dropTip();
+    tips = { ...tips, last: false };
     shown = {
       title: move.title,
       rows: move.rows,
@@ -172,7 +226,12 @@ export function installNumbered({
     const move = showMove(command, { shows: followed, at: showAt, transcriptOf: transcripts.of });
     showAt = move.at;
     whose = profile();
+    dropTip();
+    const tip = nextTip(tips, move, { now: Date.now(), search: canSearch() });
+    tips = tip.state;
+    if (tip.phrase) tipTimer = setTimeout(dropTip, tipTiming.shown);
     shown = {
+      tip: tip.phrase,
       title: move.title,
       rows: move.rows.map((row) => ({ ...row, go: row.say ? { say: row.say } : null })),
       footer: move.footer.map((button) => ({ label: button.label, go: { say: button.say } })),
@@ -235,6 +294,7 @@ export function installNumbered({
     clear() {
       at = { group: null, item: null, point: null };
       showAt = idle();
+      tips = noTips();
       clear();
     },
     draw,

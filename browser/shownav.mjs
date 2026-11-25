@@ -563,6 +563,8 @@ function plainMove(command, { shows = [], at = idle(), transcriptOf = () => null
         text,
         sub: `Section ${s}.${index}.${i + 1}`,
         say: `${s}.${index}.${i + 1}`,
+        // The words that search the web for this section; the page offers them as a button.
+        search: `search ${s}.${index}.${i + 1}`,
       })),
       hint: `Say “${s}.${index}.1” or “section 1” to dig in, or press one. ${found.name}, ${dayOf(episode.item.date)}.`,
       footer: [
@@ -892,5 +894,48 @@ export function briefInPlay(shows, at, transcriptOf = () => null) {
     title: episode.item.title,
     text: lines.join('\n'),
     key: `${show.id ?? show.name}/${episode.item.id}/${episode.item.brief?.sha256 ?? ''}${more.length ? '/' + (episode.item.digest?.sha256 ?? '') : ''}${cited.length ? `/c${at.section}.${at.citation ?? 0}` : ''}${deep.length ? `/t${at.section}` : ''}`,
+  };
+}
+
+// A tip is one phrase the owner could say next, shown for a short while and pressable. Every
+// phrase here is one showCommand() reads at that level, so pressing a tip does what saying it does.
+export const tipTiming = { shown: 12000, rest: 45000 };
+// The phrases that fit an answer, in a fixed order. `search` is whether a web search can be made.
+export function tipPhrases(move, { search = false } = {}) {
+  const first = move?.rows?.[0]?.label;
+  switch (move?.level) {
+    case 'shows':
+      return first ? [`Show ${first}`, `open ${first}.1`, 'list shows'] : [];
+    case 'episodes':
+      return [
+        ...(move.rows.length ? ['episode 1'] : []),
+        ...(move.footer.some((b) => b.say === 'more episodes') ? ['more episodes'] : []),
+        'back to shows',
+      ];
+    case 'episode':
+      return [
+        ...(move.rows.length ? ['section 1', ...(search ? ['search section 1'] : [])] : []),
+        'next episode',
+        'where am I',
+        'back to episodes',
+      ];
+    case 'section':
+      return [...(move.cited ? ['list citations', 'citation 1'] : []), 'back to episode', 'where am I'];
+    default:
+      return [];
+  }
+}
+export const noTips = () => ({ at: null, last: false, turns: {} });
+// Whether this answer carries a tip. Never on two answers running, and not again until the rest
+// has passed since the last one appeared. Each level walks through its phrases in turn.
+// Gives { state, phrase }: `phrase` is null when no tip is shown.
+export function nextTip(state, move, { now, search = false } = {}) {
+  const phrases = tipPhrases(move, { search }),
+    rested = state.at === null || now - state.at >= tipTiming.rest;
+  if (!phrases.length || state.last || !rested) return { state: { ...state, last: false }, phrase: null };
+  const turn = state.turns[move.level] ?? 0;
+  return {
+    state: { at: now, last: true, turns: { ...state.turns, [move.level]: turn + 1 } },
+    phrase: phrases[turn % phrases.length],
   };
 }

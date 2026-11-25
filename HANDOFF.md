@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Tips to press and a globe on section rows — 2026-11-25
+
+Version `0.1.0-rc.4.dev.74`. From the owner's mirror handoff (section 2: the suggestion banner and the globe on a section row) as a description of behaviour; no iPhone source was read.
+
+- Source: `browser/shownav.mjs` (`tipTiming`, `tipPhrases`, `noTips`, `nextTip`; `search` on each section row of an open episode), `browser/numbered-ui.mjs` (the `.numbered-tip` button, its timer `dropTip`, the `.numbered-search` globe, the `canSearch` option), `browser/app.mjs` (`canSearch`: a search key is held and the Web search lookup is on), `browser/styles.css` (last section).
+- Tests: `browser/tests/shownav.test.mjs` (one new: phrases per level, every phrase read by `showCommand` where shown, the rest and never-twice rules, rotation, `search` on section rows only), `browser/tests/dom/shownav.test.mjs` (one new: tip shown, gone by itself, rest, pressed; no globe without a key; six globes with one; the review opened and cancelled; globes gone with Web search off).
+- Known gaps: the tip sits on the numbered list (page and voice room), not in a banner of its own, and only show levels have tips: feeds, headlines and reply points have none. A search key sealed in the library counts only once it has been restored in this tab, so the globe can be missing until the first search. A globe appears or goes at the next answer, not the moment a key or switch changes. Not tried with a real search provider or a real phone.
+- Next action: owner tries the tip and globe on their copy.
+
 ## Built-in lookup switches under Knowledge sources — 2026-11-25
 
 Version `0.1.0-rc.4.dev.73`. From the owner's mirror handoff (section 9A, item 5) as a description of behaviour; no iPhone source was read.

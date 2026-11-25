@@ -6104,3 +6104,52 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
 #lookup-list small {
   color: var(--sub);
 }
+
+/* A tip on the numbered list, and the globe that searches the web for one section. */
+.numbered-tip {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.8rem;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(127, 127, 127, 0.12);
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  border-radius: 999px;
+  cursor: pointer;
+}
+.numbered-tip:hover,
+.numbered-tip:focus-visible,
+.numbered-search:hover,
+.numbered-search:focus-visible {
+  border-color: currentColor;
+}
+.numbered-searchable {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.numbered-searchable > .numbered-row {
+  flex: 1;
+  min-width: 0;
+}
+.numbered-search {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  border-radius: 12px;
+  cursor: pointer;
+}
+.numbered-search .action-icon {
+  width: 20px;
+  height: 20px;
+}
