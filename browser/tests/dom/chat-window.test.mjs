@@ -432,7 +432,7 @@ test(
   },
 );
 
-// Plan my day: an interview the owner starts from the tile or in their own words. The model is told
+// Time management: an interview the owner starts from the tile or in their own words. The model is told
 // the steps and the methods to pick from; this page adds nothing to a list or calendar by itself.
 test('a planning interview is started by the owner, tells the model its steps and methods, and ends when asked', options, async () => {
   const page = await openConnectedPage(stack);
@@ -441,31 +441,31 @@ test('a planning interview is started by the owner, tells the model its steps an
   const barHidden = () => page.evaluate(`document.getElementById('plan-bar').hidden`);
   const idle = (what) => page.waitFor(`!document.getElementById('profile').disabled`, what);
   await askModel(stack, page, 'A synthetic hello.');
-  assert.doesNotMatch(system(), /PLANNING INTERVIEW\./);
+  assert.doesNotMatch(system(), /TIME MANAGEMENT INTERVIEW\./);
   assert.equal(await barHidden(), true);
   // Talk about plans starts nothing.
   await askModel(stack, page, 'What is the plan for my day?');
-  assert.doesNotMatch(system(), /PLANNING INTERVIEW\./);
+  assert.doesNotMatch(system(), /TIME MANAGEMENT INTERVIEW\./);
   assert.equal(await barHidden(), true);
 
   // The tile on Today is a real button and starts a day with the owner's opening message.
-  assert.equal(await page.evaluate(`document.getElementById('home-plan').tagName + ':' + document.getElementById('home-plan').textContent`), 'BUTTON:◷Plan my day');
+  assert.equal(await page.evaluate(`document.getElementById('home-plan').tagName + ':' + document.getElementById('home-plan').textContent`), 'BUTTON:◷Time management');
   const before = stack.model.requests.length;
   await page.evaluate(`document.getElementById('home-plan').click()`);
   await page.waitFor(`!document.getElementById('plan-bar').hidden && !document.getElementById('profile').disabled`, 'the interview to start');
   assert.equal(stack.model.requests.length, before + 1);
   assert.equal(owner(), 'Help me plan my day, one step at a time.');
-  assert.match(system(), /PLANNING INTERVIEW\. The owner asked you to plan their day with them, so that/);
+  assert.match(system(), /TIME MANAGEMENT INTERVIEW\. The owner asked you to plan their day with them, so that/);
   assert.match(system(), /\n1\. Brain dump\.[\s\S]*\n3\. Pick the method\.[\s\S]*the Eisenhower matrix[\s\S]*the Pomodoro technique[\s\S]*\n5\. Time slices\./);
   assert.match(system(), /three most important tasks for today/);
-  assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Planning · your day · /);
+  assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Time management · your day · /);
   assert.deepEqual(
     JSON.parse(await page.evaluate(`JSON.stringify([...document.querySelectorAll('#plan-bar button')].map((b) => b.textContent))`)),
     ['Talk', 'End planning'],
   );
   // It holds for the owner's answers, and the tile does not start a second one.
   await askModel(stack, page, 'Report draft, expenses, call the plumber, slides.');
-  assert.match(system(), /PLANNING INTERVIEW\./);
+  assert.match(system(), /TIME MANAGEMENT INTERVIEW\./);
   const during = stack.model.requests.length;
   await page.evaluate(`document.getElementById('home-plan').click()`);
   assert.equal(stack.model.requests.length, during);
@@ -480,14 +480,14 @@ test('a planning interview is started by the owner, tells the model its steps an
   await page.waitFor(`document.getElementById('plan-bar').hidden`, 'the bar to go');
   assert.equal(stack.model.requests.length, during, 'ending asks no model');
   await askModel(stack, page, 'A synthetic question about peas.');
-  assert.doesNotMatch(system(), /PLANNING INTERVIEW\./);
+  assert.doesNotMatch(system(), /TIME MANAGEMENT INTERVIEW\./);
 
   // Typed for a week: the owner's own words are the opening message.
   await askModel(stack, page, 'Can you help me plan my week?');
   assert.equal(owner(), 'Can you help me plan my week?');
   assert.match(system(), /plan their week with them/);
   assert.match(system(), /keep this pairing for five working days/);
-  assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Planning · your week · /);
+  assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Time management · your week · /);
   await page.click('#plan-end');
   assert.equal(await barHidden(), true);
   await idle('the page to settle');

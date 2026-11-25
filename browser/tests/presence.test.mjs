@@ -236,6 +236,9 @@ test('planning starts and ends only on the owner’s plain request, for a day or
     ['Plan my morning with me', 'day'],
     ['start a timeboxing interview', 'day'],
     ['brain dump', 'day'],
+    ['Start time management', 'day'],
+    ['time management', 'day'],
+    ['start a time management session', 'day'],
     ['plan my week', 'week'],
     ['I need to organise my week', 'week'],
     ['Start the weekly planning session', 'week'],
@@ -248,13 +251,14 @@ test('planning starts and ends only on the owner’s plain request, for a day or
     'plan my trip',
     'I plan my day badly',
     'How does timeboxing work?',
+    'Is time management a skill?',
     'Tell me about the brain dump method',
     'plan my week ' + 'x'.repeat(120),
     '',
     null,
   ])
     assert.equal(planAsk(said), null, String(said));
-  for (const said of ['End planning', 'stop the interview', 'OK, end the plan now', 'Quit timeboxing please'])
+  for (const said of ['End planning', 'stop the interview', 'OK, end the plan now', 'Quit timeboxing please', 'End time management'])
     assert.equal(planControl(said), 'end', said);
   for (const said of ['stop', 'the plan ended badly', 'end the debate', 'I want to end early today', null])
     assert.equal(planControl(said), null, String(said));
@@ -277,7 +281,7 @@ test('the interview walks six steps, picks one method of each kind from the owne
     week = planGuidance('week'),
     heard = planGuidance('day', { spoken: true });
   for (const said of [day, week, heard]) {
-    assert.match(said, /^PLANNING INTERVIEW\. /);
+    assert.match(said, /^TIME MANAGEMENT INTERVIEW\. /);
     assert.equal(said.match(/timebox/gi).length, 1, 'named only to say it is not the name');
     assert.match(said, /one step per reply, and wait for their answer/);
     for (const step of ['1. Brain dump.', '2. What is in the way.', '3. Pick the method.', '4. The three that matter most.', '5. Time slices.', '6. Start.'])

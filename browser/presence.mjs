@@ -255,7 +255,7 @@ export function debateGuidance(debate, { spoken = false } = {}) {
   ].join('\n');
 }
 
-// Plan my day: a short interview in Chat that empties the owner's head, finds what is getting in
+// Time management: a short interview in Chat that empties the owner's head, finds what is getting in
 // the way, picks a way of working that fits, settles the three tasks that matter most and lays
 // the day (or week) out in time slices. This file holds the fixed rules: the words that start and
 // end it, the methods PEA may pick from, and what the model is told. Nothing is saved here.
@@ -323,17 +323,18 @@ export function planAsk(text) {
     return m[1] === 'week' ? 'week' : 'day';
   if (
     (m = new RegExp(
-      `^${planLead}(?:start|begin|run|do|have) (?:a |the |my |our )?(daily |weekly )?(?:timeboxing|time boxing|timebox|time box|planning) (?:interview|session)(?: with me| for (?:me|today)| please| now)*$`,
+      `^${planLead}(?:start|begin|run|do|have) (?:a |the |my |our )?(daily |weekly )?(?:timeboxing|time boxing|timebox|time box|planning|time management) (?:interview|session)(?: with me| for (?:me|today)| please| now)*$`,
     ).exec(said))
   )
     return m[1] === 'weekly ' ? 'week' : 'day';
+  if (new RegExp(`^${planLead}(?:do |start |open |begin )?(?:my )?time management(?: with me| please| now| for today)*$`).test(said)) return 'day';
   if (new RegExp(`^${planLead}(?:do |start |have )?(?:a |my )?brain dump(?: with me| please| now)*$`).test(said)) return 'day';
   return null;
 }
 // The owner's words that end the interview while one is on: 'end' or null.
 export function planControl(text) {
   if (typeof text !== 'string' || text.length > 200) return null;
-  return /^(?:(?:please|ok|okay|now|lets|let s) )*(?:cancel|exit|end|stop|leave|quit|finish) (?:the |this |our |my )?(?:planning|plan|timeboxing|time boxing|timebox|interview)(?: session| interview)?(?: now| please)?$/.test(
+  return /^(?:(?:please|ok|okay|now|lets|let s) )*(?:cancel|exit|end|stop|leave|quit|finish) (?:the |this |our |my )?(?:planning|plan|time management|timeboxing|time boxing|timebox|interview)(?: session| interview)?(?: now| please)?$/.test(
     planSaid(text),
   )
     ? 'end'
@@ -350,7 +351,7 @@ export function planGuidance(scope, { spoken = false } = {}) {
         .map((m) => `  - ${m.name}: when ${m.fits}. How: ${m.how}.`)
         .join('\n');
   return [
-    `PLANNING INTERVIEW. The owner asked you to plan their ${span} with them, so that the work that matters has a time of its own and is not put off. Do not call this timeboxing or name any one method as the whole exercise: the method is chosen in step 3. Lead a short interview, one step per reply, and wait for their answer before the next step. Ask one or two questions at a time, never a questionnaire.`,
+    `TIME MANAGEMENT INTERVIEW. The owner asked you to plan their ${span} with them, so that the work that matters has a time of its own and is not put off. Do not call this timeboxing or name any one method as the whole exercise: the method is chosen in step 3. Lead a short interview, one step per reply, and wait for their answer before the next step. Ask one or two questions at a time, never a questionnaire.`,
     'Work out from the conversation which step you are on, and do only that step:',
     `1. Brain dump. Ask them to empty their head: everything they could do this ${span}, in any order, unfinished and unsorted. If their to-do list or calendar is shown to you elsewhere in these instructions, name the open items and fixed events you can see and ask what is missing; otherwise ask for the list and for the fixed commitments${week ? ' on each day' : ''}. Do not sort or judge anything yet.`,
     '2. What is in the way. From what they listed, ask what is making this hard: is the list too long, does everything feel urgent, is there one task they keep putting off, do they lose focus, or is the time broken up by meetings and requests? Ask about the particular items they gave, not in general.',

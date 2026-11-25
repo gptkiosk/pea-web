@@ -1609,7 +1609,7 @@ function openDebate(ask = null) {
   $('debate').showModal();
   if (ask) $('debate-position').focus();
 }
-// Plan my day: a short interview in Chat that ends in three tasks and a day laid out in time
+// Time management: a short interview in Chat that ends in three tasks and a day laid out in time
 // slices. Held in this tab only, one per profile, and set aside while a debate is on.
 const plans = new Map();
 // The interview under way in this profile's Chat, or null. Like a debate, it lasts while its
@@ -1629,7 +1629,7 @@ function renderPlan() {
 function endPlan() {
   plans.delete(profile);
   renderPlan();
-  notice('Planning ended. Chat carries on as usual.');
+  notice('Time management ended. Chat carries on as usual.');
 }
 // The owner's own words in Chat about planning, by fixed rules. Returns null when the message is
 // none of them, { done: true } when this page answered it, or { started } when it begins one.

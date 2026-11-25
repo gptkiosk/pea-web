@@ -6,8 +6,8 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 
 ### Added
 
-- **Plan my day.** A new tile on Today, or typing “plan my day” or “plan my week” in Chat, starts a short interview. PEA asks you to empty your head first, then asks what is getting in the way for the things you listed, and from your answers picks one way to choose what matters (the 80/20 rule or the Eisenhower matrix) and one way to get it done (time blocking, eat the frog or the Pomodoro technique), saying which and why. Then the three tasks that matter most, then the day laid out in time slices with breaks and a buffer, then the first small step. A week works the same way, with up to three tasks a day.
-- A bar over Chat shows that planning is on, with **Talk** and **End planning**. “End planning” typed or said ends it too. It works in Work and in Personal, one interview per profile, and is not saved: it lasts while its first message is in the conversation.
+- **Time management.** A new tile on Today, or typing “time management”, “plan my day” or “plan my week” in Chat, starts a short interview. PEA asks you to empty your head first, then asks what is getting in the way for the things you listed, and from your answers picks one way to choose what matters (the 80/20 rule or the Eisenhower matrix) and one way to get it done (time blocking, eat the frog or the Pomodoro technique), saying which and why. Then the three tasks that matter most, then the day laid out in time slices with breaks and a buffer, then the first small step. A week works the same way, with up to three tasks a day.
+- A bar over Chat shows that Time management is on, with **Talk** and **End planning**. “End planning” typed or said ends it too. It works in Work and in Personal, one interview per profile, and is not saved: it lasts while its first message is in the conversation.
 - PEA adds nothing by itself. At the end PEA may offer to put the three tasks on your to-do list with due times, or a block on your calendar if you ask, through the same reviews as always.
 
 ## [0.1.0-rc.4.dev.74] - 2026-11-25
