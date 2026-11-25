@@ -638,6 +638,9 @@ export function installConnections(hooks) {
     // A debate the owner started in Chat: for that conversation the model argues the other side.
     const debateText = surface === 'chat' ? (hooks.debate?.(text, { spoken }) ?? '') : '';
     if (debateText) body.messages[0].content += '\n' + debateText;
+    // A planning interview the owner started in Chat: brain dump, a method, three tasks, time slices.
+    const planText = surface === 'chat' ? (hooks.plan?.(text, { spoken }) ?? '') : '';
+    if (planText) body.messages[0].content += '\n' + planText;
     const todoText = hooks.todoGuidance?.(s.shareTodos) ?? '';
     if (todoText) body.messages[0].content += '\n' + todoText;
     // Offered only where this server's operator connected a project engine.

@@ -432,6 +432,69 @@ test(
   },
 );
 
+// Plan my day: an interview the owner starts from the tile or in their own words. The model is told
+// the steps and the methods to pick from; this page adds nothing to a list or calendar by itself.
+test('a planning interview is started by the owner, tells the model its steps and methods, and ends when asked', options, async () => {
+  const page = await openConnectedPage(stack);
+  const system = () => stack.model.requests.at(-1).messages[0].content,
+    owner = () => stack.model.requests.at(-1).messages.at(-1).content;
+  const barHidden = () => page.evaluate(`document.getElementById('plan-bar').hidden`);
+  const idle = (what) => page.waitFor(`!document.getElementById('profile').disabled`, what);
+  await askModel(stack, page, 'A synthetic hello.');
+  assert.doesNotMatch(system(), /PLANNING INTERVIEW\./);
+  assert.equal(await barHidden(), true);
+  // Talk about plans starts nothing.
+  await askModel(stack, page, 'What is the plan for my day?');
+  assert.doesNotMatch(system(), /PLANNING INTERVIEW\./);
+  assert.equal(await barHidden(), true);
+
+  // The tile on Today is a real button and starts a day with the owner's opening message.
+  assert.equal(await page.evaluate(`document.getElementById('home-plan').tagName + ':' + document.getElementById('home-plan').textContent`), 'BUTTON:◷Plan my day');
+  const before = stack.model.requests.length;
+  await page.evaluate(`document.getElementById('home-plan').click()`);
+  await page.waitFor(`!document.getElementById('plan-bar').hidden && !document.getElementById('profile').disabled`, 'the interview to start');
+  assert.equal(stack.model.requests.length, before + 1);
+  assert.equal(owner(), 'Help me timebox my day, one step at a time.');
+  assert.match(system(), /PLANNING INTERVIEW\. The owner asked you to plan their day with them by timeboxing/);
+  assert.match(system(), /\n1\. Brain dump\.[\s\S]*\n3\. Pick the method\.[\s\S]*the Eisenhower matrix[\s\S]*the Pomodoro technique[\s\S]*\n5\. Time slices\./);
+  assert.match(system(), /three most important tasks for today/);
+  assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Planning · your day · /);
+  assert.deepEqual(
+    JSON.parse(await page.evaluate(`JSON.stringify([...document.querySelectorAll('#plan-bar button')].map((b) => b.textContent))`)),
+    ['Talk', 'End planning'],
+  );
+  // It holds for the owner's answers, and the tile does not start a second one.
+  await askModel(stack, page, 'Report draft, expenses, call the plumber, slides.');
+  assert.match(system(), /PLANNING INTERVIEW\./);
+  const during = stack.model.requests.length;
+  await page.evaluate(`document.getElementById('home-plan').click()`);
+  assert.equal(stack.model.requests.length, during);
+  // The other profile has none; coming back, it is still on.
+  await page.fill('#profile', 'work');
+  assert.equal(await barHidden(), true);
+  await page.fill('#profile', 'personal');
+  assert.equal(await barHidden(), false);
+  // Ended in the owner's words: no model is asked, the bar goes, and the guidance stops.
+  await page.fill('#thought', 'End planning');
+  await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+  await page.waitFor(`document.getElementById('plan-bar').hidden`, 'the bar to go');
+  assert.equal(stack.model.requests.length, during, 'ending asks no model');
+  await askModel(stack, page, 'A synthetic question about peas.');
+  assert.doesNotMatch(system(), /PLANNING INTERVIEW\./);
+
+  // Typed for a week: the owner's own words are the opening message.
+  await askModel(stack, page, 'Can you help me plan my week?');
+  assert.equal(owner(), 'Can you help me plan my week?');
+  assert.match(system(), /plan their week with them/);
+  assert.match(system(), /keep this pairing for five working days/);
+  assert.match(await page.evaluate(`document.getElementById('plan-bar').textContent`), /^Planning · your week · /);
+  await page.click('#plan-end');
+  assert.equal(await barHidden(), true);
+  await idle('the page to settle');
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
+
 // Start a debate: the owner picks a question and a position, and for that conversation the model
 // is told to argue the other side. Nothing a model writes can start one.
 test('a debate is started by the owner, tells the model to argue the other side, and ends when asked', options, async () => {

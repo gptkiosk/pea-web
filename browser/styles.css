@@ -6153,3 +6153,10 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
   width: 20px;
   height: 20px;
 }
+
+/* Six tiles on a phone, now that Plan my day is one: three over three. */
+@media (max-width: 520px) {
+  .feature-dock button:nth-child(n + 4) {
+    grid-column: span 2;
+  }
+}

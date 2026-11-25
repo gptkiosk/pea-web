@@ -254,3 +254,116 @@ export function debateGuidance(debate, { spoken = false } = {}) {
     '- When they ask you to sum up, stop arguing: give the strongest points on each side, what stayed in dispute and where they seem to have landed, in neutral words, without naming a winner.',
   ].join('\n');
 }
+
+// Plan my day: a short interview in Chat that empties the owner's head, finds what is getting in
+// the way, picks a way of working that fits, settles the three tasks that matter most and lays
+// the day (or week) out in time slices. This file holds the fixed rules: the words that start and
+// end it, the methods PEA may pick from, and what the model is told. Nothing is saved here.
+export const planScopes = ['day', 'week'];
+// One way to choose what matters and one way to get it done are paired for each plan. `fits` is
+// the trouble the method answers, and `how` what PEA does with it.
+export const planMethods = [
+  {
+    id: 'pareto',
+    kind: 'choose',
+    name: 'the 80/20 rule',
+    fits: 'the list is long and small jobs crowd out the ones that matter',
+    how: 'ask which few items would bring most of the result, and put those first; the rest waits, is batched or is dropped',
+  },
+  {
+    id: 'eisenhower',
+    kind: 'choose',
+    name: 'the Eisenhower matrix',
+    fits: 'everything feels urgent',
+    how: 'sort each item by whether it is urgent and whether it is important: do the urgent and important now, give the important but not urgent a time, hand on or shrink the urgent but not important, and drop the rest',
+  },
+  {
+    id: 'blocking',
+    kind: 'do',
+    name: 'time blocking',
+    fits: 'meetings and requests from others break the day into pieces',
+    how: 'give each task or batch of like tasks its own block between the fixed commitments, with the longest clear stretch kept for the hardest work',
+  },
+  {
+    id: 'frog',
+    kind: 'do',
+    name: 'eat the frog',
+    fits: 'the hard or dreaded task keeps being put off',
+    how: 'put the hardest of the three tasks in the first working block of the day, before mail and messages',
+  },
+  {
+    id: 'pomodoro',
+    kind: 'do',
+    name: 'the Pomodoro technique',
+    fits: 'attention drifts or interruptions pull the owner away',
+    how: 'split blocks into 25 minutes of one task and a 5 minute break, with a longer break after four; interruptions are noted and left for the break',
+  },
+];
+export const planOpening = (scope) =>
+  scope === 'week' ? 'Help me plan my week, one step at a time.' : 'Help me timebox my day, one step at a time.';
+const planSaid = (text) =>
+  text
+    .toLowerCase()
+    .replace(/[’']/g, ' ')
+    .replace(/[^a-z ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+const planLead = '(?:(?:please|ok|okay|hey|pea|now|can you|could you|will you|can we|help me(?: to)?|let s|lets|i want to|i d like to|i would like to|i need to) )*';
+// The owner's own typed or spoken words that start the interview: 'day', 'week' or null. Talk
+// about plans ("what is the plan for my day?", "plan my trip") is none of these.
+export function planAsk(text) {
+  if (typeof text !== 'string' || text.length > 120) return null;
+  const said = planSaid(text);
+  let m;
+  if (
+    (m = new RegExp(
+      `^${planLead}(?:timebox|time box|time block|plan|plan out|organi[sz]e|map out|schedule) (?:(?:my|the|our|this) (?:whole |work ?)?(day|today|morning|afternoon|week)|(today))(?: with me| for me| please| today| out| one step at a time| step by step)*$`,
+    ).exec(said))
+  )
+    return m[1] === 'week' ? 'week' : 'day';
+  if (
+    (m = new RegExp(
+      `^${planLead}(?:start|begin|run|do|have) (?:a |the |my |our )?(daily |weekly )?(?:timeboxing|time boxing|timebox|time box|planning) (?:interview|session)(?: with me| for (?:me|today)| please| now)*$`,
+    ).exec(said))
+  )
+    return m[1] === 'weekly ' ? 'week' : 'day';
+  if (new RegExp(`^${planLead}(?:do |start |have )?(?:a |my )?brain dump(?: with me| please| now)*$`).test(said)) return 'day';
+  return null;
+}
+// The owner's words that end the interview while one is on: 'end' or null.
+export function planControl(text) {
+  if (typeof text !== 'string' || text.length > 200) return null;
+  return /^(?:(?:please|ok|okay|now|lets|let s) )*(?:cancel|exit|end|stop|leave|quit|finish) (?:the |this |our |my )?(?:planning|plan|timeboxing|time boxing|timebox|interview)(?: session| interview)?(?: now| please)?$/.test(
+    planSaid(text),
+  )
+    ? 'end'
+    : null;
+}
+// What the model is told while the interview is on. `spoken` says the reply will be heard.
+export function planGuidance(scope, { spoken = false } = {}) {
+  if (!planScopes.includes(scope)) return '';
+  const week = scope === 'week',
+    span = week ? 'week' : 'day',
+    methods = (kind) =>
+      planMethods
+        .filter((m) => m.kind === kind)
+        .map((m) => `  - ${m.name}: when ${m.fits}. How: ${m.how}.`)
+        .join('\n');
+  return [
+    `PLANNING INTERVIEW. The owner asked you to plan their ${span} with them by timeboxing, so that the work that matters has a time of its own and is not put off. Lead a short interview, one step per reply, and wait for their answer before the next step. Ask one or two questions at a time, never a questionnaire.`,
+    'Work out from the conversation which step you are on, and do only that step:',
+    `1. Brain dump. Ask them to empty their head: everything they could do this ${span}, in any order, unfinished and unsorted. If their to-do list or calendar is shown to you elsewhere in these instructions, name the open items and fixed events you can see and ask what is missing; otherwise ask for the list and for the fixed commitments${week ? ' on each day' : ''}. Do not sort or judge anything yet.`,
+    '2. What is in the way. From what they listed, ask what is making this hard: is the list too long, does everything feel urgent, is there one task they keep putting off, do they lose focus, or is the time broken up by meetings and requests? Ask about the particular items they gave, not in general.',
+    `3. Pick the method. From their answers choose exactly one way to choose what matters and one way to get it done, and say in one or two sentences which you picked and why it fits what they told you. If they prefer another, use theirs.\n  To choose what matters:\n${methods('choose')}\n  To get it done:\n${methods('do')}`,
+    `4. The three that matter most. Apply the choosing method to their list out loud and propose the three most important tasks${week ? ' for the week, then at most three for each working day' : ' for today'}. Each must be something that can be finished or visibly moved on. Ask them to confirm or swap. Say plainly what waits, is batched, is handed on or is dropped.`,
+    `5. Time slices. Ask when their working ${week ? 'days start and end' : 'day starts and ends'} and when they have most energy, if you do not know. Then lay out ${week ? 'each day' : 'the day'} as slices with clock times: the three tasks first, in the shape of the method you picked, around the fixed commitments, with breaks, a buffer of about a quarter of the time for overruns and surprises, and one slice for mail and small jobs. Give each task a size you both believe; ask how long it really takes when unsure. Never fill every minute.`,
+    `6. Start. Ask for the first small action of the first slice, and tell them to begin it now. ${week ? 'Suggest they keep this pairing for five working days before judging it, and adjust slice lengths if tasks keep overrunning.' : 'Offer to check in at the end of the day on what held and what to change tomorrow.'}`,
+    '- Use only tasks, times and events the owner gave you or that are shown to you. Never invent a task, a meeting or a deadline, and never assume the time of day.',
+    '- When the plan is agreed, offer once to put the three tasks on their to-do list with due times and reminders, using the to-do proposal described in these instructions. Offer a calendar block only if they ask, one block per reply, using the calendar proposal described in these instructions. Nothing is added until they approve it; never say it was added.',
+    '- Be brisk and kind. No lecture on productivity, no praise for its own sake. If they are overwhelmed, shrink the plan: one task and one slice is a plan.',
+    '- If they turn to something else, answer it, then offer to pick the plan up where it stopped.',
+    spoken
+      ? '- This reply will be heard, not read: two to four plain sentences, no lists or symbols. Read a schedule as short spoken lines, one slice a sentence.'
+      : '- Keep each reply short. Show the three tasks as a numbered list and the time slices as a plain list of lines like “09:00–10:30 Draft the report”.',
+  ].join('\n');
+}
