@@ -526,6 +526,64 @@ test('a planning interview is started by the owner, tells the model its steps an
   await page.close();
 });
 
+// The morning offer: a bar over Chat, by the owner's clock, that only offers. Showing it asks no
+// model; "Not today" holds for that profile and day; the switch on Today turns it off and on.
+test('in the morning PEA offers Time management over Chat, and it can be declined or switched off', options, async () => {
+  const page = await openConnectedPage(stack);
+  await askModel(stack, page, 'A synthetic hello.');
+  const clock = (hour) =>
+    page.evaluate(`(() => { const d = new Date(); d.setHours(${hour}, 0, 0, 0); const at = d.getTime(); Date.now = () => at; document.dispatchEvent(new Event('visibilitychange')); })()`);
+  const hidden = (id) => page.evaluate(`document.getElementById('${id}').hidden`);
+  const stored = async () => JSON.parse(await page.evaluate(`localStorage.getItem('pea-plan-offer-v1')`));
+  const asked = stack.model.requests.length;
+  await clock(15);
+  assert.equal(await hidden('plan-offer'), true, 'no offer in the afternoon');
+  await clock(8);
+  assert.equal(await hidden('plan-offer'), false);
+  assert.match(await page.evaluate(`document.getElementById('plan-offer').textContent`), /^Good morning · plan your day\? · a short Time management interview/);
+  assert.deepEqual(
+    JSON.parse(await page.evaluate(`JSON.stringify([...document.querySelectorAll('#plan-offer button')].map((b) => b.tagName + ':' + b.textContent))`)),
+    ['BUTTON:Plan my day', 'BUTTON:Not today', 'BUTTON:Stop offering'],
+  );
+  assert.equal(stack.model.requests.length, asked, 'offering asks no model');
+  assert.equal(await page.evaluate(`localStorage.getItem('pea-plan-offer-v1')`), null, 'nothing is stored by offering');
+
+  // Plan my day is the owner's press: it starts the interview, and the offer goes.
+  await page.click('#plan-offer-start');
+  await page.waitFor(`!document.getElementById('plan-bar').hidden && !document.getElementById('profile').disabled`, 'the interview to start');
+  assert.equal(stack.model.requests.length, asked + 1);
+  assert.equal(stack.model.requests.at(-1).messages.at(-1).content, 'Help me plan my day, one step at a time.');
+  assert.equal(await hidden('plan-offer'), true);
+  // Ended without a plan kept, it is offered again that morning.
+  await page.click('#plan-end');
+  assert.equal(await hidden('plan-offer'), false);
+
+  // Not today: this profile, this day. Work is still offered.
+  await page.click('#plan-offer-skip');
+  assert.equal(await hidden('plan-offer'), true);
+  const today = await page.evaluate(`(() => { const d = new Date(Date.now()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()`);
+  assert.deepEqual(await stored(), { on: true, skipped: { personal: today, work: '' } });
+  await page.fill('#profile', 'work');
+  assert.equal(await hidden('plan-offer'), false);
+  // Blended has no planning, so no offer and no switch.
+  await page.fill('#profile', 'blended');
+  assert.deepEqual([await hidden('plan-offer'), await hidden('plan-offer-row')], [true, true]);
+  await page.fill('#profile', 'work');
+
+  // Stop offering turns the switch on Today off; the switch turns it back on.
+  await page.click('#plan-offer-stop');
+  assert.deepEqual([await hidden('plan-offer'), await page.evaluate(`document.getElementById('plan-offer-on').checked`)], [true, false]);
+  assert.equal((await stored()).on, false);
+  await page.click('#plan-offer-on');
+  assert.equal((await stored()).on, true);
+  assert.equal(await hidden('plan-offer'), false);
+  await page.fill('#profile', 'personal');
+  assert.equal(await hidden('plan-offer'), true, 'still declined for today');
+  assert.equal(stack.model.requests.length, asked + 1, 'only the owner’s press asked a model');
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
+
 // A kept plan is saved with the encrypted story board when that is on: it comes back after a
 // reload and an unlock, is not readable in the saved record, and is only in the tab otherwise.
 test('a kept day plan is saved with the encrypted board and comes back after a reload', options, async () => {

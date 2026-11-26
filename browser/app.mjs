@@ -27,6 +27,9 @@ import {
   debateTopics,
   planAsk,
   planDay,
+  planOfferDue,
+  loadPlanOffer,
+  savePlanOffer,
   planFromReply,
   sliceNow,
   planControl,
@@ -1642,7 +1645,29 @@ function planOffered() {
   }
   return null;
 }
+// The morning offer over Chat. It is drawn from the clock and what is kept here; pressing
+// Plan my day is the same press as the Time management tile.
+let planOffer = loadPlanOffer();
+function renderPlanOffer() {
+  const usable = profile === 'personal' || profile === 'work';
+  $('plan-offer').hidden = !planOfferDue({
+    now: Date.now(),
+    preferences: planOffer,
+    profile,
+    kept: Boolean(board?.planStore.get(profile)),
+    planning: Boolean(planNow()) || Boolean(debateNow()),
+  });
+  $('plan-offer-row').hidden = !usable;
+  $('plan-offer-on').checked = planOffer.on;
+}
+function changePlanOffer(next, said) {
+  planOffer = { ...planOffer, ...next };
+  const saved = savePlanOffer(planOffer);
+  renderPlanOffer();
+  notice(saved ? said : said + ' This browser refused to remember it, so it lasts until the page reloads.');
+}
 function renderPlan() {
+  renderPlanOffer();
   const plan = planNow();
   $('plan-bar').hidden = !plan;
   $('plan-bar-scope').textContent = plan?.scope === 'week' ? 'your week' : 'your day';
@@ -1662,6 +1687,7 @@ function renderDayPlan() {
     kept = store?.get(profile) ?? null,
     current = kept ? sliceNow(kept.slices, now) : -1;
   $('day-plan').hidden = !kept;
+  renderPlanOffer();
   if (kept) $('day-plan-note').textContent = dayPlanNotes[store.where()];
   $('day-plan-tasks').hidden = !kept?.tasks.length;
   $('day-plan-tasks').replaceChildren(
@@ -1849,6 +1875,26 @@ async function sayInChat(text) {
   $('day-plan-remove').onclick = () => void changeDayPlan(null);
   $('plan-voice').onclick = () => $('chat-voice').click();
   $('plan-end').onclick = endPlan;
+  $('plan-offer-start').onclick = () => $('home-plan').click();
+  $('plan-offer-skip').onclick = () =>
+    changePlanOffer(
+      { skipped: { ...planOffer.skipped, [profile]: planDay(Date.now()) } },
+      'No planning offer for the rest of today. Time management is still on its tile.',
+    );
+  $('plan-offer-stop').onclick = () =>
+    changePlanOffer({ on: false }, 'PEA will not offer Time management in the morning. Turn it back on under Today.');
+  $('plan-offer-on').onchange = () =>
+    changePlanOffer(
+      { on: $('plan-offer-on').checked },
+      $('plan-offer-on').checked
+        ? 'PEA will offer Time management each morning while it is open.'
+        : 'PEA will not offer Time management in the morning.',
+    );
+  // The morning starts and ends by the clock, with the page open or brought back into view.
+  setInterval(renderPlanOffer, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) renderPlanOffer();
+  });
 }
 $('home-connections').onclick = () => $('connections-open').click();
 function addReply(surface, text) {

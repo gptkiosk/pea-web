@@ -2,6 +2,15 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.79] - 2026-11-26
+
+### Added
+
+- **A morning offer of Time management.** Between 5:00 and noon by your clock, a bar over Chat asks whether you want to plan your day, with three buttons: **Plan my day** starts the interview, **Not today** hides the offer for that profile until tomorrow, and **Stop offering** turns it off.
+- A switch on Today, **Offer Time management each morning**, turns the offer off and on. It is on to begin with, and the choice is kept on this browser and travels in the whole backup.
+- The offer only offers: nothing is sent to a model until you press **Plan my day**. It is not shown once a plan is kept on Today for that day, while an interview or a debate is under way, or in Blended.
+- It appears only while PEA is open in a browser tab. There is no notification when PEA is closed.
+
 ## [0.1.0-rc.4.dev.78] - 2026-11-26
 
 ### Added

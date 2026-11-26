@@ -396,6 +396,7 @@ export const travellingSettings = [
   ['pea-lookups-v1', 'Built-in lookup switches'],
   ['pea-curated-v1', 'Curated sources you follow'],
   ['pea-presence-v1', 'Local-time presence'],
+  ['pea-plan-offer-v1', 'Morning Time management offer'],
   ['pea-life-notes-v1', 'Whether PEA keeps notes from Chat'],
   ['pea-save-chats-v1', 'Whether chats are saved'],
   ['pea-mac-reminders-v1', 'Reminders on the Mac'],
