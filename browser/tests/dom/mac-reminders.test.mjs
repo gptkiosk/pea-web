@@ -179,3 +179,67 @@ test(
     await page.close();
   },
 );
+
+// The Time management offer as a Mac notification: its own choice, its own review, one fixed line
+// for the coming days, sent in the same list as the reminders and withdrawn on its own.
+test(
+  'the Time management offer reaches the Mac only after the owner agrees, alongside reminders, and is withdrawn',
+  { ...options, skip: skip || (!mac && 'needs PEA_GATEWAY=swift') },
+  async () => {
+    const page = await openConnectedPage(stack, { width: 1500 });
+    await page.click('#tab-today');
+    const line = 'Plan your day? Open PEA for a short Time management interview.';
+    await page.waitFor(`!document.getElementById('plan-offer-notify-row').hidden`, 'the choice to be offered');
+    assert.equal(await page.evaluate(`document.getElementById('plan-offer-notify').checked`), false);
+    const before = JSON.stringify(stack.gateway.reminders());
+
+    // Declined in the review: nothing is handed over and nothing is stored.
+    await page.click('#plan-offer-notify');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review');
+    assert.match(await page.text('#review'), /one fixed line.*for each of the next seven days/s);
+    await page.click('#review-cancel');
+    await page.waitFor(`!document.querySelector('#review').open`, 'the review to close');
+    assert.equal(await page.evaluate(`document.getElementById('plan-offer-notify').checked`), false);
+    assert.equal(await page.evaluate(`localStorage.getItem('pea-plan-offer-v1')`), null);
+    assert.equal(JSON.stringify(stack.gateway.reminders()), before);
+
+    // Agreed: the next days' offers, at the chosen hour, and nothing else.
+    await page.click('#plan-offer-notify');
+    await page.waitFor(`document.querySelector('#review').open`, 'the review');
+    await page.click('#review-approve');
+    const offers = (list) => (list ?? []).filter((r) => r.id.startsWith('plan-offer-'));
+    const settled = async (check, what) => {
+      const until = Date.now() + 8000;
+      for (;;) {
+        const got = stack.gateway.reminders();
+        if (got && check(got)) return got;
+        if (Date.now() > until) assert.fail(`${what}: the Mac has ${JSON.stringify(got)}`);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    };
+    let got = await settled((l) => offers(l).length >= 6 && offers(l).length === l.length, 'the offers alone');
+    assert.ok(got.length <= 7);
+    assert.ok(got.every((r) => r.title === line && new Date(r.due).getHours() === 5 && new Date(r.due).getMinutes() === 0));
+    assert.equal(new Set(got.map((r) => r.id)).size, got.length);
+
+    // A changed hour follows; reminders travel in the same list and can be withdrawn on their own.
+    await page.fill('#plan-offer-from', '3');
+    got = await settled((l) => l.length >= 6 && l.every((r) => new Date(r.due).getHours() === 3), 'the new hour');
+    await page.click('#todo-mac-on');
+    await page.waitFor(`document.querySelector('#review').open`, 'the reminders review');
+    await page.click('#review-approve');
+    await add(page, 'Synthetic reminder beside the offer', Date.now() + day);
+    got = await settled((l) => l.some((r) => r.title === 'Synthetic reminder beside the offer') && offers(l).length >= 6, 'both kinds');
+    await page.click('#todo-mac-on');
+    await noticed(page, 'This Mac’s reminders were withdrawn.');
+    got = await settled((l) => l.length >= 6 && offers(l).length === l.length, 'the offers kept after reminders go');
+
+    // Turned off: withdrawn, and the choice is stored as off.
+    await page.click('#plan-offer-notify');
+    await noticed(page, 'PEA for Mac will not notify you of the Time management offer.');
+    await settled((l) => l.length === 0, 'everything withdrawn');
+    assert.equal(JSON.parse(await page.evaluate(`localStorage.getItem('pea-plan-offer-v1')`)).notify, false);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);

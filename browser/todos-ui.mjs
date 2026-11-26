@@ -159,8 +159,15 @@ export function installTodos({ store, profile, notice, review, mac = null, chang
         macState.available = (await mac.send(key)).available;
         if (!macState.available || !was) macState.sent = null;
       }
-      if (macState.available && macWanted() && store.usable()) {
-        const list = remindersForMac(store.items(), Date.now()),
+      // The Mac holds one list, so what else it is handed (the Time management offer) goes with the
+      // reminders. With reminders on, nothing is sent while the saved board is locked, so they are
+      // never wiped by a list that could not read them.
+      const extra = mac.extra?.() ?? null,
+        withTodos = macWanted(),
+        owed = macState.sent !== null && macState.sent !== '[]';
+      if (macState.available && (withTodos ? store.usable() : extra !== null || owed)) {
+        const first = extra ?? [],
+          list = [...first, ...(withTodos ? remindersForMac(store.items(), Date.now(), 64 - first.length) : [])],
           text = JSON.stringify(list);
         if (text !== macState.sent) {
           macState.available = (await mac.send(key, list)).available;
@@ -173,10 +180,12 @@ export function installTodos({ store, profile, notice, review, mac = null, chang
       macState.sent = null;
       if (macWanted() && !macState.failed)
         notice('PEA for Mac did not take your reminders. They still appear here.');
+      else if (mac.extra?.() && !macState.failed) notice('PEA for Mac did not take the Time management offer.');
       macState.failed = true;
     } finally {
       macState.busy = false;
       drawMac();
+      mac.drew?.();
       if (macState.again) {
         macState.again = false;
         void macSync();
@@ -213,7 +222,9 @@ export function installTodos({ store, profile, notice, review, mac = null, chang
         'Turned off here. Connect the local model to withdraw the reminders this Mac already has.',
       );
     try {
-      await mac.send(key, []);
+      // Whatever else the Mac is handed stays; only the reminders go.
+      if (mac.extra?.()) await macSync(true);
+      else await mac.send(key, []);
       notice('This Mac’s reminders were withdrawn.');
     } catch {
       notice('Turned off here, but this Mac could not be reached to withdraw its reminders.');
@@ -322,6 +333,9 @@ export function installTodos({ store, profile, notice, review, mac = null, chang
       return outcome.say;
     },
     connectionChanged: () => macSync(true),
+    // For what else is handed to the Mac with the reminders: send the list again, and where it stands.
+    macSync: (force = false) => macSync(force),
+    macStanding: () => ({ connected: Boolean(mac?.key()), available: macState.available }),
     profileChanged() {
       $('todo-add').reset();
       $('todo-reminders-dismiss').click();

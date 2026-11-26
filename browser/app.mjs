@@ -28,6 +28,8 @@ import {
   planAsk,
   planDay,
   planOfferDue,
+  planOfferNotices,
+  planOfferNotice,
   planOfferPreferences,
   hourLabel,
   dayGreeting,
@@ -1675,6 +1677,20 @@ function renderPlanOffer() {
     list.value = String(chosen);
     list.disabled = !planOffer.on;
   };
+  // The Mac notification: offered only where PEA for Mac is taking notifications, or already chosen.
+  const mac = todos?.macStanding() ?? { connected: false, available: false },
+    note = !planOffer.notify
+      ? ''
+      : !mac.connected
+        ? 'Connect the local model again so this Mac’s notifications stay up to date.'
+        : !mac.available
+          ? 'PEA for Mac is not taking notifications now. Turn on Show Reminders as Notifications in its menu.'
+          : '';
+  $('plan-offer-notify-row').hidden = !(planOffer.notify || (mac.connected && mac.available));
+  $('plan-offer-notify').checked = planOffer.notify;
+  $('plan-offer-notify').disabled = !planOffer.on;
+  $('plan-offer-notify-note').textContent = note;
+  $('plan-offer-notify-note').hidden = !note;
   hours('plan-offer-from', 0, planOffer.until - 1, planOffer.from);
   hours('plan-offer-until', planOffer.from + 1, 24, planOffer.until);
 }
@@ -1683,6 +1699,7 @@ function changePlanOffer(next, said) {
   planOffer = { ...planOffer, ...next };
   const saved = savePlanOffer(planOffer);
   renderPlanOffer();
+  void todos?.macSync();
   notice(saved ? said : said + ' This browser refused to remember it, so it lasts until the page reloads.');
 }
 function renderPlan() {
@@ -1909,6 +1926,25 @@ async function sayInChat(text) {
         ? `PEA will offer Time management ${planOfferSpan()} while it is open.`
         : 'PEA will not offer Time management.',
     );
+  $('plan-offer-notify').onchange = async () => {
+    const box = $('plan-offer-notify');
+    if (!box.checked) {
+      changePlanOffer(
+        { notify: false },
+        todos?.macStanding().connected
+          ? 'PEA for Mac will not notify you of the Time management offer.'
+          : 'Turned off here. Connect the local model to withdraw the notifications this Mac already has.',
+      );
+      return;
+    }
+    box.checked = false;
+    const ok = await live.review(
+      'Hand the Time management offer to PEA for Mac',
+      `PEA for Mac will be given one fixed line, “${planOfferNotice}”, and the first hour you chose, for each of the next seven days, and again as the days pass.\n\nIt asks macOS to show that line as a notification at that hour, even when this page or the PEA app is closed. While this page is open and in view it withdraws that day’s notification, because the bar over Chat shows instead.\n\nNothing about your day, your plan, your to-dos or your chat is handed over with it.\n\nTurning this off again withdraws them from the Mac.`,
+    );
+    if (!ok) return renderPlanOffer();
+    changePlanOffer({ notify: true }, `PEA for Mac will notify you at ${hourLabel(planOffer.from)} when this page is closed or out of view.`);
+  };
   for (const edge of ['from', 'until'])
     $(`plan-offer-${edge}`).onchange = () => {
       planOffer = planOfferPreferences({ ...planOffer, [edge]: Number($(`plan-offer-${edge}`).value) });
@@ -1918,6 +1954,8 @@ async function sayInChat(text) {
   setInterval(renderPlanOffer, 60000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) renderPlanOffer();
+    // In view, this page shows the offer itself; out of view, the Mac's notification stands.
+    void todos?.macSync();
   });
 }
 $('home-connections').onclick = () => $('connections-open').click();
@@ -2561,7 +2599,19 @@ todos = installTodos({
   profile: () => profile,
   notice,
   review: live.review,
-  mac: { key: () => live.localKey(), send: (key, list) => live.macReminders(key, list) },
+  mac: {
+    key: () => live.localKey(),
+    send: (key, list) => live.macReminders(key, list),
+    // The Time management offer goes to the Mac in the same list, when the owner asked for it.
+    extra: () =>
+      planOfferNotices({
+        now: Date.now(),
+        preferences: planOffer,
+        keptToday: ['personal', 'work'].some((who) => Boolean(board?.planStore.get(who))),
+        visible: !document.hidden,
+      }),
+    drew: () => renderPlanOffer(),
+  },
   changed: () => home?.render(),
 });
 memory = installMemory({

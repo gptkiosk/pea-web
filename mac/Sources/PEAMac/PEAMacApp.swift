@@ -17,8 +17,15 @@ struct PEAMacApp: App {
         let service = (Bundle.main.bundleIdentifier ?? "pea.development") + ".gateway"
         // Notifications belong to a packaged app; run from source, PEA simply has no reminders.
         let packaged = Bundle.main.bundleIdentifier != nil && Bundle.main.bundleURL.pathExtension == "app"
+        let notifications = packaged ? SystemNotifications() : nil
         let launcher = Launcher(webRoot: root, tokens: KeychainTokenStore(service: service), defaults: .standard,
-                                notifications: packaged ? SystemNotifications() : nil)
+                                notifications: notifications)
+        // Pressing a notification opens PEA in the browser, when it is running.
+        notifications?.pressed = { [weak launcher] in
+            Task { @MainActor in
+                if let launcher, launcher.isRunning { open(launcher) }
+            }
+        }
         _launcher = StateObject(wrappedValue: launcher)
         launcher.start()
     }

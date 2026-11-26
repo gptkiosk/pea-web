@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Time management offer as a Mac notification — 2026-11-26
+
+Version `0.1.0-rc.4.dev.81`. Asked for by the owner: “Have the Mac launcher notify when the tab is closed”.
+
+- Design: no new gateway rule. The offer rides the existing `/v1/reminders` hand-off (`browser/server/contract.json` unchanged, conformance unchanged), as entries with ids `plan-offer-YYYY-MM-DD`, behind its own switch and its own review.
+- Source: `browser/presence.mjs` (`notify` in `planOfferPreferences`; `planOfferNotice`, `planOfferNotices`), `browser/todos-ui.mjs` (`macSync` sends `mac.extra()` with the reminders; `mac.drew`; `macSync`/`macStanding` on the returned object; turning reminders off keeps the offers), `browser/app.mjs` (`extra`/`drew` given to `installTodos`; `#plan-offer-notify` with its review; a sync when the tab comes into or goes out of view), `browser/index.html` (`#plan-offer-notify-row`, `#plan-offer-notify-note`), `mac/Sources/PEALauncherCore/Reminders.swift` (`SystemNotifications.pressed`), `mac/Sources/PEAMac/PEAMacApp.swift` (a pressed notification opens PEA).
+- Tests: `browser/tests/presence.test.mjs` (the morning-offer test, extended), `browser/tests/dom/mac-reminders.test.mjs` (one new, Swift gateway only), `browser/tests/dom/chat-window.test.mjs` (the switch is absent on a gateway without notifications).
+- Known gaps: nothing here has been seen on a real Mac: macOS may refuse notifications from the unsigned build, and the press that opens PEA has only been compiled. The notification's heading is still “PEA reminder”. The page schedules seven days ahead and only while open and connected; the launcher does not make the offer by itself. With reminders handed over and the board locked, the list is not updated. The to-do sync runs every 20 seconds, so a page in view withdraws today's notification three minutes ahead.
+- Next action: owner runs PEA for Mac, turns on Show Reminders as Notifications and the new switch, and says whether a notification appears and opens PEA.
+
 ## Hours of the Time management offer — 2026-11-26
 
 Version `0.1.0-rc.4.dev.80`. Asked for by the owner: “Make the morning hours a setting”.

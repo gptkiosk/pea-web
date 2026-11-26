@@ -102,6 +102,15 @@ public final class SystemNotifications: NSObject, NotificationPoster, UNUserNoti
         }
     }
 
+    /// What to do when the owner presses a notification: the app opens PEA in the browser.
+    public var pressed: (() -> Void)?
+
+    public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                       withCompletionHandler completionHandler: @escaping () -> Void) {
+        pressed?()
+        completionHandler()
+    }
+
     /// A reminder is shown even while PEA's own window is in front.
     public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
