@@ -2,6 +2,13 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.83] - 2026-11-26
+
+### Added
+
+- **Weekend hours for the Time management offer.** A new switch in the offer's row on Today, **Different hours at weekends**, shows a second pair of **from** and **until** lists for Saturday and Sunday. They start as a copy of your usual hours. Switched off, the same hours apply every day, as before.
+- The weekend hours are kept with the rest of the offer's settings and travel in the whole backup. Where the offer is also a Mac notification, Saturday's and Sunday's are set for the weekend's first hour.
+
 ## [0.1.0-rc.4.dev.82] - 2026-11-26
 
 ### Changed

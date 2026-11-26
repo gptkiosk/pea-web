@@ -349,10 +349,10 @@ test('a day’s plan is read from a reply’s own lines by fixed rules, and only
 });
 
 test('the morning offer is due only in the morning, when switched on, not declined, with nothing kept or under way', async () => {
-  const { planOfferPreferences, planOfferDue, planOfferHours, loadPlanOffer, savePlanOffer, planDay, hourLabel, dayGreeting, planOfferNotices, planOfferNotice } = await import('../presence.mjs');
+  const { planOfferPreferences, planOfferDue, planOfferHours, loadPlanOffer, savePlanOffer, planDay, hourLabel, dayGreeting, planOfferNotices, planOfferNotice, planOfferHoursOn } = await import('../presence.mjs');
   const at = (hour, minute = 0) => new Date(2026, 10, 26, hour, minute).getTime(),
     fresh = planOfferPreferences(undefined);
-  assert.deepEqual(fresh, { on: true, from: 5, until: 12, notify: false, skipped: { personal: '', work: '' } });
+  assert.deepEqual(fresh, { on: true, from: 5, until: 12, weekend: null, notify: false, skipped: { personal: '', work: '' } });
   assert.deepEqual(planOfferHours, { from: 5, until: 12 });
   const due = (hour, over = {}) => planOfferDue({ now: at(hour), preferences: fresh, profile: 'personal', ...over });
   assert.deepEqual([4, 5, 8, 11, 12, 15, 23].map((h) => due(h)), [false, true, true, true, false, false, false]);
@@ -368,7 +368,7 @@ test('the morning offer is due only in the morning, when switched on, not declin
   assert.equal(planOfferDue({ now: at(8) + 86400000, preferences: declined, profile: 'personal' }), true);
   // Anything unexpected in storage becomes the default; only the fixed shape is written.
   assert.deepEqual(planOfferPreferences({ on: 'no', skipped: { personal: '<b>', work: 7, blended: '2026-11-26' }, extra: 1 }), fresh);
-  assert.deepEqual(planOfferPreferences({ on: false, skipped: [] }), { on: false, from: 5, until: 12, notify: false, skipped: { personal: '', work: '' } });
+  assert.deepEqual(planOfferPreferences({ on: false, skipped: [] }), { on: false, from: 5, until: 12, weekend: null, notify: false, skipped: { personal: '', work: '' } });
   // The owner's hours: whole hours, the first before the second, or the usual ones.
   const late = planOfferPreferences({ from: 13, until: 24 });
   assert.deepEqual([late.from, late.until], [13, 24]);
@@ -378,6 +378,20 @@ test('the morning offer is due only in the morning, when switched on, not declin
     assert.deepEqual(planOfferPreferences({ from, until }), fresh, `${from} to ${until}`);
   assert.deepEqual([0, 1, 5, 11, 12, 13, 23, 24].map(hourLabel), ['midnight', '1 am', '5 am', '11 am', 'noon', '1 pm', '11 pm', 'midnight']);
   assert.deepEqual([0, 11, 12, 16, 17, 23].map((h) => dayGreeting(at(h))), ['Good morning', 'Good morning', 'Good afternoon', 'Good afternoon', 'Good evening', 'Good evening']);
+  // Weekend hours: Saturday and Sunday only, and only when set. 26 November 2026 is a Thursday.
+  const on = (day, hour) => new Date(2026, 10, day, hour).getTime(),
+    rest = planOfferPreferences({ weekend: { from: 9, until: 14 } });
+  assert.deepEqual(rest.weekend, { from: 9, until: 14 });
+  assert.deepEqual([27, 28, 29, 30].map((d) => planOfferHoursOn(rest, on(d, 8)).from), [5, 9, 9, 5]);
+  assert.deepEqual(planOfferHoursOn(fresh, on(28, 8)), { from: 5, until: 12 });
+  const offered = (day, hour) => planOfferDue({ now: on(day, hour), preferences: rest, profile: 'personal' });
+  assert.deepEqual([offered(27, 6), offered(27, 13), offered(28, 6), offered(28, 13), offered(29, 9), offered(29, 14), offered(30, 6)], [true, false, false, true, true, false, true]);
+  for (const weekend of [{ from: 14, until: 9 }, { from: 5 }, [9, 14], 'late', { from: 5.5, until: 9 }, null])
+    assert.equal(planOfferPreferences({ weekend }).weekend, null, JSON.stringify(weekend));
+  assert.deepEqual(
+    planOfferNotices({ now: at(4), preferences: { ...rest, notify: true } }).map((n) => new Date(n.due).getHours()),
+    [5, 5, 9, 9, 5, 5, 5],
+  );
   // The Mac notification: nothing unless asked for; then one fixed line at the first hour of each
   // of the next seven days still ahead.
   assert.equal(planOfferPreferences({ notify: 'yes' }).notify, false);
@@ -405,8 +419,8 @@ test('the morning offer is due only in the morning, when switched on, not declin
   const kept = new Map(),
     storage = { getItem: (k) => kept.get(k) ?? null, setItem: (k, v) => kept.set(k, v) };
   assert.equal(savePlanOffer({ on: false, skipped: { work: '2026-11-26' }, extra: 1 }, storage), true);
-  assert.equal(kept.get('pea-plan-offer-v1'), '{"on":false,"from":5,"until":12,"notify":false,"skipped":{"personal":"","work":"2026-11-26"}}');
-  assert.deepEqual(loadPlanOffer(storage), { on: false, from: 5, until: 12, notify: false, skipped: { personal: '', work: '2026-11-26' } });
+  assert.equal(kept.get('pea-plan-offer-v1'), '{"on":false,"from":5,"until":12,"weekend":null,"notify":false,"skipped":{"personal":"","work":"2026-11-26"}}');
+  assert.deepEqual(loadPlanOffer(storage), { on: false, from: 5, until: 12, weekend: null, notify: false, skipped: { personal: '', work: '2026-11-26' } });
   assert.deepEqual(loadPlanOffer({ getItem: () => '{not json' }), fresh);
   assert.equal(savePlanOffer(fresh, { setItem() { throw new Error('refused'); } }), false);
 });

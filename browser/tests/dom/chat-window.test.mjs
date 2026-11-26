@@ -562,7 +562,7 @@ test('in the morning PEA offers Time management over Chat, and it can be decline
   await page.click('#plan-offer-skip');
   assert.equal(await hidden('plan-offer'), true);
   const today = await page.evaluate(`(() => { const d = new Date(Date.now()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()`);
-  assert.deepEqual(await stored(), { on: true, from: 5, until: 12, notify: false, skipped: { personal: today, work: '' } });
+  assert.deepEqual(await stored(), { on: true, from: 5, until: 12, weekend: null, notify: false, skipped: { personal: today, work: '' } });
   await page.fill('#profile', 'work');
   assert.equal(await hidden('plan-offer'), false);
   // Blended has no planning, so no offer and no switch.
@@ -601,6 +601,28 @@ test('in the morning PEA offers Time management over Chat, and it can be decline
   assert.match(await page.evaluate(`document.getElementById('plan-offer').textContent`), /^Good afternoon · plan your day\?/);
   await clock(18);
   assert.equal(await hidden('plan-offer'), true);
+  // Weekends can have hours of their own: they start as a copy, and apply on Saturday and Sunday only.
+  assert.deepEqual([await hidden('plan-offer-weekend-from-row'), await hidden('plan-offer-weekend-until-row')], [true, true]);
+  await page.click('#plan-offer-weekend');
+  assert.deepEqual([await hidden('plan-offer-weekend-from-row'), (await stored()).weekend], [false, { from: 14, until: 18 }]);
+  await page.fill('#plan-offer-weekend-from', '9');
+  await page.fill('#plan-offer-weekend-until', '11');
+  assert.deepEqual((await stored()).weekend, { from: 9, until: 11 });
+  assert.match(await page.evaluate(`document.getElementById('notice').textContent`), /from 2 pm until 6 pm, and from 9 am until 11 am at weekends, while it is open\./);
+  const dayAt = (weekday, hour) =>
+    page.evaluate(`(() => { const d = new Date(2026, 10, 22 + ${weekday}, ${hour}); const at = d.getTime(); Date.now = () => at; document.dispatchEvent(new Event('visibilitychange')); })()`);
+  await dayAt(6, 10); // a Saturday morning
+  assert.equal(await hidden('plan-offer'), false);
+  await dayAt(6, 15);
+  assert.equal(await hidden('plan-offer'), true, 'the weekday hours do not apply on a Saturday');
+  await dayAt(1, 10); // a Monday morning
+  assert.equal(await hidden('plan-offer'), true);
+  await dayAt(1, 15);
+  assert.equal(await hidden('plan-offer'), false);
+  await page.click('#plan-offer-weekend');
+  assert.deepEqual([(await stored()).weekend, await hidden('plan-offer-weekend-from-row')], [null, true]);
+  await dayAt(6, 15);
+  assert.equal(await hidden('plan-offer'), false, 'one set of hours every day again');
   // The hours come back after a reload, and the lists are greyed while the offer is off.
   await page.reload();
   await page.waitFor(`document.getElementById('plan-offer-from').options.length > 0`, 'the hour lists');

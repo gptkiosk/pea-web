@@ -428,19 +428,30 @@ const planOfferKey = 'pea-plan-offer-v1';
 // from 0 to 23 and until 1 to 24, the first before the second.
 export const planOfferHours = { from: 5, until: 12 };
 const offerDay = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '');
-const offerHours = (from, until) =>
+const offerSpan = (from, until) =>
   Number.isInteger(from) && Number.isInteger(until) && from >= 0 && from < until && until <= 24
     ? { from, until }
-    : { ...planOfferHours };
+    : null;
+const offerHours = (from, until) => offerSpan(from, until) ?? { ...planOfferHours };
 export function planOfferPreferences(value) {
   const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {},
     skipped = v.skipped && typeof v.skipped === 'object' && !Array.isArray(v.skipped) ? v.skipped : {};
   return {
     on: v.on !== false,
     ...offerHours(v.from, v.until),
+    // Other hours for Saturday and Sunday, or null for the same hours every day.
+    weekend: v.weekend && typeof v.weekend === 'object' ? offerSpan(v.weekend.from, v.weekend.until) : null,
     notify: v.notify === true,
     skipped: { personal: offerDay(skipped.personal), work: offerDay(skipped.work) },
   };
+}
+// The hours offered between on the day this moment falls in: the weekend's on a Saturday or
+// Sunday when the owner set them, and the usual ones otherwise.
+export function planOfferHoursOn(preferences, time) {
+  const day = new Date(time).getDay();
+  return (day === 0 || day === 6) && preferences.weekend
+    ? preferences.weekend
+    : { from: preferences.from, until: preferences.until };
 }
 // What PEA for Mac is handed, when the owner has asked for it, so the offer can appear as a Mac
 // notification while this page is closed or out of view: one fixed line at the first offered hour
@@ -454,7 +465,8 @@ export function planOfferNotices({ now, preferences, keptToday = false, visible 
     today = planDay(now),
     list = [];
   for (let i = 0; i < days; i++) {
-    const due = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, preferences.from).getTime(),
+    const noon = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, 12).getTime(),
+      due = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, planOfferHoursOn(preferences, noon).from).getTime(),
       day = planDay(due);
     if (due <= now) continue;
     if (
@@ -497,12 +509,13 @@ export function savePlanOffer(value, storage = globalThis.localStorage) {
 // Whether to show the offer now: switched on, Work or Personal, between the chosen hours by the
 // owner's clock, not declined today, no plan kept for today and no interview under way.
 export function planOfferDue({ now, preferences, profile, kept = false, planning = false }) {
-  const hour = new Date(now).getHours();
+  const hour = new Date(now).getHours(),
+    hours = planOfferHoursOn(preferences, now);
   return (
     preferences.on &&
     (profile === 'personal' || profile === 'work') &&
-    hour >= preferences.from &&
-    hour < preferences.until &&
+    hour >= hours.from &&
+    hour < hours.until &&
     preferences.skipped[profile] !== planDay(now) &&
     !kept &&
     !planning
