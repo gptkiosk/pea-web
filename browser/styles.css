@@ -6254,6 +6254,9 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
   font-size: 13px;
   color: var(--muted);
 }
+.plan-offer-switch [hidden] {
+  display: none;
+}
 .plan-offer-switch[hidden] {
   display: none;
 }

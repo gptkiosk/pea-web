@@ -438,8 +438,35 @@ export function planOfferPreferences(value) {
   return {
     on: v.on !== false,
     ...offerHours(v.from, v.until),
+    notify: v.notify === true,
     skipped: { personal: offerDay(skipped.personal), work: offerDay(skipped.work) },
   };
+}
+// What PEA for Mac is handed, when the owner has asked for it, so the offer can appear as a Mac
+// notification while this page is closed or out of view: one fixed line at the first offered hour
+// of each of the next days. Null when the owner has not asked. Today's is left out once its hour
+// has come, when a plan is kept for today, when both profiles said "Not today", and, while this
+// page is in view, in the last minutes before the hour, because the bar over Chat shows instead.
+export const planOfferNotice = 'Plan your day? Open PEA for a short Time management interview.';
+export function planOfferNotices({ now, preferences, keptToday = false, visible = false, days = 7 }) {
+  if (!preferences.on || !preferences.notify) return null;
+  const start = new Date(now),
+    today = planDay(now),
+    list = [];
+  for (let i = 0; i < days; i++) {
+    const due = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i, preferences.from).getTime(),
+      day = planDay(due);
+    if (due <= now) continue;
+    if (
+      day === today &&
+      (keptToday ||
+        (preferences.skipped.personal === today && preferences.skipped.work === today) ||
+        (visible && due - now <= 180000))
+    )
+      continue;
+    list.push({ id: `plan-offer-${day}`, title: planOfferNotice, due });
+  }
+  return list;
 }
 // An hour as the interface names it: "5 am", "noon", "midnight".
 export function hourLabel(hour) {

@@ -2,6 +2,21 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.81] - 2026-11-26
+
+### Added
+
+- **The Time management offer as a Mac notification.** Where PEA for Mac is taking notifications, the offer's row on Today gains a switch: **Also as a Mac notification when this page is closed or out of view**. It starts off, and turning it on shows a review of exactly what is handed over.
+- What is handed over is one fixed line, "Plan your day? Open PEA for a short Time management interview.", and the first hour you chose, for each of the next seven days. Nothing about your day, plan, to-dos or chat goes with it. It travels in the same list as your reminders, and each can be turned off without the other.
+- While a PEA page is open and in view it withdraws that day's notification shortly before the hour, because the bar over Chat shows instead. A day with a plan already kept, or declined in both profiles, gets none.
+- Pressing a PEA notification on the Mac now opens PEA in your browser.
+
+### Known limits
+
+- Only PEA for Mac can show it. A copy served by the Python gateway has no notifications, and the switch does not appear there.
+- The page can only update the Mac while it is open and connected, so after seven days without opening PEA the notifications stop. With reminders also handed over and the saved board locked, nothing is updated until it is unlocked.
+- Not yet seen on a real Mac: whether macOS allows notifications from the unsigned build, and the press that opens PEA.
+
 ## [0.1.0-rc.4.dev.80] - 2026-11-26
 
 ### Added

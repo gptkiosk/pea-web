@@ -4,7 +4,7 @@
 // Run with: node --test browser/tests/dom/*.test.mjs
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { askModel, browserSkipReason, openConnectedPage, startStack } from './harness.mjs';
+import { askModel, browserSkipReason, gatewayKind, openConnectedPage, startStack } from './harness.mjs';
 
 const skip = browserSkipReason();
 const options = { skip, timeout: 90000 };
@@ -562,7 +562,7 @@ test('in the morning PEA offers Time management over Chat, and it can be decline
   await page.click('#plan-offer-skip');
   assert.equal(await hidden('plan-offer'), true);
   const today = await page.evaluate(`(() => { const d = new Date(Date.now()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()`);
-  assert.deepEqual(await stored(), { on: true, from: 5, until: 12, skipped: { personal: today, work: '' } });
+  assert.deepEqual(await stored(), { on: true, from: 5, until: 12, notify: false, skipped: { personal: today, work: '' } });
   await page.fill('#profile', 'work');
   assert.equal(await hidden('plan-offer'), false);
   // Blended has no planning, so no offer and no switch.
@@ -585,6 +585,8 @@ test('in the morning PEA offers Time management over Chat, and it can be decline
   const list = (id) => page.evaluate(`[...document.getElementById('${id}').options].map((o) => o.textContent).join(',')`);
   const picked = () => page.evaluate(`document.getElementById('plan-offer-from').value + '-' + document.getElementById('plan-offer-until').value`);
   assert.equal(await picked(), '5-12');
+  if (gatewayKind === 'python')
+    assert.equal(await hidden('plan-offer-notify-row'), true, 'no Mac notification is offered where the gateway cannot show one');
   assert.equal(await list('plan-offer-from'), 'midnight,1 am,2 am,3 am,4 am,5 am,6 am,7 am,8 am,9 am,10 am,11 am');
   assert.match(await list('plan-offer-until'), /^6 am,7 am,.*,noon,1 pm,.*,11 pm,midnight$/);
   await page.fill('#plan-offer-until', '18');
