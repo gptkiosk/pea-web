@@ -357,7 +357,7 @@ export function planGuidance(scope, { spoken = false } = {}) {
     '2. What is in the way. From what they listed, ask what is making this hard: is the list too long, does everything feel urgent, is there one task they keep putting off, do they lose focus, or is the time broken up by meetings and requests? Ask about the particular items they gave, not in general.',
     `3. Pick the method. From their answers choose exactly one way to choose what matters and one way to get it done, and say in one or two sentences which you picked and why it fits what they told you. If they prefer another, use theirs.\n  To choose what matters:\n${methods('choose')}\n  To get it done:\n${methods('do')}`,
     `4. The three that matter most. Apply the choosing method to their list out loud and propose the three most important tasks${week ? ' for the week, then at most three for each working day' : ' for today'}. Each must be something that can be finished or visibly moved on. Ask them to confirm or swap. Say plainly what waits, is batched, is handed on or is dropped.`,
-    `5. Time slices. Ask when their working ${week ? 'days start and end' : 'day starts and ends'} and when they have most energy, if you do not know. Then lay out ${week ? 'each day' : 'the day'} as slices with clock times: the three tasks first, in the shape of the method you picked, around the fixed commitments, with breaks, a buffer of about a quarter of the time for overruns and surprises, and one slice for mail and small jobs. Give each task a size you both believe; ask how long it really takes when unsure. Never fill every minute.`,
+    `5. Time slices. Ask when their working ${week ? 'days start and end' : 'day starts and ends'} and when they have most energy, if you do not know. Then lay out ${week ? 'each day' : 'the day'} as slices with clock times: the three tasks first, in the shape of the method you picked, around the fixed commitments, with breaks, a buffer of about a quarter of the time for overruns and surprises, and one slice for mail and small jobs. Give each task a size you both believe; ask how long it really takes when unsure. Never fill every minute.${week || spoken ? '' : ' When you write the day out, put the three tasks as a numbered list and under it each slice on its own line in 24-hour times, exactly like “09:00–10:30 Draft the report”. The owner can then keep that plan on their Today tab with the Keep on Today button over Chat; you cannot put it there, so never say you did.'}`,
     `6. Start. Ask for the first small action of the first slice, and tell them to begin it now. ${week ? 'Suggest they keep this pairing for five working days before judging it, and adjust slice lengths if tasks keep overrunning.' : 'Offer to check in at the end of the day on what held and what to change tomorrow.'}`,
     '- Use only tasks, times and events the owner gave you or that are shown to you. Never invent a task, a meeting or a deadline, and never assume the time of day.',
     '- When the plan is agreed, offer once to put the three tasks on their to-do list with due times and reminders, using the to-do proposal described in these instructions. Offer a calendar block only if they ask, one block per reply, using the calendar proposal described in these instructions. Nothing is added until they approve it; never say it was added.',
@@ -367,4 +367,54 @@ export function planGuidance(scope, { spoken = false } = {}) {
       ? '- This reply will be heard, not read: two to four plain sentences, no lists or symbols. Read a schedule as short spoken lines, one slice a sentence.'
       : '- Keep each reply short. Show the three tasks as a numbered list and the time slices as a plain list of lines like “09:00–10:30 Draft the report”.',
   ].join('\n');
+}
+
+// A day's plan kept on Today. It is read from a reply the model wrote during the interview, by
+// fixed rules, and only when the owner presses the button: lines like "09:00–10:30 Draft the
+// report" are the time slices, and a numbered list of up to three items is the tasks. The words
+// are shown as plain text and are never instructions.
+export const dayPlanLimits = { slices: 24, tasks: 3, what: 120, least: 2 };
+const planWords = (value) =>
+  String(value)
+    .replace(/[*_`#]+/g, '')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+const clock = (h, m) => String(h).padStart(2, '0') + ':' + m;
+// The plan a reply holds as { tasks: [text], slices: [{ start, end, what }] }, or null when it
+// has fewer than two usable time slices. Times are 24-hour, on one day, each slice ending after
+// it starts.
+export function planFromReply(text) {
+  if (typeof text !== 'string' || text.length > 50000) return null;
+  const slices = [],
+    tasks = [];
+  for (const line of text.split(/\r?\n/)) {
+    const slice = /^\s*(?:[-*•]\s*)?\**(\d{1,2})[:.](\d{2})\s*(?:–|—|-|to)\s*(\d{1,2})[:.](\d{2})\**\s*[:–—-]?\s*(.+)$/.exec(line);
+    if (slice) {
+      const [, h1, m1, h2, m2] = slice,
+        what = planWords(slice[5]);
+      if (+h1 > 23 || +h2 > 24 || +m1 > 59 || +m2 > 59 || (+h2 === 24 && +m2 > 0)) continue;
+      if (+h2 * 60 + +m2 <= +h1 * 60 + +m1 || !what || what.length > dayPlanLimits.what) continue;
+      if (slices.length < dayPlanLimits.slices) slices.push({ start: clock(+h1, m1), end: clock(+h2, m2), what });
+      continue;
+    }
+    // "1. Draft the report": counted only in order from one, and only the first three.
+    const task = /^\s*(\d)[.)]\s+(.+)$/.exec(line);
+    if (task && +task[1] === tasks.length + 1 && tasks.length < dayPlanLimits.tasks) {
+      const what = planWords(task[2]);
+      if (what && what.length <= dayPlanLimits.what) tasks.push(what);
+    }
+  }
+  return slices.length >= dayPlanLimits.least ? { tasks, slices } : null;
+}
+// The owner's local day as YYYY-MM-DD. A kept plan is shown only on the day it was kept.
+export function planDay(now) {
+  const d = new Date(now);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// The slice the clock is in: its place in the list, or -1.
+export function sliceNow(slices, now) {
+  const d = new Date(now),
+    at = clock(d.getHours(), String(d.getMinutes()).padStart(2, '0'));
+  return slices.findIndex((s) => s.start <= at && at < s.end);
 }

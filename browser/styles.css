@@ -6160,3 +6160,76 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
     grid-column: span 2;
   }
 }
+
+/* Today's plan: the day the owner chose to keep from a Time management interview. */
+.day-plan {
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  border-radius: 18px;
+}
+.day-plan[hidden] {
+  display: none;
+}
+.day-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.day-plan-head h3 {
+  margin: 0;
+}
+.day-plan-remove,
+.debate-bar #plan-keep {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.debate-bar #plan-keep {
+  border-color: var(--green);
+  font-weight: 700;
+}
+.debate-bar #plan-keep[hidden] {
+  display: none;
+}
+.day-plan-remove:hover,
+.day-plan-remove:focus-visible {
+  border-color: var(--green);
+  color: var(--green);
+}
+.day-plan-tasks {
+  margin: 10px 0 0;
+  padding-left: 1.4rem;
+  font-weight: 600;
+}
+.day-plan-slices {
+  list-style: none;
+  margin: 10px 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.day-plan-slices li {
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.day-plan-time {
+  flex: none;
+  min-width: 6.4rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.day-plan-now {
+  border-color: var(--green);
+  background: var(--tint);
+}

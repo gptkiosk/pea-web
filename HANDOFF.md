@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Today’s plan card — 2026-11-25
+
+Version `0.1.0-rc.4.dev.76`. Asked for by the owner: the day's plan shown on Today only if they want it for that day.
+
+- Source: `browser/presence.mjs` (`dayPlanLimits`, `planFromReply`, `planDay`, `sliceNow`; one sentence added to step 5 of `planGuidance` for a written day), `browser/app.mjs` (`planOffered`, `dayPlans`, `renderDayPlan`; `#plan-keep`, `#day-plan-remove`), `browser/index.html` (`#plan-keep`, `#day-plan`), `browser/styles.css` (last section).
+- Tests: `browser/tests/presence.test.mjs` (one new; one extended), `browser/tests/dom/chat-window.test.mjs` (the planning test extended: nothing to keep at first, the button after a reply with slices, the card's tasks and slices as plain words, the other profile, the plan outliving the interview, Remove).
+- How it works: no new proposal format. The page reads the newest reply of the interview for lines like `09:00–10:30 Draft the report` and a numbered list of up to three tasks, by fixed rules. The owner's press on Keep on Today is what puts it on the card. A reply written with a web page in view offers nothing.
+- Known gaps: kept in the tab's memory only, so a reload or an update loses it; it is not in the encrypted board, the backup file or the home summary. The reader needs 24-hour times on one line each, so a plan the model writes another way (a table, 12-hour times, or spoken in the voice room) offers no button. The marked slice moves only when Today is opened again. No ticking off of tasks, no link to the to-do list, no week view. Not tried with a real model.
+- Next action: owner tries it with their model; if the model's layout often misses the format, tighten the guidance or widen the reader. Decide whether the plan should be kept with the board so it survives a reload.
+
 ## Time management: a planning interview that picks its method — 2026-11-25
 
 Version `0.1.0-rc.4.dev.75`. Asked for by the owner for Web first ("I am adding it to the app now"); nothing about the iPhone side was read, so parity is unknown.
@@ -31,7 +41,7 @@ Version `0.1.0-rc.4.dev.75`. Asked for by the owner for Web first ("I am adding 
 - Source: `browser/presence.mjs` (`planScopes`, `planMethods`, `planOpening`, `planAsk`, `planControl`, `planGuidance`), `browser/app.mjs` (`plans`, `planNow`, `renderPlan`, `endPlan`, `planWords`; `#home-plan`, `#plan-voice`, `#plan-end`; the `plan` hook), `browser/live-ui.mjs` (`hooks.plan`, Chat only), `browser/index.html` (`#home-plan`, `#plan-bar`), `browser/styles.css` (last section: six tiles on a phone).
 - Tests: `browser/tests/presence.test.mjs` (two new), `browser/tests/dom/chat-window.test.mjs` (one new: tile, opening message, guidance, bar, other profile, ended by words, a week by words).
 - How it works: the page only decides that an interview is on and tells the model the six steps and five methods. The model runs the interview and chooses the pairing from the owner's answers; no rule on the page checks which method was picked or that the steps were followed. To-dos and calendar events go through the existing `pea-task` and `pea-calendar` proposals and their reviews.
-- Known gaps: the plan itself is not kept anywhere but the conversation; there is no daily prompt to start it, no record of which pairing was used on earlier days, and no five-day check-in. The model is not told the time of day or the time zone, so it asks. Calendar blocks are one per reply and need the time zone from the owner, as before. A week has no tile; it is started by words. A debate and a plan cannot run together: the plan is set aside while a debate is on. Not tried with a real model, in the voice room, or on a real phone; the six tiles were not looked at on screen.
+- Known gaps: the plan itself was not kept anywhere but the conversation (the Today’s plan card above now keeps a day when asked); there is no daily prompt to start it, no record of which pairing was used on earlier days, and no five-day check-in. The model is not told the time of day or the time zone, so it asks. Calendar blocks are one per reply and need the time zone from the owner, as before. A week has no tile; it is started by words. A debate and a plan cannot run together: the plan is set aside while a debate is on. Not tried with a real model, in the voice room, or on a real phone; the six tiles were not looked at on screen.
 - Next action: owner tries it with their model and says whether the plan should be kept (for example as a card on Today) and whether PEA should offer it each morning.
 
 ## Tips to press and a globe on section rows — 2026-11-25

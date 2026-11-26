@@ -300,6 +300,50 @@ test('the interview walks six steps, picks one method of each kind from the owne
   assert.match(week, /keep this pairing for five working days/);
   assert.match(heard, /This reply will be heard, not read/);
   assert.doesNotMatch(heard, /numbered list/);
+  assert.match(day, /Keep on Today button over Chat; you cannot put it there, so never say you did/);
+  assert.doesNotMatch(week + heard, /Keep on Today/);
   assert.equal(planGuidance('month'), '');
   assert.equal(planGuidance(undefined), '');
+});
+
+import { dayPlanLimits, planDay, planFromReply, sliceNow } from '../presence.mjs';
+test('a day’s plan is read from a reply’s own lines by fixed rules, and only when it holds real time slices', () => {
+  const reply = [
+    'Here is the day.',
+    '1. **Draft the report**',
+    '2. Expenses',
+    '3. Call the plumber',
+    '4. A fourth that is not one of the three',
+    '- 09:00–10:30 Draft the report',
+    '* **10:30-10:45** Break',
+    '10:45 to 11:30: Expenses',
+    '• 9.00—9.30 Mail',
+    '25:00–26:00 Not a time',
+    '12:00–11:00 Backwards',
+    '13:00–13:00 Empty',
+    '14:00–15:00 ' + 'x'.repeat(dayPlanLimits.what + 1),
+    '23:00–24:00 Wind down',
+  ].join('\n');
+  assert.deepEqual(planFromReply(reply), {
+    tasks: ['Draft the report', 'Expenses', 'Call the plumber'],
+    slices: [
+      { start: '09:00', end: '10:30', what: 'Draft the report' },
+      { start: '10:30', end: '10:45', what: 'Break' },
+      { start: '10:45', end: '11:30', what: 'Expenses' },
+      { start: '09:00', end: '09:30', what: 'Mail' },
+      { start: '23:00', end: '24:00', what: 'Wind down' },
+    ],
+  });
+  // Tasks are optional and counted only in order from one; a single slice is not a plan.
+  assert.deepEqual(planFromReply('2. Not first\n09:00–10:00 A\n10:00–11:00 B').tasks, []);
+  for (const none of ['09:00–10:00 Only one', 'No times here.\n1. A\n2. B', '', null, 'x'.repeat(50001)])
+    assert.equal(planFromReply(none), null, String(none).slice(0, 30));
+  const many = Array.from({ length: 30 }, (_, i) => `0${i % 9}:00–0${(i % 9) + 1}:00 Slice ${i}`).join('\n');
+  assert.equal(planFromReply(many).slices.length, dayPlanLimits.slices);
+  // The day is the owner's local day, and the slice in play is found by the clock.
+  const at = (h, m) => new Date(2026, 10, 25, h, m).getTime();
+  assert.equal(planDay(at(23, 59)), '2026-11-25');
+  assert.notEqual(planDay(at(23, 59) + 60000), '2026-11-25');
+  const slices = planFromReply(reply).slices;
+  assert.deepEqual([sliceNow(slices, at(9, 0)), sliceNow(slices, at(10, 44)), sliceNow(slices, at(12, 0))], [0, 1, -1]);
 });

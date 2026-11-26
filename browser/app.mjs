@@ -26,6 +26,9 @@ import {
   debateSwitch,
   debateTopics,
   planAsk,
+  planDay,
+  planFromReply,
+  sliceNow,
   planControl,
   planGuidance,
   planOpening,
@@ -521,6 +524,7 @@ function tab(next) {
   if (!['chat', 'today', 'greenhouse', 'harvest'].includes(next)) return;
   // Overdue and due-today counts move with the clock, so the summary is redrawn on the way in.
   if (next === 'today') home?.render();
+  if (next === 'today') renderDayPlan();
   stopSpeaking();
   workspace.go(next);
 }
@@ -1504,6 +1508,7 @@ $('profile').onchange = () => {
   memory.profileChanged();
   renderDebate();
   renderPlan();
+  renderDayPlan();
 };
 // The theme row in the menu names the theme it switches to.
 const nameTheme = () =>
@@ -1621,10 +1626,56 @@ function planNow(sending = '') {
   if (!plan.starting) plans.delete(profile);
   return plan.starting ? plan : null;
 }
+// The newest reply of the interview that holds a day laid out in time slices, as a plan, or null.
+// A reply written with a web page in view offers nothing to keep.
+function planOffered() {
+  const plan = planNow();
+  if (plan?.scope !== 'day') return null;
+  const said = history('chat'),
+    from = said.findIndex((m) => m.role === 'user' && m.text === plan.opening);
+  if (from < 0) return null;
+  for (let i = said.length - 1; i > from; i--) {
+    const m = said[i];
+    if (m.role !== 'assistant' || m.incomplete || m.preview || m.fromPage) continue;
+    const found = planFromReply(m.text);
+    if (found) return found;
+  }
+  return null;
+}
 function renderPlan() {
   const plan = planNow();
   $('plan-bar').hidden = !plan;
   $('plan-bar-scope').textContent = plan?.scope === 'week' ? 'your week' : 'your day';
+  $('plan-keep').hidden = !planOffered();
+}
+// A day's plan the owner chose to keep: shown on Today for that day, in this tab only.
+const dayPlans = new Map();
+function renderDayPlan() {
+  const now = Date.now();
+  for (const [who, kept] of dayPlans) if (kept.day !== planDay(now)) dayPlans.delete(who);
+  const kept = dayPlans.get(profile) ?? null,
+    current = kept ? sliceNow(kept.slices, now) : -1;
+  $('day-plan').hidden = !kept;
+  $('day-plan-tasks').hidden = !kept?.tasks.length;
+  $('day-plan-tasks').replaceChildren(
+    ...(kept?.tasks ?? []).map((what) => Object.assign(document.createElement('li'), { textContent: what })),
+  );
+  $('day-plan-slices').replaceChildren(
+    ...(kept?.slices ?? []).map((slice, i) => {
+      const li = document.createElement('li'),
+        time = document.createElement('span'),
+        what = document.createElement('span');
+      time.className = 'day-plan-time';
+      time.textContent = `${slice.start}–${slice.end}`;
+      what.textContent = slice.what;
+      li.append(time, what);
+      if (i === current) {
+        li.className = 'day-plan-now';
+        li.setAttribute('aria-current', 'time');
+      }
+      return li;
+    }),
+  );
 }
 function endPlan() {
   plans.delete(profile);
@@ -1765,6 +1816,19 @@ async function sayInChat(text) {
       if (kept) delete kept.starting;
       renderPlan();
     }
+  };
+  // Keeping is the owner's own press: the lines of that reply go on Today exactly as written.
+  $('plan-keep').onclick = () => {
+    const found = planOffered();
+    if (!found) return notice('There is no day laid out in time slices to keep yet.');
+    dayPlans.set(profile, { day: planDay(Date.now()), ...found });
+    renderDayPlan();
+    notice('Kept on Today for today. It stays in this tab and is not saved.');
+  };
+  $('day-plan-remove').onclick = () => {
+    dayPlans.delete(profile);
+    renderDayPlan();
+    notice('Today’s plan was removed.');
   };
   $('plan-voice').onclick = () => $('chat-voice').click();
   $('plan-end').onclick = endPlan;
