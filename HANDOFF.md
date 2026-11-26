@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Heading of the offer's Mac notification — 2026-11-26
+
+Version `0.1.0-rc.4.dev.82`. Asked for by the owner: “Change the notification heading from "PEA reminder"”.
+
+- Source: `mac/Sources/PEALauncherCore/Reminders.swift` (`notificationHeading(for:)`: ids starting `plan-offer-` are headed “Time management”; everything else stays “PEA reminder”). No page, contract or gateway change.
+- Tests: `mac/Tests/PEALauncherCoreTests/LauncherTests.swift` (one new).
+- Known gaps: the owner did not name the new heading; “Time management” for the offer only was my choice, and to-do reminders were left as they were. Not seen on a real Mac.
+- Next action: owner says if another heading, or a change to the to-do reminders' heading too, is wanted.
+
 ## Time management offer as a Mac notification — 2026-11-26
 
 Version `0.1.0-rc.4.dev.81`. Asked for by the owner: “Have the Mac launcher notify when the tab is closed”.

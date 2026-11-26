@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.82] - 2026-11-26
+
+### Changed
+
+- **PEA for Mac:** the notification for the Time management offer is now headed "Time management", not "PEA reminder". Your own to-do reminders keep the "PEA reminder" heading. Not yet seen on a real Mac.
+
 ## [0.1.0-rc.4.dev.81] - 2026-11-26
 
 ### Added

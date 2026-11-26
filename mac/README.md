@@ -34,7 +34,7 @@ On its own, PEA in a browser can only remind you while its tab is open. With the
 
 What is handed over is the title and time of each open reminder still ahead, from the Personal and Work profiles alike, at most 64 at a time, and the whole list again whenever it changes. The app passes them to macOS, which shows each at its time. The app writes nothing to a file itself, but macOS keeps the waiting titles in plain form, outside the browser's encrypted storage, and may show them on the lock screen.
 
-The Time management offer can be handed over the same way, by its own switch beside the offer on Today: one fixed line at the first hour you chose, for each of the next seven days, and nothing about your day. A page that is open and in view withdraws that day’s notification, since it shows the offer itself.
+The Time management offer can be handed over the same way, by its own switch beside the offer on Today: one fixed line, headed “Time management”, at the first hour you chose, for each of the next seven days, and nothing about your day. A page that is open and in view withdraws that day’s notification, since it shows the offer itself.
 
 Turning either switch off withdraws the reminders still waiting. The page can only update the Mac while it is open and connected: a to-do checked off in a tab that has not reconnected since a reload is still on the Mac until it does.
 
