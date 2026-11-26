@@ -6233,3 +6233,16 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
   border-color: var(--green);
   background: var(--tint);
 }
+
+/* The morning offer's switch on Today. */
+.plan-offer-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.plan-offer-switch[hidden] {
+  display: none;
+}

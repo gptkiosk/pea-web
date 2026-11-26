@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Morning offer of Time management — 2026-11-26
+
+Version `0.1.0-rc.4.dev.79`. Asked for by the owner: “Have PEA offer Time management each morning”.
+
+- Source: `browser/presence.mjs` (`planOfferHours`, `planOfferPreferences`, `loadPlanOffer`, `savePlanOffer`, `planOfferDue`; storage name `pea-plan-offer-v1`), `browser/app.mjs` (`planOffer`, `renderPlanOffer`, `changePlanOffer`; `#plan-offer-start`, `#plan-offer-skip`, `#plan-offer-stop`, `#plan-offer-on`; a one-minute redraw and one on returning to the tab), `browser/index.html` (`#plan-offer` bar before `#plan-bar`; `#plan-offer-row` switch on Today), `browser/styles.css` (last section), `browser/backup.mjs` (the setting added to `travellingSettings`).
+- Tests: `browser/tests/presence.test.mjs` (one new), `browser/tests/dom/chat-window.test.mjs` (one new, with the page's clock set to morning and afternoon).
+- How it works: a bar drawn from the clock and what is kept here. No timer starts anything, no model is asked and nothing is written to Chat until the owner presses Plan my day, which is the same press as the tile.
+- Known gaps: shown only while a PEA tab is open; no system notification and nothing from PEA for Mac. The hours (5:00 to noon) are fixed. While the saved board is locked the page cannot see a kept plan, so the offer can show on a day that already has one. The words are a fixed line, not PEA speaking through a model. Not seen on the owner's screen or phone.
+- Next action: owner looks at it tomorrow morning; decide whether the hours should be a setting and whether the Mac launcher should notify.
+
 ## Today’s plan in the whole backup — 2026-11-26
 
 Version `0.1.0-rc.4.dev.78`. Asked for by the owner: “Add the plan to the portable backup file”. Asked which file, the owner chose the whole backup only, so the shared one-profile format `pea-backup-v1` (docs/CONTRACTS.md, `BackupFixtures.json`) is untouched.

@@ -418,3 +418,48 @@ export function sliceNow(slices, now) {
     at = clock(d.getHours(), String(d.getMinutes()).padStart(2, '0'));
   return slices.findIndex((s) => s.start <= at && at < s.end);
 }
+
+// The morning offer: while PEA is open in the morning, a bar over Chat offers the Time
+// management interview. It only offers; nothing starts and no model is asked until the owner
+// presses. Kept on this browser: whether to offer at all, and the day each profile said
+// "Not today". No time, place or conversation content is stored with it.
+const planOfferKey = 'pea-plan-offer-v1';
+export const planOfferHours = { from: 5, until: 12 };
+const offerDay = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '');
+export function planOfferPreferences(value) {
+  const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {},
+    skipped = v.skipped && typeof v.skipped === 'object' && !Array.isArray(v.skipped) ? v.skipped : {};
+  return {
+    on: v.on !== false,
+    skipped: { personal: offerDay(skipped.personal), work: offerDay(skipped.work) },
+  };
+}
+export function loadPlanOffer(storage = globalThis.localStorage) {
+  try {
+    return planOfferPreferences(JSON.parse(storage.getItem(planOfferKey) || '{}'));
+  } catch {
+    return planOfferPreferences({});
+  }
+}
+export function savePlanOffer(value, storage = globalThis.localStorage) {
+  try {
+    storage.setItem(planOfferKey, JSON.stringify(planOfferPreferences(value)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+// Whether to show the offer now: switched on, Work or Personal, a morning hour by the owner's
+// clock, not declined today, no plan kept for today and no interview under way.
+export function planOfferDue({ now, preferences, profile, kept = false, planning = false }) {
+  const hour = new Date(now).getHours();
+  return (
+    preferences.on &&
+    (profile === 'personal' || profile === 'work') &&
+    hour >= planOfferHours.from &&
+    hour < planOfferHours.until &&
+    preferences.skipped[profile] !== planDay(now) &&
+    !kept &&
+    !planning
+  );
+}
