@@ -43,7 +43,10 @@ export function installBoard(hooks) {
     plans = Object.fromEntries(Object.entries(plans).filter(([, kept]) => kept.day === today));
     return plans;
   }
-  async function save() {
+  // The save under way, if any, so a change that must follow it can wait for it.
+  let pending = Promise.resolve();
+  const save = () => (pending = saveNow());
+  async function saveNow() {
     clearBackup();
     if (vault?.key) {
       saving = true;
@@ -645,8 +648,11 @@ export function installBoard(hooks) {
       },
       // 'saved', 'tab' (no saved board here) or 'locked' (a saved board exists but is locked).
       where: () => (vault?.key && !locked ? 'saved' : locked ? 'locked' : 'tab'),
-      set(who, plan) {
-        if (saving || porting) throw new ServiceError('Wait for the board to finish saving.');
+      // Every plan kept for today, by profile.
+      all: () => ({ ...currentPlans() }),
+      async set(who, plan) {
+        while (saving) await pending.catch(() => {});
+        if (porting) throw new ServiceError('Wait for the board backup to finish.');
         const next = { ...plans };
         if (plan) next[who] = plan;
         else delete next[who];
@@ -655,12 +661,11 @@ export function installBoard(hooks) {
         if (!(vault?.key && !locked)) {
           if (plan && locked) tabPlans.add(who);
           else tabPlans.delete(who);
-          return Promise.resolve();
+          return;
         }
         // A failed save locks the board; the plan then counts as kept in this tab.
-        return save().then(() => {
-          if (locked && plan) tabPlans.add(who);
-        });
+        await save();
+        if (locked && plan) tabPlans.add(who);
       },
     },
   };

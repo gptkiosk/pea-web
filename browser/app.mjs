@@ -2589,6 +2589,13 @@ portable = installBackup({
   canon: () => canon,
   days: () => days,
   decks: () => decks,
+  // Plans kept on Today travel in the whole backup; a restored one shows on Today at once.
+  dayPlans: () =>
+    board && {
+      all: () => board.planStore.all(),
+      where: () => board.planStore.where(),
+      set: (who, plan) => board.planStore.set(who, plan).then(renderDayPlan),
+    },
   // Only for a file the owner ticks the box for: the keys held in this tab, and the way back.
   keys: () => ({ ...live.keys(), ...(research?.keys() ?? {}), ...(speech?.keys() ?? {}) }),
   offerKeys: (keys) => [

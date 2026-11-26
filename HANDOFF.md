@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Today’s plan in the whole backup — 2026-11-26
+
+Version `0.1.0-rc.4.dev.78`. Asked for by the owner: “Add the plan to the portable backup file”. Asked which file, the owner chose the whole backup only, so the shared one-profile format `pea-backup-v1` (docs/CONTRACTS.md, `BackupFixtures.json`) is untouched.
+
+- Source: `browser/backup.mjs` (`validFull` accepts an optional non-empty `plans`, checked by `validatePlans` from `taskboard.mjs`; `describeFull`, `describeRestore` and `describeFullRestore` show it), `browser/backup-ui.mjs` (`dayPlans` hook; `dayPlanFor`, `planNotes`; the plan is set after everything else), `browser/board-ui.mjs` (`planStore.all`; `planStore.set` now waits for a save under way instead of refusing; `pending`), `browser/app.mjs` (the `dayPlans` hook given to `installBackup`).
+- Tests: `browser/tests/backup.test.mjs` (one new), `browser/tests/dom/backup.test.mjs` (one new: review and cancel, restore on the day, another day’s plan left out, same and different plan already here, a backup made with the plan, the one-profile file without it, a locked board).
+- Rules: added only when `plan.day` is today, no plan is kept here for that profile, and the board is not locked. A plan here is never replaced.
+- Known gaps: a plan is useful in a backup only on the day it was made, by design of the one-day plan. Builds before this one refuse a whole backup that holds a plan. Not tried on the owner’s own data.
+- Next action: none needed; owner may try Back up everything on a day with a kept plan and read the review.
+
 ## Today’s plan saved with the encrypted board — 2026-11-25
 
 Version `0.1.0-rc.4.dev.77`. Asked for by the owner: “Save the kept plan with the encrypted board”.
@@ -31,7 +41,7 @@ Version `0.1.0-rc.4.dev.77`. Asked for by the owner: “Save the kept plan with 
 - Tests: `browser/tests/taskboard.test.mjs` (one new: record forms, refused shapes, encryption, lock, backup and restore, removal; the to-do test's expected values gained `plans`), `browser/tests/dom/chat-window.test.mjs` (one new: tab-only keep, turning on saving, Remove, keep while locked then unlock, reload, unreadable record, unlock, other profile).
 - Rules: a plan is validated on every save and every unlock (exact keys, `HH:MM` times, start before end, 2 to 24 slices, up to 3 tasks, 120 characters, Work or Personal only). Only today's plans are written. A plan kept while the board is locked replaces the saved one for that profile on unlock.
 - Found on the way: `#board-unlock`'s `close` listener acted on a close event delivered after the dialog had been opened again (Chrome delivers it on the next drawn frame), cancelling the new unlock. It now ignores a close that arrives while the dialog is open, as `#library-unlock` already did. The new browser test delivers such a late event during its second unlock. This failed one of the two CI runs of the first push.
-- Known gaps: the plan is not in the portable backup file (Settings backup), only in the encrypted board backup. While the board is locked, Today does not say a plan may be waiting behind the lock. Builds before this one refuse a board that holds a plan. Not tried with a real model or on the owner's saved board.
+- Known gaps: the plan is not in the one-profile backup file, only in the encrypted board backup (and, from dev.78, the whole backup). While the board is locked, Today does not say a plan may be waiting behind the lock. Builds before this one refuse a board that holds a plan. Not tried with a real model or on the owner's saved board.
 - Next action: owner keeps a plan with their board unlocked, reloads, unlocks and confirms the card returns.
 
 ## Today’s plan card — 2026-11-25
