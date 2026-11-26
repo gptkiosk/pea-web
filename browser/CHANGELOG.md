@@ -2,6 +2,19 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.77] - 2026-11-25
+
+### Changed
+
+- **Today’s plan is saved with your encrypted story board.** When the story board is saved on this browser and unlocked, a plan you keep on Today is saved in the same encrypted record, so it is still there after a reload, an update or closing the tab, once you unlock the board. It is part of the encrypted board backup file too. The card says where the plan is: saved, or only in this tab.
+- If the board is not saved on this browser, the plan stays in the tab as before; turning on encrypted saving takes it into the board. If the board is locked when you press **Keep on Today**, the plan waits in the tab and is saved when you unlock, replacing a plan saved earlier that day for that profile.
+- While the board is locked, Today shows no plan. The plan is still for one day: an earlier day's plan is not shown and leaves the record the next time the board is saved.
+- A board holding a kept plan cannot be opened by a build older than this one until the plan is removed or its day has passed and the board is saved again. Nothing is lost; the older build refuses and changes nothing.
+
+### Fixed
+
+- Locking the story board and unlocking it again straight away could report “Board unlock was cancelled” and leave the dialog open. The same fix was already in the library’s unlock dialog.
+
 ## [0.1.0-rc.4.dev.76] - 2026-11-25
 
 ### Added

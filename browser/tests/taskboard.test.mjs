@@ -277,8 +277,8 @@ test('to-dos are encrypted with the stories, survive lock and backup, and old bo
     todos = addTodo([], 'personal', 'CANARY PRIVATE TODO', {}, Date.now());
 
   assert.deepEqual(encodeBoard([story], []), [story], 'no to-dos keeps the earlier format');
-  assert.deepEqual(decodeBoard([story]), { tasks: [story], todos: [] });
-  assert.deepEqual(decodeBoard(encodeBoard([story], todos)), { tasks: [story], todos });
+  assert.deepEqual(decodeBoard([story]), { tasks: [story], todos: [], plans: {} });
+  assert.deepEqual(decodeBoard(encodeBoard([story], todos)), { tasks: [story], todos, plans: {} });
   for (const bad of [
     { schema: 3, tasks: [story], todos },
     { schema: 2, tasks: [story], todos, extra: 1 },
@@ -318,6 +318,98 @@ test('to-dos are encrypted with the stories, survive lock and backup, and old bo
   assert.deepEqual(legacy.todos, []);
   await assert.rejects(
     new BoardVault(makeStore()).unlock('synthetic board passphrase', [story], [{ nope: true }]),
+    /invalid/,
+  );
+});
+
+test('a kept day plan is encrypted with the board, survives lock and backup, and leaves earlier boards as they were', async () => {
+  const { addTodo } = await import('../todos.mjs');
+  const { encodeBoard, decodeBoard, validatePlans } = await import('../taskboard.mjs');
+  const makeStore = () => {
+    let record;
+    return {
+      get: async () => structuredClone(record),
+      comparePut: async (expected, value) => {
+        if (!sameBoardRevision(record, expected)) throw Error('conflict');
+        record = structuredClone(value);
+      },
+    };
+  };
+  const story = newStory([], 'personal', 'A story'),
+    todos = addTodo([], 'personal', 'An errand', {}, Date.now()),
+    plan = {
+      day: '2026-11-25',
+      tasks: ['CANARY PRIVATE PLAN'],
+      slices: [
+        { start: '09:00', end: '10:30', what: 'Draft the report' },
+        { start: '23:00', end: '24:00', what: 'Wind down' },
+      ],
+    },
+    plans = { personal: plan };
+
+  // No plan kept: the record is written exactly as before, so earlier builds still open it.
+  assert.deepEqual(encodeBoard([story], [], {}), [story]);
+  assert.deepEqual(encodeBoard([story], todos, {}), { schema: 2, tasks: [story], todos });
+  assert.deepEqual(encodeBoard([story], [], plans), { schema: 3, tasks: [story], todos: [], plans });
+  assert.deepEqual(decodeBoard(encodeBoard([story], todos, plans)), { tasks: [story], todos, plans });
+  assert.equal(validatePlans({}), true);
+  assert.equal(validatePlans({ personal: plan, work: { ...plan, tasks: [] } }), true);
+  const slice = plan.slices[0];
+  for (const bad of [
+    null,
+    [],
+    { blended: plan },
+    { __proto__: null, constructor: plan },
+    { personal: { ...plan, extra: 1 } },
+    { personal: { ...plan, day: 'today' } },
+    { personal: { ...plan, tasks: ['a', 'b', 'c', 'd'] } },
+    { personal: { ...plan, tasks: [''] } },
+    { personal: { ...plan, tasks: ['x'.repeat(121)] } },
+    { personal: { ...plan, tasks: ['line\nbreak'] } },
+    { personal: { ...plan, slices: [slice] } },
+    { personal: { ...plan, slices: Array(25).fill(slice) } },
+    { personal: { ...plan, slices: [slice, { ...slice, start: '9:00' }] } },
+    { personal: { ...plan, slices: [slice, { ...slice, end: '24:30' }] } },
+    { personal: { ...plan, slices: [slice, { ...slice, start: '11:00' }] } },
+    { personal: { ...plan, slices: [slice, { ...slice, what: 7 }] } },
+    { personal: { ...plan, slices: [slice, { ...slice, html: '<b>' }] } },
+  ])
+    assert.equal(validatePlans(bad), false, JSON.stringify(bad));
+  for (const bad of [
+    { schema: 3, tasks: [story], todos, plans: {} },
+    { schema: 3, tasks: [story], todos, plans: { personal: { ...plan, day: 'x' } } },
+    { schema: 3, tasks: [story], todos, plans, extra: 1 },
+    { schema: 2, tasks: [story], todos, plans },
+    { schema: 4, tasks: [story], todos, plans },
+  ])
+    assert.throws(() => decodeBoard(bad));
+
+  // A plan kept before saving was turned on goes into the first saved record.
+  const store = makeStore(),
+    vault = new BoardVault(store);
+  assert.deepEqual(await vault.unlock('synthetic board passphrase', [story], todos, plans), [story]);
+  assert.deepEqual(vault.plans, plans);
+  assert(!new TextDecoder().decode((await store.get()).data).includes('CANARY'));
+  vault.lock();
+  assert.deepEqual(vault.plans, {}, 'locking drops the plan from memory');
+  assert.deepEqual(await vault.unlock('synthetic board passphrase'), [story]);
+  assert.deepEqual(vault.plans, plans);
+  await vault.save([story]);
+  assert.deepEqual([vault.todos, vault.plans], [todos, plans], 'saving stories alone keeps to-dos and plan');
+  await assert.rejects(vault.save([story], todos, { personal: { ...plan, day: 'x' } }), /check its contents/);
+
+  const target = new BoardVault(makeStore());
+  await target.importEncrypted(await vault.exportEncrypted(), 'synthetic board passphrase');
+  assert.deepEqual(await target.unlock('synthetic board passphrase'), [story]);
+  assert.deepEqual(target.plans, plans);
+
+  // Removing the plan writes the earlier form again.
+  await vault.save([story], todos, {});
+  vault.lock();
+  await vault.unlock('synthetic board passphrase');
+  assert.deepEqual([vault.todos, vault.plans], [todos, {}]);
+  await assert.rejects(
+    new BoardVault(makeStore()).unlock('synthetic board passphrase', [story], [], { personal: { nope: true } }),
     /invalid/,
   );
 });

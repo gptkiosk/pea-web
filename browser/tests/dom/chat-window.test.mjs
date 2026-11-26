@@ -526,6 +526,78 @@ test('a planning interview is started by the owner, tells the model its steps an
   await page.close();
 });
 
+// A kept plan is saved with the encrypted story board when that is on: it comes back after a
+// reload and an unlock, is not readable in the saved record, and is only in the tab otherwise.
+test('a kept day plan is saved with the encrypted board and comes back after a reload', options, async () => {
+  const page = await openConnectedPage(stack, { width: 1500 });
+  const hidden = (id) => page.evaluate(`document.getElementById('${id}').hidden`);
+  const list = async (id) =>
+    JSON.parse(await page.evaluate(`JSON.stringify([...document.querySelectorAll('#${id} > li')].map((li) => li.textContent))`));
+  const note = (text, what) =>
+    page.waitFor(`!document.getElementById('day-plan').hidden && document.getElementById('day-plan-note').textContent.includes(${JSON.stringify(text)})`, what);
+  const saved = () =>
+    page.waitFor(`document.getElementById('board-storage-note').textContent === 'Encrypted board saved on this browser.'`, 'the save');
+  // `late` delivers the dialog's close event from an earlier unlock while this one is under way,
+  // as a browser does when it has not drawn a frame in between.
+  const unlock = async ({ late = false } = {}) => {
+    await page.evaluate(`document.getElementById('tasks-section').open = true`);
+    await page.click('#board-storage');
+    await page.waitFor(`document.getElementById('board-unlock').open`, 'the passphrase dialog');
+    await page.fill('#board-passphrase', 'synthetic board passphrase');
+    if (late) await page.evaluate(`document.getElementById('board-unlock').dispatchEvent(new Event('close'))`);
+    assert.equal(await page.evaluate(`document.getElementById('board-passphrase').value.length`), 26, 'a late close event leaves what was typed');
+    await page.click('#board-unlock-submit');
+    if (late) await page.evaluate(`document.getElementById('board-unlock').dispatchEvent(new Event('close'))`);
+    await page.waitFor(`!document.getElementById('board-unlock').open`, 'the unlock', 20000);
+  };
+  const slices = ['09:00–10:30Draft the SYNTHETIC report', '10:30–11:00Expenses'];
+  replies['synthetic slices'] = '1. Draft the SYNTHETIC report\n\n09:00–10:30 Draft the SYNTHETIC report\n10:30–11:00 Expenses\n';
+  await askModel(stack, page, 'A synthetic hello.');
+  await page.evaluate(`document.getElementById('home-plan').click()`);
+  await page.waitFor(`!document.getElementById('plan-bar').hidden && !document.getElementById('profile').disabled`, 'the interview to start');
+  await askModel(stack, page, 'Now the synthetic slices, please.');
+  await page.waitFor(`!document.getElementById('plan-keep').hidden`, 'the Keep on Today button');
+
+  // No saved board on this browser: the plan is in the tab and the card says so.
+  await page.click('#plan-keep');
+  await page.click('#tab-today');
+  await note('It stays in this tab: turn on encrypted saving', 'the tab-only note');
+  // Turning on encrypted saving takes the kept plan into the first saved record.
+  await unlock();
+  await note('Saved with your encrypted board', 'the saved note');
+  // Removed from a saved board, it is removed from the record too.
+  await page.click('#day-plan-remove');
+  await page.waitFor(`document.getElementById('day-plan').hidden`, 'the card to go');
+  await saved();
+  // Kept while the board is locked: it waits in the tab, and unlocking saves it.
+  await page.click('#board-storage');
+  await page.waitFor(`document.getElementById('board-storage').textContent.includes('Unlock')`, 'the lock');
+  await page.click('#tab-chat');
+  await page.click('#plan-keep');
+  await page.click('#tab-today');
+  await note('until you unlock the story board', 'the locked note');
+  await unlock({ late: true });
+  await note('Saved with your encrypted board', 'the carried plan to be saved');
+
+  await page.goto(stack.gateway.origin + '/');
+  await page.waitFor(`document.getElementById('board-storage-note').textContent.includes('Unlock to view or edit')`, 'the locked board after reload');
+  await page.click('#tab-today');
+  assert.equal(await hidden('day-plan'), true, 'nothing is readable while locked');
+  const stored = await page.evaluate(
+    `new Promise((resolve) => { const r = indexedDB.open('pea-task-board-v1'); r.onsuccess = () => { const g = r.result.transaction('encrypted').objectStore('encrypted').get('board'); g.onsuccess = () => resolve(new TextDecoder().decode(g.result.data)); }; })`,
+  );
+  assert.doesNotMatch(stored, /SYNTHETIC|Expenses/, 'the saved record is not readable text');
+  await unlock();
+  await note('Saved with your encrypted board', 'the plan after unlock');
+  assert.deepEqual(await list('day-plan-tasks'), ['Draft the SYNTHETIC report']);
+  assert.deepEqual(await list('day-plan-slices'), slices);
+  // The other profile's Today has no plan.
+  await page.fill('#profile', 'work');
+  assert.equal(await hidden('day-plan'), true);
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
+
 // Start a debate: the owner picks a question and a position, and for that conversation the model
 // is told to argue the other side. Nothing a model writes can start one.
 test('a debate is started by the owner, tells the model to argue the other side, and ends when asked', options, async () => {

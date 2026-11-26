@@ -7,12 +7,18 @@ import {
   recommendation,
   storyPrompt,
   stages,
+  validatePlans,
 } from './taskboard.mjs';
+import { planDay } from './presence.mjs';
 import { ServiceError, containsCredential } from './connections.mjs';
 const $ = (id) => document.getElementById(id);
 export function installBoard(hooks) {
   let tasks = [],
     todos = [],
+    // Kept day plans by profile. `tabPlans` names the ones kept in this tab while the saved
+    // board was locked; they are carried into the board when it is unlocked.
+    plans = {},
+    tabPlans = new Set(),
     vault = null,
     locked = true,
     saving = false,
@@ -31,12 +37,18 @@ export function installBoard(hooks) {
     backupURL = null;
     $('board-backup-download').hidden = true;
   }
+  // Only today's plans are written; an earlier day's plan leaves the record at the next save.
+  function currentPlans() {
+    const today = planDay(Date.now());
+    plans = Object.fromEntries(Object.entries(plans).filter(([, kept]) => kept.day === today));
+    return plans;
+  }
   async function save() {
     clearBackup();
     if (vault?.key) {
       saving = true;
       try {
-        await vault.save(tasks, todos);
+        await vault.save(tasks, todos, currentPlans());
         $('board-storage-note').textContent = 'Encrypted board saved on this browser.';
       } catch (error) {
         locked = true;
@@ -501,8 +513,11 @@ export function installBoard(hooks) {
       vault.lock();
       tasks = [];
       todos = [];
+      plans = {};
+      tabPlans.clear();
       locked = true;
       render();
+      hooks.plansChanged?.();
       say('Board locked on this browser. Unlock with your passphrase.');
       return;
     }
@@ -519,6 +534,10 @@ export function installBoard(hooks) {
   };
   let unlocking = false;
   $('board-unlock').addEventListener('close', () => {
+    // A browser delivers this event on its next drawn frame, which can be after the dialog has
+    // been opened again. A close that arrives while the dialog is open belongs to an earlier
+    // closing: it must not cancel this unlock or clear what is being typed.
+    if ($('board-unlock').open) return;
     if (unlocking) vault?.lock();
     $('board-passphrase').value = '';
   });
@@ -532,15 +551,21 @@ export function installBoard(hooks) {
     try {
       if (!vault) vault = await BoardVault.open();
       if (!$('board-unlock').open) return;
-      const next = await vault.unlock(password, tasks, todos);
+      const next = await vault.unlock(password, tasks, todos, currentPlans());
       if (!$('board-unlock').open) {
         vault.lock();
         return;
       }
+      // A plan the owner kept in this tab while the board was locked is the newer press: it
+      // replaces the saved one for that profile and is saved with the board now.
+      const carried = Object.fromEntries(Object.entries(plans).filter(([who]) => tabPlans.has(who)));
       tasks = next;
       todos = vault.todos;
+      plans = { ...vault.plans, ...carried };
+      tabPlans.clear();
       locked = false;
       unlocking = false;
+      if (Object.keys(carried).length) await save();
       $('board-unlock').close();
       $('board-storage-note').textContent = 'Encrypted board unlocked on this browser. No device sync.';
       say(
@@ -552,6 +577,7 @@ export function installBoard(hooks) {
       unlocking = false;
       $('board-unlock-submit').disabled = false;
       render();
+      hooks.plansChanged?.();
     }
   };
   $('board-mic').onclick = () => {
@@ -574,6 +600,7 @@ export function installBoard(hooks) {
       $('board-storage-note').textContent = 'Browser storage unavailable. Board stays in this tab.';
     }
     render();
+    hooks.plansChanged?.();
   })();
   window.addEventListener('pagehide', () => {
     recognizer?.abort();
@@ -607,6 +634,33 @@ export function installBoard(hooks) {
         ensure();
         todos = update(todos);
         void save();
+      },
+    },
+    // A kept day's plan is saved with the board when the board is saved on this browser and
+    // unlocked. Otherwise it is held in this tab.
+    planStore: {
+      get(who) {
+        const kept = plans[who];
+        return kept && kept.day === planDay(Date.now()) ? kept : null;
+      },
+      // 'saved', 'tab' (no saved board here) or 'locked' (a saved board exists but is locked).
+      where: () => (vault?.key && !locked ? 'saved' : locked ? 'locked' : 'tab'),
+      set(who, plan) {
+        if (saving || porting) throw new ServiceError('Wait for the board to finish saving.');
+        const next = { ...plans };
+        if (plan) next[who] = plan;
+        else delete next[who];
+        if (!validatePlans(next)) throw new ServiceError('That plan could not be kept.');
+        plans = next;
+        if (!(vault?.key && !locked)) {
+          if (plan && locked) tabPlans.add(who);
+          else tabPlans.delete(who);
+          return Promise.resolve();
+        }
+        // A failed save locks the board; the plan then counts as kept in this tab.
+        return save().then(() => {
+          if (locked && plan) tabPlans.add(who);
+        });
       },
     },
   };

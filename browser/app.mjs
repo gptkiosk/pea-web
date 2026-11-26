@@ -1648,14 +1648,21 @@ function renderPlan() {
   $('plan-bar-scope').textContent = plan?.scope === 'week' ? 'your week' : 'your day';
   $('plan-keep').hidden = !planOffered();
 }
-// A day's plan the owner chose to keep: shown on Today for that day, in this tab only.
-const dayPlans = new Map();
+// A day's plan the owner chose to keep: shown on Today for that day. The board holds it, so it
+// is saved with the encrypted board when that is unlocked, and stays in this tab otherwise.
+const dayPlanNotes = {
+  saved: 'From your Time management interview, for today only. Saved with your encrypted board on this browser.',
+  tab: 'From your Time management interview, for today only. It stays in this tab: turn on encrypted saving for the story board to keep it through a reload.',
+  locked:
+    'From your Time management interview, for today only. It stays in this tab until you unlock the story board, which then saves it.',
+};
 function renderDayPlan() {
-  const now = Date.now();
-  for (const [who, kept] of dayPlans) if (kept.day !== planDay(now)) dayPlans.delete(who);
-  const kept = dayPlans.get(profile) ?? null,
+  const now = Date.now(),
+    store = board?.planStore,
+    kept = store?.get(profile) ?? null,
     current = kept ? sliceNow(kept.slices, now) : -1;
   $('day-plan').hidden = !kept;
+  if (kept) $('day-plan-note').textContent = dayPlanNotes[store.where()];
   $('day-plan-tasks').hidden = !kept?.tasks.length;
   $('day-plan-tasks').replaceChildren(
     ...(kept?.tasks ?? []).map((what) => Object.assign(document.createElement('li'), { textContent: what })),
@@ -1676,6 +1683,22 @@ function renderDayPlan() {
       return li;
     }),
   );
+}
+const dayPlanKept = {
+  saved: 'Kept on Today for today and saved with your encrypted board.',
+  tab: 'Kept on Today for today. It stays in this tab: the story board is not being saved on this browser.',
+  locked: 'Kept on Today for today. Unlock the story board to save it; until then it stays in this tab.',
+};
+async function changeDayPlan(plan) {
+  const store = board.planStore;
+  try {
+    await store.set(profile, plan);
+    // A failed save reports itself and locks the board; say only what is true afterwards.
+    notice(plan ? dayPlanKept[store.where()] : 'Today’s plan was removed.');
+  } catch (error) {
+    notice(error.message);
+  }
+  renderDayPlan();
 }
 function endPlan() {
   plans.delete(profile);
@@ -1821,15 +1844,9 @@ async function sayInChat(text) {
   $('plan-keep').onclick = () => {
     const found = planOffered();
     if (!found) return notice('There is no day laid out in time slices to keep yet.');
-    dayPlans.set(profile, { day: planDay(Date.now()), ...found });
-    renderDayPlan();
-    notice('Kept on Today for today. It stays in this tab and is not saved.');
+    void changeDayPlan({ day: planDay(Date.now()), ...found });
   };
-  $('day-plan-remove').onclick = () => {
-    dayPlans.delete(profile);
-    renderDayPlan();
-    notice('Today’s plan was removed.');
-  };
+  $('day-plan-remove').onclick = () => void changeDayPlan(null);
   $('plan-voice').onclick = () => $('chat-voice').click();
   $('plan-end').onclick = endPlan;
 }
@@ -2428,6 +2445,7 @@ $('connections-open').onclick = () => {
 };
 board = installBoard({
   boardChanged: () => todos?.render(),
+  plansChanged: () => renderDayPlan(),
   review: live.review,
   dictate: (target) => requestDictation(target ?? 'board-command'),
   stopDictation: () => {
