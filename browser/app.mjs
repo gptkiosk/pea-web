@@ -1837,9 +1837,13 @@ function debateWords(text) {
 async function sayInChat(text) {
   tab('chat');
   await memory?.ready;
-  await atWork('chat', () => live.run(() => live.chat('chat', text, () => {})));
+  const used = await atWork('chat', () => live.run(() => live.chat('chat', text, () => {})));
   renderDebate();
   renderPlan();
+  // With no model connected nothing was sent, and a press must never pass in silence.
+  if (used === false)
+    notice('PEA needs a model for this, and none is connected. Choose a model in Connections first. Nothing was sent.');
+  return used !== false;
 }
 {
   const select = $('debate-topic'),
@@ -1871,11 +1875,13 @@ async function sayInChat(text) {
     debates.set(who, { ...debate, starting: true });
     $('debate').close();
     $('debate-position').value = $('debate-own').value = '';
+    let sent = false;
     try {
-      await sayInChat(debateOpening(debate));
+      sent = await sayInChat(debateOpening(debate));
     } finally {
       const kept = debates.get(who);
-      if (kept) delete kept.starting;
+      if (kept && !sent && !history('chat', who).some((m) => m.text === debateOpening(debate))) debates.delete(who);
+      else if (kept) delete kept.starting;
       renderDebate();
     }
   };
@@ -1907,11 +1913,13 @@ async function sayInChat(text) {
     const who = profile,
       opening = planOpening('day');
     plans.set(who, { scope: 'day', opening, starting: true });
+    let sent = false;
     try {
-      await sayInChat(opening);
+      sent = await sayInChat(opening);
     } finally {
       const kept = plans.get(who);
-      if (kept) delete kept.starting;
+      if (kept && !sent && !history('chat', who).some((m) => m.text === opening)) plans.delete(who);
+      else if (kept) delete kept.starting;
       renderPlan();
     }
   };
