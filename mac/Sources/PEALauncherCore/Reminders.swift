@@ -64,6 +64,12 @@ public final class ReminderCenter: ReminderSink, @unchecked Sendable {
     }
 }
 
+/// The heading a notification carries. The Time management offer, which the page hands over under
+/// ids of its own, is not a reminder the owner wrote, so it is not headed as one.
+public func notificationHeading(for id: String) -> String {
+    id.hasPrefix("plan-offer-") ? "Time management" : "PEA reminder"
+}
+
 /// The real notification service. Only a packaged app may create one: the system refuses a bare program.
 public final class SystemNotifications: NSObject, NotificationPoster, UNUserNotificationCenterDelegate {
     private static let prefix = "pea-reminder-"
@@ -91,7 +97,7 @@ public final class SystemNotifications: NSObject, NotificationPoster, UNUserNoti
             self.center.removePendingNotificationRequests(withIdentifiers: stale)
             for (identifier, reminder) in wanted {
                 let content = UNMutableNotificationContent()
-                content.title = "PEA reminder"
+                content.title = notificationHeading(for: reminder.id)
                 content.body = reminder.title
                 content.sound = .default
                 let moment = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: reminder.due)

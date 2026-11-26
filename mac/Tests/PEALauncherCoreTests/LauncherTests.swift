@@ -136,6 +136,13 @@ final class LauncherTests: XCTestCase {
         await app.stop()
     }
 
+    func testTheOfferIsHeadedAsTimeManagementAndARemindersHeadingStays() {
+        XCTAssertEqual(notificationHeading(for: "plan-offer-2026-11-27"), "Time management")
+        XCTAssertEqual(notificationHeading(for: "3f1c0f0e-6f0a-4c59-9b0e-2f6a0d1c7a11"), "PEA reminder")
+        XCTAssertEqual(notificationHeading(for: "my-plan-offer-1"), "PEA reminder")
+        XCTAssertEqual(notificationHeading(for: ""), "PEA reminder")
+    }
+
     func testATokenIsMadeOnceAndKept() throws {
         let store = MemoryTokenStore()
         let first = try launcher(store).token()
