@@ -1,5 +1,6 @@
 import { containsCredential, ServiceError } from './connections.mjs';
 import { validateTodos } from './todos.mjs';
+import { dayPlanLimits } from './presence.mjs';
 export const stages = ['inbox', 'queued', 'working', 'review', 'done'];
 export function validStory(t) {
   return (
@@ -37,27 +38,73 @@ export function validateBoard(tasks) {
     new Set(tasks.map((t) => t.number)).size === tasks.length
   );
 }
+// A day's plan the owner kept on Today, one for each profile at most: { day, tasks, slices }.
+const planText = (v) =>
+    typeof v === 'string' && v.length > 0 && v.length <= dayPlanLimits.what && !/[\u0000-\u001f\u007f]/.test(v),
+  planTime = (v) => typeof v === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/.test(v),
+  keys = (v, names) => Object.keys(v).sort().join(',') === names;
+function validDayPlan(v) {
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    !Array.isArray(v) &&
+    keys(v, 'day,slices,tasks') &&
+    typeof v.day === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(v.day) &&
+    Array.isArray(v.tasks) &&
+    v.tasks.length <= dayPlanLimits.tasks &&
+    v.tasks.every(planText) &&
+    Array.isArray(v.slices) &&
+    v.slices.length >= dayPlanLimits.least &&
+    v.slices.length <= dayPlanLimits.slices &&
+    v.slices.every(
+      (s) =>
+        !!s &&
+        typeof s === 'object' &&
+        !Array.isArray(s) &&
+        keys(s, 'end,start,what') &&
+        planTime(s.start) &&
+        planTime(s.end) &&
+        s.start < s.end &&
+        planText(s.what),
+    )
+  );
+}
+export const planProfiles = ['personal', 'work'];
+export function validatePlans(plans) {
+  return (
+    !!plans &&
+    typeof plans === 'object' &&
+    !Array.isArray(plans) &&
+    Object.keys(plans).every((who) => planProfiles.includes(who) && validDayPlan(plans[who]))
+  );
+}
 // What the vault stores. A board with no to-dos is written as the plain list of stories that
 // earlier builds wrote, so they can still open it. Once there are to-dos it becomes an object,
-// which an earlier build refuses to open without changing it.
-export function encodeBoard(tasks, todos = []) {
+// which an earlier build refuses to open without changing it. A kept day's plan makes it a
+// schema 3 object, which builds before the plan was saved refuse in the same way; when no plan
+// is kept the board is written in the earlier form again.
+export function encodeBoard(tasks, todos = [], plans = {}) {
+  if (Object.keys(plans).length) return { schema: 3, tasks, todos, plans };
   return todos.length ? { schema: 2, tasks, todos } : tasks;
 }
 export function decodeBoard(value) {
   if (Array.isArray(value)) {
     if (!validateBoard(value)) throw new Error('board');
-    return { tasks: value, todos: [] };
+    return { tasks: value, todos: [], plans: {} };
   }
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Object.keys(value).sort().join(',') !== 'schema,tasks,todos' ||
-    value.schema !== 2 ||
-    !validateBoard(value.tasks) ||
-    !validateTodos(value.todos)
-  )
+  if (!value || typeof value !== 'object' || !validateBoard(value.tasks) || !validateTodos(value.todos))
     throw new Error('board');
-  return { tasks: value.tasks, todos: value.todos };
+  if (value.schema === 2 && keys(value, 'schema,tasks,todos'))
+    return { tasks: value.tasks, todos: value.todos, plans: {} };
+  if (
+    value.schema === 3 &&
+    keys(value, 'plans,schema,tasks,todos') &&
+    validatePlans(value.plans) &&
+    Object.keys(value.plans).length
+  )
+    return { tasks: value.tasks, todos: value.todos, plans: value.plans };
+  throw new Error('board');
 }
 export function newStory(tasks, profile, title, details = '', acceptance = '') {
   const task = {
@@ -196,6 +243,8 @@ export class BoardVault {
     this.revision = null;
     // The to-dos last loaded or saved with the stories; they travel in the same encrypted record.
     this.todos = [];
+    // Kept day plans travel in that record too.
+    this.plans = {};
     this.epoch = 0;
     this.chain = Promise.resolve();
   }
@@ -260,7 +309,7 @@ export class BoardVault {
       ['encrypt', 'decrypt'],
     );
   }
-  async unlock(passphrase, current = [], currentTodos = []) {
+  async unlock(passphrase, current = [], currentTodos = [], currentPlans = {}) {
     const epoch = ++this.epoch;
     await this.chain.catch(() => {});
     this.chain = Promise.resolve();
@@ -270,6 +319,7 @@ export class BoardVault {
     const saved = await this.storage.get();
     let tasks,
       todos = [],
+      plans = {},
       key,
       salt,
       revision = null,
@@ -295,7 +345,7 @@ export class BoardVault {
           key,
           saved.data,
         );
-        ({ tasks, todos } = decodeBoard(JSON.parse(new TextDecoder().decode(plain))));
+        ({ tasks, todos, plans } = decodeBoard(JSON.parse(new TextDecoder().decode(plain))));
         revision = saved.revision ?? {
           legacy: true,
           salt: new Uint8Array(saved.salt),
@@ -313,10 +363,11 @@ export class BoardVault {
         );
       }
     } else {
-      if (!validateBoard(current) || !validateTodos(currentTodos))
+      if (!validateBoard(current) || !validateTodos(currentTodos) || !validatePlans(currentPlans))
         throw new ServiceError('Board contents are invalid. Nothing was overwritten.');
       tasks = structuredClone(current);
       todos = structuredClone(currentTodos);
+      plans = structuredClone(currentPlans);
       salt = crypto.getRandomValues(new Uint8Array(16));
       key = await this.derive(passphrase, salt);
     }
@@ -325,6 +376,7 @@ export class BoardVault {
     this.salt = salt;
     this.revision = revision;
     this.todos = todos;
+    this.plans = plans;
     if (!saved || upgrade) {
       try {
         await this.save(tasks);
@@ -344,11 +396,12 @@ export class BoardVault {
         : t,
     );
   }
-  save(tasks, todos = this.todos) {
-    if (!this.key || !validateBoard(tasks) || !validateTodos(todos))
+  save(tasks, todos = this.todos, plans = this.plans) {
+    if (!this.key || !validateBoard(tasks) || !validateTodos(todos) || !validatePlans(plans))
       return Promise.reject(new ServiceError('Unlock the board and check its contents before saving.'));
     this.todos = todos;
-    const plain = new TextEncoder().encode(JSON.stringify(encodeBoard(tasks, todos))),
+    this.plans = plans;
+    const plain = new TextEncoder().encode(JSON.stringify(encodeBoard(tasks, todos, plans))),
       key = this.key,
       salt = this.salt,
       epoch = this.epoch;
@@ -461,6 +514,7 @@ export class BoardVault {
   lock() {
     this.epoch++;
     this.todos = [];
+    this.plans = {};
     this.key = null;
     this.salt = null;
     this.revision = null;
