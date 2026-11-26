@@ -11,6 +11,10 @@ Notable user-facing changes. Versions follow semantic versioning; dated entries 
 - While the board is locked, Today shows no plan. The plan is still for one day: an earlier day's plan is not shown and leaves the record the next time the board is saved.
 - A board holding a kept plan cannot be opened by a build older than this one until the plan is removed or its day has passed and the board is saved again. Nothing is lost; the older build refuses and changes nothing.
 
+### Fixed
+
+- Locking the story board and unlocking it again straight away could report “Board unlock was cancelled” and leave the dialog open. The same fix was already in the library’s unlock dialog.
+
 ## [0.1.0-rc.4.dev.76] - 2026-11-25
 
 ### Added

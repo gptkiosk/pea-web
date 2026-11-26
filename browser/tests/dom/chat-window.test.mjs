@@ -537,12 +537,17 @@ test('a kept day plan is saved with the encrypted board and comes back after a r
     page.waitFor(`!document.getElementById('day-plan').hidden && document.getElementById('day-plan-note').textContent.includes(${JSON.stringify(text)})`, what);
   const saved = () =>
     page.waitFor(`document.getElementById('board-storage-note').textContent === 'Encrypted board saved on this browser.'`, 'the save');
-  const unlock = async () => {
+  // `late` delivers the dialog's close event from an earlier unlock while this one is under way,
+  // as a browser does when it has not drawn a frame in between.
+  const unlock = async ({ late = false } = {}) => {
     await page.evaluate(`document.getElementById('tasks-section').open = true`);
     await page.click('#board-storage');
     await page.waitFor(`document.getElementById('board-unlock').open`, 'the passphrase dialog');
     await page.fill('#board-passphrase', 'synthetic board passphrase');
+    if (late) await page.evaluate(`document.getElementById('board-unlock').dispatchEvent(new Event('close'))`);
+    assert.equal(await page.evaluate(`document.getElementById('board-passphrase').value.length`), 26, 'a late close event leaves what was typed');
     await page.click('#board-unlock-submit');
+    if (late) await page.evaluate(`document.getElementById('board-unlock').dispatchEvent(new Event('close'))`);
     await page.waitFor(`!document.getElementById('board-unlock').open`, 'the unlock', 20000);
   };
   const slices = ['09:00–10:30Draft the SYNTHETIC report', '10:30–11:00Expenses'];
@@ -571,7 +576,7 @@ test('a kept day plan is saved with the encrypted board and comes back after a r
   await page.click('#plan-keep');
   await page.click('#tab-today');
   await note('until you unlock the story board', 'the locked note');
-  await unlock();
+  await unlock({ late: true });
   await note('Saved with your encrypted board', 'the carried plan to be saved');
 
   await page.goto(stack.gateway.origin + '/');

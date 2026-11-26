@@ -534,6 +534,10 @@ export function installBoard(hooks) {
   };
   let unlocking = false;
   $('board-unlock').addEventListener('close', () => {
+    // A browser delivers this event on its next drawn frame, which can be after the dialog has
+    // been opened again. A close that arrives while the dialog is open belongs to an earlier
+    // closing: it must not cancel this unlock or clear what is being typed.
+    if ($('board-unlock').open) return;
     if (unlocking) vault?.lock();
     $('board-passphrase').value = '';
   });
