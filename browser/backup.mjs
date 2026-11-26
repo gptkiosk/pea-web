@@ -11,6 +11,7 @@ import { todoLimits, validTodo } from './todos.mjs';
 import { canonLimits, validSavedCanon } from './canon.mjs';
 import { dayKey, dayLimits, pruneEntries, validSavedDays } from './days.mjs';
 import { deckLimits, validSavedDecks } from './decks.mjs';
+import { validatePlans } from './taskboard.mjs';
 
 export const backupFormat = 'pea-backup-v1';
 export const backupLimits = {
@@ -348,6 +349,13 @@ export function describeRestore(plan) {
   list('History cards', plan.history.add, (c) => `${c.topic}: ${c.text}`);
   list('Day lines', plan.days.add, (d) => `${d.day}: ${d.text}`);
   list('Deck projects', plan.decks.add, (d) => `${d.title} (${count(d.slides.length, 'slide')})`);
+  if (plan.dayPlan)
+    lines.push(
+      'Today’s plan to put on Today:',
+      ...plan.dayPlan.tasks.map((what, i) => `  + ${i + 1}. ${what}`),
+      ...plan.dayPlan.slices.map((s) => `  + ${s.start}–${s.end} ${s.what}`),
+      '',
+    );
   if (plan.nothing) lines.push('Everything in this file is already here. Nothing would be added.', '');
   const notes = [];
   for (const [name, label] of [
@@ -445,12 +453,13 @@ export function gatherSettings(storage = globalThis.localStorage) {
   return { settings, left };
 }
 export function validFull(content) {
+  const has = (name) => Boolean(content) && typeof content === 'object' && Object.hasOwn(content, name);
   return Boolean(
-    // `keys` is there only in a file the owner chose to put keys in.
-    (exact(content, ['made', 'version', 'settings', 'profiles']) ||
-      (exact(content, ['made', 'version', 'settings', 'profiles', 'keys']) &&
-        validKeys(content.keys) &&
-        Object.keys(content.keys).length > 0)) &&
+    // `keys` is there only in a file the owner chose to put keys in, and `plans` only when a
+    // day's plan was kept on Today when the file was made.
+    exact(content, ['made', 'version', 'settings', 'profiles', ...['keys', 'plans'].filter(has)]) &&
+      (!has('keys') || (validKeys(content.keys) && Object.keys(content.keys).length > 0)) &&
+      (!has('plans') || (validatePlans(content.plans) && Object.keys(content.plans).length > 0)) &&
       time(content.made) &&
       typeof content.version === 'string' &&
       /^[0-9A-Za-z.+-]{1,80}$/.test(content.version) &&
@@ -494,6 +503,7 @@ export function planSettings(current, incoming) {
   }
   return plan;
 }
+const planDays = (plans) => [...new Set(Object.values(plans).map((p) => p.day))].join(', ');
 const contents = (c) =>
   `${count(Object.values(c.introduction).filter((v) => v.trim()).length, 'interview answer')}, ${count(c.memories.length, 'memory', 'memories')}, ${count(c.todos.length, 'to-do')}, ${count(c.history.length, 'history card')}, ${count(c.days.length, 'day line')}, ${count(c.decks.length, 'deck project')}`;
 // What is in a whole backup about to be written.
@@ -508,6 +518,14 @@ export function describeFull(content, left = []) {
     '',
     `Personal: ${contents(content.profiles.personal)}.`,
     `Work: ${contents(content.profiles.work)}.`,
+    ...(content.plans
+      ? [
+          `Today’s plan (${planDays(content.plans)}): ${profiles
+            .filter((who) => content.plans[who])
+            .map((who) => (who === 'work' ? 'Work' : 'Personal'))
+            .join(' and ')}. A plan is for its own day: it can be restored only on that day.`,
+        ]
+      : []),
     '',
     ...(content.keys
       ? [
@@ -546,6 +564,7 @@ export function describeFullRestore(content, settings, plans, extra = '') {
           plan.history.add.length && count(plan.history.add.length, 'history card'),
           plan.days.add.length && count(plan.days.add.length, 'day line'),
           plan.decks.add.length && count(plan.decks.add.length, 'deck project'),
+          plan.dayPlan && 'today’s plan',
         ]
           .filter(Boolean)
           .join(', ') + ' added';
@@ -561,7 +580,7 @@ export function describeFullRestore(content, settings, plans, extra = '') {
     `Personal: ${added(plans.personal)}.`,
     `Work: ${added(plans.work)}.`,
     '',
-    'Interview answers, memories, to-dos, history, days and decks are only added; nothing already here is changed or removed. Settings are replaced, and take effect when the page reloads.' +
+    'Interview answers, memories, to-dos, history, days, decks and a kept plan for today are only added; nothing already here is changed or removed. Settings are replaced, and take effect when the page reloads.' +
       extra,
     '',
     content.keys

@@ -551,3 +551,96 @@ test(
     await fresh.close();
   },
 );
+
+// A plan kept on Today travels in the whole backup only. It goes back on Today on its own day,
+// where no plan is kept, after the same review; never onto a locked board.
+test(
+  'a kept plan travels in the whole backup and goes back on Today only on its own day',
+  { skip, timeout: 120000 },
+  async () => {
+    const empty = (profile) => ({
+      ...personal({ memories: [], todos: [], history: [], days: [], decks: [] }),
+      profile,
+      introduction: blank,
+    });
+    const plan = (when, first = 'Draft the SYNTHETIC report') => ({
+      day: when,
+      tasks: [first],
+      slices: [
+        { start: '09:00', end: '10:30', what: first },
+        { start: '10:30', end: '11:00', what: 'Expenses' },
+      ],
+    });
+    const file = (plans) =>
+      sealFull(
+        { made: now, version: '0.1.0-rc.4.dev.78', settings: {}, profiles: { personal: empty('personal'), work: empty('work') }, plans },
+        passphrase,
+      );
+    const page = await open();
+    const cardHidden = () => page.evaluate(`document.getElementById('day-plan').hidden`);
+    const slices = async () =>
+      JSON.parse(await page.evaluate(`JSON.stringify([...document.querySelectorAll('#day-plan-slices > li')].map((li) => li.textContent))`));
+
+    // Personal's plan is for today; Work's is yesterday's and stays in the file.
+    await offerFull(page, await file({ personal: plan(day(0)), work: plan(day(-1)) }));
+    await waitReview(page, 'Restore from this backup?');
+    const shown = await page.text('#review-body');
+    assert.match(shown, /Personal: today’s plan added\./);
+    assert.match(shown, /Work: nothing to add/);
+    assert.match(shown, /Today’s plan to put on Today:\s+\+ 1\. Draft the SYNTHETIC report\s+\+ 09:00–10:30 Draft the SYNTHETIC report\s+\+ 10:30–11:00 Expenses/);
+    assert.ok(shown.includes(`Work: the plan in this file is for ${day(-1)}, not today`));
+    assert.match(shown, /the restored plan lasts only until the page reloads/);
+    await answer(page, '#review-cancel');
+    await fullNoted(page, /Nothing was changed/);
+    await page.click('#tab-today');
+    assert.equal(await cardHidden(), true, 'cancel puts nothing on Today');
+
+    await offerFull(page, await file({ personal: plan(day(0)), work: plan(day(-1)) }));
+    await waitReview(page, 'Restore from this backup?');
+    await answer(page, '#review-approve');
+    await fullNoted(page, /^Restored: today’s plan put on Today for Personal\.$/);
+    assert.equal(await cardHidden(), false);
+    assert.deepEqual(await slices(), ['09:00–10:30Draft the SYNTHETIC report', '10:30–11:00Expenses']);
+    await page.fill('#profile', 'work');
+    assert.equal(await cardHidden(), true, 'another day’s plan is not put on Today');
+    await page.fill('#profile', 'personal');
+
+    // The same plan again is already here; a different one for today does not replace it.
+    await offerFull(page, await file({ personal: plan(day(0)) }));
+    await fullNoted(page, /Everything in this file is already here\. Nothing was changed\.$/);
+    await offerFull(page, await file({ personal: plan(day(0), 'Another SYNTHETIC task') }));
+    await fullNoted(page, /Nothing was changed\. Today’s plan not added\. Personal: a plan is already kept on Today, and yours stays\./);
+    assert.deepEqual(await slices(), ['09:00–10:30Draft the SYNTHETIC report', '10:30–11:00Expenses']);
+
+    // A whole backup made now says it holds the plan, and holds exactly it, unreadable.
+    await page.fill('#full-pass', passphrase);
+    await page.click('#full-make');
+    await waitReview(page, 'Back up everything?');
+    assert.ok((await page.text('#review-body')).includes(`Today’s plan (${day(0)}): Personal. A plan is for its own day`));
+    await answer(page, '#review-approve');
+    await page.waitFor(`!document.querySelector('#full-download').hidden`, 'the backup file');
+    const made = await page.evaluate(`window.peaFiles.at(-1).text()`);
+    assert.ok(!made.includes('SYNTHETIC'), 'the plan is not readable in the file');
+    assert.deepEqual((await openFull(made, passphrase)).plans, { personal: plan(day(0)) });
+    // The one-profile file never carries it.
+    const one = await backUp(page);
+    assert.ok(!Object.hasOwn(one.content, 'plans') && !Object.hasOwn(one.content, 'plan'));
+    assert.equal(validBackup(one.content), true);
+
+    // With the board saved and then locked by a reload, a plan is not put behind the lock.
+    await page.evaluate(`document.getElementById('tasks-section').open = true`);
+    await page.click('#board-storage');
+    await page.waitFor(`document.getElementById('board-unlock').open`, 'the passphrase dialog');
+    await page.fill('#board-passphrase', 'synthetic board passphrase');
+    await page.click('#board-unlock-submit');
+    await page.waitFor(`!document.getElementById('board-unlock').open`, 'the board to be saved', 20000);
+    await page.reload();
+    await page.waitFor(`document.getElementById('board-storage-note').textContent.includes('Unlock to view or edit')`, 'the locked board');
+    await page.fill('#profile', 'personal');
+    await offerFull(page, await file({ personal: plan(day(0), 'Another SYNTHETIC task') }));
+    await fullNoted(page, /Nothing was changed\. Today’s plan not added\. Personal: the saved board is locked; unlock it under Today and restore again\./);
+    assert.equal(await cardHidden(), true);
+    assert.deepEqual(page.outsideRequests(), []);
+    await page.close();
+  },
+);

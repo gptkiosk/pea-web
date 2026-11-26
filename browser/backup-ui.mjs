@@ -22,6 +22,7 @@ import {
   sealFull,
 } from './backup.mjs';
 import { ServiceError } from './connections.mjs';
+import { planDay } from './presence.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -37,6 +38,7 @@ export function installBackup({
   decks,
   keys = () => ({}),
   offerKeys = () => [],
+  dayPlans = () => null,
 }) {
   let working = false,
     url = null;
@@ -288,12 +290,15 @@ export function installBackup({
       const now = Date.now(),
         { profiles, todosLocked } = gatherAll(now),
         { settings, left } = gatherSettings(),
+        // A day's plan kept on Today travels in this file, never in the one-profile file.
+        kept = dayPlans()?.all() ?? {},
         content = {
           made: now,
           version: $('release-version').textContent.replace(/^v/, '') || 'unknown',
           settings,
           profiles,
           ...(withKeys ? { keys: held } : {}),
+          ...(Object.keys(kept).length ? { plans: kept } : {}),
         };
       if (
         !(await review('Back up everything?', describeFull(content, left) + (todosLocked ? lockedNote : '')))
@@ -329,6 +334,25 @@ export function installBackup({
       let room = here.library.memoryRoom,
         extra = '';
       const plans = {};
+      // A kept plan in the file is put on Today only on its own day, only where no plan is kept
+      // here, and never while a saved board is locked: a plan behind the lock cannot be seen.
+      const planStore = dayPlans(),
+        herePlans = planStore?.all() ?? {},
+        today = planDay(now),
+        planNotes = [];
+      const dayPlanFor = (who) => {
+        const plan = incoming.plans?.[who],
+          name = who === 'work' ? 'Work' : 'Personal';
+        if (!plan || !planStore) return null;
+        if (plan.day !== today) planNotes.push(`${name}: the plan in this file is for ${plan.day}, not today`);
+        else if (planStore.where() === 'locked')
+          planNotes.push(`${name}: the saved board is locked; unlock it under Today and restore again`);
+        else if (herePlans[who]) {
+          if (JSON.stringify(herePlans[who]) !== JSON.stringify(plan))
+            planNotes.push(`${name}: a plan is already kept on Today, and yours stays`);
+        } else return plan;
+        return null;
+      };
       for (const who of people) {
         const plan = planRestore(here.profiles[who], incoming.profiles[who], { now, memoryRoom: room });
         if (here.todosLocked && plan.todos.add.length)
@@ -336,7 +360,10 @@ export function installBackup({
         if (plan.memories.add.length && !here.library.threadRoom)
           plan.memories = { add: [], same: plan.memories.same, differ: [], noRoom: 0, skipped: {} };
         room -= plan.memories.add.length;
+        const dayPlan = dayPlanFor(who);
+        if (dayPlan) plan.dayPlan = dayPlan;
         plan.nothing =
+          !dayPlan &&
           !plan.introduction.changes.length &&
           ['memories', 'todos', 'history', 'days', 'decks'].every((name) => !plan[name].add.length);
         plans[who] = plan;
@@ -351,6 +378,10 @@ export function installBackup({
       if (people.some((who) => plans[who].todos.add.length))
         extra +=
           '\n\nTo-dos are kept the way your story board is. Unless the board is saved with a passphrase on this browser (under Today), restored to-dos last only until the page reloads; save the board first if you want to keep them.';
+      if (planNotes.length) extra += '\n\nToday’s plan not added:\n' + planNotes.map((n) => '  · ' + n).join('\n');
+      if (people.some((who) => plans[who].dayPlan) && planStore.where() === 'tab')
+        extra +=
+          '\n\nToday’s plan is kept the way your story board is. The board is not saved on this browser, so the restored plan lasts only until the page reloads; save the board first if you want to keep it.';
       const writes = Object.entries(settings.write),
         hasKeys = Boolean(incoming.keys);
       // Keys live in the tab, so they go back only when no reload is still to come.
@@ -368,7 +399,8 @@ export function installBackup({
         return tell(
           hasKeys
             ? 'Everything else in this file is already here. ' + (await putKeys())
-            : 'Everything in this file is already here. Nothing was changed.',
+            : 'Everything in this file is already here. Nothing was changed.' +
+                (planNotes.length ? ' Today’s plan not added. ' + planNotes.join('; ') + '.' : ''),
         );
       }
       if (hasKeys) extra += '\n\n' + describeKeys(incoming.keys, writes.length > 0);
@@ -382,6 +414,7 @@ export function installBackup({
       // What is here must still be what the owner compared against.
       if (
         JSON.stringify(gatherAll(now).profiles) !== JSON.stringify(here.profiles) ||
+        JSON.stringify(planStore?.all() ?? {}) !== JSON.stringify(herePlans) ||
         JSON.stringify(gatherSettings().settings) !== JSON.stringify(kept)
       )
         throw new ServiceError('Something here changed while you were reading. Nothing was changed; restore again.');
@@ -404,6 +437,14 @@ export function installBackup({
             (plan.days.add.length ? days().bringIn(plan.days.add, true) : 0) +
             (plan.decks.add.length ? decks().bringIn(plan.decks.add, who) : 0);
           if (n) done.push(`${n} ${n === 1 ? 'item' : 'items'} added to ${who === 'work' ? 'Work' : 'Personal'}`);
+        }
+        for (const who of people) {
+          if (!plans[who].dayPlan) continue;
+          // A save that failed just now locks the board; a plan must not wait behind that lock.
+          if (planStore.where() === 'locked')
+            throw new ServiceError('The board was locked before today’s plan could be put on Today.');
+          await planStore.set(who, plans[who].dayPlan);
+          done.push(`today’s plan put on Today for ${who === 'work' ? 'Work' : 'Personal'}`);
         }
         for (const [name, text] of writes) globalThis.localStorage.setItem(name, text);
         if (writes.length) done.push(`${writes.length} ${writes.length === 1 ? 'setting' : 'settings'} restored`);

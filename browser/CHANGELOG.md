@@ -2,6 +2,15 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.78] - 2026-11-26
+
+### Added
+
+- **Today’s plan in the whole backup.** **Back up everything** under Settings now puts a plan you have kept on Today into the file, for each profile that has one, and the review says so. The one-profile **Move this profile** file is unchanged and never carries a plan.
+- Restoring puts the plan back on Today after the usual review, which lists its tasks and time slices. It is only ever added: on the plan’s own day, where no plan is kept already, and not while a saved story board is locked. Otherwise the review or the note says why it was not added.
+- A restored plan is kept the way your story board is: saved with it when the board is saved and unlocked, in the tab otherwise.
+- A whole backup that holds a plan cannot be opened by a build older than this one. A backup made on a day with no kept plan is written exactly as before.
+
 ## [0.1.0-rc.4.dev.77] - 2026-11-25
 
 ### Changed

@@ -468,3 +468,36 @@ test('the reviews name the keys, never show them, and say what having the file m
   assert.match(describeKeys(keys), /wait in their fields for you to press Connect/);
   assert.match(describeKeys(keys, true), /After reloading, restore from the same file again/);
 });
+
+test('a whole backup may carry plans kept on Today, checked by the board’s own rule, and the reviews show them', () => {
+  const plan = {
+      day: '2026-11-26',
+      tasks: ['Draft the report'],
+      slices: [
+        { start: '09:00', end: '10:30', what: 'Draft the report' },
+        { start: '10:30', end: '11:00', what: 'Expenses' },
+      ],
+    },
+    keys = { 'search:brave': 'synthetic-brave-key-0000000000' };
+  assert.equal(validFull(whole({ plans: { personal: plan } })), true);
+  assert.equal(validFull(whole({ plans: { personal: plan, work: plan } })), true);
+  for (const bad of [
+    whole({ plans: {} }),
+    whole({ plans: null }),
+    whole({ plans: { blended: plan } }),
+    whole({ plans: { personal: { ...plan, day: 'today' } } }),
+    whole({ plans: { personal: { ...plan, slices: [plan.slices[0]] } } }),
+    whole({ plans: { personal: { ...plan, html: '<b>' } } }),
+    whole({ plans: { personal: plan }, extra: 1 }),
+  ])
+    assert.equal(validFull(bad), false, JSON.stringify(bad.plans)?.slice(0, 90));
+  if (validFull(whole({ keys }))) assert.equal(validFull(whole({ keys, plans: { work: plan } })), true);
+
+  assert.match(
+    describeFull(whole({ plans: { personal: plan, work: plan } })),
+    /Today’s plan \(2026-11-26\): Personal and Work\. A plan is for its own day: it can be restored only on that day\./,
+  );
+  assert.doesNotMatch(describeFull(whole()), /Today’s plan/);
+  // The one-profile file is the shared contract and never carries a plan.
+  assert.equal(validBackup({ ...emptyProfile('personal'), plan }), false);
+});
