@@ -562,7 +562,7 @@ test('in the morning PEA offers Time management over Chat, and it can be decline
   await page.click('#plan-offer-skip');
   assert.equal(await hidden('plan-offer'), true);
   const today = await page.evaluate(`(() => { const d = new Date(Date.now()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()`);
-  assert.deepEqual(await stored(), { on: true, skipped: { personal: today, work: '' } });
+  assert.deepEqual(await stored(), { on: true, from: 5, until: 12, skipped: { personal: today, work: '' } });
   await page.fill('#profile', 'work');
   assert.equal(await hidden('plan-offer'), false);
   // Blended has no planning, so no offer and no switch.
@@ -579,6 +579,32 @@ test('in the morning PEA offers Time management over Chat, and it can be decline
   assert.equal(await hidden('plan-offer'), false);
   await page.fill('#profile', 'personal');
   assert.equal(await hidden('plan-offer'), true, 'still declined for today');
+
+  // The hours are the owner's: two lists on Today that keep "from" before "until".
+  await page.fill('#profile', 'work');
+  const list = (id) => page.evaluate(`[...document.getElementById('${id}').options].map((o) => o.textContent).join(',')`);
+  const picked = () => page.evaluate(`document.getElementById('plan-offer-from').value + '-' + document.getElementById('plan-offer-until').value`);
+  assert.equal(await picked(), '5-12');
+  assert.equal(await list('plan-offer-from'), 'midnight,1 am,2 am,3 am,4 am,5 am,6 am,7 am,8 am,9 am,10 am,11 am');
+  assert.match(await list('plan-offer-until'), /^6 am,7 am,.*,noon,1 pm,.*,11 pm,midnight$/);
+  await page.fill('#plan-offer-until', '18');
+  assert.deepEqual([(await stored()).from, (await stored()).until], [5, 18]);
+  await page.fill('#plan-offer-from', '14');
+  assert.deepEqual([(await stored()).from, (await stored()).until], [14, 18]);
+  assert.equal(await list('plan-offer-until'), '3 pm,4 pm,5 pm,6 pm,7 pm,8 pm,9 pm,10 pm,11 pm,midnight');
+  assert.match(await page.evaluate(`document.getElementById('notice').textContent`), /PEA will offer Time management from 2 pm until 6 pm while it is open\./);
+  assert.equal(await hidden('plan-offer'), true, '8 am is now outside the hours');
+  await clock(15);
+  assert.equal(await hidden('plan-offer'), false);
+  assert.match(await page.evaluate(`document.getElementById('plan-offer').textContent`), /^Good afternoon · plan your day\?/);
+  await clock(18);
+  assert.equal(await hidden('plan-offer'), true);
+  // The hours come back after a reload, and the lists are greyed while the offer is off.
+  await page.reload();
+  await page.waitFor(`document.getElementById('plan-offer-from').options.length > 0`, 'the hour lists');
+  assert.equal(await picked(), '14-18');
+  await page.click('#plan-offer-on');
+  assert.deepEqual(await page.evaluate(`[document.getElementById('plan-offer-from').disabled, document.getElementById('plan-offer-until').disabled].join()`), 'true,true');
   assert.equal(stack.model.requests.length, asked + 1, 'only the owner’s press asked a model');
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();

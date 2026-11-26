@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Hours of the Time management offer — 2026-11-26
+
+Version `0.1.0-rc.4.dev.80`. Asked for by the owner: “Make the morning hours a setting”.
+
+- Source: `browser/presence.mjs` (`planOfferPreferences` now carries `from` and `until`; `planOfferHours` is the default; `planOfferDue` reads the preferences; new `hourLabel`, `dayGreeting`), `browser/app.mjs` (`renderPlanOffer` fills `#plan-offer-from` and `#plan-offer-until`; `planOfferSpan`; their `onchange`), `browser/index.html` (`#plan-offer-row` is now a group holding the switch and the two lists; `#plan-offer-greeting`), `browser/styles.css` (the `.plan-offer-switch` section).
+- Tests: `browser/tests/presence.test.mjs` and `browser/tests/dom/chat-window.test.mjs` (the morning-offer tests, extended).
+- How it works: whole hours, from 0 to 23 and until 1 to 24, the first before the second; anything else read from storage becomes 5 and 12. The stored record gained two fields under the same name, `pea-plan-offer-v1`; a record from dev.79 reads as 5 to noon.
+- Known gaps: whole hours only, one span for both profiles and every day of the week, and it cannot run past midnight. Still only while a PEA tab is open. The layout of the row has not been seen on the owner's screen or phone.
+- Next action: owner sets the hours on Today and says whether weekdays or a Mac notification are wanted.
+
 ## Morning offer of Time management — 2026-11-26
 
 Version `0.1.0-rc.4.dev.79`. Asked for by the owner: “Have PEA offer Time management each morning”.

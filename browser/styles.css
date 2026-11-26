@@ -6235,10 +6235,21 @@ dialog .dialog-body .action-row > a:not(.text-button):focus-visible {
 }
 
 /* The morning offer's switch on Today. */
-.plan-offer-switch {
+.plan-offer-switch,
+.plan-offer-switch label {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+.plan-offer-switch select {
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.plan-offer-switch {
   margin: 0 0 12px;
   font-size: 13px;
   color: var(--muted);

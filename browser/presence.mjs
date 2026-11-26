@@ -421,18 +421,36 @@ export function sliceNow(slices, now) {
 
 // The morning offer: while PEA is open in the morning, a bar over Chat offers the Time
 // management interview. It only offers; nothing starts and no model is asked until the owner
-// presses. Kept on this browser: whether to offer at all, and the day each profile said
-// "Not today". No time, place or conversation content is stored with it.
+// presses. Kept on this browser: whether to offer at all, the hours to offer between, and the
+// day each profile said "Not today". No place or conversation content is stored with it.
 const planOfferKey = 'pea-plan-offer-v1';
+// The hours offered between unless the owner picks others: whole hours by the owner's clock,
+// from 0 to 23 and until 1 to 24, the first before the second.
 export const planOfferHours = { from: 5, until: 12 };
 const offerDay = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '');
+const offerHours = (from, until) =>
+  Number.isInteger(from) && Number.isInteger(until) && from >= 0 && from < until && until <= 24
+    ? { from, until }
+    : { ...planOfferHours };
 export function planOfferPreferences(value) {
   const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {},
     skipped = v.skipped && typeof v.skipped === 'object' && !Array.isArray(v.skipped) ? v.skipped : {};
   return {
     on: v.on !== false,
+    ...offerHours(v.from, v.until),
     skipped: { personal: offerDay(skipped.personal), work: offerDay(skipped.work) },
   };
+}
+// An hour as the interface names it: "5 am", "noon", "midnight".
+export function hourLabel(hour) {
+  if (hour === 12) return 'noon';
+  if (hour % 24 === 0) return 'midnight';
+  return `${hour % 12} ${hour < 12 ? 'am' : 'pm'}`;
+}
+// The word the offer greets with at this hour.
+export function dayGreeting(now) {
+  const hour = new Date(now).getHours();
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 }
 export function loadPlanOffer(storage = globalThis.localStorage) {
   try {
@@ -449,15 +467,15 @@ export function savePlanOffer(value, storage = globalThis.localStorage) {
     return false;
   }
 }
-// Whether to show the offer now: switched on, Work or Personal, a morning hour by the owner's
-// clock, not declined today, no plan kept for today and no interview under way.
+// Whether to show the offer now: switched on, Work or Personal, between the chosen hours by the
+// owner's clock, not declined today, no plan kept for today and no interview under way.
 export function planOfferDue({ now, preferences, profile, kept = false, planning = false }) {
   const hour = new Date(now).getHours();
   return (
     preferences.on &&
     (profile === 'personal' || profile === 'work') &&
-    hour >= planOfferHours.from &&
-    hour < planOfferHours.until &&
+    hour >= preferences.from &&
+    hour < preferences.until &&
     preferences.skipped[profile] !== planDay(now) &&
     !kept &&
     !planning
