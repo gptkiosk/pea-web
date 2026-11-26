@@ -28,6 +28,9 @@ import {
   planAsk,
   planDay,
   planOfferDue,
+  planOfferPreferences,
+  hourLabel,
+  dayGreeting,
   loadPlanOffer,
   savePlanOffer,
   planFromReply,
@@ -1657,9 +1660,25 @@ function renderPlanOffer() {
     kept: Boolean(board?.planStore.get(profile)),
     planning: Boolean(planNow()) || Boolean(debateNow()),
   });
+  $('plan-offer-greeting').textContent = dayGreeting(Date.now());
   $('plan-offer-row').hidden = !usable;
   $('plan-offer-on').checked = planOffer.on;
+  // Each list holds only the hours that keep "from" before "until".
+  const hours = (id, first, last, chosen) => {
+    const list = $(id);
+    if (list.dataset.span !== `${first}-${last}`) {
+      list.replaceChildren(
+        ...Array.from({ length: last - first + 1 }, (_, i) => new Option(hourLabel(first + i), String(first + i))),
+      );
+      list.dataset.span = `${first}-${last}`;
+    }
+    list.value = String(chosen);
+    list.disabled = !planOffer.on;
+  };
+  hours('plan-offer-from', 0, planOffer.until - 1, planOffer.from);
+  hours('plan-offer-until', planOffer.from + 1, 24, planOffer.until);
 }
+const planOfferSpan = () => `from ${hourLabel(planOffer.from)} until ${hourLabel(planOffer.until)}`;
 function changePlanOffer(next, said) {
   planOffer = { ...planOffer, ...next };
   const saved = savePlanOffer(planOffer);
@@ -1882,14 +1901,19 @@ async function sayInChat(text) {
       'No planning offer for the rest of today. Time management is still on its tile.',
     );
   $('plan-offer-stop').onclick = () =>
-    changePlanOffer({ on: false }, 'PEA will not offer Time management in the morning. Turn it back on under Today.');
+    changePlanOffer({ on: false }, 'PEA will not offer Time management. Turn it back on under Today.');
   $('plan-offer-on').onchange = () =>
     changePlanOffer(
       { on: $('plan-offer-on').checked },
       $('plan-offer-on').checked
-        ? 'PEA will offer Time management each morning while it is open.'
-        : 'PEA will not offer Time management in the morning.',
+        ? `PEA will offer Time management ${planOfferSpan()} while it is open.`
+        : 'PEA will not offer Time management.',
     );
+  for (const edge of ['from', 'until'])
+    $(`plan-offer-${edge}`).onchange = () => {
+      planOffer = planOfferPreferences({ ...planOffer, [edge]: Number($(`plan-offer-${edge}`).value) });
+      changePlanOffer({}, `PEA will offer Time management ${planOfferSpan()} while it is open.`);
+    };
   // The morning starts and ends by the clock, with the page open or brought back into view.
   setInterval(renderPlanOffer, 60000);
   document.addEventListener('visibilitychange', () => {

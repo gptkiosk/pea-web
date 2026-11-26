@@ -2,6 +2,18 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.80] - 2026-11-26
+
+### Added
+
+- **The offer's hours are yours to set.** Beside the switch on Today there are now two lists, **from** and **until**, in whole hours by your clock. They start at 5 am and noon, as before. Each list shows only the hours that keep "from" before "until".
+- The hours are kept on this browser with the switch and travel in the whole backup. Hours that make no sense when read back fall back to 5 am until noon.
+
+### Changed
+
+- The offer greets by the hour: "Good morning" before noon, "Good afternoon" until 5 pm, "Good evening" after.
+- The switch now reads **Offer Time management over Chat while PEA is open**, since the hours need not be in the morning.
+
 ## [0.1.0-rc.4.dev.79] - 2026-11-26
 
 ### Added
