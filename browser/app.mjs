@@ -1693,8 +1693,21 @@ function renderPlanOffer() {
   $('plan-offer-notify-note').hidden = !note;
   hours('plan-offer-from', 0, planOffer.until - 1, planOffer.from);
   hours('plan-offer-until', planOffer.from + 1, 24, planOffer.until);
+  // Saturday and Sunday can have hours of their own.
+  const weekend = planOffer.weekend;
+  $('plan-offer-weekend').checked = Boolean(weekend);
+  $('plan-offer-weekend').disabled = !planOffer.on;
+  $('plan-offer-weekend-from-row').hidden = $('plan-offer-weekend-until-row').hidden = !weekend;
+  if (weekend) {
+    hours('plan-offer-weekend-from', 0, weekend.until - 1, weekend.from);
+    hours('plan-offer-weekend-until', weekend.from + 1, 24, weekend.until);
+  }
 }
-const planOfferSpan = () => `from ${hourLabel(planOffer.from)} until ${hourLabel(planOffer.until)}`;
+const planOfferSpan = () =>
+  `from ${hourLabel(planOffer.from)} until ${hourLabel(planOffer.until)}` +
+  (planOffer.weekend
+    ? `, and from ${hourLabel(planOffer.weekend.from)} until ${hourLabel(planOffer.weekend.until)} at weekends,`
+    : '');
 function changePlanOffer(next, said) {
   planOffer = { ...planOffer, ...next };
   const saved = savePlanOffer(planOffer);
@@ -1940,16 +1953,32 @@ async function sayInChat(text) {
     box.checked = false;
     const ok = await live.review(
       'Hand the Time management offer to PEA for Mac',
-      `PEA for Mac will be given one fixed line, “${planOfferNotice}”, and the first hour you chose, for each of the next seven days, and again as the days pass.\n\nIt asks macOS to show that line as a notification at that hour, even when this page or the PEA app is closed. While this page is open and in view it withdraws that day’s notification, because the bar over Chat shows instead.\n\nNothing about your day, your plan, your to-dos or your chat is handed over with it.\n\nTurning this off again withdraws them from the Mac.`,
+      `PEA for Mac will be given one fixed line, “${planOfferNotice}”, and the first hour you chose for that day, for each of the next seven days, and again as the days pass.\n\nIt asks macOS to show that line as a notification at that hour, even when this page or the PEA app is closed. While this page is open and in view it withdraws that day’s notification, because the bar over Chat shows instead.\n\nNothing about your day, your plan, your to-dos or your chat is handed over with it.\n\nTurning this off again withdraws them from the Mac.`,
     );
     if (!ok) return renderPlanOffer();
-    changePlanOffer({ notify: true }, `PEA for Mac will notify you at ${hourLabel(planOffer.from)} when this page is closed or out of view.`);
+    changePlanOffer({ notify: true }, `PEA for Mac will notify you at ${hourLabel(planOffer.from)}${planOffer.weekend ? `, or ${hourLabel(planOffer.weekend.from)} at weekends,` : ''} when this page is closed or out of view.`);
   };
-  for (const edge of ['from', 'until'])
+  for (const edge of ['from', 'until']) {
     $(`plan-offer-${edge}`).onchange = () => {
       planOffer = planOfferPreferences({ ...planOffer, [edge]: Number($(`plan-offer-${edge}`).value) });
       changePlanOffer({}, `PEA will offer Time management ${planOfferSpan()} while it is open.`);
     };
+    $(`plan-offer-weekend-${edge}`).onchange = () => {
+      planOffer = planOfferPreferences({
+        ...planOffer,
+        weekend: { ...planOffer.weekend, [edge]: Number($(`plan-offer-weekend-${edge}`).value) },
+      });
+      changePlanOffer({}, `PEA will offer Time management ${planOfferSpan()} while it is open.`);
+    };
+  }
+  // Weekend hours start as a copy of the usual ones, for the owner to move.
+  $('plan-offer-weekend').onchange = () =>
+    $('plan-offer-weekend').checked
+      ? changePlanOffer(
+          { weekend: { from: planOffer.from, until: planOffer.until } },
+          'Saturday and Sunday now have hours of their own. Choose them beside the switch.',
+        )
+      : changePlanOffer({ weekend: null }, `PEA will offer Time management ${planOfferSpan()} every day while it is open.`);
   // The morning starts and ends by the clock, with the page open or brought back into view.
   setInterval(renderPlanOffer, 60000);
   document.addEventListener('visibilitychange', () => {

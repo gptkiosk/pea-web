@@ -23,6 +23,15 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Weekend hours for the Time management offer — 2026-11-26
+
+Version `0.1.0-rc.4.dev.83`. Asked for by the owner: “Let the offer hours differ on weekends”.
+
+- Source: `browser/presence.mjs` (`weekend` in `planOfferPreferences`, null or `{from, until}`; new `planOfferHoursOn`; `planOfferDue` and `planOfferNotices` read the day's hours), `browser/app.mjs` (`renderPlanOffer`, `planOfferSpan`, `#plan-offer-weekend` and its two lists), `browser/index.html` (`#plan-offer-weekend`, `#plan-offer-weekend-from-row`, `#plan-offer-weekend-until-row`).
+- Tests: the morning-offer tests in `browser/tests/presence.test.mjs` and `browser/tests/dom/chat-window.test.mjs`, extended.
+- Known gaps: the weekend is Saturday and Sunday, fixed; no hours per single day and no way to skip weekends altogether other than declining. Whole hours only. The row now holds up to four lists and three switches and has not been seen on the owner's screen or phone.
+- Next action: owner tries it on Today and says whether the weekend days should be choosable.
+
 ## Heading of the offer's Mac notification — 2026-11-26
 
 Version `0.1.0-rc.4.dev.82`. Asked for by the owner: “Change the notification heading from "PEA reminder"”.
