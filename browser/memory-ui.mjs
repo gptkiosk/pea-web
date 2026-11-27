@@ -320,6 +320,20 @@ export function installMemory(hooks) {
   // a passphrase is left locked for its owner to unlock.
   async function autoOpen() {
     if (!vault || vault.key) return;
+    // A passphrase library the owner chose to keep unlocked in this tab opens with the tab's copy
+    // of its key. A copy that no longer opens it is forgotten, and the passphrase is asked for.
+    if (hasSaved && vault.hasTab()) {
+      const next = await vault.unlockTab();
+      if (next) {
+        library = next;
+        failed = false;
+        if (JSON.stringify(readInterview()) === filled) fillInterview();
+        invalidate(true);
+        reopen();
+        hooks.libraryChanged?.(true);
+        return;
+      }
+    }
     const device = await vault.hasDeviceKey();
     if (hasSaved ? !device : localStorage.getItem(savingKey) === 'off') return;
     library = await vault.unlockDevice(library);
@@ -813,6 +827,8 @@ export function installMemory(hooks) {
       else if (vault?.key) {
         await vault.chain.catch(() => {});
         vault.lock();
+        // Lock means locked: the copy of the key kept for this tab goes too.
+        await vault.forgetTab();
         library = emptyLibrary();
         active.clear();
         unsaved.clear();
@@ -1071,6 +1087,25 @@ export function installMemory(hooks) {
       render();
     }
   };
+  // Whether the box was ticked last time is a preference, not a secret; the key's copy itself
+  // lives only as described in memory.mjs.
+  const keepTabKey = 'pea-library-keep-tab-v1';
+  const keepTab = () => {
+    try {
+      return localStorage.getItem(keepTabKey) === 'on';
+    } catch {
+      return false;
+    }
+  };
+  $('library-keep-tab').checked = keepTab();
+  $('library-keep-tab').onchange = () => {
+    try {
+      if ($('library-keep-tab').checked) localStorage.setItem(keepTabKey, 'on');
+      else localStorage.removeItem(keepTabKey);
+    } catch {
+      // The box still counts for this unlock.
+    }
+  };
   let unlocking = false;
   $('library-unlock').addEventListener('close', () => {
     // Closing a dialog reports it a moment later. If the dialog has been opened again by then,
@@ -1090,11 +1125,13 @@ export function installMemory(hooks) {
       if (vault.key && vault.device) {
         unlocking = true;
         $('library-unlock-submit').disabled = true;
-        await vault.setPassphrase(password, library);
+        await vault.setPassphrase(password, library, { keep: $('library-keep-tab').checked });
         unlocking = false;
         $('library-unlock').close();
         hooks.notice(
-          'Passphrase set. PEA will ask for it after each reload; there is no recovery if it is lost.',
+          vault.hasTab()
+            ? 'Passphrase set. This tab stays unlocked across reloads until you close it or press Lock; a new tab asks for the passphrase. There is no recovery if it is lost.'
+            : 'Passphrase set. PEA will ask for it after each reload; there is no recovery if it is lost.',
         );
         hooks.libraryChanged?.(true);
         return;
@@ -1111,9 +1148,10 @@ export function installMemory(hooks) {
       unlocking = true;
       $('library-unlock-submit').disabled = true;
       // Keep only schema-bound transcripts/interview; never inspect connection or DOM credential fields.
-      const next = await vault.unlock(password, library);
+      const next = await vault.unlock(password, library, { keep: $('library-keep-tab').checked });
       if (!$('library-unlock').open) {
         vault.lock();
+        await vault.forgetTab();
         return;
       }
       library = next;
@@ -1129,7 +1167,10 @@ export function installMemory(hooks) {
       unlocking = false;
       $('library-unlock').close();
       render();
-      hooks.notice('Library unlocked. Search and continue a conversation; nothing has been sent to a model.');
+      hooks.notice(
+        'Library unlocked. Search and continue a conversation; nothing has been sent to a model.' +
+          (vault.hasTab() ? ' It stays unlocked in this tab across reloads until you close it or press Lock.' : ''),
+      );
       hooks.libraryChanged?.(true);
     } catch (error) {
       say(error);

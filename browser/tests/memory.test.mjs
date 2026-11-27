@@ -615,3 +615,114 @@ test('forgetting what the browser saved removes the record and the key', async (
   assert.equal(await vault.hasDeviceKey(), false);
   await assert.rejects(() => vault.save(sample().library), /Unlock the library before saving/);
 });
+
+// A stand-in for one tab's session storage.
+const tabStore = () => {
+  const data = new Map();
+  return {
+    data,
+    getItem: (name) => (data.has(name) ? data.get(name) : null),
+    setItem: (name, value) => void data.set(name, String(value)),
+    removeItem: (name) => void data.delete(name),
+  };
+};
+test('a passphrase library can be kept unlocked for one tab, and only for that tab', async () => {
+  const storage = store(),
+    tab = tabStore(),
+    pass = 'synthetic library passphrase',
+    s = sample();
+  const first = new ConversationVault(storage, tab);
+
+  // Not asked for: nothing is kept anywhere.
+  await first.unlock(pass, s.library);
+  assert.equal(first.hasTab(), false);
+  assert.equal(tab.data.size, 0);
+  assert.deepEqual([...storage.named.keys()], []);
+  first.lock();
+  assert.equal(await new ConversationVault(storage, tab).unlockTab(), null);
+
+  // Asked for: a sealed copy beside the library and a secret in the tab. Neither holds the passphrase.
+  assert.deepEqual(await first.unlock(pass, undefined, { keep: true }), s.library);
+  assert.equal(first.hasTab(), true);
+  assert.deepEqual([...tab.data.keys()], ['pea-library-tab-v1']);
+  assert.match(tab.data.get('pea-library-tab-v1'), /^[0-9a-f]{64}$/);
+  const kept = storage.named.get('tab-key');
+  assert.deepEqual(Object.keys(kept).sort(), ['data', 'iv', 'salt', 'version']);
+  assert.equal(kept.data.byteLength, 48);
+  assert.doesNotMatch(JSON.stringify([...tab.data]), /synthetic library/);
+
+  // After a reload the same tab opens it with no passphrase, and can save and read kept secrets.
+  const reloaded = new ConversationVault(storage, tab);
+  assert.deepEqual(await reloaded.unlockTab(), s.library);
+  assert.equal(reloaded.device, false);
+  await reloaded.save(s.library);
+  await reloaded.keepSecret('openrouter:personal', 'sk-or-v1-' + 'synthetic'.repeat(3));
+  assert.equal(await reloaded.readSecret('openrouter:personal'), 'sk-or-v1-' + 'synthetic'.repeat(3));
+  assert.deepEqual(await new ConversationVault(storage, tab).unlockTab(), s.library, 'and after a save');
+
+  // Another tab has no secret: the sealed copy alone opens nothing and is left for its own tab.
+  const other = new ConversationVault(storage, tabStore());
+  assert.equal(other.hasTab(), false);
+  assert.equal(await other.unlockTab(), null);
+  assert(storage.named.has('tab-key'));
+  // A wrong secret opens nothing, and the useless copy is forgotten.
+  const wrong = tabStore();
+  wrong.setItem('pea-library-tab-v1', 'ab'.repeat(32));
+  assert.equal(await new ConversationVault(storage, wrong).unlockTab(), null);
+  assert.equal(wrong.data.size, 0);
+  assert(!storage.named.has('tab-key'));
+  assert.equal(await new ConversationVault(storage, tab).unlockTab(), null, 'the first tab asks again');
+  assert.equal(tab.data.size, 0);
+
+  // Forgetting removes both halves. Unlocking without the box forgets a copy kept earlier.
+  await first.unlock(pass, undefined, { keep: true });
+  await first.forgetTab();
+  assert.equal(tab.data.size, 0);
+  assert(!storage.named.has('tab-key'));
+  await first.unlock(pass, undefined, { keep: true });
+  await first.unlock(pass);
+  assert.equal(first.hasTab(), false);
+  assert(!storage.named.has('tab-key'));
+
+  // A wrong passphrase keeps nothing. A malformed secret or copy is not used.
+  await assert.rejects(first.unlock('wrong long passphrase', undefined, { keep: true }), /Could not unlock/);
+  assert.equal(tab.data.size, 0);
+  await first.unlock(pass, undefined, { keep: true });
+  for (const bad of ['', 'short', 'zz'.repeat(32), 'AB'.repeat(32)]) {
+    const t = tabStore();
+    t.setItem('pea-library-tab-v1', bad);
+    assert.equal(new ConversationVault(storage, t).hasTab(), false, bad);
+  }
+  storage.named.set('tab-key', { ...storage.named.get('tab-key'), version: 2 });
+  assert.equal(await new ConversationVault(storage, tab).unlockTab(), null);
+  assert.equal(tab.data.size, 0);
+
+  // No session storage at all: asking to keep is harmless.
+  const none = new ConversationVault(storage, null);
+  assert.deepEqual(await none.unlock(pass, undefined, { keep: true }), s.library);
+  assert.equal(none.hasTab(), false);
+  assert(!storage.named.has('tab-key'));
+});
+test('moving from this browser’s key to a passphrase can keep the tab unlocked, and a re-keyed library keeps the new key', async () => {
+  const storage = store(),
+    tab = tabStore(),
+    pass = 'synthetic library passphrase',
+    s = sample();
+  const v = new ConversationVault(storage, tab);
+  await v.unlockDevice(s.library);
+  assert.equal(await new ConversationVault(storage, tab).unlockTab(), null, 'a device library has no tab copy');
+  await v.setPassphrase(pass, s.library, { keep: true });
+  assert.equal(v.hasTab(), true);
+  assert(!storage.named.has('device-key'));
+  assert.deepEqual(await new ConversationVault(storage, tab).unlockTab(), s.library);
+
+  // A 310,000-round record is re-keyed on unlock; the copy kept is of the new key.
+  const old = await oldRecord('PEA conversation library v1', pass, s.library),
+    aged = store(),
+    agedTab = tabStore();
+  aged.set(old);
+  const w = new ConversationVault(aged, agedTab);
+  assert.deepEqual(await w.unlock(pass, undefined, { keep: true }), s.library);
+  assert.equal((await aged.get()).version, 2);
+  assert.deepEqual(await new ConversationVault(aged, agedTab).unlockTab(), s.library);
+});
