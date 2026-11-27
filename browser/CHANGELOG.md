@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.84] - 2026-11-26
+
+### Fixed
+
+- **The Time management tile seemed dead when no model was connected.** Pressing it, the **Plan my day** button of the offer, or **Start** in the Debate window did nothing at all in that state, which is the state after every reload until you reconnect. Each now says "PEA needs a model for this, and none is connected. Choose a model in Connections first. Nothing was sent.", with a button that opens Connections.
+
 ## [0.1.0-rc.4.dev.83] - 2026-11-26
 
 ### Added

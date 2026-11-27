@@ -23,6 +23,16 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## A press with no model connected — 2026-11-26
+
+Version `0.1.0-rc.4.dev.84`. Reported by the owner: “time management is not clickable on the chat page shortcut?”.
+
+- Cause: `sayInChat` in `browser/app.mjs` dropped the answer of `live.chat`, which is `false` when neither a local token nor an OpenRouter key is held. The tile was clickable; the press ended without a word. The Chat box itself answers that case with a preview message, so only the tiles were silent.
+- Source: `browser/app.mjs` (`sayInChat` notices and returns whether anything was sent; `#home-plan` and `#debate-start` forget the interview or debate they had begun).
+- Tests: `browser/tests/dom/chat-window.test.mjs` (one new: both tiles with no model connected).
+- Known gaps: the token is still not kept across a reload, so the owner reconnects after every update. With a model connected but none chosen for Chat, the existing “Choose a chat model in Connections first.” notice shows; with sharing not yet reviewed, the review window opens. Not confirmed on the owner's screen that this was the state they were in.
+- Next action: owner reloads, presses the tile and says whether the notice appears; if the tile is still dead with a model connected, that is a different fault.
+
 ## Weekend hours for the Time management offer — 2026-11-26
 
 Version `0.1.0-rc.4.dev.83`. Asked for by the owner: “Let the offer hours differ on weekends”.

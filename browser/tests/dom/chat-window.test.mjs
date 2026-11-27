@@ -836,3 +836,36 @@ test('a debate is started by the owner, tells the model to argue the other side,
   assert.deepEqual(page.outsideRequests(), []);
   await page.close();
 });
+
+// A press must never pass in silence. With no model connected (as after every reload, since the
+// token is not kept), the Time management and Debate tiles say so and point at Connections.
+test('with no model connected the Time management and Debate tiles say so, and send nothing', options, async () => {
+  const page = await stack.browser.newPage();
+  await page.goto(stack.gateway.origin + '/');
+  await page.waitFor(
+    `document.querySelector('#local-connect').onclick && !document.querySelector('#local-connect').disabled`,
+    'the app to start',
+  );
+  const asked = stack.model.requests.length;
+  const said = () => page.evaluate(`document.getElementById('notice').textContent`);
+  const told = /PEA needs a model for this, and none is connected\. Choose a model in Connections first\. Nothing was sent\./;
+  await page.click('#home-plan');
+  await page.waitFor(`document.getElementById('notice').textContent.includes('PEA needs a model')`, 'the tile to answer');
+  assert.match(await said(), told);
+  assert.equal(await page.evaluate(`document.querySelector('#notice button.notice-go')?.tagName`), 'BUTTON', 'a real button leads to Connections');
+  assert.deepEqual(
+    JSON.parse(await page.evaluate(`JSON.stringify([document.getElementById('plan-bar').hidden, document.getElementById('messages').children.length, document.getElementById('profile').disabled])`)),
+    [true, 0, false],
+  );
+  // The same for a debate started from its window.
+  await page.evaluate(`document.getElementById('notice').textContent = ''`);
+  await page.click('#home-debate');
+  await page.waitFor(`document.getElementById('debate').open`, 'the debate window');
+  await page.fill('#debate-position', 'A synthetic position.');
+  await page.click('#debate-start');
+  await page.waitFor(`document.getElementById('notice').textContent.includes('PEA needs a model')`, 'the debate to answer');
+  assert.equal(await page.evaluate(`document.getElementById('debate-bar').hidden`), true);
+  assert.equal(stack.model.requests.length, asked, 'nothing was sent');
+  assert.deepEqual(page.outsideRequests(), []);
+  await page.close();
+});
