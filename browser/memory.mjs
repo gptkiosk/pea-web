@@ -457,10 +457,34 @@ const secretName = /^[a-z]{2,20}:[a-z]{2,20}$/,
   secretAad = (name) => new TextEncoder().encode('PEA kept secret v1:' + name);
 // Keeping a passphrase library unlocked for one tab: the library's key, sealed with a secret that
 // lives only in that tab's session storage, is stored beside the library. Closing the tab loses
-// the secret, and the sealed copy is then of no use to anyone.
+// the secret, and the sealed copy is then of no use to anyone. Each tab has its own secret and its
+// own sealed copy, stored under a name made from a digest of that secret, so several tabs can stay
+// unlocked at once. At most `tabCopies` are kept; the oldest go first.
 const tabName = 'pea-library-tab-v1',
   tabAad = new TextEncoder().encode('PEA library tab key v1'),
-  tabSecret = /^[0-9a-f]{64}$/;
+  tabSecret = /^[0-9a-f]{64}$/,
+  tabPrefix = 'tab-key:',
+  // The one record every tab shared before each tab had its own.
+  tabLegacy = 'tab-key',
+  tabCopies = 8;
+const hex = (bytes) => [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+const tabRecord = async (secret) =>
+  tabPrefix +
+  hex(
+    new Uint8Array(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode('PEA library tab id v1:' + secret)),
+    ).subarray(0, 16),
+  );
+const tabCopy = (kept) =>
+  fields(kept, ['version', 'salt', 'iv', 'data', 'at']) &&
+  kept.version === 1 &&
+  kept.salt instanceof Uint8Array &&
+  kept.salt.length === 16 &&
+  kept.iv instanceof Uint8Array &&
+  kept.iv.length === 12 &&
+  kept.data instanceof ArrayBuffer &&
+  kept.data.byteLength === 48 &&
+  Number.isSafeInteger(kept.at);
 const sessionStore = () => {
   try {
     return globalThis.sessionStorage ?? null;
@@ -542,6 +566,16 @@ export class ConversationVault {
           tx.objectStore('encrypted').delete(name);
           tx.oncomplete = () => resolve();
           tx.onabort = tx.onerror = () => reject(new ServiceError('Removing from this browser failed.'));
+        }),
+      // The names of the records whose name starts with `prefix`.
+      namesAt: (prefix) =>
+        new Promise((resolve, reject) => {
+          const r = db
+            .transaction('encrypted')
+            .objectStore('encrypted')
+            .getAllKeys(IDBKeyRange.bound(prefix, prefix + '\uffff'));
+          r.onsuccess = () => resolve(r.result.filter((name) => typeof name === 'string'));
+          r.onerror = () => reject(r.error);
         }),
     });
   }
@@ -646,45 +680,85 @@ export class ConversationVault {
   }
   // True when this tab holds the secret for a sealed copy of the library's key.
   hasTab() {
+    return this.tabSecret() !== '';
+  }
+  // The secret this tab holds, or '' when it holds none.
+  tabSecret() {
     try {
-      return tabSecret.test(this.tab?.getItem(tabName) ?? '');
+      const text = this.tab?.getItem(tabName) ?? '';
+      return tabSecret.test(text) ? text : '';
     } catch {
-      return false;
+      return '';
     }
   }
-  // Seals the key's bytes for this tab. Gives false, keeping nothing, where it cannot.
+  // Seals the key's bytes for this tab, beside the copies other tabs keep. Gives false, keeping
+  // nothing, where it cannot.
   async keepTab(bits, salt) {
     if (!this.tab || !(bits instanceof Uint8Array) || bits.length !== 32) return false;
     const secret = crypto.getRandomValues(new Uint8Array(32)),
       iv = crypto.getRandomValues(new Uint8Array(12));
+    let name = '';
     try {
       const data = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv, additionalData: tabAad },
-        await aesKey(secret, ['encrypt']),
-        bits,
-      );
-      await this.storage.putAt('tab-key', { version: 1, salt: salt.slice(), iv, data });
-      this.tab.setItem(tabName, [...secret].map((byte) => byte.toString(16).padStart(2, '0')).join(''));
+          { name: 'AES-GCM', iv, additionalData: tabAad },
+          await aesKey(secret, ['encrypt']),
+          bits,
+        ),
+        text = hex(secret);
+      name = await tabRecord(text);
+      // The copy this tab kept before is replaced, not left behind.
+      await this.forgetTab();
+      await this.storage.putAt(name, { version: 1, salt: salt.slice(), iv, data, at: Date.now() });
+      this.tab.setItem(tabName, text);
       if (!this.hasTab()) throw new Error('not kept');
+      await this.tidyTabs(salt, name);
       return true;
     } catch {
       await this.forgetTab();
+      // Where the tab could not hold the secret, the copy just written is of no use.
+      if (name) await this.storage.deleteAt?.(name).catch(() => {});
       return false;
     } finally {
       secret.fill(0);
     }
   }
-  // Removes this tab's secret and the sealed copy. The library itself is untouched.
+  // Removes sealed copies that can open nothing (not for this library's key, or malformed) and,
+  // past the limit, the oldest. The copy named `mine` always stays.
+  async tidyTabs(salt, mine) {
+    try {
+      const live = [];
+      for (const name of (await this.storage.namesAt?.(tabPrefix)) ?? []) {
+        if (name === mine) continue;
+        const kept = await this.storage.getAt(name);
+        if (tabCopy(kept) && kept.salt.every((byte, i) => byte === salt[i])) live.push([kept.at, name]);
+        else await this.storage.deleteAt(name);
+      }
+      live.sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1));
+      for (const [, name] of live.slice(tabCopies - 1)) await this.storage.deleteAt(name);
+    } catch {
+      // Tidying is best effort; a copy left behind opens nothing without its tab's secret.
+    }
+  }
+  // Removes this tab's secret and its sealed copy. Other tabs' copies and the library are untouched.
   async forgetTab() {
+    const text = this.tabSecret();
     try {
       this.tab?.removeItem(tabName);
     } catch {
       // Nothing was kept.
     }
-    await this.storage.deleteAt?.('tab-key').catch(() => {});
+    if (!text) return;
+    try {
+      const name = await tabRecord(text);
+      // A secret with no copy of its own is from before each tab had one: that shared copy goes.
+      if ((await this.storage.getAt(name)) === undefined) await this.storage.deleteAt(tabLegacy);
+      else await this.storage.deleteAt(name);
+    } catch {
+      // Without the secret the copy opens nothing.
+    }
   }
   // Opens a passphrase library with the copy of its key kept for this tab. Gives null, and
-  // forgets the copy, when there is none or it does not open the saved record as it is now.
+  // forgets this tab's copy, when there is none or it does not open the saved record as it is now.
   async unlockTab() {
     if (!this.hasTab()) return null;
     const epoch = ++this.epoch;
@@ -693,19 +767,22 @@ export class ConversationVault {
     this.lock();
     let key, library, saved;
     try {
-      const text = this.tab.getItem(tabName),
-        kept = await this.storage.getAt('tab-key');
+      const text = this.tabSecret(),
+        name = await tabRecord(text);
+      let kept = await this.storage.getAt(name),
+        legacy = false;
+      if (kept === undefined) {
+        // The shared copy from before each tab had its own: used once, then moved under this tab's name.
+        const old = await this.storage.getAt(tabLegacy);
+        if (fields(old, ['version', 'salt', 'iv', 'data'])) {
+          kept = { ...old, at: Date.now() };
+          legacy = true;
+        }
+      }
       saved = await this.storage.get();
       if (
         (await this.hasDeviceKey()) ||
-        !fields(kept, ['version', 'salt', 'iv', 'data']) ||
-        kept.version !== 1 ||
-        !(kept.salt instanceof Uint8Array) ||
-        kept.salt.length !== 16 ||
-        !(kept.iv instanceof Uint8Array) ||
-        kept.iv.length !== 12 ||
-        !(kept.data instanceof ArrayBuffer) ||
-        kept.data.byteLength !== 48 ||
+        !tabCopy(kept) ||
         !fields(saved, ['version', 'revision', 'salt', 'iv', 'data']) ||
         saved.version !== 2 ||
         !id(saved.revision) ||
@@ -736,6 +813,10 @@ export class ConversationVault {
           ),
         ),
       );
+      if (legacy) {
+        await this.storage.putAt(name, kept);
+        await this.storage.deleteAt(tabLegacy);
+      }
     } catch {
       await this.forgetTab();
       return null;

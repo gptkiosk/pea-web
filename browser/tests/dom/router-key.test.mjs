@@ -366,11 +366,12 @@ test(
 
 // Keeping a passphrase library unlocked for the open tab.
 const libraryOpen = `!document.getElementById('router-remember').disabled`;
+const copies = async (page) => (await stored(page)).keys.filter((name) => name.startsWith('tab-key')).length;
 const libraryNoted = (text) =>
   `document.getElementById('notice').textContent.includes(${JSON.stringify(text)})`;
 
 test(
-  'a ticked box keeps a passphrase library unlocked for the open tab: open after a reload, locked by Lock',
+  'a ticked box keeps a passphrase library unlocked for the open tab: open after a reload, in more than one tab, locked by Lock',
   options,
   async () => {
     const page = await stack.browser.newPage();
@@ -381,7 +382,7 @@ test(
     // Not ticked: a passphrase library is locked after a reload, and nothing is kept for the tab.
     await unlock(page, { keep: false });
     assert.equal(await session(page), '{}');
-    assert(!(await stored(page)).keys.includes('tab-key'));
+    assert.equal(await copies(page), 0);
     await start(page);
     await settle(page);
     assert.equal(await page.evaluate(libraryOpen), false, 'locked after a reload');
@@ -392,7 +393,7 @@ test(
     const held = JSON.parse(await session(page));
     assert.deepEqual(Object.keys(held), ['pea-library-tab-v1']);
     assert.match(held['pea-library-tab-v1'], /^[0-9a-f]{64}$/);
-    assert((await stored(page)).keys.includes('tab-key'));
+    assert.equal(await copies(page), 1);
     const lasting = await page.evaluate(`JSON.stringify({ ...localStorage })`);
     assert(!lasting.includes(held['pea-library-tab-v1']), 'the secret is not in lasting storage');
     assert(!lasting.includes(passphrase) && !(await session(page)).includes(passphrase));
@@ -420,15 +421,38 @@ test(
     assert.equal(await session(other), '{}');
     assert.equal(await other.evaluate(libraryOpen), false, 'another tab is locked');
     assert.deepEqual(await routerModels(other), []);
-    await other.close();
+
+    // Ticked there too, both tabs keep it: each has its own secret and its own sealed copy.
+    await unlock(other, { keep: true });
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'the second tab’s secret');
+    const second = JSON.parse(await session(other))['pea-library-tab-v1'];
+    assert.match(second, /^[0-9a-f]{64}$/);
+    assert.notEqual(second, held['pea-library-tab-v1']);
+    assert.equal(await copies(page), 2);
     await start(page);
     await page.waitFor(libraryOpen, 'the first tab still opens by itself');
+    await start(other);
+    await other.waitFor(libraryOpen, 'the second tab opens by itself');
+    await other.waitFor(connected, 'the kept key to reconnect in the second tab');
+    assert.equal(await other.evaluate(`document.getElementById('library-unlock').open`), false);
+
+    // Lock in the second tab ends it there only.
+    await other.click('#library-storage');
+    await other.waitFor(`document.getElementById('router-remember').disabled`, 'the second tab to lock');
+    assert.equal(await session(other), '{}');
+    assert.equal(await copies(page), 1);
+    await start(other);
+    await settle(other);
+    assert.equal(await other.evaluate(libraryOpen), false, 'the second tab is locked after its Lock');
+    await other.close();
+    await start(page);
+    await page.waitFor(libraryOpen, 'the first tab still opens by itself after the other locked');
 
     // Lock means locked: both halves go, and a reload asks for the passphrase.
     await page.click('#library-storage');
     await page.waitFor(`document.getElementById('router-remember').disabled`, 'the library to lock');
     assert.equal(await session(page), '{}');
-    assert(!(await stored(page)).keys.includes('tab-key'));
+    assert.equal(await copies(page), 0);
     await start(page);
     await settle(page);
     assert.equal(await page.evaluate(libraryOpen), false, 'locked after Lock and a reload');
@@ -440,7 +464,12 @@ test(
     await settle(page);
     assert.equal(await page.evaluate(libraryOpen), false);
     assert.equal(await session(page), '{}');
-    assert(!(await stored(page)).keys.includes('tab-key'));
+    // The copy whose secret was overwritten belongs to no tab now and opens nothing; it is left
+    // for the tidy-up at the next keep, as another tab's copy would be.
+    assert.equal(await copies(page), 1);
+    await unlock(page, { keep: true });
+    await page.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'a fresh secret');
+    assert.equal(await copies(page), 2);
     await page.close();
   },
 );
