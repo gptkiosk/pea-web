@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## OpenRouter key kept for the open tab — 2026-11-27
+
+Version `0.1.0-rc.4.dev.85`. Asked for by the owner: “Keep the model connected across reloads”; the model that dropped was OpenRouter, and of three choices put to them the owner picked keeping the key for the open tab only.
+
+- What already existed and is unchanged: the local server's token is kept across reloads when `#local-remember` is ticked (dev.5); the OpenRouter key can be sealed in the encrypted library (`#router-remember`) and returns on unlock.
+- Source: `browser/local-token.mjs` (`loadTabKey`, `saveTabKey`, `forgetTabKey`, `validRouterKey`: `sessionStorage`, name `pea-router-tab-v1:<profile>`, only a key-shaped value for a profile name is stored or read back). `browser/live-ui.mjs`: `#router-tab` box, `tabWanted`, `keepRouterTab`, `restoreRouterTab` (page start and profile change; asks OpenRouter for `/api/v1/key` and the model list, nothing else; a 401 or 403 forgets the key, any other failure leaves it); `restoreRouter` marks the library's box when the library holds the key the tab is already connected with; `libraryChanged(false)` leaves a tab-kept key connected; `#router-forget` removes the tab's copy too. `browser/index.html`: the box, its note, one line under Privacy.
+- No gateway, contract or stored-library change. Nothing is written to `localStorage` or IndexedDB.
+- Tests: `browser/tests/local-token.test.mjs` (one new); `browser/tests/dom/router-key.test.mjs` (one new: off by default, kept only in session storage, reload connects with nothing typed and no model request, per profile, absent from another tab, beside a library copy and through a lock, untick, Disconnect locally, a refused key).
+- Known gaps: the key is plain text in the tab's session storage, readable by script on this origin and by an extension allowed on the page, and browsers may write session storage to disk to restore a session. A duplicated tab copies it. `#choices-forget` does not remove it. Sharing approval is still per page load, so the first message after a reload is reviewed. Not tried in the owner's browsers or on a phone, where a browser may discard a background tab's session.
+- Correction: two notes below (dev.84, and the Mac reminders section) say the token is not kept across a reload. That holds only while `#local-remember` is unticked.
+- Next action: owner ticks the box under Connections → OpenRouter, reloads, and says whether Chat stays connected.
+
 ## A press with no model connected — 2026-11-26
 
 Version `0.1.0-rc.4.dev.84`. Reported by the owner: “time management is not clickable on the chat page shortcut?”.
@@ -30,7 +42,7 @@ Version `0.1.0-rc.4.dev.84`. Reported by the owner: “time management is not cl
 - Cause: `sayInChat` in `browser/app.mjs` dropped the answer of `live.chat`, which is `false` when neither a local token nor an OpenRouter key is held. The tile was clickable; the press ended without a word. The Chat box itself answers that case with a preview message, so only the tiles were silent.
 - Source: `browser/app.mjs` (`sayInChat` notices and returns whether anything was sent; `#home-plan` and `#debate-start` forget the interview or debate they had begun).
 - Tests: `browser/tests/dom/chat-window.test.mjs` (one new: both tiles with no model connected).
-- Known gaps: the token is still not kept across a reload, so the owner reconnects after every update. With a model connected but none chosen for Chat, the existing “Choose a chat model in Connections first.” notice shows; with sharing not yet reviewed, the review window opens. Not confirmed on the owner's screen that this was the state they were in.
+- Known gaps: with nothing kept (`#local-remember` unticked, no OpenRouter key kept) the owner reconnects after every reload. With a model connected but none chosen for Chat, the existing “Choose a chat model in Connections first.” notice shows; with sharing not yet reviewed, the review window opens. Not confirmed on the owner's screen that this was the state they were in.
 - Next action: owner reloads, presses the tile and says whether the notice appears; if the tile is still dead with a model connected, that is a different fault.
 
 ## Weekend hours for the Time management offer — 2026-11-26
@@ -1516,7 +1528,7 @@ Next action: the web features listed for 0.2 in PARITY.md. The owner's steps are
 Known gaps:
 
 - **No real notification has been shown.** Whether macOS grants notification permission to the unsigned build, what the notification looks like, and the menu item itself are unchecked. The owner tries this by hand.
-- The page's token is not kept across a reload, so after one the Mac keeps its last list until the local model is connected again. A to-do checked off in that window still notifies.
+- Unless `#local-remember` is ticked, the page's token is not kept across a reload, so after one the Mac keeps its last list until the local model is connected again. A to-do checked off in that window still notifies.
 - Clicking a notification does not open PEA. No recurring reminders. The Mac holds at most 64, the soonest.
 - The to-do review in Chat and the Today text were reworded slightly; no other web behavior changed.
 

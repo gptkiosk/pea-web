@@ -2,6 +2,17 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.85] - 2026-11-27
+
+### Added
+
+- **Keep the OpenRouter key for the open tab.** Under Connections → OpenRouter, a new box, **Keep this key for this tab, across reloads**, off by default. Ticked, a reload or an update stays connected to OpenRouter with no passphrase, and closing the tab forgets the key. The key is then held unencrypted in that tab's session storage, where anything able to read the page's storage, such as a browser extension allowed on it, could read it; a duplicated tab gets a copy. Each profile has its own box. Unticking, or **Disconnect locally**, removes the copy at once, and a key OpenRouter no longer accepts is forgotten when it is tried.
+
+### Changed
+
+- Locking the library no longer disconnects OpenRouter in a tab where the key is also kept for that tab.
+- The dev.84 note said the model is disconnected "after every reload until you reconnect". That was only true where nothing is kept: the local server's token has been kept across reloads since dev.5 when **Remember this token on this browser** is ticked.
+
 ## [0.1.0-rc.4.dev.84] - 2026-11-26
 
 ### Fixed

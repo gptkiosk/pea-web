@@ -2,7 +2,16 @@
 // Run with: node --test browser/tests/local-token.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forgetLocalToken, loadLocalToken, saveLocalToken, validLocalToken } from '../local-token.mjs';
+import {
+  forgetLocalToken,
+  forgetTabKey,
+  loadLocalToken,
+  loadTabKey,
+  saveLocalToken,
+  saveTabKey,
+  validLocalToken,
+  validRouterKey,
+} from '../local-token.mjs';
 import { LocalModel } from '../local-model.mjs';
 
 const store = (start = {}) => {
@@ -69,4 +78,33 @@ test('a refused token is told apart from a server that is not answering', async 
   await assert.rejects(answer(401).catalogue(token), (error) => error.rejected === true);
   await assert.rejects(answer(503).catalogue(token), (error) => error.rejected === false);
   await assert.rejects(answer(404).catalogue(token), (error) => error.rejected === false);
+});
+
+test('the OpenRouter key kept for a tab is per profile, key-shaped only, and forgotten on request', () => {
+  const key = 'sk-or-v1-' + 'syntheticSYNTHETIC'.repeat(2),
+    other = 'sk-or-v1-' + 'otherOTHER'.repeat(3);
+  const storage = store();
+  assert.equal(loadTabKey('personal', storage), '');
+  assert.equal(saveTabKey('personal', key, storage), true);
+  assert.deepEqual([...storage.data.keys()], ['pea-router-tab-v1:personal']);
+  assert.equal(loadTabKey('personal', storage), key);
+  assert.equal(loadTabKey('work', storage), '', 'the other profile has none');
+  assert.equal(saveTabKey('work', other, storage), true);
+  forgetTabKey('personal', storage);
+  assert.equal(loadTabKey('personal', storage), '');
+  assert.equal(loadTabKey('work', storage), other, 'forgetting one leaves the other');
+
+  for (const bad of ['', 'sk-or-v1-short', 'sk-or-v1-' + 'a b'.repeat(12), 'x'.repeat(40), token, 7, null])
+    assert.equal(validRouterKey(bad), false, String(bad));
+  const empty = store();
+  assert.equal(saveTabKey('personal', 'not a key', empty), false);
+  assert.equal(saveTabKey('../personal', key, empty), false, 'only a profile name');
+  assert.equal(saveTabKey('', key, empty), false);
+  assert.equal(empty.data.size, 0);
+  assert.equal(loadTabKey('personal', store({ 'pea-router-tab-v1:personal': '<script>alert(1)</script>' })), '');
+
+  assert.equal(saveTabKey('personal', key, refusing), false);
+  assert.equal(loadTabKey('personal', refusing), '');
+  assert.doesNotThrow(() => forgetTabKey('personal', refusing));
+  assert.equal(saveTabKey('personal', key, undefined), false, 'no storage at all');
 });

@@ -219,3 +219,144 @@ test(
     await page.close();
   },
 );
+
+// The other way to keep the key: for the open tab alone, in its session storage, with no passphrase.
+const answerRouter = (page, accepted) =>
+  page.route(router, (url, request) => {
+    if (request.method === 'OPTIONS') return { body: {} };
+    const sent = request.headers.Authorization ?? request.headers.authorization;
+    if (url.endsWith('/api/v1/key'))
+      return sent === 'Bearer ' + accepted()
+        ? { body: { data: { label: 'synthetic' } } }
+        : { status: 401, body: { error: { message: 'No auth' } } };
+    if (url.includes('/api/v1/models'))
+      return {
+        body: {
+          data: [
+            {
+              id: 'synthetic/router-model',
+              name: 'Synthetic: Router Model',
+              architecture: { input_modalities: ['text'], output_modalities: ['text'] },
+              pricing: { prompt: '0', completion: '0' },
+            },
+          ],
+        },
+      };
+    return { status: 404 };
+  });
+const connected = `[...document.getElementById('chat-model').options].some((o) => o.value === 'synthetic/router-model')`;
+const noted = (text) => `document.getElementById('connection-note').textContent.includes(${JSON.stringify(text)})`;
+const tabBox = (page) => page.evaluate(`document.getElementById('router-tab').checked`);
+const session = (page) => page.evaluate(`JSON.stringify({ ...sessionStorage })`);
+const settle = (page) => page.evaluate(`new Promise((done) => setTimeout(done, 400))`);
+
+test(
+  'a ticked box keeps the OpenRouter key for the open tab: back after a reload, gone with the tab',
+  options,
+  async () => {
+    const page = await stack.browser.newPage();
+    let accepted = key;
+    await answerRouter(page, () => accepted);
+    await start(page);
+    const before = stack.model.requests.length,
+      had = (await stored(page)).keys;
+
+    // Off by default: a verified key is kept nowhere and a reload asks for it again.
+    assert.equal(await tabBox(page), false);
+    await page.fill('#router-key', key);
+    await page.click('#router-connect');
+    await page.waitFor(connected, 'the OpenRouter models');
+    assert.doesNotMatch((await stored(page)).text, /sk-or-v1/);
+    await start(page);
+    await settle(page);
+    assert.deepEqual(await routerModels(page), []);
+
+    // Ticked first, the next verified key is kept, in this tab's session storage and nowhere else.
+    await page.click('#router-tab');
+    await page.waitFor(noted('next key you verify will be kept for this tab'), 'the intent to be noted');
+    assert.equal(await session(page), '{}');
+    await page.fill('#router-key', key);
+    await page.click('#router-connect');
+    await page.waitFor(noted('The key is kept for this tab until you close it.'), 'the key to be kept');
+    assert.deepEqual(JSON.parse(await session(page)), { 'pea-router-tab-v1:personal': key });
+    assert.doesNotMatch(await page.evaluate(`JSON.stringify({ ...localStorage })`), /sk-or-v1/);
+    assert.deepEqual((await stored(page)).keys, had, 'nothing new beside the library');
+
+    // A reload connects with nothing typed and no passphrase; no model is asked anything.
+    await start(page);
+    await page.waitFor(connected, 'the key to come back after a reload');
+    assert.equal(await tabBox(page), true);
+    assert.equal(await page.evaluate(`document.getElementById('router-key').value`), '');
+    assert.equal(stack.model.requests.length, before, 'no model was asked anything');
+
+    // Work has none of its own, and Personal's is still there on the way back.
+    await page.fill('#profile', 'work');
+    await page.waitFor(`document.getElementById('profile').value === 'work'`);
+    await settle(page);
+    assert.deepEqual(await routerModels(page), []);
+    assert.equal(await tabBox(page), false);
+    await page.fill('#profile', 'personal');
+    await page.waitFor(connected, 'Personal still connected');
+
+    // Another tab has no copy.
+    const other = await stack.browser.newPage();
+    await answerRouter(other, () => accepted);
+    await start(other);
+    await settle(other);
+    assert.equal(await session(other), '{}');
+    assert.deepEqual(await routerModels(other), []);
+    await other.close();
+
+    // Kept in the library as well: after a reload the tab's copy connects before any passphrase,
+    // unlocking shows the library's box as true, and locking leaves this tab connected.
+    await unlock(page);
+    await page.click('#router-remember');
+    await page.waitFor(noted('now kept in your encrypted library'), 'the library copy');
+    await start(page);
+    await page.waitFor(connected, 'the tab copy to connect while the library is locked');
+    assert.deepEqual(await box(page), { checked: false, disabled: true });
+    await unlock(page);
+    await page.waitFor(`document.getElementById('router-remember').checked`, 'the library box to read true');
+    await page.click('#library-storage');
+    await page.waitFor(`document.getElementById('router-remember').disabled`, 'the library to lock');
+    assert.deepEqual(await routerModels(page), ['synthetic/router-model']);
+
+    // Unticking forgets the tab's copy at once; the tab stays connected until the reload.
+    await page.click('#router-tab');
+    await page.waitFor(noted('no longer kept for this tab'), 'the copy to be forgotten');
+    assert.equal(await session(page), '{}');
+    assert.deepEqual(await routerModels(page), ['synthetic/router-model']);
+    await start(page);
+    await settle(page);
+    assert.deepEqual(await routerModels(page), []);
+
+    // Ticked while connected it is kept straight away, and Disconnect locally removes every copy.
+    await page.fill('#router-key', key);
+    await page.click('#router-connect');
+    await page.waitFor(connected, 'the OpenRouter models again');
+    await page.click('#router-tab');
+    await page.waitFor(noted('a reload stays connected'), 'the key to be kept');
+    assert.match(await session(page), /sk-or-v1/);
+    await page.click('#router-forget');
+    await page.waitFor(noted('Forgot'), 'the key to be forgotten');
+    assert.equal(await session(page), '{}');
+    assert.equal(await tabBox(page), false);
+    await unlock(page);
+    await settle(page);
+    assert(!(await stored(page)).keys.some((name) => name.startsWith('secret:')), 'no copy in the library');
+    assert.deepEqual(await routerModels(page), []);
+
+    // A kept key that OpenRouter no longer accepts is forgotten and said so.
+    await page.click('#router-tab');
+    await page.fill('#router-key', key);
+    await page.click('#router-connect');
+    await page.waitFor(noted('The key is kept for this tab until you close it.'), 'the key to be kept again');
+    accepted = 'sk-or-v1-' + 'another'.repeat(4);
+    await start(page);
+    await page.waitFor(noted('no longer accepts the key kept for this tab'), 'the refused key to be forgotten');
+    assert.equal(await session(page), '{}');
+    assert.equal(await tabBox(page), false);
+    assert.deepEqual(await routerModels(page), []);
+    await page.close();
+  },
+);
