@@ -76,3 +76,36 @@ export function forgetTabKey(profile, storage = tabStorage()) {
     // Nothing was kept.
   }
 }
+
+// Sharing reviews the owner approved in this tab, so a reload does not ask again for exactly the
+// same choices. Only SHA-256 digests are kept, never what was reviewed, in the tab's session
+// storage: closing the tab forgets them. The newest few are kept.
+const approvalsName = 'pea-share-approvals-v1',
+  approvalsKept = 24;
+const validMark = (value) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+export function loadTabApprovals(storage = tabStorage()) {
+  try {
+    const list = JSON.parse(storage.getItem(approvalsName) ?? '[]');
+    return Array.isArray(list) ? list.filter(validMark).slice(-approvalsKept) : [];
+  } catch {
+    return [];
+  }
+}
+// Gives false when the value is not a digest or this browser refuses storage.
+export function saveTabApproval(mark, storage = tabStorage()) {
+  if (!validMark(mark)) return false;
+  try {
+    const list = loadTabApprovals(storage).filter((kept) => kept !== mark);
+    storage.setItem(approvalsName, JSON.stringify([...list, mark].slice(-approvalsKept)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function forgetTabApprovals(storage = tabStorage()) {
+  try {
+    storage.removeItem(approvalsName);
+  } catch {
+    // Nothing was kept.
+  }
+}

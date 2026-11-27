@@ -2660,7 +2660,7 @@ memory = installMemory({
   notice,
   review: live.review,
   tab,
-  contextChanged: () => live.contextChanged(),
+  contextChanged: (reloading) => live.contextChanged(reloading),
   replace(surface, messages) {
     const current = history(surface);
     current.splice(0, current.length, ...messages);

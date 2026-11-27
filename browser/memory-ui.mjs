@@ -91,8 +91,11 @@ export function installMemory(hooks) {
         : 'Local library operation failed. The saved record was preserved.',
     );
   }
-  function invalidate() {
-    hooks.contextChanged();
+  // `reloading` marks the two changes that are only a page load: the page going away, and this
+  // browser's own library opening by itself afterwards. Sharing approvals kept for the tab stand
+  // through those, and through no other change.
+  function invalidate(reloading = false) {
+    hooks.contextChanged(reloading);
   }
   function readInterview() {
     return Object.fromEntries(fields.map((k) => [k, $('bio-' + k).value.trim()]));
@@ -325,7 +328,7 @@ export function installMemory(hooks) {
     // Saved chats open a moment after the page loads. Answers the owner has already started
     // typing in the interview are theirs and stay.
     if (JSON.stringify(readInterview()) === filled) fillInterview();
-    invalidate();
+    invalidate(true);
     reopen();
     hooks.libraryChanged?.(true);
   }
@@ -1192,7 +1195,8 @@ export function installMemory(hooks) {
     $('memory-edit-quote').textContent = '';
     $('memory-share').checked = false;
     fillInterview();
-    invalidate();
+    // The page is going away, as in a reload: what the tab keeps for the next load stays.
+    invalidate(true);
     render();
   });
   // Resolves once the saved chats have been opened (or found to need a passphrase, or to be off).

@@ -232,3 +232,75 @@ test(
     await page.close();
   },
 );
+
+// Sends a Chat message and says whether the sharing review came up first. An opened review is approved.
+async function sendAndSee(page, message) {
+  const sent = stack.model.requests.length;
+  await page.fill('#thought', message);
+  await page.evaluate(`document.querySelector('#composer').requestSubmit()`);
+  let reviewed = false;
+  for (let i = 0; i < 100 && stack.model.requests.length === sent && !reviewed; i++) {
+    reviewed = await page.evaluate(`document.querySelector('#review').open`);
+    if (!reviewed) await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (reviewed) {
+    await page.click('#review-approve');
+    await page.waitFor(`!document.querySelector('#review').open`);
+  }
+  for (let i = 0; i < 100 && stack.model.requests.length === sent; i++)
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  assert(stack.model.requests.length > sent, 'the request reached the model');
+  await page.waitFor(`!document.querySelector('#profile').disabled`, 'the reply to finish');
+  return reviewed;
+}
+const approvals = (page) => page.evaluate(`sessionStorage.getItem('pea-share-approvals-v1')`);
+
+test(
+  'a sharing review approved in this tab is not asked again after a reload, until something changes',
+  { skip, timeout: 90000 },
+  async () => {
+    const page = await openConnectedPage(stack);
+    await page.click('#local-remember');
+    assert.equal(await approvals(page), null, 'nothing is kept before a review is approved');
+
+    // The first message is reviewed; what is kept is one digest, not a word of what was reviewed.
+    assert.equal(await sendAndSee(page, 'A first synthetic message.'), true);
+    const kept = JSON.parse(await approvals(page));
+    assert.equal(kept.length, 1);
+    assert.match(kept[0], /^[0-9a-f]{64}$/);
+    assert.equal(await page.evaluate(`Object.keys(sessionStorage).length`), 1);
+    assert.doesNotMatch(await saved(page), /pea-share-approvals/, 'not in the browser\'s lasting storage');
+    assert.equal(await sendAndSee(page, 'A second synthetic message.'), false);
+
+    // After a reload, with the model connected by the remembered token, the same choices are not
+    // reviewed again.
+    await reload(page);
+    await page.waitFor(hasLocalModels, 'the local model list, with nothing typed');
+    assert.equal(await sendAndSee(page, 'A message after the reload.'), false, 'no review after a reload');
+
+    // Changing what is shared forgets every kept approval, and the next message is reviewed.
+    await page.evaluate(`document.querySelector('#share-todos').click()`);
+    assert.equal(await approvals(page), null);
+    assert.equal(await sendAndSee(page, 'A message after a changed choice.'), true);
+    assert.equal(JSON.parse(await approvals(page)).length, 1);
+
+    // Disconnecting forgets them too.
+    await page.evaluate(`document.querySelector('#local-forget').click()`);
+    assert.equal(await approvals(page), null);
+
+    // Anything in their place that is not a digest counts for nothing.
+    await page.evaluate(`sessionStorage.setItem('pea-share-approvals-v1', '["not a digest", 7]')`);
+    await page.fill('#local-token', stack.gateway.token);
+    await page.evaluate(`document.querySelector('#local-connect').click()`);
+    await page.waitFor(hasLocalModels, 'the local model list again');
+    assert.equal(await sendAndSee(page, 'A message after reconnecting.'), true, 'reconnecting asks again');
+
+    // A change in the library forgets them as well, as restoring a conversation or locking does.
+    assert.equal(JSON.parse(await approvals(page)).length, 1);
+    await page.evaluate(
+      `document.querySelector('#bio-presence').dispatchEvent(new Event('change', { bubbles: true }))`,
+    );
+    assert.equal(await approvals(page), null);
+    await page.close();
+  },
+);
