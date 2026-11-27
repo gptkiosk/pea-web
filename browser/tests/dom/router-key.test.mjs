@@ -60,10 +60,13 @@ async function start(page) {
 // Unlocks (or first enables) the library. A saved library asks for a review first.
 // `late` sends the dialog a late report of an earlier close while the unlock is under way, as a
 // browser does when the dialog is reopened quickly. It must not cancel the unlock.
-async function unlock(page, { late = false } = {}) {
+// `keep` sets the box that keeps the library unlocked in this tab across reloads.
+async function unlock(page, { late = false, keep = null } = {}) {
   await page.waitFor(`!document.getElementById('library-storage').disabled`, 'the library to be ready');
   await page.click('#library-storage');
   await page.waitFor(`document.getElementById('library-unlock').open`, 'the passphrase dialog');
+  if (keep !== null && (await page.evaluate(`document.getElementById('library-keep-tab').checked`)) !== keep)
+    await page.click('#library-keep-tab');
   await page.fill('#library-passphrase', passphrase);
   await page.click('#library-unlock-submit');
   await page.waitFor(
@@ -357,6 +360,87 @@ test(
     assert.equal(await session(page), '{}');
     assert.equal(await tabBox(page), false);
     assert.deepEqual(await routerModels(page), []);
+    await page.close();
+  },
+);
+
+// Keeping a passphrase library unlocked for the open tab.
+const libraryOpen = `!document.getElementById('router-remember').disabled`;
+const libraryNoted = (text) =>
+  `document.getElementById('notice').textContent.includes(${JSON.stringify(text)})`;
+
+test(
+  'a ticked box keeps a passphrase library unlocked for the open tab: open after a reload, locked by Lock',
+  options,
+  async () => {
+    const page = await stack.browser.newPage();
+    let accepted = key;
+    await answerRouter(page, () => accepted);
+    await start(page);
+
+    // Not ticked: a passphrase library is locked after a reload, and nothing is kept for the tab.
+    await unlock(page, { keep: false });
+    assert.equal(await session(page), '{}');
+    assert(!(await stored(page)).keys.includes('tab-key'));
+    await start(page);
+    await settle(page);
+    assert.equal(await page.evaluate(libraryOpen), false, 'locked after a reload');
+
+    // Ticked: a sealed copy beside the library, its secret in this tab's session storage only.
+    await unlock(page, { keep: true });
+    await page.waitFor(libraryNoted('stays unlocked in this tab'), 'the notice');
+    const held = JSON.parse(await session(page));
+    assert.deepEqual(Object.keys(held), ['pea-library-tab-v1']);
+    assert.match(held['pea-library-tab-v1'], /^[0-9a-f]{64}$/);
+    assert((await stored(page)).keys.includes('tab-key'));
+    const lasting = await page.evaluate(`JSON.stringify({ ...localStorage })`);
+    assert(!lasting.includes(held['pea-library-tab-v1']), 'the secret is not in lasting storage');
+    assert(!lasting.includes(passphrase) && !(await session(page)).includes(passphrase));
+
+    // An OpenRouter key kept in the library comes back with it.
+    await page.fill('#router-key', key);
+    await page.click('#router-connect');
+    await page.waitFor(connected, 'the OpenRouter models');
+    await page.click('#router-remember');
+    await page.waitFor(noted('now kept in your encrypted library'), 'the library copy');
+
+    // A reload opens the library by itself: no passphrase window, and the kept key reconnects.
+    await start(page);
+    await page.waitFor(libraryOpen, 'the library to open by itself');
+    assert.equal(await page.evaluate(`document.getElementById('library-unlock').open`), false);
+    await page.waitFor(connected, 'the kept key to reconnect');
+    assert.equal(await page.evaluate(`document.getElementById('library-keep-tab').checked`), true);
+    assert.equal(await page.evaluate(`document.getElementById('library-passphrase').value`), '');
+
+    // Another tab on the same browser has no secret and stays locked.
+    const other = await stack.browser.newPage(page);
+    await answerRouter(other, () => accepted);
+    await start(other);
+    await settle(other);
+    assert.equal(await session(other), '{}');
+    assert.equal(await other.evaluate(libraryOpen), false, 'another tab is locked');
+    assert.deepEqual(await routerModels(other), []);
+    await other.close();
+    await start(page);
+    await page.waitFor(libraryOpen, 'the first tab still opens by itself');
+
+    // Lock means locked: both halves go, and a reload asks for the passphrase.
+    await page.click('#library-storage');
+    await page.waitFor(`document.getElementById('router-remember').disabled`, 'the library to lock');
+    assert.equal(await session(page), '{}');
+    assert(!(await stored(page)).keys.includes('tab-key'));
+    await start(page);
+    await settle(page);
+    assert.equal(await page.evaluate(libraryOpen), false, 'locked after Lock and a reload');
+
+    // A secret that does not open the copy is forgotten, and the passphrase is asked for.
+    await unlock(page, { keep: true });
+    await page.evaluate(`sessionStorage.setItem('pea-library-tab-v1', 'ab'.repeat(32))`);
+    await start(page);
+    await settle(page);
+    assert.equal(await page.evaluate(libraryOpen), false);
+    assert.equal(await session(page), '{}');
+    assert(!(await stored(page)).keys.includes('tab-key'));
     await page.close();
   },
 );

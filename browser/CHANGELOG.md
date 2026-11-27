@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.87] - 2026-11-27
+
+### Added
+
+- **Keep a passphrase library unlocked for the open tab.** The window where you type the library passphrase has a new box, **Keep it unlocked in this tab, across reloads**, off by default; PEA remembers whether you ticked it. Ticked, a reload or an update opens your chats, interview answers and memories by themselves in that tab, and an OpenRouter key kept in the library reconnects with them. Closing the tab or pressing **Lock** ends it, and another tab still asks for the passphrase. The library's key is then kept beside the library, sealed with a secret held in that tab's session storage; anything able to read the page's storage, such as a browser extension allowed on it, could open the library while the tab lives, and a duplicated tab gets a copy. The passphrase itself is never kept. One tab at a time: ticking the box in a second tab makes the first ask again.
+
 ## [0.1.0-rc.4.dev.86] - 2026-11-27
 
 ### Changed

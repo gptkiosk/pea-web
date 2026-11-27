@@ -455,9 +455,24 @@ const aad = new TextEncoder().encode('PEA conversation library v1');
 export const kdfIterations = { 1: 310000, 2: 600000 };
 const secretName = /^[a-z]{2,20}:[a-z]{2,20}$/,
   secretAad = (name) => new TextEncoder().encode('PEA kept secret v1:' + name);
+// Keeping a passphrase library unlocked for one tab: the library's key, sealed with a secret that
+// lives only in that tab's session storage, is stored beside the library. Closing the tab loses
+// the secret, and the sealed copy is then of no use to anyone.
+const tabName = 'pea-library-tab-v1',
+  tabAad = new TextEncoder().encode('PEA library tab key v1'),
+  tabSecret = /^[0-9a-f]{64}$/;
+const sessionStore = () => {
+  try {
+    return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+};
+const aesKey = (raw, uses) => crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, uses);
 export class ConversationVault {
-  constructor(storage) {
+  constructor(storage, tab = sessionStore()) {
     this.storage = storage;
+    this.tab = tab;
     this.key = null;
     this.salt = null;
     this.revision = null;
@@ -608,6 +623,129 @@ export class ConversationVault {
       ['encrypt', 'decrypt'],
     );
   }
+  // The same key as derive() gives, with its bytes as well, for sealing a copy for this tab. The
+  // caller wipes the bytes once they are sealed.
+  async deriveKept(passphrase, salt, version = 2) {
+    if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 256)
+      throw new ServiceError('Use a library passphrase of 12–256 characters.');
+    const material = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(passphrase),
+      'PBKDF2',
+      false,
+      ['deriveBits'],
+    );
+    const bits = new Uint8Array(
+      await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations: kdfIterations[version], hash: 'SHA-256' },
+        material,
+        256,
+      ),
+    );
+    return [await aesKey(bits, ['encrypt', 'decrypt']), bits];
+  }
+  // True when this tab holds the secret for a sealed copy of the library's key.
+  hasTab() {
+    try {
+      return tabSecret.test(this.tab?.getItem(tabName) ?? '');
+    } catch {
+      return false;
+    }
+  }
+  // Seals the key's bytes for this tab. Gives false, keeping nothing, where it cannot.
+  async keepTab(bits, salt) {
+    if (!this.tab || !(bits instanceof Uint8Array) || bits.length !== 32) return false;
+    const secret = crypto.getRandomValues(new Uint8Array(32)),
+      iv = crypto.getRandomValues(new Uint8Array(12));
+    try {
+      const data = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv, additionalData: tabAad },
+        await aesKey(secret, ['encrypt']),
+        bits,
+      );
+      await this.storage.putAt('tab-key', { version: 1, salt: salt.slice(), iv, data });
+      this.tab.setItem(tabName, [...secret].map((byte) => byte.toString(16).padStart(2, '0')).join(''));
+      if (!this.hasTab()) throw new Error('not kept');
+      return true;
+    } catch {
+      await this.forgetTab();
+      return false;
+    } finally {
+      secret.fill(0);
+    }
+  }
+  // Removes this tab's secret and the sealed copy. The library itself is untouched.
+  async forgetTab() {
+    try {
+      this.tab?.removeItem(tabName);
+    } catch {
+      // Nothing was kept.
+    }
+    await this.storage.deleteAt?.('tab-key').catch(() => {});
+  }
+  // Opens a passphrase library with the copy of its key kept for this tab. Gives null, and
+  // forgets the copy, when there is none or it does not open the saved record as it is now.
+  async unlockTab() {
+    if (!this.hasTab()) return null;
+    const epoch = ++this.epoch;
+    await this.chain.catch(() => {});
+    this.chain = Promise.resolve();
+    this.lock();
+    let key, library, saved;
+    try {
+      const text = this.tab.getItem(tabName),
+        kept = await this.storage.getAt('tab-key');
+      saved = await this.storage.get();
+      if (
+        (await this.hasDeviceKey()) ||
+        !fields(kept, ['version', 'salt', 'iv', 'data']) ||
+        kept.version !== 1 ||
+        !(kept.salt instanceof Uint8Array) ||
+        kept.salt.length !== 16 ||
+        !(kept.iv instanceof Uint8Array) ||
+        kept.iv.length !== 12 ||
+        !(kept.data instanceof ArrayBuffer) ||
+        kept.data.byteLength !== 48 ||
+        !fields(saved, ['version', 'revision', 'salt', 'iv', 'data']) ||
+        saved.version !== 2 ||
+        !id(saved.revision) ||
+        !(saved.salt instanceof Uint8Array) ||
+        saved.salt.length !== 16 ||
+        !saved.salt.every((byte, i) => byte === kept.salt[i]) ||
+        !(saved.iv instanceof Uint8Array) ||
+        saved.iv.length !== 12 ||
+        !(saved.data instanceof ArrayBuffer) ||
+        saved.data.byteLength > 2000000
+      )
+        throw new Error('not usable');
+      const secret = Uint8Array.from(text.match(/../g), (pair) => parseInt(pair, 16));
+      const bits = new Uint8Array(
+        await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: kept.iv, additionalData: tabAad },
+          await aesKey(secret, ['decrypt']),
+          kept.data,
+        ),
+      );
+      secret.fill(0);
+      key = await aesKey(bits, ['encrypt', 'decrypt']);
+      bits.fill(0);
+      library = check(
+        JSON.parse(
+          new TextDecoder().decode(
+            await crypto.subtle.decrypt({ name: 'AES-GCM', iv: saved.iv, additionalData: aad }, key, saved.data),
+          ),
+        ),
+      );
+    } catch {
+      await this.forgetTab();
+      return null;
+    }
+    if (epoch + 1 !== this.epoch) throw new ServiceError('Library unlock was cancelled.');
+    this.key = key;
+    this.salt = saved.salt;
+    this.revision = saved.revision;
+    return library;
+  }
   // The key this browser keeps for saving without a passphrase: made here, not extractable, and
   // stored beside the library. It protects the saved record from being read as a plain file; it
   // does not protect it from anyone who can use this browser profile.
@@ -682,10 +820,12 @@ export class ConversationVault {
   }
   // Moves an open library from this browser's key to a passphrase. The browser's key is removed
   // only after the record has been written under the passphrase.
-  async setPassphrase(passphrase, library) {
+  async setPassphrase(passphrase, library, { keep = false } = {}) {
     if (!this.key || !this.device) throw new ServiceError('Nothing to move to a passphrase.');
     const salt = crypto.getRandomValues(new Uint8Array(16)),
-      key = await this.derive(passphrase, salt),
+      [key, bits] = keep
+        ? await this.deriveKept(passphrase, salt)
+        : [await this.derive(passphrase, salt), null],
       before = [this.key, this.salt];
     await this.chain.catch(() => {});
     this.chain = Promise.resolve();
@@ -695,9 +835,12 @@ export class ConversationVault {
     } catch (error) {
       [this.key, this.salt, this.device] = [...before, true];
       this.chain = Promise.resolve();
+      bits?.fill(0);
       throw error;
     }
     await this.storage.deleteAt('device-key');
+    if (bits) await this.keepTab(bits, salt);
+    bits?.fill(0);
   }
   // Removes what this browser saved under its own key: the record and the key. A library saved
   // under a passphrase is left alone.
@@ -709,7 +852,17 @@ export class ConversationVault {
     await this.storage.deleteAt('library');
     await this.storage.deleteAt('device-key');
   }
-  async unlock(passphrase, current = emptyLibrary()) {
+  // `keep` also seals a copy of the key for this tab, so a reload opens the library by itself.
+  // Without it, a copy this tab kept earlier is forgotten.
+  async unlock(passphrase, current = emptyLibrary(), { keep = false } = {}) {
+    let bits = null;
+    const make = async (salt, version = 2) => {
+      if (!keep) return this.derive(passphrase, salt, version);
+      bits?.fill(0);
+      let key;
+      [key, bits] = await this.deriveKept(passphrase, salt, version);
+      return key;
+    };
     const epoch = ++this.epoch;
     await this.chain.catch(() => {});
     this.chain = Promise.resolve();
@@ -738,7 +891,7 @@ export class ConversationVault {
         throw new ServiceError('Stored library format is not recognized. Nothing was overwritten.');
       try {
         salt = saved.salt;
-        key = await this.derive(passphrase, salt, saved.version);
+        key = await make(salt, saved.version);
         library = check(
           JSON.parse(
             new TextDecoder().decode(
@@ -752,10 +905,11 @@ export class ConversationVault {
         );
         if (saved.version !== 2) {
           salt = crypto.getRandomValues(new Uint8Array(16));
-          key = await this.derive(passphrase, salt);
+          key = await make(salt);
           upgrade = true;
         }
       } catch {
+        bits?.fill(0);
         throw new ServiceError(
           'Could not unlock the library. Check the passphrase. Nothing was overwritten.',
         );
@@ -763,9 +917,12 @@ export class ConversationVault {
     } else {
       library = check(structuredClone(current));
       salt = crypto.getRandomValues(new Uint8Array(16));
-      key = await this.derive(passphrase, salt);
+      key = await make(salt);
     }
-    if (epoch !== this.epoch) throw new ServiceError('Library unlock was cancelled.');
+    if (epoch !== this.epoch) {
+      bits?.fill(0);
+      throw new ServiceError('Library unlock was cancelled.');
+    }
     this.key = key;
     this.salt = salt;
     this.revision = saved?.revision ?? null;
@@ -775,9 +932,13 @@ export class ConversationVault {
         await this.save(library);
       } catch (error) {
         this.lock();
+        bits?.fill(0);
         throw error;
       }
     }
+    if (bits) await this.keepTab(bits, salt);
+    else if (this.hasTab()) await this.forgetTab();
+    bits?.fill(0);
     return library;
   }
   save(library) {
