@@ -4,10 +4,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   forgetLocalToken,
+  forgetTabApprovals,
   forgetTabKey,
   loadLocalToken,
+  loadTabApprovals,
   loadTabKey,
   saveLocalToken,
+  saveTabApproval,
   saveTabKey,
   validLocalToken,
   validRouterKey,
@@ -107,4 +110,35 @@ test('the OpenRouter key kept for a tab is per profile, key-shaped only, and for
   assert.equal(loadTabKey('personal', refusing), '');
   assert.doesNotThrow(() => forgetTabKey('personal', refusing));
   assert.equal(saveTabKey('personal', key, undefined), false, 'no storage at all');
+});
+
+test('approved sharing reviews are kept for a tab as digests only, the newest few', () => {
+  const mark = (n) => n.toString(16).padStart(64, '0');
+  const storage = store();
+  assert.deepEqual(loadTabApprovals(storage), []);
+  assert.equal(saveTabApproval(mark(1), storage), true);
+  assert.equal(saveTabApproval(mark(2), storage), true);
+  assert.equal(saveTabApproval(mark(1), storage), true, 'kept once, moved to the newest');
+  assert.deepEqual(loadTabApprovals(storage), [mark(2), mark(1)]);
+  assert.deepEqual([...storage.data.keys()], ['pea-share-approvals-v1']);
+
+  for (const bad of ['', 'A'.repeat(64), 'f'.repeat(63), 'the words that were reviewed', 7, null])
+    assert.equal(saveTabApproval(bad, storage), false, String(bad));
+  assert.deepEqual(loadTabApprovals(storage), [mark(2), mark(1)]);
+
+  for (let n = 10; n < 50; n++) saveTabApproval(mark(n), storage);
+  const kept = loadTabApprovals(storage);
+  assert.equal(kept.length, 24);
+  assert.equal(kept.at(-1), mark(49));
+  assert(!kept.includes(mark(1)), 'the oldest fall away');
+
+  forgetTabApprovals(storage);
+  assert.equal(storage.data.size, 0);
+  for (const stored of ['not json', '{"a":1}', '["words", 7, null]', '"' + mark(3) + '"'])
+    assert.deepEqual(loadTabApprovals(store({ 'pea-share-approvals-v1': stored })), [], stored);
+
+  assert.equal(saveTabApproval(mark(1), refusing), false);
+  assert.deepEqual(loadTabApprovals(refusing), []);
+  assert.doesNotThrow(() => forgetTabApprovals(refusing));
+  assert.deepEqual(loadTabApprovals(undefined), []);
 });

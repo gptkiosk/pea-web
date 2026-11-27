@@ -39,10 +39,13 @@ import { LocalModel } from './local-model.mjs';
 import { forgetChoices, loadChoices, profileChoices, saveChoices } from './preferences.mjs';
 import {
   forgetLocalToken,
+  forgetTabApprovals,
   forgetTabKey,
   loadLocalToken,
+  loadTabApprovals,
   loadTabKey,
   saveLocalToken,
+  saveTabApproval,
   saveTabKey,
 } from './local-token.mjs';
 const $ = (id) => document.getElementById(id);
@@ -383,6 +386,15 @@ export function installConnections(hooks) {
       }
       return { status: replacing ? 'replaced' : 'created', title: draft.title };
     });
+  }
+  // A SHA-256 digest of what a sharing review covered, or '' where this page cannot make one.
+  async function approvalMark(fingerprint) {
+    try {
+      const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprint));
+      return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return '';
+    }
   }
   // The local server's token, from this profile or failing that another one connected in this tab.
   const localKey = () =>
@@ -739,7 +751,15 @@ export function installConnections(hooks) {
       // The first message that carries PEA's own events asks again; later changes to them do not.
       shownOwn.length > 0,
     ]);
-    const reviewed = !s.approvals.has(fingerprint);
+    let reviewed = !s.approvals.has(fingerprint);
+    // An approval given earlier in this tab, before a reload, still stands while the choices are
+    // exactly the same. Only a digest of them is kept, never the words.
+    const mark = reviewed ? await approvalMark(fingerprint) : '';
+    if (reviewed && mark && loadTabApprovals().includes(mark)) {
+      if (ticket !== nonce || who !== p()) throw new ServiceError('Context changed; review again.');
+      s.approvals.add(fingerprint);
+      reviewed = false;
+    }
     if (reviewed) {
       const ok = await review(
         'Before sharing with your model',
@@ -748,11 +768,12 @@ export function installConnections(hooks) {
             .slice(1, -1)
             .map((m) => m.role + ': ' + m.content)
             .join('\n\n') || 'No earlier messages'
-        }\n\nNew turns with these same choices reuse this approval in this tab; changing model/profile/selected context asks again.\n\nNext message:\n${text}`,
+        }\n\nNew turns with these same choices reuse this approval in this tab, also after a reload while your model stays connected; changing model/profile/selected context, reconnecting or closing the tab asks again.\n\nNext message:\n${text}`,
       );
       if (!ok) return { started: false };
       if (ticket !== nonce || who !== p()) throw new ServiceError('Context changed; review again.');
       s.approvals.add(fingerprint);
+      if (mark) saveTabApproval(mark);
     }
     busy(true);
     controller = new AbortController();
@@ -1637,6 +1658,7 @@ export function installConnections(hooks) {
       if (who !== p()) throw new ServiceError('Profile changed.');
       Object.assign(s, chosen);
       s.approvals.clear();
+      forgetTabApprovals();
       render();
       note(
         'Applied this configuration snapshot. Nothing was sent to a model. Edits on other devices require another explicit import.',
@@ -1681,6 +1703,7 @@ export function installConnections(hooks) {
       s.models = models;
       s.keyKept = false;
       s.approvals.clear();
+      forgetTabApprovals();
       const kept = await keepRouter(s, who),
         tab = keepRouterTab(s, who);
       note(
@@ -1700,6 +1723,7 @@ export function installConnections(hooks) {
       s.localKey = key;
       s.localModels = models;
       s.approvals.clear();
+      forgetTabApprovals();
       const kept = keepLocal(key);
       hooks.localChanged?.();
       note(
@@ -1714,6 +1738,7 @@ export function installConnections(hooks) {
       s.localKey = '';
       s.localModels = [];
       s.approvals.clear();
+      forgetTabApprovals();
     }
     forgetLocalToken();
     $('local-remember').checked = false;
@@ -1746,6 +1771,7 @@ export function installConnections(hooks) {
     s.models = [];
     s.keyKept = false;
     s.approvals.clear();
+    forgetTabApprovals();
     $('router-key').value = '';
     wanted.delete(p());
     tabWanted.delete(p());
@@ -1819,6 +1845,7 @@ export function installConnections(hooks) {
     $(id).onchange = () => {
       state()[field] = $(id).value;
       state().approvals.clear();
+      forgetTabApprovals();
       remember();
       render();
     };
@@ -1831,6 +1858,7 @@ export function installConnections(hooks) {
       if (!only) return;
       state().chat = only.id;
       state().approvals.clear();
+      forgetTabApprovals();
       remember();
       render();
       note(`${only.name} is now the Chat model. Nothing was sent to it.`);
@@ -1838,10 +1866,12 @@ export function installConnections(hooks) {
   $('allow-data').onchange = () => {
     state().allowData = $('allow-data').checked;
     state().approvals.clear();
+    forgetTabApprovals();
   };
   $('share-intro').onchange = () => {
     state().shareIntro = $('share-intro').checked;
     state().approvals.clear();
+    forgetTabApprovals();
     remember();
   };
   for (const [id, field] of [
@@ -1853,6 +1883,7 @@ export function installConnections(hooks) {
     $(id).onchange = () => {
       state()[field] = $(id).checked;
       state().approvals.clear();
+      forgetTabApprovals();
       remember();
       if (field === 'sharePeaFiles' && !state().sharePeaFiles && currentAttachment?.peaAuto)
         currentAttachment = null;
@@ -2175,8 +2206,11 @@ export function installConnections(hooks) {
       draft(proposal.kind === 'form', proposal.content);
       $('draft-title').value = proposal.title;
     },
-    contextChanged() {
+    // The library's contents changed, so the next message is reviewed again. The approvals kept
+    // for this tab go too, except when the change is only a page load.
+    contextChanged(reloading = false) {
       for (const s of sessions.values()) s.approvals.clear();
+      if (!reloading) forgetTabApprovals();
     },
     isBusy: () => operationActive,
     localKey,

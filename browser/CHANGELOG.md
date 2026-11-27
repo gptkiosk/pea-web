@@ -2,6 +2,12 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.86] - 2026-11-27
+
+### Changed
+
+- **A reload no longer brings back a sharing review you already approved in that tab.** The "Before sharing with your model" review used to return on the first message after every reload. An approval now stands for the life of the tab while the model, profile and everything shared are exactly the same, and only where the model reconnects by itself (a remembered connection token, or the OpenRouter key kept for the tab). PEA keeps a digest of what was approved in the tab's session storage, never the words. Changing a model or a sharing switch, connecting or disconnecting by hand, unlocking or locking the library, restoring a past conversation, or closing the tab asks again. The review's last line says so.
+
 ## [0.1.0-rc.4.dev.85] - 2026-11-27
 
 ### Added
