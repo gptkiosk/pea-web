@@ -66,6 +66,7 @@ function store() {
     putAt: async (name, value) => void named.set(name, structuredClone(value)),
     // The real store keeps the library beside the named records, so its name removes it too.
     deleteAt: async (name) => void (name === 'library' ? (record = undefined) : named.delete(name)),
+    namesAt: async (prefix) => [...named.keys()].filter((name) => name.startsWith(prefix)),
   };
 }
 
@@ -646,8 +647,12 @@ test('a passphrase library can be kept unlocked for one tab, and only for that t
   assert.equal(first.hasTab(), true);
   assert.deepEqual([...tab.data.keys()], ['pea-library-tab-v1']);
   assert.match(tab.data.get('pea-library-tab-v1'), /^[0-9a-f]{64}$/);
-  const kept = storage.named.get('tab-key');
-  assert.deepEqual(Object.keys(kept).sort(), ['data', 'iv', 'salt', 'version']);
+  const copies = () => [...storage.named.keys()].filter((name) => name.startsWith('tab-key:'));
+  assert.equal(copies().length, 1);
+  assert.match(copies()[0], /^tab-key:[0-9a-f]{32}$/);
+  assert(!copies()[0].includes(tab.data.get('pea-library-tab-v1').slice(0, 32)), 'the name is not the secret');
+  const kept = storage.named.get(copies()[0]);
+  assert.deepEqual(Object.keys(kept).sort(), ['at', 'data', 'iv', 'salt', 'version']);
   assert.equal(kept.data.byteLength, 48);
   assert.doesNotMatch(JSON.stringify([...tab.data]), /synthetic library/);
 
@@ -664,25 +669,24 @@ test('a passphrase library can be kept unlocked for one tab, and only for that t
   const other = new ConversationVault(storage, tabStore());
   assert.equal(other.hasTab(), false);
   assert.equal(await other.unlockTab(), null);
-  assert(storage.named.has('tab-key'));
-  // A wrong secret opens nothing, and the useless copy is forgotten.
+  assert.equal(copies().length, 1);
+  // A wrong secret opens nothing and is forgotten; the first tab's copy is not touched by it.
   const wrong = tabStore();
   wrong.setItem('pea-library-tab-v1', 'ab'.repeat(32));
   assert.equal(await new ConversationVault(storage, wrong).unlockTab(), null);
   assert.equal(wrong.data.size, 0);
-  assert(!storage.named.has('tab-key'));
-  assert.equal(await new ConversationVault(storage, tab).unlockTab(), null, 'the first tab asks again');
-  assert.equal(tab.data.size, 0);
+  assert.equal(copies().length, 1);
+  assert.deepEqual(await new ConversationVault(storage, tab).unlockTab(), s.library, 'the first tab still opens');
 
   // Forgetting removes both halves. Unlocking without the box forgets a copy kept earlier.
   await first.unlock(pass, undefined, { keep: true });
   await first.forgetTab();
   assert.equal(tab.data.size, 0);
-  assert(!storage.named.has('tab-key'));
+  assert.equal(copies().length, 0);
   await first.unlock(pass, undefined, { keep: true });
   await first.unlock(pass);
   assert.equal(first.hasTab(), false);
-  assert(!storage.named.has('tab-key'));
+  assert.equal(copies().length, 0);
 
   // A wrong passphrase keeps nothing. A malformed secret or copy is not used.
   await assert.rejects(first.unlock('wrong long passphrase', undefined, { keep: true }), /Could not unlock/);
@@ -693,15 +697,110 @@ test('a passphrase library can be kept unlocked for one tab, and only for that t
     t.setItem('pea-library-tab-v1', bad);
     assert.equal(new ConversationVault(storage, t).hasTab(), false, bad);
   }
-  storage.named.set('tab-key', { ...storage.named.get('tab-key'), version: 2 });
+  storage.named.set(copies()[0], { ...storage.named.get(copies()[0]), version: 2 });
   assert.equal(await new ConversationVault(storage, tab).unlockTab(), null);
   assert.equal(tab.data.size, 0);
+  assert.equal(copies().length, 0);
 
   // No session storage at all: asking to keep is harmless.
   const none = new ConversationVault(storage, null);
   assert.deepEqual(await none.unlock(pass, undefined, { keep: true }), s.library);
   assert.equal(none.hasTab(), false);
-  assert(!storage.named.has('tab-key'));
+  assert.equal(copies().length, 0);
+  // A tab that cannot hold the secret leaves no copy behind.
+  const refusing = { getItem: () => null, removeItem() {}, setItem() { throw new Error('full'); } };
+  await new ConversationVault(storage, refusing).unlock(pass, undefined, { keep: true });
+  assert.equal(copies().length, 0);
+});
+test('several tabs can each keep the library unlocked, and each ends only its own', async () => {
+  const storage = store(),
+    pass = 'synthetic library passphrase',
+    s = sample(),
+    copies = () => [...storage.named.keys()].filter((name) => name.startsWith('tab-key:')),
+    open = async (tab) => {
+      const v = new ConversationVault(storage, tab);
+      return [v, await v.unlockTab()];
+    };
+  const one = tabStore(),
+    two = tabStore(),
+    a = new ConversationVault(storage, one),
+    b = new ConversationVault(storage, two);
+  await a.unlock(pass, s.library, { keep: true });
+  await b.unlock(pass, undefined, { keep: true });
+  assert.equal(copies().length, 2);
+  assert.notEqual(one.data.get('pea-library-tab-v1'), two.data.get('pea-library-tab-v1'));
+  // Both reopen after a reload, in either order, and again.
+  for (const tab of [one, two, two, one]) assert.deepEqual((await open(tab))[1], s.library);
+  // One tab's secret does not open the other's copy.
+  const [mine, theirs] = copies(),
+    swapped = storage.named.get(mine);
+  storage.named.set(mine, storage.named.get(theirs));
+  storage.named.set(theirs, swapped);
+  assert.equal((await open(one))[1], null);
+  assert.equal(copies().length, 1, 'only the failing tab’s copy went');
+  assert.equal((await open(two))[1], null);
+  assert.equal(copies().length, 0);
+
+  // Ticking the box again in one tab replaces that tab's copy only.
+  await a.unlock(pass, undefined, { keep: true });
+  await b.unlock(pass, undefined, { keep: true });
+  await a.unlock(pass, undefined, { keep: true });
+  assert.equal(copies().length, 2);
+  // Lock in one tab (forgetTab) leaves the other unlocked across its reloads.
+  await a.forgetTab();
+  assert.equal(copies().length, 1);
+  assert.equal((await open(one))[1], null);
+  assert.deepEqual((await open(two))[1], s.library);
+  // Unlocking without the box in one tab does the same.
+  await a.unlock(pass, undefined, { keep: true });
+  await a.unlock(pass);
+  assert.deepEqual((await open(two))[1], s.library);
+  assert.equal(copies().length, 1);
+
+  // At most eight copies: the oldest go, the newest and the asking tab stay.
+  const tabs = [];
+  let clock = 1000;
+  const now = Date.now;
+  Date.now = () => (clock += 10);
+  try {
+    await b.forgetTab();
+    for (let i = 0; i < 10; i++) {
+      tabs.push(tabStore());
+      await new ConversationVault(storage, tabs[i]).unlock(pass, undefined, { keep: true });
+    }
+  } finally {
+    Date.now = now;
+  }
+  assert.equal(copies().length, 8);
+  assert.equal((await open(tabs[0]))[1], null);
+  assert.equal((await open(tabs[1]))[1], null);
+  for (const tab of tabs.slice(2)) assert.deepEqual((await open(tab))[1], s.library);
+  assert.equal(copies().length, 8);
+  // Copies that fit no saved library (another salt, or malformed) are cleared when a tab keeps one.
+  storage.named.set('tab-key:' + '0'.repeat(32), { ...storage.named.get(copies()[0]), salt: new Uint8Array(16) });
+  storage.named.set('tab-key:' + '1'.repeat(32), 'nonsense');
+  await new ConversationVault(storage, tabs[9]).unlock(pass, undefined, { keep: true });
+  assert.equal(copies().length, 8);
+  assert(!storage.named.has('tab-key:' + '0'.repeat(32)) && !storage.named.has('tab-key:' + '1'.repeat(32)));
+
+  // The single shared copy made by 0.1.0-rc.4.dev.87 still opens once, then becomes that tab's own.
+  const aged = store(),
+    agedTab = tabStore(),
+    w = new ConversationVault(aged, agedTab);
+  await w.unlock(pass, s.library, { keep: true });
+  const [name] = [...aged.named.keys()],
+    { at: _at, ...old } = aged.named.get(name);
+  aged.named.delete(name);
+  aged.named.set('tab-key', old);
+  assert.deepEqual(await new ConversationVault(aged, agedTab).unlockTab(), s.library);
+  assert.deepEqual([...aged.named.keys()], [name]);
+  assert.deepEqual(await new ConversationVault(aged, agedTab).unlockTab(), s.library);
+  // Lock in a tab still holding only the shared copy removes it.
+  aged.named.delete(name);
+  aged.named.set('tab-key', old);
+  await new ConversationVault(aged, agedTab).forgetTab();
+  assert.equal(aged.named.size, 0);
+  assert.equal(agedTab.data.size, 0);
 });
 test('moving from this browser’s key to a passphrase can keep the tab unlocked, and a re-keyed library keeps the new key', async () => {
   const storage = store(),
