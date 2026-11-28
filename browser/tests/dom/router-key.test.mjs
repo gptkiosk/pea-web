@@ -33,21 +33,38 @@ const box = (page) =>
 const note = (page) => page.text('#connection-note');
 // Everything this browser has stored for the page, as text, with sealed bytes decoded as they are.
 const stored = (page) =>
-  page.evaluate(`new Promise((resolve) => {
+  page.evaluate(`new Promise((resolve, reject) => {
     let text = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage });
+    // A read that stalls or fails says so, instead of leaving the browser unanswered.
+    const late = setTimeout(() => reject(new Error('Reading the stored records took too long.')), 10000);
+    const failed = (what) => () => (clearTimeout(late), reject(new Error('Reading the stored records failed: ' + what)));
     const open = indexedDB.open('pea-conversation-library-v1');
+    open.onerror = failed('open');
+    open.onblocked = failed('blocked');
     open.onsuccess = () => {
-      const store = open.result.transaction('encrypted').objectStore('encrypted');
-      const keys = store.getAllKeys(), rows = store.getAll();
-      rows.onsuccess = () => {
-        for (const row of rows.result)
-          for (const part of Object.values(row))
-            text += part instanceof ArrayBuffer || ArrayBuffer.isView(part) ? new TextDecoder('latin1').decode(part) : String(part);
-        open.result.close();
-        resolve({ text, keys: keys.result.map(String) });
-      };
+      try {
+        const tx = open.result.transaction('encrypted'), store = tx.objectStore('encrypted');
+        tx.onabort = tx.onerror = failed('transaction');
+        const keys = store.getAllKeys(), rows = store.getAll();
+        rows.onsuccess = () => {
+          try {
+            for (const row of rows.result)
+              for (const part of Object.values(row))
+                text += part instanceof ArrayBuffer || ArrayBuffer.isView(part) ? new TextDecoder('latin1').decode(part) : String(part);
+            open.result.close();
+            clearTimeout(late);
+            resolve({ text, keys: keys.result.map(String) });
+          } catch (error) {
+            failed(String(error))();
+          }
+        };
+      } catch (error) {
+        failed(String(error))();
+      }
     };
   })`);
+// Shows a tab, as choosing it in the browser's tab strip does.
+const show = (page) => page.send('Page.bringToFront');
 
 async function start(page) {
   await page.goto(stack.gateway.origin + '/');
@@ -428,9 +445,11 @@ test(
     const second = JSON.parse(await session(other))['pea-library-tab-v1'];
     assert.match(second, /^[0-9a-f]{64}$/);
     assert.notEqual(second, held['pea-library-tab-v1']);
-    assert.equal(await copies(page), 2);
+    assert.equal(await copies(other), 2);
+    await show(page);
     await start(page);
     await page.waitFor(libraryOpen, 'the first tab still opens by itself');
+    await show(other);
     await start(other);
     await other.waitFor(libraryOpen, 'the second tab opens by itself');
     await other.waitFor(connected, 'the kept key to reconnect in the second tab');
@@ -440,7 +459,7 @@ test(
     await other.click('#library-storage');
     await other.waitFor(`document.getElementById('router-remember').disabled`, 'the second tab to lock');
     assert.equal(await session(other), '{}');
-    assert.equal(await copies(page), 1);
+    assert.equal(await copies(other), 1);
     await start(other);
     await settle(other);
     assert.equal(await other.evaluate(libraryOpen), false, 'the second tab is locked after its Lock');
