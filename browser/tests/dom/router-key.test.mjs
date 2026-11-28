@@ -485,9 +485,14 @@ test(
     await page.click('#library-lock-all');
     await page.waitFor(locked, 'the first tab to lock');
     await page.waitFor(libraryNoted('every other tab'), 'the notice');
-    await other.waitFor(locked, 'the second tab to lock without a reload');
-    await other.waitFor(libraryNoted('locked from another tab'), 'the second tab’s notice');
-    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab’s secret to go');
+    // The second tab locks while it is still behind the first: its secret goes and it says so.
+    // A test runner can leave a tab that is not in front almost idle, so the rest of its page is
+    // looked at once it is shown, as a person switching to it would see it.
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab’s secret to go', 20000);
+    await other.waitFor(libraryNoted('locked from another tab'), 'the second tab’s notice', 20000);
+    await show(other);
+    await other.waitFor(locked, 'the second tab to show as locked');
+    await show(page);
     assert.equal(await session(page), '{}');
     assert.equal(await copies(page), 0);
     assert((await stored(page)).keys.includes('library'));
@@ -503,7 +508,10 @@ test(
     await show(page);
     assert.equal(await page.evaluate(libraryOpen), false);
     await page.click('#library-lock-all');
-    await other.waitFor(locked, 'the second tab to lock from a locked tab');
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab to lock from a locked tab', 20000);
+    await show(other);
+    await other.waitFor(locked, 'the second tab to show as locked again');
+    await show(page);
     assert.equal(await copies(page), 0);
     // Both tabs keep it again for the rest of the test.
     await unlock(page, { keep: true });
@@ -522,6 +530,7 @@ test(
     await settle(other);
     assert.equal(await other.evaluate(libraryOpen), false, 'the second tab is locked after its Lock');
     await other.close();
+    await show(page);
     await start(page);
     await page.waitFor(libraryOpen, 'the first tab still opens by itself after the other locked');
 
