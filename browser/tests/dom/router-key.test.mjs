@@ -480,8 +480,8 @@ test(
     // Lock in every tab, pressed in the first: both lock at once, with no reload, every kept copy
     // goes, and a reload of either asks for the passphrase. The saved library is untouched.
     const locked = `document.getElementById('router-remember').disabled`;
-    assert.equal(await page.evaluate(`document.getElementById('library-lock-all').hidden`), false);
     await show(page);
+    assert.equal(await page.evaluate(`document.getElementById('library-lock-all').hidden`), false);
     await page.click('#library-lock-all');
     await page.waitFor(locked, 'the first tab to lock');
     await page.waitFor(libraryNoted('every other tab'), 'the notice');
