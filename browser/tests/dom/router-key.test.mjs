@@ -32,37 +32,54 @@ const box = (page) =>
   );
 const note = (page) => page.text('#connection-note');
 // Everything this browser has stored for the page, as text, with sealed bytes decoded as they are.
-const stored = (page) =>
-  page.evaluate(`new Promise((resolve, reject) => {
+// Reads what the browser has stored. The read is started in the page and then watched from here,
+// so a read that stalls fails with the step it stopped at instead of leaving the browser unanswered.
+const stored = async (page) => {
+  await page.evaluate(`(() => {
+    const state = (window.peaStored = { step: 'opening', done: null, failed: '' });
+    const failed = (what) => () => (state.failed = what);
     let text = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage });
-    // A read that stalls or fails says so, instead of leaving the browser unanswered.
-    const late = setTimeout(() => reject(new Error('Reading the stored records took too long.')), 10000);
-    const failed = (what) => () => (clearTimeout(late), reject(new Error('Reading the stored records failed: ' + what)));
-    const open = indexedDB.open('pea-conversation-library-v1');
-    open.onerror = failed('open');
-    open.onblocked = failed('blocked');
-    open.onsuccess = () => {
-      try {
-        const tx = open.result.transaction('encrypted'), store = tx.objectStore('encrypted');
-        tx.onabort = tx.onerror = failed('transaction');
-        const keys = store.getAllKeys(), rows = store.getAll();
-        rows.onsuccess = () => {
-          try {
-            for (const row of rows.result)
-              for (const part of Object.values(row))
-                text += part instanceof ArrayBuffer || ArrayBuffer.isView(part) ? new TextDecoder('latin1').decode(part) : String(part);
-            open.result.close();
-            clearTimeout(late);
-            resolve({ text, keys: keys.result.map(String) });
-          } catch (error) {
-            failed(String(error))();
-          }
-        };
-      } catch (error) {
-        failed(String(error))();
-      }
-    };
-  })`);
+    try {
+      const open = indexedDB.open('pea-conversation-library-v1');
+      open.onerror = failed('open');
+      open.onblocked = failed('blocked');
+      open.onsuccess = () => {
+        try {
+          state.step = 'reading';
+          const tx = open.result.transaction('encrypted'), store = tx.objectStore('encrypted');
+          tx.onabort = tx.onerror = failed('transaction');
+          const keys = store.getAllKeys(), rows = store.getAll();
+          rows.onsuccess = () => {
+            try {
+              for (const row of rows.result)
+                for (const part of Object.values(row))
+                  text += part instanceof ArrayBuffer || ArrayBuffer.isView(part) ? new TextDecoder('latin1').decode(part) : String(part);
+              open.result.close();
+              state.done = { text, keys: keys.result.map(String) };
+            } catch (error) {
+              state.failed = String(error);
+            }
+          };
+        } catch (error) {
+          state.failed = String(error);
+        }
+      };
+    } catch (error) {
+      state.failed = String(error);
+    }
+  })()`);
+  try {
+    await page.waitFor(`window.peaStored.done || window.peaStored.failed`, 'the stored records', 12000);
+  } catch (error) {
+    const state = await page
+      .evaluate(`window.peaStored.step + ', ' + document.visibilityState`)
+      .catch(() => 'unknown');
+    throw new Error(error.message + ' (read stopped at: ' + state + ')');
+  }
+  const failed = await page.evaluate(`window.peaStored.failed`);
+  if (failed) throw new Error('Reading the stored records failed: ' + failed);
+  return page.evaluate(`window.peaStored.done`);
+};
 // Shows a tab, as choosing it in the browser's tab strip does.
 const show = (page) => page.send('Page.bringToFront');
 
@@ -268,7 +285,9 @@ const connected = `[...document.getElementById('chat-model').options].some((o) =
 const noted = (text) => `document.getElementById('connection-note').textContent.includes(${JSON.stringify(text)})`;
 const tabBox = (page) => page.evaluate(`document.getElementById('router-tab').checked`);
 const session = (page) => page.evaluate(`JSON.stringify({ ...sessionStorage })`);
-const settle = (page) => page.evaluate(`new Promise((done) => setTimeout(done, 400))`);
+// A pause for something that must NOT happen. Timed here, not in the page, so a tab that is not
+// in front cannot hold it up.
+const settle = () => new Promise((done) => setTimeout(done, 400));
 
 test(
   'a ticked box keeps the OpenRouter key for the open tab: back after a reload, gone with the tab',
