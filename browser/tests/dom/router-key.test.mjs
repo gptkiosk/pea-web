@@ -485,12 +485,16 @@ test(
     await page.click('#library-lock-all');
     await page.waitFor(locked, 'the first tab to lock');
     await page.waitFor(libraryNoted('every other tab'), 'the notice');
-    // The second tab locks while it is still behind the first: its secret goes and it says so.
-    // A test runner can leave a tab that is not in front almost idle, so the rest of its page is
-    // looked at once it is shown, as a person switching to it would see it.
-    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab’s secret to go', 20000);
-    await other.waitFor(libraryNoted('locked from another tab'), 'the second tab’s notice', 20000);
+    assert.equal(await session(page), '{}');
+    // The second tab was told while behind the first. A test runner can leave a tab that is not in
+    // front all but frozen, so it is looked at once it is shown, as a person switching to it would
+    // see it: locked with no reload, its secret gone, and saying why.
     await show(other);
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab’s secret to go');
+    await other.waitFor(
+      `(window.peaNotices || []).some((notice) => notice.includes('locked from another tab'))`,
+      'the second tab’s notice',
+    );
     await other.waitFor(locked, 'the second tab to show as locked');
     await show(page);
     assert.equal(await session(page), '{}');
@@ -508,8 +512,9 @@ test(
     await show(page);
     assert.equal(await page.evaluate(libraryOpen), false);
     await page.click('#library-lock-all');
-    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab to lock from a locked tab', 20000);
+    await page.waitFor(libraryNoted('Library locked in every other tab'), 'the notice from a locked tab');
     await show(other);
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab to lock from a locked tab');
     await other.waitFor(locked, 'the second tab to show as locked again');
     await show(page);
     assert.equal(await copies(page), 0);
