@@ -457,6 +457,11 @@ class Page {
       expression,
       awaitPromise: true,
       returnByValue: true,
+    }).catch((error) => {
+      // A stuck step is named, so the failure says where the page stopped answering.
+      if (String(error.message).startsWith('The browser did not answer'))
+        error.message += ' (' + String(expression).replace(/\s+/g, ' ').slice(0, 120) + ')';
+      throw error;
     });
     if (result.exceptionDetails)
       throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);

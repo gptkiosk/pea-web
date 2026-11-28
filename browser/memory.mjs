@@ -757,6 +757,13 @@ export class ConversationVault {
       // Without the secret the copy opens nothing.
     }
   }
+  // Removes every tab's sealed copy, and this tab's secret. Other tabs keep a secret that now
+  // opens nothing, so each asks for the passphrase at its next reload.
+  async forgetTabs() {
+    await this.forgetTab();
+    for (const name of (await this.storage.namesAt?.(tabPrefix)) ?? []) await this.storage.deleteAt(name);
+    await this.storage.deleteAt(tabLegacy);
+  }
   // Opens a passphrase library with the copy of its key kept for this tab. Gives null, and
   // forgets this tab's copy, when there is none or it does not open the saved record as it is now.
   async unlockTab() {

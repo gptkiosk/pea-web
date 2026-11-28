@@ -32,37 +32,54 @@ const box = (page) =>
   );
 const note = (page) => page.text('#connection-note');
 // Everything this browser has stored for the page, as text, with sealed bytes decoded as they are.
-const stored = (page) =>
-  page.evaluate(`new Promise((resolve, reject) => {
+// Reads what the browser has stored. The read is started in the page and then watched from here,
+// so a read that stalls fails with the step it stopped at instead of leaving the browser unanswered.
+const stored = async (page) => {
+  await page.evaluate(`(() => {
+    const state = (window.peaStored = { step: 'opening', done: null, failed: '' });
+    const failed = (what) => () => (state.failed = what);
     let text = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage });
-    // A read that stalls or fails says so, instead of leaving the browser unanswered.
-    const late = setTimeout(() => reject(new Error('Reading the stored records took too long.')), 10000);
-    const failed = (what) => () => (clearTimeout(late), reject(new Error('Reading the stored records failed: ' + what)));
-    const open = indexedDB.open('pea-conversation-library-v1');
-    open.onerror = failed('open');
-    open.onblocked = failed('blocked');
-    open.onsuccess = () => {
-      try {
-        const tx = open.result.transaction('encrypted'), store = tx.objectStore('encrypted');
-        tx.onabort = tx.onerror = failed('transaction');
-        const keys = store.getAllKeys(), rows = store.getAll();
-        rows.onsuccess = () => {
-          try {
-            for (const row of rows.result)
-              for (const part of Object.values(row))
-                text += part instanceof ArrayBuffer || ArrayBuffer.isView(part) ? new TextDecoder('latin1').decode(part) : String(part);
-            open.result.close();
-            clearTimeout(late);
-            resolve({ text, keys: keys.result.map(String) });
-          } catch (error) {
-            failed(String(error))();
-          }
-        };
-      } catch (error) {
-        failed(String(error))();
-      }
-    };
-  })`);
+    try {
+      const open = indexedDB.open('pea-conversation-library-v1');
+      open.onerror = failed('open');
+      open.onblocked = failed('blocked');
+      open.onsuccess = () => {
+        try {
+          state.step = 'reading';
+          const tx = open.result.transaction('encrypted'), store = tx.objectStore('encrypted');
+          tx.onabort = tx.onerror = failed('transaction');
+          const keys = store.getAllKeys(), rows = store.getAll();
+          rows.onsuccess = () => {
+            try {
+              for (const row of rows.result)
+                for (const part of Object.values(row))
+                  text += part instanceof ArrayBuffer || ArrayBuffer.isView(part) ? new TextDecoder('latin1').decode(part) : String(part);
+              open.result.close();
+              state.done = { text, keys: keys.result.map(String) };
+            } catch (error) {
+              state.failed = String(error);
+            }
+          };
+        } catch (error) {
+          state.failed = String(error);
+        }
+      };
+    } catch (error) {
+      state.failed = String(error);
+    }
+  })()`);
+  try {
+    await page.waitFor(`window.peaStored.done || window.peaStored.failed`, 'the stored records', 12000);
+  } catch (error) {
+    const state = await page
+      .evaluate(`window.peaStored.step + ', ' + document.visibilityState`)
+      .catch(() => 'unknown');
+    throw new Error(error.message + ' (read stopped at: ' + state + ')');
+  }
+  const failed = await page.evaluate(`window.peaStored.failed`);
+  if (failed) throw new Error('Reading the stored records failed: ' + failed);
+  return page.evaluate(`window.peaStored.done`);
+};
 // Shows a tab, as choosing it in the browser's tab strip does.
 const show = (page) => page.send('Page.bringToFront');
 
@@ -268,7 +285,9 @@ const connected = `[...document.getElementById('chat-model').options].some((o) =
 const noted = (text) => `document.getElementById('connection-note').textContent.includes(${JSON.stringify(text)})`;
 const tabBox = (page) => page.evaluate(`document.getElementById('router-tab').checked`);
 const session = (page) => page.evaluate(`JSON.stringify({ ...sessionStorage })`);
-const settle = (page) => page.evaluate(`new Promise((done) => setTimeout(done, 400))`);
+// A pause for something that must NOT happen. Timed here, not in the page, so a tab that is not
+// in front cannot hold it up.
+const settle = () => new Promise((done) => setTimeout(done, 400));
 
 test(
   'a ticked box keeps the OpenRouter key for the open tab: back after a reload, gone with the tab',
@@ -396,6 +415,9 @@ test(
     await answerRouter(page, () => accepted);
     await start(page);
 
+    // With no passphrase library there is nothing to lock, so the control is not shown.
+    assert.equal(await page.evaluate(`document.getElementById('library-lock-all').hidden`), true);
+
     // Not ticked: a passphrase library is locked after a reload, and nothing is kept for the tab.
     await unlock(page, { keep: false });
     assert.equal(await session(page), '{}');
@@ -455,6 +477,55 @@ test(
     await other.waitFor(connected, 'the kept key to reconnect in the second tab');
     assert.equal(await other.evaluate(`document.getElementById('library-unlock').open`), false);
 
+    // Lock in every tab, pressed in the first: both lock at once, with no reload, every kept copy
+    // goes, and a reload of either asks for the passphrase. The saved library is untouched.
+    const locked = `document.getElementById('router-remember').disabled`;
+    await show(page);
+    assert.equal(await page.evaluate(`document.getElementById('library-lock-all').hidden`), false);
+    await page.click('#library-lock-all');
+    await page.waitFor(locked, 'the first tab to lock');
+    await page.waitFor(libraryNoted('every other tab'), 'the notice');
+    assert.equal(await session(page), '{}');
+    // The second tab was told while behind the first. A test runner can leave a tab that is not in
+    // front all but frozen, so it is looked at once it is shown, as a person switching to it would
+    // see it: locked with no reload, its secret gone, and saying why.
+    await show(other);
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab’s secret to go');
+    await other.waitFor(
+      `(window.peaNotices || []).some((notice) => notice.includes('locked from another tab'))`,
+      'the second tab’s notice',
+    );
+    await other.waitFor(locked, 'the second tab to show as locked');
+    await show(page);
+    assert.equal(await session(page), '{}');
+    assert.equal(await copies(page), 0);
+    assert((await stored(page)).keys.includes('library'));
+    for (const tab of [page, other]) {
+      await show(tab);
+      await start(tab);
+      await settle(tab);
+      assert.equal(await tab.evaluate(libraryOpen), false, 'locked after a reload');
+    }
+    // Pressed while this tab is already locked, it still locks the other.
+    await unlock(other, { keep: true });
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'the second tab’s secret again');
+    await show(page);
+    assert.equal(await page.evaluate(libraryOpen), false);
+    await page.click('#library-lock-all');
+    await page.waitFor(libraryNoted('Library locked in every other tab'), 'the notice from a locked tab');
+    await show(other);
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab to lock from a locked tab');
+    await other.waitFor(locked, 'the second tab to show as locked again');
+    await show(page);
+    assert.equal(await copies(page), 0);
+    // Both tabs keep it again for the rest of the test.
+    await unlock(page, { keep: true });
+    await page.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'the first tab’s secret again');
+    await show(other);
+    await unlock(other, { keep: true });
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'the second tab’s secret once more');
+    assert.equal(await copies(other), 2);
+
     // Lock in the second tab ends it there only.
     await other.click('#library-storage');
     await other.waitFor(`document.getElementById('router-remember').disabled`, 'the second tab to lock');
@@ -464,6 +535,7 @@ test(
     await settle(other);
     assert.equal(await other.evaluate(libraryOpen), false, 'the second tab is locked after its Lock');
     await other.close();
+    await show(page);
     await start(page);
     await page.waitFor(libraryOpen, 'the first tab still opens by itself after the other locked');
 

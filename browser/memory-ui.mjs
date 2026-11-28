@@ -148,6 +148,9 @@ export function installMemory(hooks) {
       : hasSaved
         ? 'Unlock with your passphrase…'
         : 'Set a passphrase…';
+    // Only a passphrase library can be locked, here or in the other tabs.
+    $('library-lock-all').hidden = !hasSaved || !!vault?.device;
+    $('library-lock-all').disabled = initializing || !!pending || porting || hooks.busy();
     // The switch is for saving with this browser's own key. Under a passphrase it has no part.
     $('library-save-row').hidden = hasSaved && !vault?.device;
     $('library-save').checked = !!vault?.device;
@@ -825,29 +828,88 @@ export function installMemory(hooks) {
       idle();
       if (vault?.key && vault.device) $('library-unlock').showModal();
       else if (vault?.key) {
-        await vault.chain.catch(() => {});
-        vault.lock();
-        // Lock means locked: the copy of the key kept for this tab goes too.
-        await vault.forgetTab();
-        library = emptyLibrary();
-        active.clear();
-        unsaved.clear();
-        share.clear();
-        $('memory-share').checked = false;
-        hooks.clearAll();
-        source = null;
-        hooks.libraryChanged?.(false);
-        for (const id of ['memory-quote', 'memory-fact', 'library-search']) $(id).value = '';
-        $('memory-source-text').textContent = '';
-        fillInterview();
-        invalidate();
-        render();
+        await lockHere();
         hooks.notice(
           'Library locked. Unlocked transcripts, interview answers and memories were cleared from the page.',
         );
       } else {
         $('library-unlock').showModal();
       }
+    } catch (error) {
+      say(error);
+    }
+  };
+  // Locks an unlocked passphrase library in this tab and clears what it had put on the page.
+  async function lockHere() {
+    await vault.chain.catch(() => {});
+    vault.lock();
+    // Lock means locked: the copy of the key kept for this tab goes too.
+    await vault.forgetTab();
+    library = emptyLibrary();
+    active.clear();
+    unsaved.clear();
+    share.clear();
+    $('memory-share').checked = false;
+    hooks.clearAll();
+    source = null;
+    hooks.libraryChanged?.(false);
+    for (const id of ['memory-quote', 'memory-fact', 'library-search']) $(id).value = '';
+    $('memory-source-text').textContent = '';
+    fillInterview();
+    invalidate();
+    render();
+  }
+  // Lock in every tab: this tab locks, every tab's kept copy of the key is removed, and the other
+  // open tabs are told to lock. The message carries nothing but the word; a tab that hears it only
+  // ever locks.
+  const lockWord = 'lock',
+    lockChannel = (() => {
+      try {
+        return new BroadcastChannel('pea-library-lock-v1');
+      } catch {
+        return null;
+      }
+    })();
+  let lockAsked = false;
+  const lockWhenAsked = async () => {
+    if (!lockAsked) return;
+    // A reply or a save under way finishes first; the kept copies are already gone.
+    if (initializing || porting || pending || hooks.busy()) return void setTimeout(lockWhenAsked, 500);
+    lockAsked = false;
+    try {
+      if ($('library-unlock').open) $('library-unlock').close();
+      if (vault?.key && !vault.device) {
+        await lockHere();
+        hooks.notice(
+          'Library locked from another tab. Unlocked transcripts, interview answers and memories were cleared from the page.',
+        );
+      } else await vault?.forgetTab();
+    } catch (error) {
+      say(error);
+    }
+  };
+  if (lockChannel)
+    lockChannel.onmessage = (event) => {
+      if (event.data !== lockWord) return;
+      lockAsked = true;
+      lockWhenAsked();
+    };
+  $('library-lock-all').onclick = async () => {
+    try {
+      await settle();
+      idle();
+      if (!vault) vault = await ConversationVault.open();
+      if (vault.device) return;
+      const open = !!vault.key;
+      if (open) await lockHere();
+      await vault.forgetTabs();
+      lockChannel?.postMessage(lockWord);
+      hooks.notice(
+        (open ? 'Library locked here, and in' : 'Library locked in') +
+          ' every other tab of this browser' +
+          (lockChannel ? '' : ' at its next reload') +
+          '. No tab is kept unlocked any more: each asks for the passphrase.',
+      );
     } catch (error) {
       say(error);
     }

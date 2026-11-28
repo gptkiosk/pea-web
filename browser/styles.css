@@ -4774,7 +4774,9 @@ summary + .settings-step {
 
 /* Actions in settings and tool windows are buttons, never link-style text. */
 dialog .dialog-body :is(button, a).text-button,
-.today-section .settings-group :is(button, a).text-button {
+.today-section .settings-group :is(button, a).text-button,
+#library-storage,
+#library-lock-all {
   min-height: 44px;
   padding: 8px 14px;
   margin: 4px 12px 4px 0;
@@ -4789,12 +4791,15 @@ dialog .dialog-body :is(button, a).text-button,
 dialog .dialog-body :is(button, a).text-button:hover,
 dialog .dialog-body :is(button, a).text-button:focus-visible,
 .today-section .settings-group :is(button, a).text-button:hover,
-.today-section .settings-group :is(button, a).text-button:focus-visible {
+.today-section .settings-group :is(button, a).text-button:focus-visible,
+:is(#library-storage, #library-lock-all):hover,
+:is(#library-storage, #library-lock-all):focus-visible {
   border-color: var(--green);
   background: var(--tint);
   color: var(--green);
 }
-dialog .dialog-body :is(button, a).text-button:disabled {
+dialog .dialog-body :is(button, a).text-button:disabled,
+:is(#library-storage, #library-lock-all):disabled {
   opacity: 0.5;
   cursor: default;
 }
