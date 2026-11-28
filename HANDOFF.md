@@ -23,6 +23,18 @@ Storage note for anyone testing: a library or board unlocked by `0.1.0-dev.16` o
 
 Resume: branch from `main`, keep one bounded slice per pull request, stage named files, run the four checks above before every commit, and add a dated section here with exact source, tests and limits. Do not infer provider authority, private runtime state or deployment permission from this handoff; any operator-run preview is documented outside this repository.
 
+## Lock in every tab — 2026-11-27
+
+Version `0.1.0-rc.4.dev.89`. Asked for by the owner: “Add a control that locks the library in every tab”. It removes the second known gap of the section below.
+
+- Source, `browser/memory.mjs`: `forgetTabs` removes this tab's secret, every `tab-key:` record and the dev.87 `tab-key` record; nothing else.
+- Source, `browser/memory-ui.mjs`: the Lock button's work moved into `lockHere`. `#library-lock-all` (shown only for a passphrase library, open or locked in this tab) calls `lockHere` when open, `vault.forgetTabs()`, then posts the word `lock` on `BroadcastChannel('pea-library-lock-v1')`. A tab that hears it runs `lockWhenAsked`: it waits out a reply, save or import under way (retrying every 500 ms), closes an open passphrase window, then `lockHere` with its own notice, or only forgets its secret when already locked. No other message is acted on.
+- `browser/index.html`: the button, and one clause in the keep box's note. `browser/styles.css`: `#library-storage` and `#library-lock-all` take the button shape used in settings and tool windows.
+- No change to the saved library record, the gateways or the contract.
+- Tests: `browser/tests/memory.test.mjs` (the several-tabs test extended: every copy and the asking tab's secret go, other records stay, another tab's secret then opens nothing, the passphrase still opens the library, harmless with nothing kept). `browser/tests/dom/router-key.test.mjs` (the kept-library test extended: hidden with no passphrase library; pressed in one of two unlocked tabs both lock with no reload, each with its notice, no copy or secret is left, the library record stays, reloads stay locked; pressed from a locked tab the other still locks).
+- Known gaps: tabs in another browser or profile are not reached. Without `BroadcastChannel` the other tabs lock only at their next reload, and the notice says so; that path has no test. A tab that is busy stays open until its reply or save ends. A tab the browser has frozen or discarded hears nothing but has no copy left to reopen with. The button's look was not checked in a browser. Not tried in the owner's browsers or on a phone.
+- Next action: owner unlocks two tabs with the box ticked, presses Lock in every tab in one, and says whether the other locks at once.
+
 ## More than one tab keeps the library unlocked — 2026-11-27
 
 Version `0.1.0-rc.4.dev.88`. Asked for by the owner: “Let more than one tab keep the library unlocked”. It removes the first known gap of the section below.
@@ -31,7 +43,7 @@ Version `0.1.0-rc.4.dev.88`. Asked for by the owner: “Let more than one tab ke
 - The single `tab-key` record written by dev.87 is read once by the tab holding its secret, moved under that tab's name and deleted; Lock in such a tab removes it.
 - No change to the interface code, the saved library record, the gateways or the contract. `browser/index.html`: one sentence added to the box's note.
 - Tests: `browser/tests/memory.test.mjs` (one new: two tabs reopen in any order, one tab's secret does not open another's copy, re-ticking replaces only that tab's, Lock and an unticked unlock end only their own, the cap of eight, clearing copies that fit nothing, the dev.87 record; the earlier test now shows a wrong secret leaving the first tab's copy alone and a refusing session storage leaving no copy). `browser/tests/dom/router-key.test.mjs` (the kept-library test extended: a second tab on the same browser ticks the box, both reopen after reloads, Lock in the second leaves the first).
-- Known gaps: a copy whose tab was closed stays, unusable, until the cap of eight pushes it out. Lock ends it in one tab; no control ends it in every tab at once. Two tabs editing the same library still meet the save conflict rule. Not tried in the owner's browsers or on a phone.
+- Known gaps: a copy whose tab was closed stays, unusable, until the cap of eight pushes it out. Lock ends it in one tab; ending it in every tab at once came in dev.89, above. Two tabs editing the same library still meet the save conflict rule. Not tried in the owner's browsers or on a phone.
 - Next action: owner ticks the box in two tabs, reloads both, and says whether both reopen.
 
 ## Passphrase library kept unlocked for the open tab — 2026-11-27

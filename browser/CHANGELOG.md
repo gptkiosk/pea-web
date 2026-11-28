@@ -2,6 +2,16 @@
 
 Notable user-facing changes. Versions follow semantic versioning; dated entries use Added, Changed and Fixed sections. Development builds are not published releases. The native iOS product has its own release process.
 
+## [0.1.0-rc.4.dev.89] - 2026-11-27
+
+### Added
+
+- **Lock in every tab.** Beside the library's Lock button, under Past chats & memory, a passphrase library has a new button, **Lock in every tab**. It locks the library in the tab you press it in, tells every other open PEA tab of the same browser to lock at once, and removes every copy of the key kept by **Keep it unlocked in this tab, across reloads**, so each tab asks for the passphrase again. A tab in the middle of a reply or a save locks when that finishes. It works from a tab that is itself locked. Tabs in another browser or browser profile have their own storage and are not reached. The saved library, its passphrase and keys sealed in it are untouched.
+
+### Changed
+
+- The library's Lock button and the new one have a button shape instead of looking like a link.
+
 ## [0.1.0-rc.4.dev.88] - 2026-11-27
 
 ### Changed

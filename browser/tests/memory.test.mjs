@@ -783,6 +783,24 @@ test('several tabs can each keep the library unlocked, and each ends only its ow
   assert.equal(copies().length, 8);
   assert(!storage.named.has('tab-key:' + '0'.repeat(32)) && !storage.named.has('tab-key:' + '1'.repeat(32)));
 
+  // Locking every tab removes every copy and the asking tab's secret; each other tab's secret
+  // then opens nothing and is forgotten when tried. The library itself is untouched.
+  const asking = new ConversationVault(storage, tabs[9]);
+  storage.named.set('tab-key', storage.named.get(copies()[0]));
+  storage.named.set('secret:openrouter:personal', 'kept');
+  await asking.forgetTabs();
+  assert.equal(copies().length, 0);
+  assert(!storage.named.has('tab-key'));
+  assert(storage.named.has('secret:openrouter:personal'), 'nothing else is removed');
+  assert.equal(tabs[9].data.size, 0);
+  assert.equal(tabs[8].data.size, 1);
+  assert.equal((await open(tabs[8]))[1], null);
+  assert.equal(tabs[8].data.size, 0);
+  assert.deepEqual(await new ConversationVault(storage, tabStore()).unlock(pass), s.library);
+  storage.named.delete('secret:openrouter:personal');
+  // With no copies and no session storage it is harmless.
+  await new ConversationVault(storage, null).forgetTabs();
+
   // The single shared copy made by 0.1.0-rc.4.dev.87 still opens once, then becomes that tab's own.
   const aged = store(),
     agedTab = tabStore(),

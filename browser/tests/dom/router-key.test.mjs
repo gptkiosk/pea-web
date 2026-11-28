@@ -396,6 +396,9 @@ test(
     await answerRouter(page, () => accepted);
     await start(page);
 
+    // With no passphrase library there is nothing to lock, so the control is not shown.
+    assert.equal(await page.evaluate(`document.getElementById('library-lock-all').hidden`), true);
+
     // Not ticked: a passphrase library is locked after a reload, and nothing is kept for the tab.
     await unlock(page, { keep: false });
     assert.equal(await session(page), '{}');
@@ -454,6 +457,42 @@ test(
     await other.waitFor(libraryOpen, 'the second tab opens by itself');
     await other.waitFor(connected, 'the kept key to reconnect in the second tab');
     assert.equal(await other.evaluate(`document.getElementById('library-unlock').open`), false);
+
+    // Lock in every tab, pressed in the first: both lock at once, with no reload, every kept copy
+    // goes, and a reload of either asks for the passphrase. The saved library is untouched.
+    const locked = `document.getElementById('router-remember').disabled`;
+    assert.equal(await page.evaluate(`document.getElementById('library-lock-all').hidden`), false);
+    await show(page);
+    await page.click('#library-lock-all');
+    await page.waitFor(locked, 'the first tab to lock');
+    await page.waitFor(libraryNoted('every other tab'), 'the notice');
+    await other.waitFor(locked, 'the second tab to lock without a reload');
+    await other.waitFor(libraryNoted('locked from another tab'), 'the second tab’s notice');
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') === null`, 'the second tab’s secret to go');
+    assert.equal(await session(page), '{}');
+    assert.equal(await copies(page), 0);
+    assert((await stored(page)).keys.includes('library'));
+    for (const tab of [page, other]) {
+      await show(tab);
+      await start(tab);
+      await settle(tab);
+      assert.equal(await tab.evaluate(libraryOpen), false, 'locked after a reload');
+    }
+    // Pressed while this tab is already locked, it still locks the other.
+    await unlock(other, { keep: true });
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'the second tab’s secret again');
+    await show(page);
+    assert.equal(await page.evaluate(libraryOpen), false);
+    await page.click('#library-lock-all');
+    await other.waitFor(locked, 'the second tab to lock from a locked tab');
+    assert.equal(await copies(page), 0);
+    // Both tabs keep it again for the rest of the test.
+    await unlock(page, { keep: true });
+    await page.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'the first tab’s secret again');
+    await show(other);
+    await unlock(other, { keep: true });
+    await other.waitFor(`sessionStorage.getItem('pea-library-tab-v1') !== null`, 'the second tab’s secret once more');
+    assert.equal(await copies(other), 2);
 
     // Lock in the second tab ends it there only.
     await other.click('#library-storage');
